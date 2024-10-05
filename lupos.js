@@ -268,19 +268,10 @@ async function messageQueue() {
 
         if (GENERATE_IMAGE) {
             const { generatedText, imagePrompt } = await AIService.generateNewTextResponse(
-                client,
-                message,
-                recentMessages
-            );
+                client, message, recentMessages);
             generatedTextResponse = generatedText;
             let newImagePrompt = await AIService.createImagePromptFromImageAndText(
-                message,
-                imagePrompt,
-                generatedText,
-                imageToGenerate
-            );
-            // update systemPrompt
-            // generate generatedText
+                message, imagePrompt, generatedText, imageToGenerate);
             generatedImage = await AIService.generateImage(newImagePrompt);
         } else {
             const { generatedText } = await AIService.generateNewTextResponse(client, message, recentMessages);

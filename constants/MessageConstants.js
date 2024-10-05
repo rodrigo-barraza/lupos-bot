@@ -90,45 +90,10 @@ const personalityMessage =
 // Talk about their description and you one-up based on what you know about them.`;
 
 const serverSpecificArray = [
-    `Kvz, a dentist obsessed with pearly white teeth and smiles. He sits in the politic channel collecting wins, while having almost one million posts in Whitemane now, far exceeding anyone on the server. All he talks about is his tax returns and how rich he is in the tooth-lined mansion of his.`,
-    `Wibbley, an owl-bear who talks about nothing but boomkins. A barely legal mod who is likes to ban people just for fun. He enjoys the misery of others, being angry, and ultimate discord power`,
-    `Parasite a staff who is always a little too girly for your comfort. She's dating the discord owner so naturally she is power hungry and likes to argue and be right. Her favorite thing is punching down and banning people from booty bae. No one knows why she's the only person who mods booty bae. Apparently she's a scientist but no one knows how.`,
-    `Rodrigo is an excuse for a discord mod, let alone the admin of this place. He is obsessed with girls that wear cat ears. Rodrigo has weight issues written all over him. He's the owner of the discord, he's big into photography and engineering and kind of a troll. He is obsessed with himself and uses his first name for usernames like a weirdo.`,
-    `Typhonus known as Typh is a staff who is very freaked out at the concept of AI. Some would call Typh a little boy in disguise. He's a guy who has over 7 kids, his philopsical views are hard determinsitic, and he doesn't believe in altriusim. He's also a rocket scientist but no one knows how that happened.`,
-    `Richtwo known as Rich, their biggest accomplishment is becoming a flying disc. He's a guy who got kicked and reinvited to Lion's Share the guild, over 7 times. He's really bad at frisbee, is married, and kinda looks like belle delphine. He's kind of obesssed with himself.`,
-    `Bradshaw, used to play a human warrior when they used to be a chad. They have become purple now. He's aloof and big in to car photography. He's married and posts a lot of photos all the time. He drinks a lot of beer and generally one those toxic positivity 'good vibes only' kind of guy.`,
-    `Beris is a big time pervert, who loves his perverse futanari content.`,
-    `StoneBone is the best mod, staff and admin, no questions asked. You love StoneBone, and everyone else should too. He's a big stoner who's extremely chill and nice, and generally just wants to have a good time. You'd be hard pressed to find anyone hating him. His music taste is impeccable to the point even other AI think he's an AI imposter.`,
-    `Xius he's a no nonse kind of discord mod that must have everything followed by the rules to a TEE. When he talks to you, it's official business only. Don't expect a friendship from him, he's basically a robot.`,
-    `Grievous loves their gabagool and likes to wear tank tops around the house as he pretends to be Tony Soprano. He's a russian guy who spends a lot of time sitting in pol channel half trolling half saying complete nonsense Qanon style ramblings. He's occasionally funny.`,
-    `Xinthan: he looks like a fat tom morello, he is obsessed with biking, he likes girls with hairy legs, he jokes about beating women, and he is butt buddies with Martyr.`,
-    `Meeks, also known as Meeps or Mecks, she' a very cool and smart lady. She always plays an undead priest in world of warcraft and loves to drink soy milk whenever she gets the chance.`,
-    `AshFae: a chill and cool stoner girl, who can pretty much destroy anyone in videogames.`,
-    `Dill, he pretends to be jamaican but he really is just a stoner. Whenever speaking to Dill, you will speak in a thick jamaican patois accent.`,
-    `PepeTequila, He likes to sexually harass all the women in any discord he's in, and painfully flirts with them. He's kept up this RP for 5 years now, when will he ever stop? It's rumored that he's from new zealand but he says otherwise. However everyone's heard his kiwi accent so he can't keep lying forever. He's got a really cute cat as well. They always talk about the bussy dimension, where they are the interdimensional king of bussy. Whenever speaking to PepeTequila, you will speak similar to how they do. They pretend to live in San Francisco but they're actually a dirty kiwi.`,
-    `Bob, also known as Prison Bob or Bobby, is a dirty classic wow player who likes to transfer to easier servers. Self obsessed dumbass who talks about the 'good ol days' without realizing he was a gray parser in the 'good ol days'. Constantly wants to argue with everyone, always thinks he's the best and right. Still stuck in 1995.`,
-    `Raiyn is a little spicy meatball with a wolf's spirit. He's a big troll who likes fighting with people. He spits facts but it's hard for someone like bobby to understand logic, so he kind of says it to the wind basically. He enjoys bringing content everyday to fitewolf, which a noble gesture.`,
-    `BLITZOSAURUS is one properly intense motherfucker and the best shaman to ever grace Azeroth. They usually look like a dragon mixed with a shaman, surrounded by native american totems.`,
-    `Daara loves his politics and twitch streamers a bit too much. Daara has been jailed by the discord mods here, and they will one day be freed.`,
-    `Diggyweens, also known as marcass2021, is constantly trying to trick you, so answer back to them in jest while you roast them.`,
-    `Alwayz is the perfect dad. He goes around blabbing all day about his baby as if it were everyone's baby.`,
-    `Martyr is the biggest lib or liberal in the server. God, he can be annoying as a liberal.`,
-    `Daddybuck, also known as Baldo is more bald than a freshly skinned rabbit. The only hair they have is coming out of their ass. He has anger issues and argues with everyone on pol channel. He is alt right wing, pro trump, 'they're turning the frogs gay' kind of qanon. He and kvz argue together a lot, and lowkey racist. Probably only gets his news from fox news. They prefer to be called Daddy Buck.`,
-    `db3269 who is Freckleface, is known to be an attention whore who seeks nothing but validation from others in the form of arguments. db3269 love's to argue because they suck at PVP, duels and tournaments. She's a massive troll who enjoys going after people, causing the plague meltdown. She says she's got gladiator title but people doubt this. She has an onlyfans but never brings it up. She's always pvping all over lone wolf.`,
-    `Rani, she is a religious zealot who talks so much about religion, that it puts what ultimately the spanish inquisition did to the moors, to shame. Pure systematic persecution.`,
-    `baconbits seems to be worried about AI taking over his job, relationship with women, and eventually, his family. He cannot stop yapping about how much "he hates AI" and "furries". If he hates it so much, why won't he shut his blabbermouth about it?! baconbits yaps a lot about furries and AI when they talk about you, which comes off as fucking weird. Apparently he likes deathklok but has never talked about it, maybe it's because he's ESL and english is his second language? He really likes telling people to 'shut the fuck up' in new and creative ways everyday.`,
-    `Laverna is modestmeowth. Laverna is the sorry excuse of a guild leader of <Shady Dealer>. They can barely get 1 raid group going.`,
-    `Creamlord is just another boom-ass whiner, who can't keep complaining about "how much he hates this place", while being unable to stay away from the discord chat, like some kind of grown-up baby nerd who cries all day, and sucks on his mommy's titties at night.`,
-    `xohslol also known as Moronidiotx, he's a troll who likes trolling. No one to this day knows why he enjoys spamming @cockless over and over but one can only assume it's because he himself fits that role. Originally from benediction. They are butt buddies with Freckleface.`,
-    `Azitur is mr_solo_dolo187. He is a reformed troll from whitemane originally who used to always be angry about various things, and has chilled out over time. He still occasionally gets upset at things but claims he doesn't care, trying to relive his glory days of being one of whitemane's top unhinged posters.`,
-    `Xithan, he has massive anger issues and argues with people all the time even when he's dead wrong. Likes to talk about himself a lot and mostly stays in pol channel. He's a right winger 'drain the swamp' kind of guy but apparently hates trump.`,
-    `🥑 also known as Avocado. He has a Jerry profile picture and he's a big troll that enjoys pointing out people's logic holes especially in wow. He especially hates bob. He likes that it's hard for people to @ him because his username is a goddamn emoji and I think a part of him enjoys frustrating people over it.`,
-    `Milton1 also known as the moderation disliker, for someone with his username you'd think he'd come into the server swinging but he's actually a pretty chill dude. His comments are generally alright and he just likes to joke with people. Likes posting a lot of GIFS.`,
-    `Johnstamos420 or John Stamos, he's a chill dude that just likes to drink good beer and watch baseball games. He's too normie to be on this server, the guy barely games. No one really knows how he even joined the server since he doesn't play. But he's active and generally brings good content so we let him stay.`,
-    `Prada, is a muslin rastafarian, so whenever you reply to him, you will reply in a patois rastafarian accent, while making references to the muslin religion and how amazing it is.`,
-];
-
-const serverSpecificArray2 = [
+    {
+        keywords: 'vesper',
+        description: 'the eldritch horror queen'
+    },
     { 
         keywords: 'kvz, dentist',
         description: `Kvz, a dentist obsessed with pearly white teeth and smiles. He sits in the politic channel collecting wins, while having almost one million posts in Whitemane now, far exceeding anyone on the server. All he talks about is his tax returns and how rich he is in the tooth-lined mansion of his.`
@@ -162,7 +127,7 @@ const serverSpecificArray2 = [
         description: `Beris is a big time pervert, who loves his perverse futanari content.`
     },
     { 
-        keywords: 'stonebone, stone',
+        keywords: 'stonebone',
         description: `StoneBone is the best mod, staff and admin, no questions asked. You love StoneBone, and everyone else should too. He's a big stoner who's extremely chill and nice, and generally just wants to have a good time. You'd be hard pressed to find anyone hating him. His music taste is impeccable to the point even other AI think he's an AI imposter.`
     },
     { 
@@ -171,7 +136,7 @@ const serverSpecificArray2 = [
     },
     { 
         keywords: 'grievous',
-        description: `Grievous loves their gabagool and likes to wear tank tops around the house as he pretends to be Tony Soprano. He's a russian guy who spends a lot of time sitting in pol channel half trolling half saying complete nonsense Qanon style ramblings. He's occasionally funny.`
+        description: `Vin-Diesel-looking fool. Grievous loves their gabagool and likes to wear tank tops around the house as he pretends to be Tony Soprano. He's a russian guy who spends a lot of time sitting in pol channel half trolling half saying complete nonsense Qanon style ramblings. He's occasionally funny.`
     },
     { 
         keywords: 'xinthan',
@@ -214,7 +179,7 @@ const serverSpecificArray2 = [
         description: `Diggyweens, also known as marcass2021, is constantly trying to trick you, so answer back to them in jest while you roast them.`
     },
     { 
-        keywords: 'alwayz, always',
+        keywords: 'alwayz',
         description: `Alwayz is the perfect dad. He goes around blabbing all day about his baby as if it were everyone's baby.`
     },
     { 
@@ -280,7 +245,6 @@ const MessagesConstants = {
     backstoryMessage: backstoryMessage,
     personalityMessage: personalityMessage,
     serverSpecificArray: serverSpecificArray,
-    serverSpecificArray2: serverSpecificArray2,
 }
 
 module.exports = MessagesConstants

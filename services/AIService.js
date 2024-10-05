@@ -297,7 +297,7 @@ const AIService = {
 
             const clientMentionedOnce = mentions.filter(mention => mention === `<@${client.user.id}>`).length === 1;
 
-            const commonWords = ["the", "be", "to", "of", "and", "a", "in", "that", "have", "I", "it", "for", "not", "on", "with", "he", "as", "you", "do", "at", "this", "but", "his", "by", "from", "they", "we", "say", "her", "she", "or", "an", "will", "my", "one", "all", "would", "there", "their", "what", "so", "up", "out", "if", "about", "who", "get", "which", "go", "me", "when", "make", "can", "like", "time", "no", "just", "him", "know", "take", "people", "into", "year", "your", "good", "some", "could", "them", "see", "other", "than", "then", "now", "look", "only", "come", "its", "over", "think", "also", "back", "after", "use", "two", "how", "our", "work", "first", "well", "way", "even", "new", "want", "because", "any", "these", "give", "day", "most", "us", "is", "am", "are", "has", "was", "were", "being", "been", "have", "do", "does", "did", "doing", "a", "an", "the", "and", "but", "if", "or", "because", "as", "until", "while", "of", "at", "by", "for", "with", "about", "against", "between", "into", "through", "during", "before", "after", "above", "below", "to", "from", "up", "down", "in", "out", "on", "off", "over", "under", "again", "further", "then", "once", "here", "there", "when", "where", "why", "how", "all", "any", "both", "each", "few", "more", "most", "other", "some", "such", "no", "nor", "not", "only", "own", "same", "so", "than", "too", "very", "s", "t", "can", "will", "just", "don", "should", "now", "ll", "re", "ve", "y", "ain", "as", "that", "this", "these", "those", "myself", "ourselves", "you", "yourself", "yourselves", "himself", "herself", "itself", "themselves", "what", "which", "who", "whom", "this", "that", "these", "those", "are", "was", "were", "be", "been", "being", "have", "has", "had", "having", "do", "does", "did", "doing", "will", "would", "should", "can", "could", "ought", "i", "you", "he", "she", "it", "we", "they", "me", "you", "him", "her", "it", "us", "them", "my", "your", "his", "her", "its", "our", "their", "mine", "yours", "his", "hers", "ours", "theirs", "my", "your", "his", "her", "its", "our", "their", "and", "because", "but", "or", "for", "so", "like"];
+            const commonWords = ["the", "be", "to", "of", "and", "a", "in", "that", "have", "I", "it", "for", "not", "on", "with", "he", "as", "you", "do", "at", "this", "but", "his", "by", "from", "they", "we", "say", "her", "she", "or", "an", "will", "my", "one", "all", "would", "there", "their", "what", "so", "up", "out", "if", "about", "who", "get", "which", "go", "me", "when", "make", "can", "like", "time", "no", "just", "him", "know", "take", "people", "into", "year", "your", "good", "some", "could", "them", "see", "other", "than", "then", "now", "look", "only", "come", "its", "over", "think", "also", "back", "after", "use", "two", "how", "our", "work", "first", "well", "way", "even", "new", "want", "because", "any", "these", "give", "day", "most", "us", "is", "am", "are", "has", "was", "were", "being", "been", "have", "do", "does", "did", "doing", "a", "an", "the", "and", "but", "if", "or", "because", "as", "until", "while", "of", "at", "by", "for", "with", "about", "against", "between", "into", "through", "during", "before", "after", "above", "below", "to", "from", "up", "down", "in", "out", "on", "off", "over", "under", "again", "further", "then", "once", "here", "there", "when", "where", "why", "how", "all", "any", "both", "each", "few", "more", "most", "other", "some", "such", "no", "nor", "not", "only", "own", "same", "so", "than", "too", "very", "s", "t", "can", "will", "just", "don", "should", "now", "as", "that", "this", "these", "those", "myself", "ourselves", "you", "yourself", "yourselves", "himself", "herself", "itself", "themselves", "what", "which", "who", "whom", "this", "that", "these", "those", "are", "was", "were", "be", "been", "being", "have", "has", "had", "having", "do", "does", "did", "doing", "will", "would", "should", "can", "could", "ought", "i", "you", "he", "she", "it", "we", "they", "me", "you", "him", "her", "it", "us", "them", "my", "your", "his", "her", "its", "our", "their", "mine", "yours", "his", "hers", "ours", "theirs", "my", "your", "his", "her", "its", "our", "their", "and", "because", "but", "or", "for", "so", "like"];
         
             if (repliedMessage) {
                 const reply = {
@@ -372,28 +372,27 @@ const AIService = {
                     }
                     if (discordUsername) {
                         const pattern = new RegExp(`\\b${discordUsername}\\b`, 'i');
-                        const filteredDescriptions = customDescriptions.filter(description => pattern.test(description));
+                        const filteredDescriptions = customDescriptions.filter(description => pattern.test(description.keywords));
                         if (filteredDescriptions.length >= 1) {
                             filteredDescriptions.forEach((description) => {
-                                mentionedNameDescriptions.push( {word: discordUsername, description: description} );
+                                mentionedNameDescriptions.push( {word: discordUsername, description: description.description} );
+                            });
+                        }
+                    }
+                } else {
+                    // remove all special characters from word
+                    const cleanedWord = word.replace(/[^a-zA-Z0-9]/g, '');
+                    if (cleanedWord && !commonWords.includes(cleanedWord)) {
+                        const pattern = new RegExp('\\b' + cleanedWord + '\\b', 'i');
+                        const filteredDescriptions = customDescriptions.filter(description => pattern.test(description.keywords));
+                        if (filteredDescriptions.length >= 1) {
+                            filteredDescriptions.forEach((description) => {
+                                mentionedNameDescriptions.push( {word: cleanedWord, description: description.description} );
                             });
                         }
                     }
                 }
-
-                // remove all special characters from word
-                const cleanedWord = word.replace(/[^a-zA-Z0-9]/g, '');
-                if (cleanedWord && !commonWords.includes(cleanedWord)) {
-                    const pattern = new RegExp('\\b' + cleanedWord + '\\b', 'i');
-                    const filteredDescriptions = customDescriptions.filter(description => pattern.test(description));
-                    if (filteredDescriptions.length >= 1) {
-                        filteredDescriptions.forEach((description) => {
-                            mentionedNameDescriptions.push( {word: cleanedWord, description: description} );
-                        });
-                    }
-                }
             }
-            
 
             async function createImagesAttached(images, message) {
                 if (images.length > 0) {
@@ -701,7 +700,7 @@ const AIService = {
                 role: 'system',
                 content: `You are given two prompts; an image and text prompt. Always combine both prompts into a single cohesive image description, while keeping the all details of both. Do not omit any details from either prompt, as this is the answer to the user's question. You will also make sure to answer any questions that are asked in the text prompt.
 
-                The description should be detailed, creative, and what you would see in an art gallery.
+                The description should be detailed, creative, and a museum-quality art label description.
 
                 The description should include concise text in quotes that fits the theme of the image, and the text prompt. The text should be in quotes and should be a part of the image description.
 
