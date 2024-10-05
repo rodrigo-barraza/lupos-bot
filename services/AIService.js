@@ -196,18 +196,29 @@ const AIService = {
                 content: systemPrompt
             });
 
-            recentMessages.forEach((msg, index) => {
-                if (msg.author.id === client.user.id) {
+            recentMessages.forEach((recentMessage, index) => {
+                if (recentMessage.author.id === client.user.id) {
                     conversation.push({
                         role: 'assistant',
-                        name: UtilityLibrary.getUsernameNoSpaces(msg),
-                        content: msg.content,
+                        name: UtilityLibrary.getUsernameNoSpaces(recentMessage),
+                        content: recentMessage.content,
                     });
                 } else {
+                    const authorName = `${recentMessage.author.displayName ? UtilityLibrary.capitalize(recentMessage.author.displayName) : UtilityLibrary.capitalize(recentMessage.author.username)}`;
+
+                    // Replace mentions with names
+                    recentMessage.content = recentMessage.content.replace(/<@!?\d+>/g, (match) => {
+                        const id = match.replace(/<@!?/, '').replace('>', '');
+                        return UtilityLibrary.findUserById(client, id);
+                    });
+
+
+                    const modifiedMessage = `${index === recentMessages.length - 1 ? message.content : recentMessage.content}`;
+                    const modifiedContent = `${authorName}: ${modifiedMessage}`
                     conversation.push({
                         role: 'user',
-                        name: UtilityLibrary.getUsernameNoSpaces(msg),
-                        content: `${msg.author.displayName ? UtilityLibrary.capitalize(msg.author.displayName) : UtilityLibrary.capitalize(msg.author.username)} said ${index === recentMessages.length - 1 ? message.content : msg.content}:`
+                        name: UtilityLibrary.getUsernameNoSpaces(recentMessage),
+                        content: modifiedContent
                     })
                 }
             })
@@ -256,21 +267,16 @@ const AIService = {
             const conversation = [
                 {
                     role: 'system',
-                    content: `
-                        You are an expert at giving detailed summaries of what is said to you.
-                        You will go through the messages that are sent to you, and give a detailed summary of what is said to you.
-                        You will describe the messages that are sent to you as detailed and creative as possible.
-                        The messages that are sent are what ${DiscordWrapper.getNameFromItem(recentMessage)} has been talking about.
+                    content: `You are an expert at giving detailed summaries of what is said to you.\nYou will go through the messages that are sent to you, and give a detailed summary of what is said to you.\nYou will describe the messages that are sent to you as detailed and creative as possible.\nThe messages that are sent are what ${DiscordWrapper.getNameFromItem(recentMessage)} has been talking about.
                     `
                 },
                 {
                     role: 'user',
                     name: UtilityLibrary.getUsernameNoSpaces(message),
-                    content: ` Here are the last recent messages by ${DiscordWrapper.getNameFromItem(recentMessage)} in this channel, and is what they have been talking about:
-                    ${userMessagesAsText}`,
+                    content: `Here are the last recent messages by ${DiscordWrapper.getNameFromItem(recentMessage)} in this channel, and is what they have been talking about:\n${userMessagesAsText}`,
                 }
             ];
-            const generateText = await AIService.generateText({ conversation, type: 'OPENAI', performance: 'FAST' });
+            const generateText = await AIService.generateText({ conversation, type: LANGUAGE_MODEL_TYPE, performance: 'FAST' });
             return generateText;
         }
         async function checkCurrentMessage(client, message) {
@@ -626,15 +632,17 @@ const AIService = {
                     systemPrompt += `\n${primaryParticipant.name}'s last message sent at: ${luxon.DateTime.fromMillis(primaryParticipant.time).setZone('local').toFormat('LLLL dd, yyyy \'at\' hh:mm:ss a')}`;
                 }
 
-                systemPrompt += '\n## Secondary participants and the people who are also in the chat';
-                participantUsers.forEach((participant, index) => {
-                    if (participant.id === message.author.id) return;
-                    systemPrompt += `\nParticipant ${index + 1}: ${participant.name}`;
-                    systemPrompt += `\n${participant.name}'s Discord user ID tag: <@${participant.id}>`;
-                    systemPrompt += `\n${participant.name}'s roles: ${participant.roles}`;
-                    systemPrompt += `\n${participant.name}'s conversation: ${participant.conversation}`;
-                    systemPrompt += `\n${participant.name}'s last message sent at: ${luxon.DateTime.fromMillis(participant.time).setZone('local').toFormat('LLLL dd, yyyy \'at\' hh:mm:ss a')}`;
-                });
+                if (participantUsers.length > 2) {
+                    systemPrompt += '\n## Secondary participants and the people who are also in the chat';
+                    participantUsers.forEach((participant, index) => {
+                        if (participant.id === message.author.id) return;
+                        systemPrompt += `\nParticipant ${index + 1}: ${participant.name}`;
+                        systemPrompt += `\n${participant.name}'s Discord user ID tag: <@${participant.id}>`;
+                        systemPrompt += `\n${participant.name}'s roles: ${participant.roles}`;
+                        systemPrompt += `\n${participant.name}'s conversation: ${participant.conversation}`;
+                        systemPrompt += `\n${participant.name}'s last message sent at: ${luxon.DateTime.fromMillis(participant.time).setZone('local').toFormat('LLLL dd, yyyy \'at\' hh:mm:ss a')}`;
+                    });
+                }
             }
             if (imagePrompt.includes(`<@${client.user.id}`)) {
                 imagePrompt = imagePrompt.replace(`<@${client.user.id}>`, '');
