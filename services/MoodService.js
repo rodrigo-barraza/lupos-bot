@@ -124,7 +124,7 @@ const MoodService = {
     instantiate() {
         const client = DiscordWrapper.getClient();
         const currentMood = moods.find(mood => mood.level === moodLevel);
-        client.user.setActivity(`Mood: ${currentMood.emoji} Neutral (${moodLevel})`, { type: ActivityType.Custom });
+        client.user.setActivity(`Don't tag me...`, { type: ActivityType.Custom });
     },
     getMoodLevel() {
         return moodLevel;

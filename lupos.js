@@ -267,12 +267,18 @@ async function messageQueue() {
         let generatedImage;
 
         if (GENERATE_IMAGE) {
-            const { generatedText, imagePrompt } = await AIService.generateNewTextResponse(
+            const { generatedText, imagePrompt, modifiedMessage, systemPrompt } = await AIService.generateNewTextResponse(
                 client, message, recentMessages);
             generatedTextResponse = generatedText;
+            
             let newImagePrompt = await AIService.createImagePromptFromImageAndText(
                 message, imagePrompt, generatedText, imageToGenerate);
             generatedImage = await AIService.generateImage(newImagePrompt);
+
+            const { generatedText: generatedText2 } = await AIService.generateNewTextResponsePart2(
+                client, message, recentMessages, modifiedMessage, systemPrompt, newImagePrompt);
+            generatedTextResponse = generatedText2;
+
         } else {
             const { generatedText } = await AIService.generateNewTextResponse(client, message, recentMessages);
             generatedTextResponse = generatedText;
@@ -285,6 +291,9 @@ async function messageQueue() {
             timerInterval.unref();
             UtilityLibrary.consoleInfo([[`═══════════════░▒▓ -MESSAGE- ▓▒░════════════════════════════════════`, { color: 'red' }, 'end']]);
             message.reply("...");
+            clearInterval(sendTypingInterval);
+            timerInterval.unref();
+            lastMessageSentTime = luxon.DateTime.now().toISO();
             return;
         }
 

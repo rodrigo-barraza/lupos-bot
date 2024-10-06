@@ -20,23 +20,55 @@ const {
     IMAGE_PROMPT_LANGUAGE_MODEL_TYPE,
     IMAGE_PROMPT_LANGUAGE_MODEL_MAX_TOKENS,
     IMAGE_PROMPT_LANGUAGE_MODEL_PERFORMANCE,
+    FAST_LANGUAGE_MODEL_LOCAL,
+    LANGUAGE_MODEL_LOCAL,
+    LANGUAGE_MODEL_ANTHROPIC,
+    FAST_LANGUAGE_MODEL_ANTHROPIC,
+    FAST_LANGUAGE_MODEL_OPENAI,
+    LANGUAGE_MODEL_OPENAI,
+    FAST_LANGUAGE_MODEL_MAX_TOKENS,
+    FAST_LANGUAGE_MODEL_TEMPERATURE,
+    LANGUAGE_MODEL_TEMPERATURE,
+    FAST_LANGUAGE_MODEL_TYPE,
+    LANGUAGE_MODEL_PERFORMANCE,
+    LANGUAGE_MODEL_MAX_TOKENS,
     VOICE_MODEL_TYPE,
+    FLAGGED_WORDS,
     DEBUG_MODE
 } = require('../config.json');
 
-async function generateText({ conversation, type=LANGUAGE_MODEL_TYPE, performance='FAST', tokens=240 }) {
+async function generateText({ 
+    conversation,
+    type=LANGUAGE_MODEL_TYPE,
+    performance=LANGUAGE_MODEL_PERFORMANCE,
+    temperature=LANGUAGE_MODEL_TEMPERATURE,
+    tokens=LANGUAGE_MODEL_MAX_TOKENS
+}) {
     let text;
     let currentTime = new Date().getTime();
     if (type === 'OPENAI') {
-        text = await OpenAIWrapper.generateText(conversation, tokens, performance);
+        const generateTextModel = performance === 'FAST' ? FAST_LANGUAGE_MODEL_OPENAI : LANGUAGE_MODEL_OPENAI;
+        text = await OpenAIWrapper.generateText(conversation, generateTextModel, tokens, temperature);
     } else if (type === 'ANTHROPIC') {
-        text = await AnthrophicWrapper.generateText(conversation, tokens, performance);
+        const generateTextModel = performance === 'FAST' ? FAST_LANGUAGE_MODEL_ANTHROPIC : LANGUAGE_MODEL_ANTHROPIC;
+        text = await AnthrophicWrapper.generateText(conversation, generateTextModel, tokens, temperature);
     } else if (type === 'LOCAL') {
-        text = await LocalAIWrapper.generateText(conversation, tokens);
+        const generateTextModel = performance === 'FAST' ? FAST_LANGUAGE_MODEL_LOCAL : LANGUAGE_MODEL_LOCAL;
+        text = await LocalAIWrapper.generateText(conversation, generateTextModel, tokens, temperature);
     }
     let timeTakenInSeconds = (new Date().getTime() - currentTime) / 1000;
     UtilityLibrary.consoleInfo([[`🤖 [generateText] Type:${type}, Performance: ${performance}, Time: ${timeTakenInSeconds}`, { color: 'magenta' }, 'middle']]);
     return text;
+}
+
+async function generateEmbedding(text, type=LANGUAGE_MODEL_TYPE) {
+    let embedding;
+    if (type === 'OPENAI') {
+        embedding = await OpenAIWrapper.generateEmbedding(text);
+    } else if (type === 'LOCAL') {
+        embedding = await LocalAIWrapper.generateEmbedding(text);
+    }
+    return embedding;
 }
 
 async function generateImage(text, type='FLUX') {
@@ -67,81 +99,6 @@ async function generateVoice(text) {
     return { filename, buffer };
 }
 
-async function generateNewsSummary(message, text) {
-    let conversation = [
-        {
-            role: 'system',
-            content: `Summarize the following news articles.
-            For any repeated or related news, combine them, while keeping sources.
-            
-            Output format:
-            ## {article title}
-            - Description: {article name}
-            ### Sources:
-            - {article source1}
-            -  {article source2}
-            - ...`
-        },
-        {
-            role: 'user',
-            name: UtilityLibrary.getUsernameNoSpaces(message),
-            content: text,
-        }
-    ]
-    
-    const response = await generateText({ conversation, type: 'OPENAI', performance: 'FAST', tokens: 1200 })
-    // UtilityLibrary.consoleInfo([[`💡 News: `, { }], [response, { }, 'middle']]);
-    return response;
-}
-
-async function generateTopicAtHand(message, text) {
-    let conversation = [
-        {
-            role: 'system',
-            content: `
-            # Role
-            Return the topic that is being talked about.
-            Do not explain, just return the topic that is mentioned as concisely as possible, while being accurate.
-            `
-        },
-        {
-            role: 'user',
-            name: UtilityLibrary.getUsernameNoSpaces(message),
-            content: text,
-        }
-    ]
-    
-    const response = await generateText({ conversation, type: 'OPENAI', performance: 'FAST', tokens: 256 })
-    UtilityLibrary.consoleInfo([[`💡 Topic: `, { }], [response, { }, 'middle']]);
-    return response;
-}
-
-async function generateNotCapableResponseCheck(message, text) {
-    let yesOrNo;
-    let conversation = [
-        {
-            role: 'system',
-            content: `You will only answer with a yes or no.
-            Do not type anything else besides yes or no.
-            If the message contains text indicating that it cannot assist, answer with no.
-            If you can assist, answer with yes.`
-        },
-        {
-            role: 'user',
-            name: UtilityLibrary.getUsernameNoSpaces(message),
-            content: `Does this message indicate that you can't assist?: ${text}`,
-        }
-    ]
-    
-    const response = await generateText({ conversation, type: 'OPENAI', performance: 'POWERFUL', tokens: 256 })
-    if (response.toLowerCase().includes('yes')) {
-        yesOrNo = 'yes';
-    } else {
-        yesOrNo = 'no';
-    }
-    return yesOrNo;
-}
-
 
 function assembleConversation(systemMessage, userMessage, message) {
     let conversation = [
@@ -158,73 +115,82 @@ function assembleConversation(systemMessage, userMessage, message) {
     return conversation;
 }
 
-// async function generateResponseFromCustomConversation(conversation, type = LANGUAGE_MODEL_TYPE, performance = 'POWERFUL', tokens = 360) {
-//     return await generateText({ conversation, type, performance, tokens });
-// }
 
-// async function generateImageRaw(text) {
-//     DiscordWrapper.setActivity(`🎨 Drawing for ${DiscordWrapper.getNameFromItem(message)}...`);
-//     UtilityLibrary.consoleInfo([[`📝 Image: `, { }], [{ prompt: text }, { }, 'middle']]);
-//     return await ComfyUIWrapper.generateImage(text);
-// }
+async function generateNewConversation(client, message, systemPrompt, recentMessages) {
+    let conversation = [];
+    conversation.push({
+        role: 'system',
+        content: systemPrompt
+    });
+
+    recentMessages.forEach((recentMessage, index) => {
+        if (recentMessage.author.id === client.user.id) {
+            conversation.push({
+                role: 'assistant',
+                name: UtilityLibrary.getUsernameNoSpaces(recentMessage),
+                content: recentMessage.content,
+            });
+        } else {
+            const authorName = `${recentMessage.author.displayName ? UtilityLibrary.capitalize(recentMessage.author.displayName) : UtilityLibrary.capitalize(recentMessage.author.username)}`;
+            const messageSentAt = moment(recentMessage.createdTimestamp).format('MMMM Do YYYY, h:mm:ss a');
+            const messageSentAtRelative = moment(recentMessage.createdTimestamp).fromNow();
+
+            // Replace mentions with names
+            recentMessage.content = recentMessage.content.replace(/<@!?\d+>/g, (match) => {
+                const id = match.replace(/<@!?/, '').replace('>', '');
+                return UtilityLibrary.findUserById(client, id);
+            });
+
+
+            const modifiedMessage = `${index === recentMessages.length - 1 ? message.content : recentMessage.content}`;
+            const modifiedContent = `${authorName}: ${modifiedMessage}`;
+            // const modifiedContent = `${authorName}: ${modifiedMessage}\n\nSent at: ${messageSentAt} (${messageSentAtRelative})`;
+            conversation.push({
+                role: 'user',
+                name: UtilityLibrary.getUsernameNoSpaces(recentMessage),
+                content: modifiedContent
+            })
+        }
+    })
+    
+    return conversation;
+}
+
+
+function removeMentions(text) {
+    return text
+    .replace(/@here/g, '꩜here')
+    .replace(/@everyone/g, '꩜everyone')
+    .replace(/@horde/g, '꩜horde')
+    .replace(/@alliance/g, '꩜alliance')
+    .replace(/@alliance/g, '꩜alliance')
+    .replace(/@Guild Leader - Horde/g, '꩜Guild Leader - Horde')
+    .replace(/@Guild Leader - Alliance/g, '꩜Guild Leader - Alliance')
+    .replace(/@Guild Officer - Horde/g, '꩜Guild Officer - Horde')
+    .replace(/@Guild Officer - Alliance/g, '꩜Guild Officer - Alliance')
+}
+
+function removeFlaggedWords(text) {
+    let modifiedText = text;
+    const flaggedWordsArray = FLAGGED_WORDS.split(", "); 
+
+    flaggedWordsArray.forEach(word => {
+        const regex = new RegExp(`\\b${word}\\b`, "gi");
+        modifiedText = modifiedText.replace(regex, "|| deez nuts ||");
+    });
+    
+    return modifiedText;
+}
 
 const AIService = {
-    async generateText({ conversation, type, performance, tokens }) {
-        return await generateText({ conversation, type, performance, tokens });
+    async generateText({ conversation, type, model, temperature, tokens }) {
+        return await generateText({ conversation, type, model, temperature, tokens });
     },
     async generateTextFromSystemUserMessages(systemMessage, userMessage, message) {
         const conversation = assembleConversation(systemMessage, userMessage, message);
         return await generateText({ conversation, type: 'OPENAI', performance: 'FAST', tokens: 600 });
     },
-    async generateNewTextResponse(client, message, recentMessages) {
-        function removeMentions(text) {
-            return text
-            .replace(/@here/g, '꩜here')
-            .replace(/@everyone/g, '꩜everyone')
-            .replace(/@horde/g, '꩜horde')
-            .replace(/@alliance/g, '꩜alliance')
-            .replace(/@alliance/g, '꩜alliance')
-            .replace(/@Guild Leader - Horde/g, '꩜Guild Leader - Horde')
-            .replace(/@Guild Leader - Alliance/g, '꩜Guild Leader - Alliance')
-            .replace(/@Guild Officer - Horde/g, '꩜Guild Officer - Horde')
-            .replace(/@Guild Officer - Alliance/g, '꩜Guild Officer - Alliance')
-        }
-        async function generateNewConversation(client, message, systemPrompt, recentMessages) {
-            let conversation = [];
-            conversation.push({
-                role: 'system',
-                content: systemPrompt
-            });
-
-            recentMessages.forEach((recentMessage, index) => {
-                if (recentMessage.author.id === client.user.id) {
-                    conversation.push({
-                        role: 'assistant',
-                        name: UtilityLibrary.getUsernameNoSpaces(recentMessage),
-                        content: recentMessage.content,
-                    });
-                } else {
-                    const authorName = `${recentMessage.author.displayName ? UtilityLibrary.capitalize(recentMessage.author.displayName) : UtilityLibrary.capitalize(recentMessage.author.username)}`;
-
-                    // Replace mentions with names
-                    recentMessage.content = recentMessage.content.replace(/<@!?\d+>/g, (match) => {
-                        const id = match.replace(/<@!?/, '').replace('>', '');
-                        return UtilityLibrary.findUserById(client, id);
-                    });
-
-
-                    const modifiedMessage = `${index === recentMessages.length - 1 ? message.content : recentMessage.content}`;
-                    const modifiedContent = `${authorName}: ${modifiedMessage}`
-                    conversation.push({
-                        role: 'user',
-                        name: UtilityLibrary.getUsernameNoSpaces(recentMessage),
-                        content: modifiedContent
-                    })
-                }
-            })
-            
-            return conversation;
-        }
+    async generateNewTextResponse(client, message, recentMessages, newImagePrompt) {
         async function generateImageDescription(imageUrl) {
             let imageDescription;
             if (imageUrl) {
@@ -276,8 +242,14 @@ const AIService = {
                     content: `Here are the last recent messages by ${DiscordWrapper.getNameFromItem(recentMessage)} in this channel, and is what they have been talking about:\n${userMessagesAsText}`,
                 }
             ];
-            const generateText = await AIService.generateText({ conversation, type: LANGUAGE_MODEL_TYPE, performance: 'FAST' });
-            return generateText;
+            const generatedText = await generateText({
+                conversation: conversation,
+                type: FAST_LANGUAGE_MODEL_TYPE,
+                performance: 'FAST',
+                tokens: FAST_LANGUAGE_MODEL_MAX_TOKENS,
+                temperature: FAST_LANGUAGE_MODEL_TEMPERATURE
+            });
+            return generatedText;
         }
         async function checkCurrentMessage(client, message) {
             const customDescriptions = MessageConstant.serverSpecificArray;
@@ -287,15 +259,18 @@ const AIService = {
             const emojisAttached = [];
             let userIdsInMessage = [];
             const replies = [];
-        
-            const messageHasMentions = message.content.match(/<@!?\d+>/g) || [];
+
+            // Remove first self mention from message
+            const modifiedMessageContent = message.content.replace(new RegExp(`<@!?${client.user.id}>`), '');
+            const messageHasMentions = modifiedMessageContent.match(/<@!?\d+>/g) || [];
             const messageHasSelfMention = message.content.match(/(\bme\b|\bi\b)/gi) && message.author;
-            const messageHasYourMention = message.content.match(/(\byourself\b)/gi) && message.author;
+            const messageHasYourself = message.content.match(/(\byourself\b)/gi) && message.author;
             const messageHasAndYou = message.content.match(/(\band you\b)/gi) && message.author;
             const messageHasWithYou = message.content.match(/(\bwith you\b)/gi) && message.author;
             const messageHasUs = message.content.match(/(\bus\b)/gi) && message.author;
         
             const repliedMessage = message.reference ? await message.channel.messages.fetch(message.reference.messageId) : null;
+            // const modifiedRepliedMessageContent = repliedMessage?.content.replace(new RegExp(`<@!?${client.user.id}>`), '');
             const repliedMessageHasMentions = repliedMessage?.content.match(/<@!?\d+>/g) || [];
             const repliedMessageHasSelfMention = repliedMessage?.content.match(/(\bme\b)/g) && repliedMessage.author;
         
@@ -306,6 +281,10 @@ const AIService = {
             const commonWords = ["the", "be", "to", "of", "and", "a", "in", "that", "have", "I", "it", "for", "not", "on", "with", "he", "as", "you", "do", "at", "this", "but", "his", "by", "from", "they", "we", "say", "her", "she", "or", "an", "will", "my", "one", "all", "would", "there", "their", "what", "so", "up", "out", "if", "about", "who", "get", "which", "go", "me", "when", "make", "can", "like", "time", "no", "just", "him", "know", "take", "people", "into", "year", "your", "good", "some", "could", "them", "see", "other", "than", "then", "now", "look", "only", "come", "its", "over", "think", "also", "back", "after", "use", "two", "how", "our", "work", "first", "well", "way", "even", "new", "want", "because", "any", "these", "give", "day", "most", "us", "is", "am", "are", "has", "was", "were", "being", "been", "have", "do", "does", "did", "doing", "a", "an", "the", "and", "but", "if", "or", "because", "as", "until", "while", "of", "at", "by", "for", "with", "about", "against", "between", "into", "through", "during", "before", "after", "above", "below", "to", "from", "up", "down", "in", "out", "on", "off", "over", "under", "again", "further", "then", "once", "here", "there", "when", "where", "why", "how", "all", "any", "both", "each", "few", "more", "most", "other", "some", "such", "no", "nor", "not", "only", "own", "same", "so", "than", "too", "very", "s", "t", "can", "will", "just", "don", "should", "now", "as", "that", "this", "these", "those", "myself", "ourselves", "you", "yourself", "yourselves", "himself", "herself", "itself", "themselves", "what", "which", "who", "whom", "this", "that", "these", "those", "are", "was", "were", "be", "been", "being", "have", "has", "had", "having", "do", "does", "did", "doing", "will", "would", "should", "can", "could", "ought", "i", "you", "he", "she", "it", "we", "they", "me", "you", "him", "her", "it", "us", "them", "my", "your", "his", "her", "its", "our", "their", "mine", "yours", "his", "hers", "ours", "theirs", "my", "your", "his", "her", "its", "our", "their", "and", "because", "but", "or", "for", "so", "like"];
         
             if (repliedMessage) {
+                repliedMessage.content = repliedMessage.content.replace(/<@!?\d+>/g, (match) => {
+                    const id = match.replace(/<@!?/, '').replace('>', '');
+                    return UtilityLibrary.findUserById(client, id);
+                });
                 const reply = {
                     userId: repliedMessage.author.id,
                     name: UtilityLibrary.discordUsername(repliedMessage.author),
@@ -317,8 +296,13 @@ const AIService = {
             if (mentions?.length) {
                 userIdsInMessage.push(...mentions.map(user => user.replace(/<@!?/, '').replace('>', '')));
             }
+            console.log('clientMentionedOnce', clientMentionedOnce)
+            console.log('userIdsInMessage', userIdsInMessage)
+            if (clientMentionedOnce) {
+                userIdsInMessage = userIdsInMessage.filter(userId => userId !== client.user.id);
+            }
         
-            if (messageHasSelfMention) {
+            if (messageHasSelfMention || messageHasUs) {
                 userIdsInMessage.push(message.author.id);
             }
         
@@ -326,18 +310,12 @@ const AIService = {
                 userIdsInMessage.push(repliedMessage.author.id);
             }
 
-            if (clientMentionedOnce) {
-                userIdsInMessage = userIdsInMessage.filter(userId => userId !== client.user.id);
-            }
-
-            if (messageHasYourMention || messageHasAndYou || messageHasWithYou) {
+            if (messageHasYourself || messageHasAndYou || messageHasWithYou || messageHasUs) {
                 userIdsInMessage.push(client.user.id);
             }
 
-            if (messageHasUs) {
-                userIdsInMessage.push(client.user.id);
-                userIdsInMessage.push(message.author.id);
-            }
+            // remove duplicates
+            userIdsInMessage = [...new Set(userIdsInMessage)];
             
             // User descriptions
             if (userIdsInMessage.length) {
@@ -521,7 +499,7 @@ const AIService = {
 
             systemPrompt = '';
             systemPrompt += `${MessageService.assembleAssistantMessage()}`;
-            systemPrompt += `\n\n# Your Information`;
+            systemPrompt += `\n\n# This is you, and this is your information`;
             systemPrompt += `\nYour Name: ${client.user.displayName}`;
             systemPrompt += `\nYour Discord user ID tag: <@${client.user.id}>`;
             systemPrompt += `\n\n# Date and Time`;
@@ -599,9 +577,11 @@ const AIService = {
                     modifiedMessage = modifiedMessage.replace(`<@${mentionedUser.id}>`, mentionedUser.name);
                 });
             }
+            console.log('mentionedNameDescriptions', mentionedNameDescriptions);
             if (mentionedNameDescriptions.length) {
                 modifiedMessage += '\n\n# Relevant to this response';
                 mentionedNameDescriptions.forEach((mentionedNameDescription, index) => {
+                    console.log('mentionedNameDescription', mentionedNameDescription);
                     systemPrompt += `\n${mentionedNameDescription.description}`;
                     imagePrompt += `\n\n${mentionedNameDescription.description}.`;
                 });
@@ -620,12 +600,10 @@ const AIService = {
             }
 
             if (participantUsers.length) {
-                systemPrompt += '\n\n# Participants';
-
                 const primaryParticipant = participantUsers.find(participant => participant.id === message.author.id);
 
                 if (primaryParticipant) {
-                    systemPrompt += '\n## Primary participant and the person who you are replying to';
+                    systemPrompt += '\n# This is me, the primary participant and the person who you are replying to';
                     systemPrompt += `\n${primaryParticipant.name}'s Discord user ID tag: <@${primaryParticipant.id}>`;
                     systemPrompt += `\n${primaryParticipant.name}'s roles: ${primaryParticipant.roles}`;
                     systemPrompt += `\n${primaryParticipant.name}'s conversation: ${primaryParticipant.conversation}`;
@@ -633,7 +611,7 @@ const AIService = {
                 }
 
                 if (participantUsers.length > 2) {
-                    systemPrompt += '\n## Secondary participants and the people who are also in the chat';
+                    systemPrompt += '\n# These are the other people, the secondary participants and the people who are also in the chat';
                     participantUsers.forEach((participant, index) => {
                         if (participant.id === message.author.id) return;
                         systemPrompt += `\nParticipant ${index + 1}: ${participant.name}`;
@@ -673,26 +651,69 @@ const AIService = {
             message.content = modifiedMessage;
             
             const conversation = await generateNewConversation(client, message, systemPrompt, recentMessages);
-            generatedText = await generateText({ conversation });
 
-            // let notCapable = await generateNotCapableResponseCheck(message, generatedText);
-            // if (notCapable === 'no' && imagePrompt) {
-            //     UtilityLibrary.consoleInfo([[`🎨 generateTextResponse not capable: ${generatedText}`, { color: 'red' }, 'middle']]);
-            //     generatedText = imagePrompt;
-            // }
+            generatedText = await generateText({
+                conversation: conversation,
+                type: LANGUAGE_MODEL_TYPE,
+                performance: 'POWERFUL',
+                tokens: LANGUAGE_MODEL_MAX_TOKENS,
+                temperature: LANGUAGE_MODEL_TEMPERATURE
+            });
 
             // Clean response
             generatedText = removeMentions(generatedText);
+            generatedText = removeFlaggedWords(generatedText);
                 
             if (DEBUG_MODE) {
                 UtilityLibrary.consoleInfo([[`🎨 generateTextResponse output:\n${generatedText}`, { color: 'green' }, 'middle']]);
             }
         } catch (error) {
+            generatedText = '...',
+            imagePrompt = 'an image of a beautiful purple wolf sleeping under the full moonlight, in the style of a watercolor painting. The text "Lupos sleeps under the full moonlight" is written in a beautiful cursive font at the bottom of the image.';
             UtilityLibrary.consoleInfo([[`📝 generateTextResponse failed:\n${error}`, { color: 'red' }, 'middle']]);
         }
 
-        return { generatedText, imagePrompt };
+        return { generatedText, imagePrompt, modifiedMessage, systemPrompt };
 
+    },
+    async generateNewTextResponsePart2(client, message, recentMessages, modifiedMessage, systemPrompt, imagePrompt) {
+        let generatedText;
+        message.content = modifiedMessage;
+
+        // add image prompt to the begining of system prompt
+        systemPrompt = `# Description of Image Generated and Attached by You\n${imagePrompt}\n\n${systemPrompt}`;
+
+        
+        if (DEBUG_MODE) {
+            UtilityLibrary.consoleInfo([[`🧠 System Prompt2:\n${systemPrompt}`, { color: 'blue' }, 'middle']]);
+        }
+
+        try {
+            const conversation = await generateNewConversation(client, message, systemPrompt, recentMessages);
+            generatedText = await generateText({
+                conversation: conversation,
+                type: LANGUAGE_MODEL_TYPE,
+                performance: 'POWERFUL',
+                tokens: LANGUAGE_MODEL_MAX_TOKENS,
+                temperature: LANGUAGE_MODEL_TEMPERATURE
+            });
+    
+            // clean response
+            generatedText = removeMentions(generatedText);
+            generatedText = removeFlaggedWords(generatedText);
+            // remove self mention
+            generatedText = generatedText.replace(new RegExp(`<@!?${client.user.id}>`, 'g'), '');
+            
+            if (DEBUG_MODE) {
+                UtilityLibrary.consoleInfo([[`🎨 generateTextResponse2 output:\n${generatedText}`, { color: 'green' }, 'middle']]);
+            }
+        } catch (error) {
+            generatedText = '...';
+            imagePrompt = 'an image of a beautiful purple wolf sleeping under the full moonlight, in the style of a watercolor painting. The text "Lupos sleeps under the full moonlight" is written in a beautiful cursive font at the bottom of the image.';
+            UtilityLibrary.consoleInfo([[`📝 generateTextResponse2 failed:\n${error}`, { color: 'red' }, 'middle']]);
+        }
+        
+        return { generatedText };
     },
     async createImagePromptFromImageAndText(message, imagePrompt, textResponse, imageToGenerate) {
         // DiscordWrapper.setActivity(`🎨 Drawing for ${DiscordWrapper.getNameFromItem(message)}...`);
@@ -731,12 +752,13 @@ const AIService = {
             UtilityLibrary.consoleInfo([[`🎨 Image prompt 2:\n${textResponse}`, { color: 'blue' }, 'middle']]);
         }
 
-        let generatedImagePrompt = await generateText({ conversation })
-        // let notCapable = await generateNotCapableResponseCheck(message, generatedImagePrompt);
-        // if (notCapable === 'no') {
-        //     UtilityLibrary.consoleInfo([[`🎨 Image not capable 2: ${generatedImagePrompt}`, { color: 'red' }, 'middle']]);
-        //     generatedImagePrompt = imageToGenerate ? imageToGenerate : message.content;
-        // }
+        let generatedImagePrompt = await generateText({
+            conversation: conversation,
+            type: LANGUAGE_MODEL_TYPE,
+            tokens: LANGUAGE_MODEL_MAX_TOKENS,
+            temperature: LANGUAGE_MODEL_TEMPERATURE
+        });
+
         if (DEBUG_MODE) {
             UtilityLibrary.consoleInfo([[`🎨 Image prompt 2 output:\n${generatedImagePrompt}`, { color: 'green' }, 'middle']]);
         }

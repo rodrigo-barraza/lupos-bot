@@ -2,16 +2,22 @@ require('dotenv/config');
 const Anthropic = require('@anthropic-ai/sdk');
 const {
     LANGUAGE_MODEL_TEMPERATURE,
+    LANGUAGE_MODEL_PERFORMANCE,
     LANGUAGE_MODEL_MAX_TOKENS,
-    ANTHROPIC_LANGUAGE_MODEL_POWERFUL,
-    ANTHROPIC_LANGUAGE_MODEL_FAST,
+    LANGUAGE_MODEL_ANTHROPIC,
+    FAST_LANGUAGE_MODEL_ANTHROPIC,
     ANTHROPIC_KEY
 } = require('../config.json');
 
 const anthropic = new Anthropic({apiKey: ANTHROPIC_KEY})
 
 const AnthrophicWrapper = {
-    async generateText(conversation, tokens, performance) {
+    async generateText(
+      conversation,
+      model=LANGUAGE_MODEL_ANTHROPIC,
+      tokens=LANGUAGE_MODEL_MAX_TOKENS,
+      temperature=LANGUAGE_MODEL_TEMPERATURE
+    ) {
         let text;
         let systemMessage;
         if (conversation[0].role === 'system') {
@@ -46,10 +52,10 @@ const AnthrophicWrapper = {
 
         const response = await anthropic.messages.create({
             system: systemMessage,
-            temperature: LANGUAGE_MODEL_TEMPERATURE,
-            model: performance === 'POWERFUL' ? ANTHROPIC_LANGUAGE_MODEL_POWERFUL : ANTHROPIC_LANGUAGE_MODEL_FAST,
+            temperature: temperature,
+            model: model,
             messages: mergedData,
-            max_tokens: tokens ? tokens : LANGUAGE_MODEL_MAX_TOKENS,
+            max_tokens: tokens,
         }).catch((error) => console.error('OpenAI Error:\n', error));
 
         if (response.content[0].text) {

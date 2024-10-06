@@ -2,9 +2,11 @@ require('dotenv/config');
 const { OpenAI } = require('openai');
 const {
     LANGUAGE_MODEL_TEMPERATURE,
+    LANGUAGE_MODEL_PERFORMANCE,
     LANGUAGE_MODEL_MAX_TOKENS,
-    OPENAI_LANGUAGE_MODEL_POWERFUL,
-    OPENAI_LANGUAGE_MODEL_FAST,
+    LANGUAGE_MODEL_OPENAI,
+    FAST_LANGUAGE_MODEL_OPENAI,
+    LANGUAGE_MODEL_LOCAL,
     OPENAI_VISION_MODEL,
     VOICE_MODEL,
     VOICE_MODEL_VOICE,
@@ -106,13 +108,18 @@ const OpenAIWrapper = {
         }).catch((error) => console.error('OpenAI Error:\n', error));
         return response;
     },
-    async generateText(conversation, tokens, performance = 'FAST') {
+    async generateText(
+        conversation,
+        model=LANGUAGE_MODEL_LOCAL,
+        tokens=LANGUAGE_MODEL_MAX_TOKENS,
+        temperature=LANGUAGE_MODEL_TEMPERATURE
+    ) {
         let text;
         const response = await openai.chat.completions.create({
-            temperature: LANGUAGE_MODEL_TEMPERATURE,
-            model: performance === 'POWERFUL' ? OPENAI_LANGUAGE_MODEL_POWERFUL : OPENAI_LANGUAGE_MODEL_FAST,
+            temperature: temperature,
+            model: model,
             messages: conversation,
-            max_tokens: tokens ? tokens : LANGUAGE_MODEL_MAX_TOKENS,
+            max_tokens: tokens,
         }).catch((error) => console.error('OpenAI Error:\n', error));
         if (response.choices[0].message.content) {
             text = response.choices[0].message.content;
