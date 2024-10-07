@@ -266,6 +266,11 @@ async function messageQueue() {
         let generatedTextResponse;
         let generatedImage;
 
+        // Summary of the message in 5 words
+
+        const summary = await AIService.generateSummaryFromMessage(message);
+        client.user.setActivity(summary, { type: 4 });
+
         if (GENERATE_IMAGE) {
             const { generatedText, imagePrompt, modifiedMessage, systemPrompt } = await AIService.generateNewTextResponse(
                 client, message, recentMessages);
@@ -342,7 +347,7 @@ async function messageQueue() {
         }
         UtilityLibrary.consoleInfo([[`═══════════════░▒▓ -MESSAGE- ▓▒░════════════════════════════════════`, { color: 'green' }, 'end']]);
     }
-    MoodService.instantiate();
+    // MoodService.instantiate();
     processingMessageQueue = false;    
 }
 

@@ -124,6 +124,15 @@ async function generateNewConversation(client, message, systemPrompt, recentMess
     });
 
     recentMessages.forEach((recentMessage, index) => {
+        // console.log('recentMessage.content', recentMessage.content);
+        // console.log('message.content', message.content);
+        if (recentMessage.content === message.content && recentMessage.author.id === message.author.id) {
+            console.log('FIRE', index, message.content);
+            recentMessages = recentMessages.slice(0, index + 1); // We add 1 because of system message
+        }
+    });
+
+    recentMessages.forEach((recentMessage, index) => {
         if (recentMessage.author.id === client.user.id) {
             conversation.push({
                 role: 'assistant',
@@ -136,10 +145,12 @@ async function generateNewConversation(client, message, systemPrompt, recentMess
             const messageSentAtRelative = moment(recentMessage.createdTimestamp).fromNow();
 
             // Replace mentions with names
+            console.log('replace 71');
             recentMessage.content = recentMessage.content.replace(/<@!?\d+>/g, (match) => {
                 const id = match.replace(/<@!?/, '').replace('>', '');
                 return UtilityLibrary.findUserById(client, id);
             });
+            console.log('replace 72');
 
 
             const modifiedMessage = `${index === recentMessages.length - 1 ? message.content : recentMessage.content}`;
@@ -189,6 +200,19 @@ const AIService = {
     async generateTextFromSystemUserMessages(systemMessage, userMessage, message) {
         const conversation = assembleConversation(systemMessage, userMessage, message);
         return await generateText({ conversation, type: 'OPENAI', performance: 'FAST', tokens: 600 });
+    },
+    async generateSummaryFromMessage(message) {
+        const systemContent = `Summarize this message in 5 words or less.`;
+        const userContent = message.content;
+        const conversation = assembleConversation(systemContent, userContent, message);
+        const generatedText = await generateText({
+            conversation: conversation,
+            type: LANGUAGE_MODEL_TYPE,
+            performance: 'POWERFUL',
+            tokens: LANGUAGE_MODEL_MAX_TOKENS,
+            temperature: LANGUAGE_MODEL_TEMPERATURE
+        });
+        return generatedText;
     },
     async generateNewTextResponse(client, message, recentMessages, newImagePrompt) {
         async function generateImageDescription(imageUrl) {
@@ -261,7 +285,9 @@ const AIService = {
             const replies = [];
 
             // Remove first self mention from message
+            console.log('replace 91');
             const modifiedMessageContent = message.content.replace(new RegExp(`<@!?${client.user.id}>`), '');
+            console.log('replace 92');
             const messageHasMentions = modifiedMessageContent.match(/<@!?\d+>/g) || [];
             const messageHasSelfMention = message.content.match(/(\bme\b|\bi\b)/gi) && message.author;
             const messageHasYourself = message.content.match(/(\byourself\b)/gi) && message.author;
@@ -281,10 +307,12 @@ const AIService = {
             const commonWords = ["the", "be", "to", "of", "and", "a", "in", "that", "have", "I", "it", "for", "not", "on", "with", "he", "as", "you", "do", "at", "this", "but", "his", "by", "from", "they", "we", "say", "her", "she", "or", "an", "will", "my", "one", "all", "would", "there", "their", "what", "so", "up", "out", "if", "about", "who", "get", "which", "go", "me", "when", "make", "can", "like", "time", "no", "just", "him", "know", "take", "people", "into", "year", "your", "good", "some", "could", "them", "see", "other", "than", "then", "now", "look", "only", "come", "its", "over", "think", "also", "back", "after", "use", "two", "how", "our", "work", "first", "well", "way", "even", "new", "want", "because", "any", "these", "give", "day", "most", "us", "is", "am", "are", "has", "was", "were", "being", "been", "have", "do", "does", "did", "doing", "a", "an", "the", "and", "but", "if", "or", "because", "as", "until", "while", "of", "at", "by", "for", "with", "about", "against", "between", "into", "through", "during", "before", "after", "above", "below", "to", "from", "up", "down", "in", "out", "on", "off", "over", "under", "again", "further", "then", "once", "here", "there", "when", "where", "why", "how", "all", "any", "both", "each", "few", "more", "most", "other", "some", "such", "no", "nor", "not", "only", "own", "same", "so", "than", "too", "very", "s", "t", "can", "will", "just", "don", "should", "now", "as", "that", "this", "these", "those", "myself", "ourselves", "you", "yourself", "yourselves", "himself", "herself", "itself", "themselves", "what", "which", "who", "whom", "this", "that", "these", "those", "are", "was", "were", "be", "been", "being", "have", "has", "had", "having", "do", "does", "did", "doing", "will", "would", "should", "can", "could", "ought", "i", "you", "he", "she", "it", "we", "they", "me", "you", "him", "her", "it", "us", "them", "my", "your", "his", "her", "its", "our", "their", "mine", "yours", "his", "hers", "ours", "theirs", "my", "your", "his", "her", "its", "our", "their", "and", "because", "but", "or", "for", "so", "like"];
         
             if (repliedMessage) {
+                console.log('replace 101');
                 repliedMessage.content = repliedMessage.content.replace(/<@!?\d+>/g, (match) => {
                     const id = match.replace(/<@!?/, '').replace('>', '');
                     return UtilityLibrary.findUserById(client, id);
                 });
+                console.log('replace 102');
                 const reply = {
                     userId: repliedMessage.author.id,
                     name: UtilityLibrary.discordUsername(repliedMessage.author),
@@ -294,7 +322,9 @@ const AIService = {
             }
         
             if (mentions?.length) {
+                console.log('replace 111');
                 userIdsInMessage.push(...mentions.map(user => user.replace(/<@!?/, '').replace('>', '')));
+                console.log('replace 112');
             }
             console.log('clientMentionedOnce', clientMentionedOnce)
             console.log('userIdsInMessage', userIdsInMessage)
@@ -352,7 +382,9 @@ const AIService = {
                 if (word.startsWith('<@') && word.endsWith('>')) {
                     let discordUsername;
                     if (word !== `<@${client.user.id}>`) {
+                        console.log('replace 121');
                         discordUsername = UtilityLibrary.discordUsername(client.users.cache.get(word.replace(/<@!?/, '').replace('>', '')));
+                        console.log('replace 122');
                     }
                     if (discordUsername) {
                         const pattern = new RegExp(`\\b${discordUsername}\\b`, 'i');
@@ -365,7 +397,9 @@ const AIService = {
                     }
                 } else {
                     // remove all special characters from word
+                    console.log('replace 131');
                     const cleanedWord = word.replace(/[^a-zA-Z0-9]/g, '');
+                    console.log('replace 132');
                     if (cleanedWord && !commonWords.includes(cleanedWord)) {
                         const pattern = new RegExp('\\b' + cleanedWord + '\\b', 'i');
                         const filteredDescriptions = customDescriptions.filter(description => pattern.test(description.keywords));
@@ -493,8 +527,10 @@ const AIService = {
             });
 
             // remove 'can you ' from the message, in any capitalization
+            console.log('replace 1');
             imagePrompt = imagePrompt.replace(/can you /gi, '');
             modifiedMessage = modifiedMessage.replace(/can you /gi, '');
+            console.log('replace 2');
 
 
             systemPrompt = '';
@@ -570,11 +606,13 @@ const AIService = {
                         userVisualDescription = `(In front of: ${mentionedUser.bannerDescription})`;
                     }
 
+                    console.log('replace 3');
                     imagePrompt = imagePrompt.replace(`<@${mentionedUser.id}>`, `${mentionedUser.name} ${userVisualDescription}`);
                     imagePrompt = imagePrompt.replace(/\bme\b/gi, `me ${userVisualDescription}`);
                     imagePrompt = imagePrompt.replace(/\bI\b/gi, `I ${userVisualDescription}`);
 
                     modifiedMessage = modifiedMessage.replace(`<@${mentionedUser.id}>`, mentionedUser.name);
+                    console.log('replace 4');
                 });
             }
             console.log('mentionedNameDescriptions', mentionedNameDescriptions);
@@ -593,9 +631,11 @@ const AIService = {
                     systemPrompt += `\nEmoji Discord tag: ${emoji.tag}`;
                     systemPrompt += `\nEmoji description: ${emoji.description}`;
 
+                    console.log('replace 41');
                     modifiedMessage = modifiedMessage.replace(emoji.tag, `${emoji.name}`);
 
                     imagePrompt = imagePrompt.replace(emoji.tag, `${emoji.name} (${emoji.description}).`);
+                    console.log('replace 42');
                 });
             }
 
@@ -623,8 +663,10 @@ const AIService = {
                 }
             }
             if (imagePrompt.includes(`<@${client.user.id}`)) {
+                console.log('replace 51');
                 imagePrompt = imagePrompt.replace(`<@${client.user.id}>`, '');
                 modifiedMessage = modifiedMessage.replace(`<@${client.user.id}>`, '');
+                console.log('replace 52');
                 // if sentence starts with a white space, remove it
                 if (modifiedMessage.startsWith(' ')) {
                     modifiedMessage = modifiedMessage.slice(1);
@@ -661,8 +703,11 @@ const AIService = {
             });
 
             // Clean response
+            console.log('replace 81', generatedText);
             generatedText = removeMentions(generatedText);
+            console.log('replace 82');
             generatedText = removeFlaggedWords(generatedText);
+            console.log('replace 83');
                 
             if (DEBUG_MODE) {
                 UtilityLibrary.consoleInfo([[`🎨 generateTextResponse output:\n${generatedText}`, { color: 'green' }, 'middle']]);
@@ -702,7 +747,10 @@ const AIService = {
             generatedText = removeMentions(generatedText);
             generatedText = removeFlaggedWords(generatedText);
             // remove self mention
+            
+            console.log('replace 5');
             generatedText = generatedText.replace(new RegExp(`<@!?${client.user.id}>`, 'g'), '');
+            console.log('replace 6');
             
             if (DEBUG_MODE) {
                 UtilityLibrary.consoleInfo([[`🎨 generateTextResponse2 output:\n${generatedText}`, { color: 'green' }, 'middle']]);
