@@ -288,8 +288,6 @@ async function messageQueue() {
             const { generatedText } = await AIService.generateNewTextResponse(client, message, recentMessages);
             generatedTextResponse = generatedText;
         }
-
-        // console.log('participantUsers', participantUsers);
     
         if (!generatedTextResponse) {
             UtilityLibrary.consoleInfo([[`⏱️ Duration: ${timer} seconds`, { color: 'cyan' }, 'middle']]);

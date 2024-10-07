@@ -25,7 +25,6 @@ const LocalAIWrapper = {
         });
 
         const mergedData = conversation.reduce((accumulator, value, index, array) => {
-          console.log('value.role', value.role)
             if (value.role === 'system') {
                 accumulator.push(value);
             } else if (["user", "assistant"].includes(value.role)) {
@@ -51,7 +50,6 @@ const LocalAIWrapper = {
             mergedData.splice(1, 1);
         }
 
-
         const response = await fetch(`${LOCAL_LANGUAGE_MODEL_API_URL}/v1/chat/completions`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -64,8 +62,6 @@ const LocalAIWrapper = {
             })
         }).catch(error => console.error('Error:', error));
         let responseJson = await response.json();
-        console.log('responseJson', responseJson);
-        console.log('responseJson', responseJson.choices[0].message);
         if (responseJson.choices[0].message.content) {
             text = responseJson.choices[0].message.content;
         }

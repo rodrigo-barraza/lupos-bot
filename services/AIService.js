@@ -314,8 +314,6 @@ const AIService = {
             if (mentions?.length) {
                 userIdsInMessage.push(...mentions.map(user => user.replace(/<@!?/, '').replace('>', '')));
             }
-            console.log('clientMentionedOnce', clientMentionedOnce)
-            console.log('userIdsInMessage', userIdsInMessage)
             if (clientMentionedOnce) {
                 userIdsInMessage = userIdsInMessage.filter(userId => userId !== client.user.id);
             }
@@ -595,11 +593,9 @@ const AIService = {
                     modifiedMessage = modifiedMessage.replace(`<@${mentionedUser.id}>`, mentionedUser.name);
                 });
             }
-            console.log('mentionedNameDescriptions', mentionedNameDescriptions);
             if (mentionedNameDescriptions.length) {
                 modifiedMessage += '\n\n# Relevant to this response';
                 mentionedNameDescriptions.forEach((mentionedNameDescription, index) => {
-                    console.log('mentionedNameDescription', mentionedNameDescription);
                     systemPrompt += `\n${mentionedNameDescription.description}`;
                     imagePrompt += `\n\n${mentionedNameDescription.description}.`;
                 });
