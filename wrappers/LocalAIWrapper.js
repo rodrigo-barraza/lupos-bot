@@ -28,7 +28,7 @@ const LocalAIWrapper = {
           if (cur.role === "user" || cur.role === "assistant" || cur.role === "system") {
             if (acc.length && acc[acc.length - 1].role === cur.role) {
               if (cur.role === "user" && (index === array.length - 1 || array[index + 1].role !== "user")) {
-                acc[acc.length - 1].content += `\n\n# Directly reply to this message:\n${cur.content}`;
+                acc[acc.length - 1].content += `\n\n${cur.content}`;
               } else {
                 acc[acc.length - 1].content += `\n\n${cur.content}`;
               }

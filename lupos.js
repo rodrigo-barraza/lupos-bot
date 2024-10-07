@@ -267,8 +267,8 @@ async function messageQueue() {
         let generatedImage;
 
         // Summary of the message in 5 words
-
-        const summary = await AIService.generateSummaryFromMessage(message);
+        const messageContent = message.content.replace(`<@${client.user.id}>`, '');
+        const summary = await AIService.generateSummaryFromMessage(message, messageContent);
         client.user.setActivity(summary, { type: 4 });
 
         if (GENERATE_IMAGE) {
