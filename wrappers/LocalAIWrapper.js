@@ -24,20 +24,27 @@ const LocalAIWrapper = {
             return message;
         });
 
-        const mergedData = conversation.reduce((acc, cur, index, array) => {
-          if (cur.role === "user" || cur.role === "assistant" || cur.role === "system") {
-            if (acc.length && acc[acc.length - 1].role === cur.role) {
-              if (cur.role === "user" && (index === array.length - 1 || array[index + 1].role !== "user")) {
-                acc[acc.length - 1].content += `\n\n${cur.content}`;
-              } else {
-                acc[acc.length - 1].content += `\n\n${cur.content}`;
-              }
-            } else {
-              acc.push(cur);
+        const mergedData = conversation.reduce((accumulator, value, index, array) => {
+            if (value.role === 'system') {
+                accumulator.push(value);
             }
-          }
-          return acc;
-        }, []);
+            if (["user", "assistant"].includes(value.role)) {
+              if (accumulator.length && accumulator[accumulator.length - 1].role === value.role) {
+                if (value.role === "user" && index === array.length - 1) {
+                  accumulator[accumulator.length - 1].content = `${value.content}`;
+                } else {
+                  if(index < array.length - 1 && accumulator[accumulator.length - 1].role !== array[index + 1].role){
+                    accumulator[accumulator.length - 1].content += `\n\n${value.content}`;
+                  } else {
+                    accumulator[accumulator.length - 1].content += `\n\n${value.content}`;
+                  } 
+                }
+              } else {
+                accumulator.push(value);
+              }
+            }
+            return accumulator;
+          }, []);
 
         if (mergedData[1].role === "assistant") {
             mergedData.shift();
