@@ -262,10 +262,10 @@ const AIService = {
             ];
             const generatedText = await generateText({
                 conversation: conversation,
-                type: FAST_LANGUAGE_MODEL_TYPE,
-                performance: 'FAST',
-                tokens: FAST_LANGUAGE_MODEL_MAX_TOKENS,
-                temperature: FAST_LANGUAGE_MODEL_TEMPERATURE
+                type: LANGUAGE_MODEL_TYPE,
+                performance: 'POWERFUL',
+                tokens: LANGUAGE_MODEL_MAX_TOKENS,
+                temperature: LANGUAGE_MODEL_TEMPERATURE
             });
             return generatedText;
         }
@@ -594,7 +594,7 @@ const AIService = {
                 });
             }
             if (mentionedNameDescriptions.length) {
-                modifiedMessage += '\n\n# Relevant to this response';
+                systemPrompt += '\n\n# Relevant to this response';
                 mentionedNameDescriptions.forEach((mentionedNameDescription, index) => {
                     systemPrompt += `\n${mentionedNameDescription.description}`;
                     imagePrompt += `\n\n${mentionedNameDescription.description}.`;
@@ -617,22 +617,26 @@ const AIService = {
                 const primaryParticipant = participantUsers.find(participant => participant.id === message.author.id);
 
                 if (primaryParticipant) {
+                    const messageSentAt = luxon.DateTime.fromMillis(primaryParticipant.time).setZone('local').toFormat('LLLL dd, yyyy \'at\' hh:mm:ss a');
+                    const messageSentAtRelative = luxon.DateTime.fromMillis(primaryParticipant.time).toRelative();
                     systemPrompt += '\n# This is me, the primary participant and the person who you are replying to';
                     systemPrompt += `\n${primaryParticipant.name}'s Discord user ID tag: <@${primaryParticipant.id}>`;
                     systemPrompt += `\n${primaryParticipant.name}'s roles: ${primaryParticipant.roles}`;
                     systemPrompt += `\n${primaryParticipant.name}'s conversation: ${primaryParticipant.conversation}`;
-                    systemPrompt += `\n${primaryParticipant.name}'s last message sent at: ${luxon.DateTime.fromMillis(primaryParticipant.time).setZone('local').toFormat('LLLL dd, yyyy \'at\' hh:mm:ss a')}`;
+                    systemPrompt += `\n${primaryParticipant.name}'s last message sent on: ${messageSentAt} (${messageSentAtRelative})`;
                 }
 
                 if (participantUsers.length > 2) {
                     systemPrompt += '\n# These are the other people, the secondary participants and the people who are also in the chat';
                     participantUsers.forEach((participant, index) => {
                         if (participant.id === message.author.id) return;
+                        const messageSentAt = luxon.DateTime.fromMillis(participant.time).setZone('local').toFormat('LLLL dd, yyyy \'at\' hh:mm:ss a');
+                        const messageSentAtRelative = luxon.DateTime.fromMillis(participant.time).toRelative();
                         systemPrompt += `\nParticipant ${index + 1}: ${participant.name}`;
                         systemPrompt += `\n${participant.name}'s Discord user ID tag: <@${participant.id}>`;
                         systemPrompt += `\n${participant.name}'s roles: ${participant.roles}`;
                         systemPrompt += `\n${participant.name}'s conversation: ${participant.conversation}`;
-                        systemPrompt += `\n${participant.name}'s last message sent at: ${luxon.DateTime.fromMillis(participant.time).setZone('local').toFormat('LLLL dd, yyyy \'at\' hh:mm:ss a')}`;
+                        systemPrompt += `\n${participant.name}'s last message sent on: ${messageSentAt} (${messageSentAtRelative})`;
                     });
                 }
             }
