@@ -25,10 +25,10 @@ const LocalAIWrapper = {
         });
 
         const mergedData = conversation.reduce((accumulator, value, index, array) => {
+          console.log('value.role', value.role)
             if (value.role === 'system') {
                 accumulator.push(value);
-            }
-            if (["user", "assistant"].includes(value.role)) {
+            } else if (["user", "assistant"].includes(value.role)) {
               if (accumulator.length && accumulator[accumulator.length - 1].role === value.role) {
                 if (value.role === "user" && index === array.length - 1) {
                   accumulator[accumulator.length - 1].content = `${value.content}`;
@@ -47,7 +47,8 @@ const LocalAIWrapper = {
           }, []);
 
         if (mergedData[1].role === "assistant") {
-            mergedData.shift();
+          // remove assistant message
+            mergedData.splice(1, 1);
         }
 
 
