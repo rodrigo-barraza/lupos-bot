@@ -149,8 +149,8 @@ async function generateNewConversation(client, message, systemPrompt, recentMess
 
 
             const modifiedMessage = `${index === recentMessages.length - 1 ? message.content : recentMessage.content}`;
-            const modifiedContent = `${authorName}: ${modifiedMessage}`;
-            // const modifiedContent = `${authorName}: ${modifiedMessage}\n\nSent at: ${messageSentAt} (${messageSentAtRelative})`;
+            // const modifiedContent = `${authorName}: ${modifiedMessage}`;
+            const modifiedContent = `Message: ${modifiedMessage}\nMessage by: ${authorName}\nMessage sent on: ${messageSentAt} (${messageSentAtRelative})`;
             conversation.push({
                 role: 'user',
                 name: UtilityLibrary.getUsernameNoSpaces(recentMessage),
