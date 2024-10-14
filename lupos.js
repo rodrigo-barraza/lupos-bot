@@ -2,11 +2,12 @@ process.env.NODE_NO_WARNINGS = 'stream/web';
 require('dotenv/config');
 const {
     WHITEMANE_YAPPER_ROLE_ID, WHITEMANE_OVERREACTOR_ROLE_ID, WHITEMANE_POLITICS_CHANNEL_ID, GUILD_ID_WHITEMANE,
-    GENERATE_VOICE, BLABBERMOUTH, DETECT_AND_REACT, DISCORD_TOKEN, BARK_VOICE_FOLDER, GENERATE_IMAGE
+    GENERATE_VOICE, BLABBERMOUTH, DETECT_AND_REACT, DISCORD_TOKEN, BARK_VOICE_FOLDER, GENERATE_IMAGE,
+    CHANNEL_ID_WHITEMANE_HIGHLIGHTS, CHANNEL_ID_THE_CLAM_HIGHLIGHTS, CHANNEL_ID_WHITEMANE_BOOTY_BAE
 } = require('./config.json');
 const fs = require('node:fs');
 const path = require('node:path');
-const { Collection, Events, ChannelType } = require('discord.js');
+const { Collection, Events, ChannelType, EmbedBuilder } = require('discord.js');
 const UtilityLibrary = require('./libraries/UtilityLibrary.js');
 const AlcoholService = require('./services/AlcoholService.js');
 const MoodService = require('./services/MoodService.js');
@@ -354,14 +355,162 @@ async function messageQueue() {
     processingMessageQueue = false;    
 }
 
+const allUniqueUsers = {};
+const reactionMessages = {};
+
+async function onMessageReactionAdd(messageReaction) {
+    const messageId = messageReaction.message.id;
+    const userId = messageReaction.message.author?.id;
+    const guildId = messageReaction.message.guildId;
+    const channelId = messageReaction.message.channelId;
+    const channelName = client.channels.cache.get(channelId).name;
+    const uniqueUserLengthTrigger = 5;
+    const highlightsChannel = CHANNEL_ID_WHITEMANE_HIGHLIGHTS;
+    const content = messageReaction.message.content;
+
+    if (channelId === CHANNEL_ID_WHITEMANE_HIGHLIGHTS || channelId === CHANNEL_ID_WHITEMANE_BOOTY_BAE) return;
+
+
+    if (!allUniqueUsers[messageId]) {
+        allUniqueUsers[messageId] = new Set();
+    } else {
+        allUniqueUsers[messageId].add(userId);
+    }
+    
+    const users = await messageReaction.users.fetch();
+    users.map(user => allUniqueUsers[messageId].add(user.id));
+    UtilityLibrary.consoleInfo([[`💬 Message: ${content}, Users: ${[...allUniqueUsers[messageId]].length}, Total: ${messageReaction.message.reactions.cache.size}`, { color: 'yellow' }, 'middle']]);
+    if ([...allUniqueUsers[messageId]].length >= uniqueUserLengthTrigger) {
+        const attachments = messageReaction.message.attachments;
+        const stickers = messageReaction.message.stickers;
+        const name = messageReaction.message.author?.globalName || messageReaction.message.author?.username;
+        const avatar = messageReaction.message.author?.avatar;
+        const avatarUrl = avatar ? `https://cdn.discordapp.com/avatars/${userId}/${avatar}.jpg?size=512` : '';
+
+        const emojiId = messageReaction._emoji.id
+        const emojiName = messageReaction._emoji.name;
+        const isEmojiAnimated = messageReaction._emoji.animated;
+        let emojiUrl;
+
+        const doesContentContainTenorText = content?.includes('https://tenor.com/view/')
+
+        if (!name) return;
+
+        if (emojiId && isEmojiAnimated) {
+            emojiUrl = `https://cdn.discordapp.com/emojis/${emojiId}.gif`;
+        } else if (emojiId && !isEmojiAnimated) {
+            emojiUrl = `https://cdn.discordapp.com/emojis/${emojiId}.png`;
+        }
+
+
+        const banner = messageReaction.message.author?.banner;
+        const reference = messageReaction.message.reference;
+        const referenceChannelId = reference?.channelId;
+        const referenceGuildId = reference?.guildId;
+        const referenceMessageId = reference?.messageId;
+        let referenceMessage;
+
+
+        const currentReferenceChannel = client.channels.cache.get(referenceChannelId);
+
+        if (currentReferenceChannel?.messages) {
+            referenceMessage = await currentReferenceChannel.messages.fetch(referenceMessageId)
+        }
+
+        const targetChannel = client.channels.cache.get(highlightsChannel);
+
+        const messageURL = `https://discord.com/channels/${guildId}/${channelId}/${messageId}`;
+
+        const embed = new EmbedBuilder()
+            .setTitle(`#${channelName}`)
+            .setURL(messageURL)
+            // .addFields(
+            //     { name: 'Regular field title', value: 'Some value here' },
+            //     { name: '\u200B', value: '\u200B' },
+            //     { name: 'Inline field title', value: 'Some value here', inline: true },
+            //     { name: 'Inline field title', value: 'Some value here', inline: true },
+            // )
+            // .addFields({ name: 'Inline field title', value: 'Some value here', inline: true })
+
+        if (referenceMessage) {
+            const referenceAttachments = referenceMessage.attachments;
+            const referenceStickers = referenceMessage.stickers;
+            if (referenceMessage.content) {
+                embed.addFields({ name: 'Replying To', value: referenceMessage.content });
+            }
+            if (referenceAttachments) {
+                for (const attachment of referenceAttachments.values()) {
+                    embed.setImage(attachment.url);
+                }
+            }
+            if (referenceStickers) {
+                for (const sticker of referenceStickers.values()) {
+                    embed.setImage(sticker.url);
+                }
+            }
+        }
+
+        const totalReactions = [...allUniqueUsers[messageId]].length > messageReaction.message.reactions.cache.size ? [...allUniqueUsers[messageId]].length : messageReaction.message.reactions.cache.size;
+
+        const emojiResponse = '<:emoji:1111811553491169280>';
+        
+        embed.addFields({ name: 'Reactions', value: `${emojiId ? '❤️' : emojiName } ${totalReactions}` });
+
+        if (emojiUrl) {
+            embed.setThumbnail(emojiUrl);
+        }
+
+        if (avatarUrl) {
+            embed.setAuthor({ name: name, iconURL: avatarUrl, url: messageURL })
+        } else {
+            embed.setAuthor({ name: name, url: messageURL })
+        }
+
+        if (content) {
+            embed.setDescription(content);
+        }
+
+        if (doesContentContainTenorText) {
+            let regex = /(https:\/\/tenor\.com\/view\/\S*)/;
+            let match = content.match(regex);
+            let url = match ? match[0] : '';
+            const tenorImage = await PuppeteerWrapper.scrapeTenor(url);
+            embed.setImage(tenorImage.image);
+        }
+
+        if (attachments) {
+            for (const attachment of attachments.values()) {
+                embed.setImage(attachment.url);
+            }
+        }
+
+        if (stickers) {
+            for (const sticker of stickers.values()) {
+                embed.setImage(sticker.url);
+            }
+        }
+
+        embed.setTimestamp(new Date(messageReaction.message.createdTimestamp));
+        embed.setFooter({ text: messageId, iconURL: 'https://cdn.discordapp.com/icons/609471635308937237/cfeccc9c5372c8ae8130b184fd1c5346.png?size=256' })
+
+        if (!reactionMessages[messageId]) {
+            const message = await targetChannel.send({ embeds: [embed] });
+            reactionMessages[messageId] = message.id;
+        } else {
+            const message = await targetChannel.messages.fetch(reactionMessages[messageId]);
+            await message.edit({ embeds: [embed] });
+        }
+    }
+
+}
+
 client.on(Events.ClientReady, onReady);
 client.on(Events.MessageCreate, onMessageCreate);
-client.on(Events.MessageReactionAdd, async message => {
-    // console.log('Reaction added:', message);
-    // if reaction is detected, add a reaction to the message
+client.on(Events.MessageReactionAdd, async messageReaction => {
+    onMessageReactionAdd(messageReaction);
 });
 
-setInterval(() => {
+setInterval(() => {     
     let currentTime = luxon.DateTime.now();
     let lastMessageSentTimeObject = luxon.DateTime.fromISO(lastMessageSentTime);
     let difference = currentTime.diff(lastMessageSentTimeObject, ['seconds']).toObject();
