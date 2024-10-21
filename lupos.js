@@ -16,14 +16,17 @@ const AIService = require('./services/AIService.js');
 const YapperService = require('./services/YapperService.js');
 const luxon = require('luxon');
 const PuppeteerWrapper = require('./wrappers/PuppeteerWrapper.js');
+const LightWrapper = require('./wrappers/LightWrapper.js');
 
-let isResponding = false
 const IGNORE_PREFIX = "!";
 let previousTopAuthorId;
 let previousOverReactorId;
 let lastMessageSentTime = luxon.DateTime.now().toISO()
-let processingMessageQueue = false;
-const queue = []
+
+
+
+
+
 
 const client = DiscordWrapper.instantiate();
 
@@ -209,164 +212,70 @@ function onReady() {
     }
 }
 
-async function onMessageCreate(message) {
-    if (DETECT_AND_REACT) {
-        UtilityLibrary.detectHowlAndRespond(message)
-        await UtilityLibrary.detectMessageAndReact(message)
-    }
+UtilityLibrary.consoleInfo([[`---`, { bold: true, color: 'green' }]]);
+UtilityLibrary.consoleInfo([[`🤖 Lupos v1.0 starting`, { bold: true, color: 'red' }]]);
+
+// ========================================
+// whenever a user sends a message
+let isProcessingOnMessageQueue = false;
+const messageQueue = [];
+async function onMessageCreateQueue(client, message) {
     const isDirectMessageByBot = message.channel.type === ChannelType.DM && message.author.id === client.user.id;
     const isMessageWithoutBotMention = message.channel.type != ChannelType.DM && !message.mentions.has(client.user);
-
     if (message.content.startsWith(IGNORE_PREFIX)) { return }
     if (isDirectMessageByBot) { return }
     if (isMessageWithoutBotMention) { return }
 
-    queue.push(message);
-    if (!processingMessageQueue) {
-        isResponding = true
-        await messageQueue()
-        isResponding = false
+    messageQueue.push(message);
+
+    if (!isProcessingOnMessageQueue) {
+        isProcessingOnMessageQueue = true;
+        while (messageQueue.length > 0) {
+            const queuedMessage = messageQueue.shift();
+            await processMessage(client, queuedMessage);
+        }
+        isProcessingOnMessageQueue = false;
+        return
+    } 
+}
+// ========================================
+
+// ========================================
+// whenever a user reacts to a message
+let isProcessingOnReactionQueue = false;
+const reactionQueue = [];
+async function onReactionCreateQueue(client, reaction) {
+    const isHighlightChannel = reaction.message.channelId === CHANNEL_ID_WHITEMANE_HIGHLIGHTS;
+    const isNSFWChannel = reaction.message.channelId === CHANNEL_ID_WHITEMANE_BOOTY_BAE;
+    if (isHighlightChannel) return;
+    if (isNSFWChannel) return;
+
+    reactionQueue.push(reaction);
+
+    if (!isProcessingOnReactionQueue) {
+        isProcessingOnReactionQueue = true;
+        while (reactionQueue.length > 0) {
+            const queuedReaction = reactionQueue.shift();
+            await processHighlights(client, queuedReaction);
+        }
+        isProcessingOnReactionQueue = false;
         return
     }
 }
+// ========================================
 
-UtilityLibrary.consoleInfo([[`---`, { bold: true, color: 'green' }]]);
-UtilityLibrary.consoleInfo([[`🤖 Lupos v1.0 starting`, { bold: true, color: 'red' }]]);
-    
-async function messageQueue() {
-    if (processingMessageQueue || queue.length === 0) {
-        console.log('Message Queue is currently processing or empty');
-        return;
-    }
-    processingMessageQueue = true;
-    while (queue.length > 0) {
-        const message = queue.shift();
-        await message.channel.sendTyping();
-        
-        let fetchRecentMessages = (await message.channel.messages.fetch({ limit: 100 })).reverse();
-        let recentMessages = fetchRecentMessages.map((msg) => msg);
-
-        const sendTypingInterval = setInterval(() => { message.channel.sendTyping() }, 5000);
-
-        const discordUserTag = UtilityLibrary.discordUserTag(message);
-        
-        let timer = 0;
-
-        const timerInterval = setInterval(() => {
-            timer++;
-        }, 1000);
-        
-        UtilityLibrary.consoleInfo([[`═══════════════░▒▓ +MESSAGE+ ▓▒░════════════════════════════════════`, { color: 'yellow' }, 'start']]);
-
-        if (message.guild) {
-            UtilityLibrary.consoleInfo([[`💬 Replying to: ${discordUserTag} in ${message.guild.name} #${message.channel.name}`, { color: 'cyan' }, 'middle']]);
-        } else {
-            UtilityLibrary.consoleInfo([[`💬 Replying to: ${discordUserTag} in a private message`, { color: 'cyan' }, 'middle']]);
-        }
-        let imageToGenerate = message.content;
-        let generatedTextResponse;
-        let generatedImage;
-
-        // Summary of the message in 5 words
-        const messageContent = message.content.replace(`<@${client.user.id}>`, '');
-        const summary = await AIService.generateSummaryFromMessage(message, messageContent);
-        client.user.setActivity(summary, { type: 4 });
-
-        if (GENERATE_IMAGE) {
-            const { generatedText, imagePrompt, modifiedMessage, systemPrompt } = await AIService.generateNewTextResponse(
-                client, message, recentMessages);
-            generatedTextResponse = generatedText;
-            
-            let newImagePrompt = await AIService.createImagePromptFromImageAndText(
-                message, imagePrompt, generatedText, imageToGenerate);
-
-            if (newImagePrompt) {
-                generatedImage = await AIService.generateImage(newImagePrompt);
-                if (generatedImage) {
-                    const { generatedText: generatedText2 } = await AIService.generateNewTextResponsePart2(
-                        client, message, recentMessages, modifiedMessage, systemPrompt, newImagePrompt);
-                    generatedTextResponse = generatedText2;
-                }
-            }
-
-
-        } else {
-            const { generatedText } = await AIService.generateNewTextResponse(client, message, recentMessages);
-            generatedTextResponse = generatedText;
-        }
-    
-        if (!generatedTextResponse) {
-            UtilityLibrary.consoleInfo([[`⏱️ Duration: ${timer} seconds`, { color: 'cyan' }, 'middle']]);
-            timerInterval.unref();
-            UtilityLibrary.consoleInfo([[`═══════════════░▒▓ -MESSAGE- ▓▒░════════════════════════════════════`, { color: 'red' }, 'end']]);
-            message.reply("...");
-            clearInterval(sendTypingInterval);
-            timerInterval.unref();
-            lastMessageSentTime = luxon.DateTime.now().toISO();
-            return;
-        }
-
-        //  replace <@!1234567890> with the user's display name
-        // const voicePrompt = responseMessage.replace(/<@!?\d+>/g, (match) => {
-        //     const id = match.replace(/<@!?/, '').replace('>', '');
-        //     return UtilityLibrary.findUserById(client, id);
-        // }).substring(0, 220);
-
-        
-        let generatedAudioFile, generatedAudioBuffer;
-
-        // if (GENERATE_VOICE) { 
-        //     UtilityLibrary.consoleInfo([[`🎤 Generating voice...`, { color: 'yellow' }, 'middle']]);
-        //     ({ filename: generatedAudioFile, buffer: generatedAudioBuffer } = await AIService.generateVoice(message, voicePrompt))
-        //     UtilityLibrary.consoleInfo([[`🎤 ... voice generated.`, { color: 'green' }, 'middle']]);
-        // }
-
-        const messageChunkSizeLimit = 2000;
-        for (let i = 0; i < generatedTextResponse.length; i += messageChunkSizeLimit) {
-            const chunk = generatedTextResponse.substring(i, i + messageChunkSizeLimit);
-            let messageReplyOptions = { content: chunk };
-            let files = [];
-            if (generatedAudioFile && (i + messageChunkSizeLimit >= generatedTextResponse.length)) {
-                files.push({ attachment: await fs.promises.readFile(`${BARK_VOICE_FOLDER}/${generatedAudioFile}`), name: `${generatedAudioFile}` });
-            }
-            if (generatedAudioBuffer && (i + messageChunkSizeLimit >= generatedTextResponse.length)) {
-                files.push({ attachment: Buffer.from(generatedAudioBuffer, 'base64'), name: 'lupos.mp3' });
-            }
-            if (generatedImage && (i + messageChunkSizeLimit >= generatedTextResponse.length)) {
-                files.push({ attachment: Buffer.from(generatedImage, 'base64'), name: 'lupos.png' });
-            }
-            messageReplyOptions = { ...messageReplyOptions, files: files};
-            await message.reply(messageReplyOptions);
-        }
-        lastMessageSentTime = luxon.DateTime.now().toISO();
-        
-        clearInterval(sendTypingInterval);
-        UtilityLibrary.consoleInfo([[`⏱️ Duration: ${timer} seconds`, { color: 'cyan' }, 'middle']]);
-        timerInterval.unref();
-        
-        if (message.guild) {
-            UtilityLibrary.consoleInfo([[`💬 Replied to: ${discordUserTag} in ${message.guild.name} #${message.channel.name}`, { color: 'cyan' }, 'middle']]);
-        } else {
-            UtilityLibrary.consoleInfo([[`💬 Replied to: ${discordUserTag} in a private message`, { color: 'cyan' }, 'middle']]);
-        }
-        UtilityLibrary.consoleInfo([[`═══════════════░▒▓ -MESSAGE- ▓▒░════════════════════════════════════`, { color: 'green' }, 'end']]);
-    }
-    // MoodService.instantiate();
-    processingMessageQueue = false;    
-}
 
 const allUniqueUsers = {};
 const reactionMessages = {};
-
-async function onMessageReactionAdd(messageReaction) {
-    const messageId = messageReaction.message.id;
-    const userId = messageReaction.message.author?.id;
-    const guildId = messageReaction.message.guildId;
-    const channelId = messageReaction.message.channelId;
+async function processHighlights(client, queuedReaction) {
+    const messageId = queuedReaction.message.id;
+    const userId = queuedReaction.message.author?.id;
+    const guildId = queuedReaction.message.guildId;
+    const channelId = queuedReaction.message.channelId;
     const channelName = client.channels.cache.get(channelId).name;
     const uniqueUserLengthTrigger = 5;
     const highlightsChannel = CHANNEL_ID_WHITEMANE_HIGHLIGHTS;
-    const content = messageReaction.message.content;
+    const content = queuedReaction.message.content;
 
     if (channelId === CHANNEL_ID_WHITEMANE_HIGHLIGHTS || channelId === CHANNEL_ID_WHITEMANE_BOOTY_BAE) return;
 
@@ -377,19 +286,19 @@ async function onMessageReactionAdd(messageReaction) {
         allUniqueUsers[messageId].add(userId);
     }
     
-    const users = await messageReaction.users.fetch();
+    const users = await queuedReaction.users.fetch();
     users.map(user => allUniqueUsers[messageId].add(user.id));
-    UtilityLibrary.consoleInfo([[`💬 Message: ${content}, Users: ${[...allUniqueUsers[messageId]].length}, Total: ${messageReaction.message.reactions.cache.size}`, { color: 'yellow' }, 'middle']]);
+    UtilityLibrary.consoleInfo([[`💬 Message: ${content}, Users: ${[...allUniqueUsers[messageId]].length}, Total: ${queuedReaction.message.reactions.cache.size}`, { color: 'yellow' }, 'middle']]);
     if ([...allUniqueUsers[messageId]].length >= uniqueUserLengthTrigger) {
-        const attachments = messageReaction.message.attachments;
-        const stickers = messageReaction.message.stickers;
-        const name = messageReaction.message.author?.globalName || messageReaction.message.author?.username;
-        const avatar = messageReaction.message.author?.avatar;
+        const attachments = queuedReaction.message.attachments;
+        const stickers = queuedReaction.message.stickers;
+        const name = queuedReaction.message.author?.globalName || queuedReaction.message.author?.username;
+        const avatar = queuedReaction.message.author?.avatar;
         const avatarUrl = avatar ? `https://cdn.discordapp.com/avatars/${userId}/${avatar}.jpg?size=512` : '';
 
-        const emojiId = messageReaction._emoji.id
-        const emojiName = messageReaction._emoji.name;
-        const isEmojiAnimated = messageReaction._emoji.animated;
+        const emojiId = queuedReaction._emoji.id
+        const emojiName = queuedReaction._emoji.name;
+        const isEmojiAnimated = queuedReaction._emoji.animated;
         let emojiUrl;
 
         const doesContentContainTenorText = content?.includes('https://tenor.com/view/')
@@ -403,8 +312,8 @@ async function onMessageReactionAdd(messageReaction) {
         }
 
 
-        const banner = messageReaction.message.author?.banner;
-        const reference = messageReaction.message.reference;
+        const banner = queuedReaction.message.author?.banner;
+        const reference = queuedReaction.message.reference;
         const referenceChannelId = reference?.channelId;
         const referenceGuildId = reference?.guildId;
         const referenceMessageId = reference?.messageId;
@@ -450,7 +359,7 @@ async function onMessageReactionAdd(messageReaction) {
             }
         }
 
-        const totalReactions = [...allUniqueUsers[messageId]].length > messageReaction.message.reactions.cache.size ? [...allUniqueUsers[messageId]].length : messageReaction.message.reactions.cache.size;
+        const totalReactions = [...allUniqueUsers[messageId]].length > queuedReaction.message.reactions.cache.size ? [...allUniqueUsers[messageId]].length : queuedReaction.message.reactions.cache.size;
 
         const emojiResponse = '<:emoji:1111811553491169280>';
         
@@ -490,7 +399,7 @@ async function onMessageReactionAdd(messageReaction) {
             }
         }
 
-        embed.setTimestamp(new Date(messageReaction.message.createdTimestamp));
+        embed.setTimestamp(new Date(queuedReaction.message.createdTimestamp));
         embed.setFooter({ text: messageId, iconURL: 'https://cdn.discordapp.com/icons/609471635308937237/cfeccc9c5372c8ae8130b184fd1c5346.png?size=256' })
 
         if (!reactionMessages[messageId]) {
@@ -504,11 +413,116 @@ async function onMessageReactionAdd(messageReaction) {
 
 }
 
+async function processMessage(client, queuedMessage) {
+    await queuedMessage.channel.sendTyping();
+    LightWrapper.setState({ color: 'purple' }, 'd073d523f763');
+    let fetchRecentMessages = (await queuedMessage.channel.messages.fetch({ limit: 100 })).reverse();
+    let recentMessages = fetchRecentMessages.map((msg) => msg);
+    const sendTypingInterval = setInterval(() => { queuedMessage.channel.sendTyping() }, 5000);
+    const discordUserTag = UtilityLibrary.discordUserTag(queuedMessage);
+    let timer = 0;
+    const timerInterval = setInterval(() => { timer++ }, 1000);
+    
+    UtilityLibrary.consoleInfo([[`═══════════════░▒▓ +MESSAGE+ ▓▒░════════════════════════════════════`, { color: 'yellow' }, 'start']]);
+
+    if (queuedMessage.guild) {
+        UtilityLibrary.consoleInfo([[`💬 Replying to: ${discordUserTag} in ${queuedMessage.guild.name} #${queuedMessage.channel.name}`, { color: 'cyan' }, 'middle']]);
+    } else {
+        UtilityLibrary.consoleInfo([[`💬 Replying to: ${discordUserTag} in a private message`, { color: 'cyan' }, 'middle']]);
+    }
+    let imageToGenerate = queuedMessage.content;
+    let generatedTextResponse;
+    let generatedImage;
+
+    // Summary of the message in 5 words
+    const messageContent = queuedMessage.content.replace(`<@${client.user.id}>`, '');
+    const summary = await AIService.generateSummaryFromMessage(queuedMessage, messageContent);
+    client.user.setActivity(summary, { type: 4 });
+
+    if (GENERATE_IMAGE) {
+        const { generatedText, imagePrompt, modifiedMessage, systemPrompt } = await AIService.generateNewTextResponse(
+            client, queuedMessage, recentMessages);
+        generatedTextResponse = generatedText;
+        
+        let newImagePrompt = await AIService.createImagePromptFromImageAndText(
+            queuedMessage, imagePrompt, generatedText, imageToGenerate);
+
+        if (newImagePrompt) {
+            generatedImage = await AIService.generateImage(newImagePrompt);
+            if (generatedImage) {
+                const { generatedText: generatedText2 } = await AIService.generateNewTextResponsePart2(
+                    client, queuedMessage, recentMessages, modifiedMessage, systemPrompt, newImagePrompt);
+                generatedTextResponse = generatedText2;
+            }
+        }
+
+
+    } else {
+        const { generatedText } = await AIService.generateNewTextResponse(client, queuedMessage, recentMessages);
+        generatedTextResponse = generatedText;
+    }
+
+    if (!generatedTextResponse) {
+        UtilityLibrary.consoleInfo([[`⏱️ Duration: ${timer} seconds`, { color: 'cyan' }, 'middle']]);
+        timerInterval.unref();
+        UtilityLibrary.consoleInfo([[`═══════════════░▒▓ -MESSAGE- ▓▒░════════════════════════════════════`, { color: 'red' }, 'end']]);
+        queuedMessage.reply("...");
+        clearInterval(sendTypingInterval);
+        timerInterval.unref();
+        lastMessageSentTime = luxon.DateTime.now().toISO();
+        return;
+    }
+
+    //  replace <@!1234567890> with the user's display name
+    // const voicePrompt = responseMessage.replace(/<@!?\d+>/g, (match) => {
+    //     const id = match.replace(/<@!?/, '').replace('>', '');
+    //     return UtilityLibrary.findUserById(client, id);
+    // }).substring(0, 220);
+
+    
+    let generatedAudioFile, generatedAudioBuffer;
+
+    // if (GENERATE_VOICE) { 
+    //     UtilityLibrary.consoleInfo([[`🎤 Generating voice...`, { color: 'yellow' }, 'middle']]);
+    //     ({ filename: generatedAudioFile, buffer: generatedAudioBuffer } = await AIService.generateVoice(message, voicePrompt))
+    //     UtilityLibrary.consoleInfo([[`🎤 ... voice generated.`, { color: 'green' }, 'middle']]);
+    // }
+
+    const messageChunkSizeLimit = 2000;
+    for (let i = 0; i < generatedTextResponse.length; i += messageChunkSizeLimit) {
+        const chunk = generatedTextResponse.substring(i, i + messageChunkSizeLimit);
+        let messageReplyOptions = { content: chunk };
+        let files = [];
+        if (generatedAudioFile && (i + messageChunkSizeLimit >= generatedTextResponse.length)) {
+            files.push({ attachment: await fs.promises.readFile(`${BARK_VOICE_FOLDER}/${generatedAudioFile}`), name: `${generatedAudioFile}` });
+        }
+        if (generatedAudioBuffer && (i + messageChunkSizeLimit >= generatedTextResponse.length)) {
+            files.push({ attachment: Buffer.from(generatedAudioBuffer, 'base64'), name: 'lupos.mp3' });
+        }
+        if (generatedImage && (i + messageChunkSizeLimit >= generatedTextResponse.length)) {
+            files.push({ attachment: Buffer.from(generatedImage, 'base64'), name: 'lupos.png' });
+        }
+        messageReplyOptions = { ...messageReplyOptions, files: files};
+        await queuedMessage.reply(messageReplyOptions);
+    }
+    lastMessageSentTime = luxon.DateTime.now().toISO();
+    
+    clearInterval(sendTypingInterval);
+    LightWrapper.setState({ color: 'white' }, 'd073d523f763');
+    UtilityLibrary.consoleInfo([[`⏱️ Duration: ${timer} seconds`, { color: 'cyan' }, 'middle']]);
+    timerInterval.unref();
+    
+    if (queuedMessage.guild) {
+        UtilityLibrary.consoleInfo([[`💬 Replied to: ${discordUserTag} in ${queuedMessage.guild.name} #${queuedMessage.channel.name}`, { color: 'cyan' }, 'middle']]);
+    } else {
+        UtilityLibrary.consoleInfo([[`💬 Replied to: ${discordUserTag} in a private message`, { color: 'cyan' }, 'middle']]);
+    }
+    UtilityLibrary.consoleInfo([[`═══════════════░▒▓ -MESSAGE- ▓▒░════════════════════════════════════`, { color: 'green' }, 'end']]);
+}
+
 client.on(Events.ClientReady, onReady);
-client.on(Events.MessageCreate, onMessageCreate);
-client.on(Events.MessageReactionAdd, async messageReaction => {
-    onMessageReactionAdd(messageReaction);
-});
+client.on(Events.MessageCreate, async message => { onMessageCreateQueue(client, message) });
+client.on(Events.MessageReactionAdd, async messageReaction => { onReactionCreateQueue(client, messageReaction) });
 
 setInterval(() => {     
     let currentTime = luxon.DateTime.now();

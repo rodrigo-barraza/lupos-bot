@@ -35,7 +35,7 @@ const LightWrapper = {
             // kelvin: attributes.kelvin,
         }
         const response = await fetch(`https://api.lifx.com/v1/lights/${lightId}/state`, {
-            method: 'POST',
+            method: 'PUT',
             headers: {
                 'Authorization': `Bearer ${token}`,
                 'Content-Type': 'application/json'

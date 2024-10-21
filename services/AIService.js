@@ -1,10 +1,8 @@
 require('dotenv/config');
 const luxon = require('luxon');
 const moment = require('moment');
-const AlcoholService = require('../services/AlcoholService.js');
 const UtilityLibrary = require('../libraries/UtilityLibrary.js');
 const MessageService = require('../services/MessageService.js');
-const MoodService = require('../services/MoodService.js');
 const ComfyUIWrapper = require('../wrappers/ComfyUIWrapper.js');
 const DiscordWrapper = require('../wrappers/DiscordWrapper.js');
 const OpenAIWrapper = require('../wrappers/OpenAIWrapper.js');
@@ -99,7 +97,6 @@ async function generateVoice(text) {
     return { filename, buffer };
 }
 
-
 function assembleConversation(systemMessage, userMessage, message) {
     let conversation = [
         {
@@ -114,7 +111,6 @@ function assembleConversation(systemMessage, userMessage, message) {
     ]
     return conversation;
 }
-
 
 async function generateNewConversation(client, message, systemPrompt, recentMessages) {
     let conversation = [];
@@ -162,7 +158,6 @@ async function generateNewConversation(client, message, systemPrompt, recentMess
     return conversation;
 }
 
-
 function removeMentions(text) {
     return text
     .replace(/@here/g, '꩜here')
@@ -202,7 +197,7 @@ const AIService = {
         const generatedText = await generateText({
             conversation: conversation,
             type: LANGUAGE_MODEL_TYPE,
-            performance: 'POWERFUL',
+            performance: 'FAST',
             tokens: LANGUAGE_MODEL_MAX_TOKENS,
             temperature: LANGUAGE_MODEL_TEMPERATURE
         });
@@ -263,7 +258,7 @@ const AIService = {
             const generatedText = await generateText({
                 conversation: conversation,
                 type: LANGUAGE_MODEL_TYPE,
-                performance: 'POWERFUL',
+                performance: 'FAST',
                 tokens: LANGUAGE_MODEL_MAX_TOKENS,
                 temperature: LANGUAGE_MODEL_TEMPERATURE
             });
