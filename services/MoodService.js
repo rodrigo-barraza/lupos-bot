@@ -1,6 +1,6 @@
 const { ActivityType } = require('discord.js');
 const AIService = require('../services/AIService.js');
-const DiscordWrapper = require('../wrappers/DiscordWrapper.js');
+const DiscordService = require('../services/DiscordService.js');
 
 let moodLevel = 0;
 
@@ -122,7 +122,7 @@ const moods = [
 
 const MoodService = {
     instantiate() {
-        const client = DiscordWrapper.getClient();
+        const client = DiscordService.client;
         const currentMood = moods.find(mood => mood.level === moodLevel);
         client.user.setActivity(`Don't tag me...`, { type: ActivityType.Custom });
     },
@@ -137,7 +137,7 @@ const MoodService = {
         MoodService.onMoodLevelChange();
     },
     onMoodLevelChange() {
-        const client = DiscordWrapper.getClient();
+        const client = DiscordService.client;
         const currentMood = moods.find(mood => mood.level === moodLevel);
         client.user.setActivity(`Mood: ${currentMood.emoji} ${currentMood.name} (${moodLevel})`, { type: ActivityType.Custom });
     },

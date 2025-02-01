@@ -3,15 +3,14 @@ require('dotenv/config');
 const {
     WHITEMANE_YAPPER_ROLE_ID, WHITEMANE_OVERREACTOR_ROLE_ID, WHITEMANE_POLITICS_CHANNEL_ID, GUILD_ID_WHITEMANE,
     GENERATE_VOICE, BLABBERMOUTH, DETECT_AND_REACT, DISCORD_TOKEN, BARK_VOICE_FOLDER, GENERATE_IMAGE,
-    CHANNEL_ID_WHITEMANE_HIGHLIGHTS, CHANNEL_ID_THE_CLAM_HIGHLIGHTS, CHANNEL_ID_WHITEMANE_BOOTY_BAE
+    CHANNEL_ID_WHITEMANE_HIGHLIGHTS, CHANNEL_ID_THE_CLAM_HIGHLIGHTS, CHANNEL_ID_WHITEMANE_BOOTY_BAE,
+    PRIMARY_LIGHT_ID
 } = require('./config.json');
 const fs = require('node:fs');
-const path = require('node:path');
 const { Collection, Events, ChannelType, EmbedBuilder } = require('discord.js');
 const UtilityLibrary = require('./libraries/UtilityLibrary.js');
-const AlcoholService = require('./services/AlcoholService.js');
 const MoodService = require('./services/MoodService.js');
-const DiscordWrapper = require('./wrappers/DiscordWrapper.js');
+const DiscordService = require('./services/DiscordService.js');
 const AIService = require('./services/AIService.js');
 const YapperService = require('./services/YapperService.js');
 const luxon = require('luxon');
@@ -23,53 +22,7 @@ let previousTopAuthorId;
 let previousOverReactorId;
 let lastMessageSentTime = luxon.DateTime.now().toISO()
 
-
-
-
-
-
-const client = DiscordWrapper.instantiate();
-
-// client.commands = new Collection();
-// const foldersPath = path.join(__dirname, 'commands');
-// const commandFolders = fs.readdirSync(foldersPath);
-
-// for (const folder of commandFolders) {
-// 	const commandsPath = path.join(foldersPath, folder);
-// 	const commandFiles = fs.readdirSync(commandsPath).filter(file => file.endsWith('.js'));
-// 	for (const file of commandFiles) {
-// 		const filePath = path.join(commandsPath, file);
-// 		const command = require(filePath);
-// 		// Set a new item in the Collection with the key as the command name and the value as the exported module
-// 		if ('data' in command && 'execute' in command) {
-// 			client.commands.set(command.data.name, command);
-// 		} else {
-// 			console.log(`[WARNING] The command at ${filePath} is missing a required "data" or "execute" property.`);
-// 		}
-// 	}
-// }
-
-// client.on(Events.InteractionCreate, async interaction => {
-// 	if (!interaction.isChatInputCommand()) return;
-
-// 	const command = interaction.client.commands.get(interaction.commandName);
-
-// 	if (!command) {
-// 		console.error(`No command matching ${interaction.commandName} was found.`);
-// 		return;
-// 	}
-
-// 	try {
-// 		await command.execute(interaction);
-// 	} catch (error) {
-// 		console.error(error);
-// 		if (interaction.replied || interaction.deferred) {
-// 			await interaction.followUp({ content: 'There was an error while executing this command!', ephemeral: true });
-// 		} else {
-// 			await interaction.reply({ content: 'There was an error while executing this command!', ephemeral: true });
-// 		}
-// 	}
-// });
+const client = DiscordService.client;
 
 async function generateOverReactors(combinedMessages, guild) {
     const overReactorRoleId = WHITEMANE_OVERREACTOR_ROLE_ID;
@@ -80,11 +33,11 @@ async function generateOverReactors(combinedMessages, guild) {
     try {
         const results = await Promise.all(
             combinedMessages.map(message => 
-            Promise.all(
-                Array.from(message.reactions.cache.values()).map(reaction => 
-                reaction.users.fetch()
+                Promise.all(
+                        Array.from(message.reactions.cache.values()).map(reaction => 
+                        reaction.users.fetch()
+                    )
                 )
-            )
             )
         );
     
@@ -151,28 +104,32 @@ async function generateYappers(combinedMessages, guild) {
     .slice(0, 5);
 
     const topAuthorId = topAuthorCounts.reduce((a, b) => a.count > b.count ? a : b).authorId;
+
+    try {
+        const topAuthor = await guild.members.fetch(topAuthorId);
+        const membersWithYapperRole = guild.members.cache.filter(member => member.roles.cache.some(role => role.id === yapperRoleId));
     
-    const topAuthor = await guild.members.fetch(topAuthorId);
-    const membersWithYapperRole = guild.members.cache.filter(member => member.roles.cache.some(role => role.id === yapperRoleId));
-
-    if (previousTopAuthorId !== topAuthor.id) {
-        await membersWithYapperRole.forEach(member => member.roles.remove(yapperRole));
-        topAuthor.roles.add(yapperRole);
-        previousTopAuthorId = topAuthor.id;
-        // UtilityLibrary.consoleInfo([[`🤌 ${topAuthor.displayName} has been given the role ${yapperRole.name}`, { color: 'red' }]]);
-    }
-
-    const currentYappers = YapperService.getYappers();
-
-    if (!UtilityLibrary.areArraysEqual(currentYappers, topAuthorCounts)) {
-        YapperService.setYappers(topAuthorCounts);
-        // console.log('🗣 Current yappers:', mappedYappers);
+        if (previousTopAuthorId !== topAuthor.id) {
+            await membersWithYapperRole.forEach(member => member.roles.remove(yapperRole));
+            topAuthor.roles.add(yapperRole);
+            previousTopAuthorId = topAuthor.id;
+            // UtilityLibrary.consoleInfo([[`🤌 ${topAuthor.displayName} has been given the role ${yapperRole.name}`, { color: 'red' }]]);
+        }
+    
+        const currentYappers = YapperService.getYappers();
+    
+        if (!UtilityLibrary.areArraysEqual(currentYappers, topAuthorCounts)) {
+            YapperService.setYappers(topAuthorCounts);
+            // console.log('🗣 Current yappers:', mappedYappers);
+        }
+    } catch (error) {
+        // console.error(error);
     }
 }
 
-async function autoAssignRoles(client) {
-    const channel1 = client.channels.cache.get(WHITEMANE_POLITICS_CHANNEL_ID);
-    const guild = client.guilds.cache.get(GUILD_ID_WHITEMANE);
+async function autoAssignRoles() {
+    const channel1 = DiscordService.getChannelById(WHITEMANE_POLITICS_CHANNEL_ID);
+    const guild = DiscordService.getGuildById(GUILD_ID_WHITEMANE);
 
     try {
         const allMessages = await Promise.all([
@@ -191,16 +148,13 @@ async function autoAssignRoles(client) {
 }
 
 function displayAllGuilds() {
-    const guildArray = []
-    client.guilds.cache.forEach(guild => {
-        guildArray.push(guild);
-    });
-    let connectedGuildsText = `🌎 Connected Guilds (Servers): ${guildArray.length }`
+    const guilds = DiscordService.getAllGuilds();
+    let connectedGuildsText = `🌎 Connected Guilds (Servers): ${guilds.length }`
     UtilityLibrary.consoleInfo([[connectedGuildsText, {}]]);
 }
 
-function onReady() {
-    UtilityLibrary.consoleInfo([[`👌 Logged in as ${client.user.tag}`, { bold: true }]]);
+async function onReady() {
+    UtilityLibrary.consoleInfo([[`👌 Logged in as ${DiscordService.getBotName()}`, { bold: true }]]);
     // AlcoholService.instantiate();
     MoodService.instantiate();
     displayAllGuilds()
@@ -210,6 +164,30 @@ function onReady() {
             autoAssignRoles(client)
         }, 10 * 1000);
     }
+    const guild = client.guilds.cache.find(guild => guild.name === 'Classic Whitemane');
+    console.log('Channels for Classic Whitemane:');
+    for (const channel of guild.channels.cache.values()) {
+        if (channel.type === ChannelType.GuildText &&
+            // channel.parent.name !== 'Archived' &&
+            // channel.parent.name !== 'Archived: First Purge' &&
+            // channel.parent.name !== 'Archived: SOD' &&
+            // channel.parent.name !== 'Archived: Alliance' &&
+            // channel.parent.name !== 'Archived: WoW Classes' &&
+            // channel.parent.name !== '⚒ Administration' &&
+            // channel.parent.name !== 'Info' &&
+            // channel.parent.name !== 'Welcome'
+            (channel.parent.name === 'Classic WoW' ||
+            channel.parent.name === 'Classic Cataclysm')
+        ) {
+            const messages = await DiscordService.fetchMessages(channel.id, 1);
+            const lastMessageSentOn = luxon.DateTime.fromMillis(messages[0].createdTimestamp);
+            const now = luxon.DateTime.local();
+            const daysDifference = lastMessageSentOn.until(now).toDuration(['days']).toObject().days.toFixed(0);
+            const paddedDaysDifference = daysDifference.padStart(6, '0');
+            console.log(`${paddedDaysDifference} days`, channel.name);
+        }
+    }
+    console.log('-------------------');
 }
 
 UtilityLibrary.consoleInfo([[`---`, { bold: true, color: 'green' }]]);
@@ -232,7 +210,7 @@ async function onMessageCreateQueue(client, message) {
         isProcessingOnMessageQueue = true;
         while (messageQueue.length > 0) {
             const queuedMessage = messageQueue.shift();
-            await processMessage(client, queuedMessage);
+            await replyMessage(client, queuedMessage);
         }
         isProcessingOnMessageQueue = false;
         return
@@ -272,7 +250,7 @@ async function processHighlights(client, queuedReaction) {
     const userId = queuedReaction.message.author?.id;
     const guildId = queuedReaction.message.guildId;
     const channelId = queuedReaction.message.channelId;
-    const channelName = client.channels.cache.get(channelId).name;
+    const channelName = DiscordService.getChannelName(channelId);
     const uniqueUserLengthTrigger = 5;
     const highlightsChannel = CHANNEL_ID_WHITEMANE_HIGHLIGHTS;
     const content = queuedReaction.message.content;
@@ -288,7 +266,7 @@ async function processHighlights(client, queuedReaction) {
     
     const users = await queuedReaction.users.fetch();
     users.map(user => allUniqueUsers[messageId].add(user.id));
-    UtilityLibrary.consoleInfo([[`💬 Message: ${content}, Users: ${[...allUniqueUsers[messageId]].length}, Total: ${queuedReaction.message.reactions.cache.size}`, { color: 'yellow' }, 'middle']]);
+    UtilityLibrary.consoleInfo([[`❤️ React: ${content}, Users: ${[...allUniqueUsers[messageId]].length}, Total: ${queuedReaction.message.reactions.cache.size}`, { color: 'yellow' }, 'middle']]);
     if ([...allUniqueUsers[messageId]].length >= uniqueUserLengthTrigger) {
         const attachments = queuedReaction.message.attachments;
         const stickers = queuedReaction.message.stickers;
@@ -320,13 +298,13 @@ async function processHighlights(client, queuedReaction) {
         let referenceMessage;
 
 
-        const currentReferenceChannel = client.channels.cache.get(referenceChannelId);
+        const currentReferenceChannel = DiscordService.getChannelById(referenceChannelId);
 
         if (currentReferenceChannel?.messages) {
             referenceMessage = await currentReferenceChannel.messages.fetch(referenceMessageId)
         }
 
-        const targetChannel = client.channels.cache.get(highlightsChannel);
+        const targetChannel = DiscordService.getChannelById(highlightsChannel);
 
         const messageURL = `https://discord.com/channels/${guildId}/${channelId}/${messageId}`;
 
@@ -413,9 +391,10 @@ async function processHighlights(client, queuedReaction) {
 
 }
 
-async function processMessage(client, queuedMessage) {
+async function replyMessage(client, queuedMessage) {
+    LightWrapper.setState({ color: 'purple' }, PRIMARY_LIGHT_ID);
+    await DiscordService.fetchMessages(1302506119813660692, 300);
     await queuedMessage.channel.sendTyping();
-    LightWrapper.setState({ color: 'purple' }, 'd073d523f763');
     let fetchRecentMessages = (await queuedMessage.channel.messages.fetch({ limit: 100 })).reverse();
     let recentMessages = fetchRecentMessages.map((msg) => msg);
     const sendTypingInterval = setInterval(() => { queuedMessage.channel.sendTyping() }, 5000);
@@ -437,7 +416,7 @@ async function processMessage(client, queuedMessage) {
     // Summary of the message in 5 words
     const messageContent = queuedMessage.content.replace(`<@${client.user.id}>`, '');
     const summary = await AIService.generateSummaryFromMessage(queuedMessage, messageContent);
-    client.user.setActivity(summary, { type: 4 });
+    DiscordService.setUserActivity(summary);
 
     if (GENERATE_IMAGE) {
         const { generatedText, imagePrompt, modifiedMessage, systemPrompt } = await AIService.generateNewTextResponse(
@@ -458,7 +437,10 @@ async function processMessage(client, queuedMessage) {
 
 
     } else {
-        const { generatedText } = await AIService.generateNewTextResponse(client, queuedMessage, recentMessages);
+        let { generatedText } = await AIService.generateNewTextResponse(client, queuedMessage, recentMessages);
+        textResponse = textResponse.replace(/<think>.*<\/think>/g, '');
+        // also remove the tags
+        textResponse = textResponse.replace(/<think>[\s\S]*?<\/think>\n\n/g, '');
         generatedTextResponse = generatedText;
     }
 
@@ -468,7 +450,6 @@ async function processMessage(client, queuedMessage) {
         UtilityLibrary.consoleInfo([[`═══════════════░▒▓ -MESSAGE- ▓▒░════════════════════════════════════`, { color: 'red' }, 'end']]);
         queuedMessage.reply("...");
         clearInterval(sendTypingInterval);
-        timerInterval.unref();
         lastMessageSentTime = luxon.DateTime.now().toISO();
         return;
     }
@@ -493,6 +474,7 @@ async function processMessage(client, queuedMessage) {
         const chunk = generatedTextResponse.substring(i, i + messageChunkSizeLimit);
         let messageReplyOptions = { content: chunk };
         let files = [];
+
         if (generatedAudioFile && (i + messageChunkSizeLimit >= generatedTextResponse.length)) {
             files.push({ attachment: await fs.promises.readFile(`${BARK_VOICE_FOLDER}/${generatedAudioFile}`), name: `${generatedAudioFile}` });
         }
@@ -505,10 +487,11 @@ async function processMessage(client, queuedMessage) {
         messageReplyOptions = { ...messageReplyOptions, files: files};
         await queuedMessage.reply(messageReplyOptions);
     }
+
     lastMessageSentTime = luxon.DateTime.now().toISO();
     
     clearInterval(sendTypingInterval);
-    LightWrapper.setState({ color: 'white' }, 'd073d523f763');
+    LightWrapper.setState({ color: 'white' }, PRIMARY_LIGHT_ID);
     UtilityLibrary.consoleInfo([[`⏱️ Duration: ${timer} seconds`, { color: 'cyan' }, 'middle']]);
     timerInterval.unref();
     
@@ -520,9 +503,10 @@ async function processMessage(client, queuedMessage) {
     UtilityLibrary.consoleInfo([[`═══════════════░▒▓ -MESSAGE- ▓▒░════════════════════════════════════`, { color: 'green' }, 'end']]);
 }
 
-client.on(Events.ClientReady, onReady);
-client.on(Events.MessageCreate, async message => { onMessageCreateQueue(client, message) });
-client.on(Events.MessageReactionAdd, async messageReaction => { onReactionCreateQueue(client, messageReaction) });
+DiscordService.login();
+DiscordService.onEventClientReady(onReady);
+DiscordService.onEventMessageCreate(onMessageCreateQueue);
+DiscordService.onEventMessageReactionAdd(onReactionCreateQueue);
 
 setInterval(() => {     
     let currentTime = luxon.DateTime.now();
@@ -532,5 +516,3 @@ setInterval(() => {
         lastMessageSentTime = currentTime.toISO();
     }
 }, 1000);
-
-client.login(DISCORD_TOKEN);

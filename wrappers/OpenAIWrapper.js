@@ -88,27 +88,34 @@ const OpenAIWrapper = {
         return buffer;
     },
     async generateVisionResponse(imageUrl, text) {
-        const response = await openai.chat.completions.create({
-            model: OPENAI_VISION_MODEL,
-            messages: [
+        let response, error;
+        try {
+            const messages = [
                 {
                     "role": "user",
                     "content": [
-                        { "type": "text", "text": text ? text : "What’s in this image?" },
+                        { "type": "text", "text": text ? text : "What's in this image?" },
                         {
                             "type": "image_url",
                             "image_url": {
                             "url": imageUrl,
                             },
                         },
-                    ],
+                    ]
                 }
-            ],
-            max_tokens: VISION_MODEL_MAX_TOKENS,
-        }).catch((error) => console.error('OpenAI Error:\n', error));
-        return response;
+            ];
+            const completionObject = {
+                model: OPENAI_VISION_MODEL,
+                messages: messages,
+                max_tokens: VISION_MODEL_MAX_TOKENS,
+            };
+            response = await openai.chat.completions.create(completionObject);
+        } catch (err) {
+            error = err;
+        }
+        return { response, error };
     },
-    async generateText(
+    async generateTextResponse(
         conversation,
         model=LANGUAGE_MODEL_LOCAL,
         tokens=LANGUAGE_MODEL_MAX_TOKENS,
@@ -126,7 +133,7 @@ const OpenAIWrapper = {
         }
         return text;
     },
-    async generateEmbedding(text) {
+    async generateEmbeddingResponse(text) {
         return await openai.embedding.create({
             model: "text-embedding-ada-002",
             input: text,

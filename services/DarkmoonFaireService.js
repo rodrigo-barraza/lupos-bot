@@ -1,6 +1,5 @@
 const { ActivityType } = require('discord.js');
 const AIService = require('../services/AIService.js');
-const DiscordWrapper = require('../wrappers/DiscordWrapper.js');
 const moment = require('moment')
 
 const DarkmoonFaireService = {

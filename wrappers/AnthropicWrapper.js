@@ -12,7 +12,7 @@ const {
 const anthropic = new Anthropic({apiKey: ANTHROPIC_KEY})
 
 const AnthrophicWrapper = {
-    async generateText(
+    async generateTextResponse(
       conversation,
       model=LANGUAGE_MODEL_ANTHROPIC,
       tokens=LANGUAGE_MODEL_MAX_TOKENS,
