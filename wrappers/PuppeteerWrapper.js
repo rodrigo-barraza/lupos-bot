@@ -135,36 +135,80 @@ const PuppeteerWrapper = {
         const page = await browser.newPage();
         await page.goto(url);
 
+        // if url has youtube.com/watch
+    
         const selectors = [
-            { selector: 'title', property: 'title' },
+            { selector: 'head title', property: 'title' },
+            // { selector: 'a', property: 'links' },
+            { selector: 'p', property: 'text' },
+            // { selector: 'span', property: 'text' },
+            { selector: 'h1', property: 'header' },
+            // { selector: 'h2', property: 'h2' },
+            // { selector: 'h3', property: 'h3' },
             { selector: 'meta[name="description"]', property: 'description' },
             { selector: 'meta[name="keywords"]', property: 'keywords' },
             { selector: 'meta[property="og:image"]', property: 'image' },
-          ];
-          
-          const result = {};
-          
-          await Promise.all(
+        ];
+
+        const youtubeWatchRegex = /(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]{11})/;
+        if (youtubeWatchRegex) {
+            // Video description
+            selectors.push({ selector: 'div[id="description"] span', property: 'description' });
+            // Related videos
+            selectors.push({ selector: 'div[id="secondary"] a h3', property: 'relatedVideos' });
+        }
+        
+        const result = {};
+        
+        await Promise.all(
             selectors.map(async ({ selector, property }) => {
-              try {
-                await page.waitForSelector(selector, { timeout: 5000 });
-          
-                const value = await page.evaluate((s, p) => {
-                  const element = document.querySelector(s);
-                  return element ? element[p] || element.getAttribute('content') : null;
-                }, selector, property);
-          
-                if (value) {
-                  result[property] = value.trim();
+                try {
+                    await page.waitForSelector(selector, { timeout: 5000 });
+    
+                    const value = await page.evaluate((s, p) => {
+                        const elements = Array.from(document.querySelectorAll(s));
+                        return elements.map(element => element ? element.innerText || element.getAttribute(p) : null);
+                    }, selector, property);
+                    
+                    if (value) {
+                        result[property] = value.filter(v => v !== null && v.trim() !== '');
+                    }
+                } catch (error) {
+                    console.error(`Puppeteer Error on ${selector}:\n`, error);
                 }
-              } catch (error) {
-                console.error(`Puppeteer Error on ${selector}:\n`, error);
-              }
             })
-          );
+        );
+
+        const descriptionElement = await page.waitForSelector('div[id="description"]', { timeout: 5000 });
+        if (descriptionElement) {
+            await page.evaluate(() => document.querySelector('div[id="description"]').click());
+            await page.waitForSelector('button[aria-label="Show transcript"]', { timeout: 5000 });
+            const showTranscriptButton = await page.$('button[aria-label="Show transcript"]');
+            if (showTranscriptButton) {
+                await page.evaluate(() => document.querySelector('button[aria-label="Show transcript"]').click());
+                await page.waitForSelector('ytd-transcript-segment-renderer', { timeout: 5000 });
+        
+                const transcriptData = await page.evaluate(() => {
+                    const transcriptElement = document.querySelector('div[id="panels"]');
+                    const transcriptSegments = Array.from(transcriptElement.querySelectorAll('ytd-transcript-segment-renderer'));
+                    return transcriptSegments.map(segment => {
+                        const timestamp = segment.querySelector('div[class="segment-timestamp style-scope ytd-transcript-segment-renderer"]').innerText;
+                        const innerText = segment.querySelector('yt-formatted-string').innerText;
+                        return { timestamp, innerText };
+                    });
+                });
+                
+                const transcript = transcriptData.map(entry => `${entry.timestamp}: ${entry.innerText}\n`).join('');
+                result.transcript = transcript;
+            }
+        }
+
+
+        console.log(11111111111111111);
+        console.log(result);
+        console.log(11111111111111111);
         
         await browser.close();
-        UtilityLibrary.consoleInfo([[`║ 🌐 Scraping URL: `, { }], [result, { }]]);
         return result;
     },
     async scrapeTenor(url) {

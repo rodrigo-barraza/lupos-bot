@@ -416,32 +416,51 @@ async function replyMessage(client, queuedMessage) {
     // Summary of the message in 5 words
     const messageContent = queuedMessage.content.replace(`<@${client.user.id}>`, '');
     const summary = await AIService.generateSummaryFromMessage(queuedMessage, messageContent);
+    console.log('Summary:', summary);
     DiscordService.setUserActivity(summary);
+    
+    const { 
+        generatedText, 
+        imagePrompt, 
+        modifiedMessage, 
+        systemPrompt 
+    } = await AIService.generateNewTextResponse(
+        client,
+        queuedMessage,
+        recentMessages
+    );
+
+    LightWrapper.setState({ color: 'red' }, PRIMARY_LIGHT_ID);
+    console.log(1111111111111, modifiedMessage);
+    generatedTextResponse = generatedText;
 
     if (GENERATE_IMAGE) {
-        const { generatedText, imagePrompt, modifiedMessage, systemPrompt } = await AIService.generateNewTextResponse(
-            client, queuedMessage, recentMessages);
-        generatedTextResponse = generatedText;
-        
-        let newImagePrompt = await AIService.createImagePromptFromImageAndText(
-            queuedMessage, imagePrompt, generatedText, imageToGenerate);
-
-        if (newImagePrompt) {
-            generatedImage = await AIService.generateImage(newImagePrompt);
-            if (generatedImage) {
-                const { generatedText: generatedText2 } = await AIService.generateNewTextResponsePart2(
-                    client, queuedMessage, recentMessages, modifiedMessage, systemPrompt, newImagePrompt);
-                generatedTextResponse = generatedText2;
+        const imageGenerationStatusIsUp = await AIService.checkImageGenerationStatus();
+        if (true) {
+            let newImagePrompt = await AIService.createImagePromptFromImageAndText(
+                queuedMessage,
+                imagePrompt,
+                generatedText,
+                imageToGenerate
+            );
+    
+            if (newImagePrompt) {
+                generatedImage = await AIService.generateImage(newImagePrompt);
+                if (generatedImage) {
+                    const {
+                        generatedText: generatedText2
+                    } = await AIService.generateNewTextResponsePart2(
+                        client,
+                        queuedMessage,
+                        recentMessages,
+                        modifiedMessage,
+                        systemPrompt,
+                        newImagePrompt
+                    );
+                    generatedTextResponse = generatedText2;
+                }
             }
         }
-
-
-    } else {
-        let { generatedText } = await AIService.generateNewTextResponse(client, queuedMessage, recentMessages);
-        textResponse = textResponse.replace(/<think>.*<\/think>/g, '');
-        // also remove the tags
-        textResponse = textResponse.replace(/<think>[\s\S]*?<\/think>\n\n/g, '');
-        generatedTextResponse = generatedText;
     }
 
     if (!generatedTextResponse) {
@@ -496,8 +515,10 @@ async function replyMessage(client, queuedMessage) {
     timerInterval.unref();
     
     if (queuedMessage.guild) {
+        console.log('channel id:', queuedMessage.channel.id);
         UtilityLibrary.consoleInfo([[`💬 Replied to: ${discordUserTag} in ${queuedMessage.guild.name} #${queuedMessage.channel.name}`, { color: 'cyan' }, 'middle']]);
     } else {
+        console.log('channel id:', queuedMessage.channel.id);
         UtilityLibrary.consoleInfo([[`💬 Replied to: ${discordUserTag} in a private message`, { color: 'cyan' }, 'middle']]);
     }
     UtilityLibrary.consoleInfo([[`═══════════════░▒▓ -MESSAGE- ▓▒░════════════════════════════════════`, { color: 'green' }, 'end']]);
