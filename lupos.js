@@ -2,7 +2,7 @@ process.env.NODE_NO_WARNINGS = 'stream/web';
 require('dotenv/config');
 const {
     WHITEMANE_YAPPER_ROLE_ID, WHITEMANE_OVERREACTOR_ROLE_ID, WHITEMANE_POLITICS_CHANNEL_ID, GUILD_ID_WHITEMANE,
-    GENERATE_VOICE, BLABBERMOUTH, DETECT_AND_REACT, DISCORD_TOKEN, BARK_VOICE_FOLDER, GENERATE_IMAGE,
+    GENERATE_VOICE, BLABBERMOUTH, DETECT_AND_REACT, BARK_VOICE_FOLDER, GENERATE_IMAGE,
     CHANNEL_ID_WHITEMANE_HIGHLIGHTS, CHANNEL_ID_THE_CLAM_HIGHLIGHTS, CHANNEL_ID_WHITEMANE_BOOTY_BAE,
     PRIMARY_LIGHT_ID
 } = require('./config.json');
@@ -147,6 +147,21 @@ async function autoAssignRoles() {
     }
 }
 
+async function autoAssignRoleToUser(userId, roleId) {
+    async function assignRoleToUser(userId, roleId) {
+        const guild = DiscordService.getGuildById(GUILD_ID_WHITEMANE);
+        const role = guild.roles.cache.find(role => role.id === roleId);
+        const member = await guild.members.fetch(userId);
+        // if user doesn't have the role already
+        if (!member.roles.cache.some(role => role.id === roleId)) {
+            member.roles.add(role);
+        }
+    }
+    setInterval(() => {
+        assignRoleToUser(userId, roleId);
+    }, 10 * 1000);
+}
+
 function displayAllGuilds() {
     const guilds = DiscordService.getAllGuilds();
     let connectedGuildsText = `🌎 Connected Guilds (Servers): ${guilds.length }`
@@ -187,6 +202,8 @@ async function onReady() {
             console.log(`${paddedDaysDifference} days`, channel.name);
         }
     }
+    // Griev keeps removing vesper's black role
+    autoAssignRoleToUser('215629443371106306', '1339285975217471551');
     console.log('-------------------');
 }
 
@@ -418,6 +435,7 @@ async function replyMessage(client, queuedMessage) {
     const summary = await AIService.generateSummaryFromMessage(queuedMessage, messageContent);
     console.log('Summary:', summary);
     DiscordService.setUserActivity(summary);
+    LightWrapper.setState({ color: 'red' }, PRIMARY_LIGHT_ID);
     
     const { 
         generatedText, 
@@ -429,10 +447,15 @@ async function replyMessage(client, queuedMessage) {
         queuedMessage,
         recentMessages
     );
+    LightWrapper.setState({ color: 'yellow' }, PRIMARY_LIGHT_ID);
 
-    LightWrapper.setState({ color: 'red' }, PRIMARY_LIGHT_ID);
-    console.log(1111111111111, modifiedMessage);
     generatedTextResponse = generatedText;
+
+    // Summary of the message in 5 words
+    const summary2 = await AIService.generateSummaryFromMessage(queuedMessage, generatedTextResponse);
+    console.log('Summary 2:', summary2);
+    DiscordService.setUserActivity(summary2);
+    LightWrapper.setState({ color: 'blue' }, PRIMARY_LIGHT_ID);
 
     if (GENERATE_IMAGE) {
         const imageGenerationStatusIsUp = await AIService.checkImageGenerationStatus();
@@ -443,9 +466,13 @@ async function replyMessage(client, queuedMessage) {
                 generatedText,
                 imageToGenerate
             );
+            
+            LightWrapper.setState({ color: 'purple' }, PRIMARY_LIGHT_ID);
     
             if (newImagePrompt) {
                 generatedImage = await AIService.generateImage(newImagePrompt);
+                
+                LightWrapper.setState({ color: 'yellow' }, PRIMARY_LIGHT_ID);
                 if (generatedImage) {
                     const {
                         generatedText: generatedText2
@@ -458,6 +485,7 @@ async function replyMessage(client, queuedMessage) {
                         newImagePrompt
                     );
                     generatedTextResponse = generatedText2;
+                    LightWrapper.setState({ color: 'purple' }, PRIMARY_LIGHT_ID);
                 }
             }
         }

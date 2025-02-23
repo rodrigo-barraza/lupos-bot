@@ -1,5 +1,5 @@
 const { REST, Routes } = require('discord.js');
-const { DISCORD_CLIENT_ID, DISCORD_GUILD_ID, DISCORD_TOKEN } = require('./config.json');
+const { DISCORD_CLIENT_ID, DISCORD_GUILD_ID, LUPOS_TOKEN } = require('./config.json');
 const fs = require('node:fs');
 const path = require('node:path');
 require('dotenv/config');
@@ -26,7 +26,7 @@ for (const folder of commandFolders) {
 }
 
 // Construct and prepare an instance of the REST module
-const rest = new REST().setToken(DISCORD_TOKEN);
+const rest = new REST().setToken(LUPOS_TOKEN);
 
 // and deploy your commands!
 (async () => {

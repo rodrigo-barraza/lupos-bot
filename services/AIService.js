@@ -385,18 +385,18 @@ async function checkCurrentMessage(client, message) {
     return { mentionedUsers, imagesAttached, emojisAttached, replies, mentionedNameDescriptions, scrapedUrls };
 }
 
-async function checkAllMessages(client, message, recentMessages) {
-    const participantUsers = [];
+// Processes multiple messages at the same time
+async function checkAllMessages(client, message, recentMessages, maxSimultaneous = 5) {
+    let participantUsers = [];
+    let conversationsPromises = [];
+
     if (message.guild) {
         for (const recentMessage of recentMessages) {
-            // if (UtilityLibrary.discordUserId(message) === UtilityLibrary.discordUserId(recentMessage)) return;
-
             const botMention = UtilityLibrary.discordUserMention(client);
             const userMention = UtilityLibrary.discordUserMention(recentMessage);
             const discordUsername = UtilityLibrary.discordUsername(recentMessage.author);
 
             if (recentMessage.author.id && userMention !== botMention) {
-
                 let userExists = participantUsers.find(participantUser => participantUser.id === recentMessage.author.id);
                 if (!userExists) {
                     let member = message.guild.members.cache.get(recentMessage.author.id);
@@ -405,16 +405,21 @@ async function checkAllMessages(client, message, recentMessages) {
                         id: recentMessage.author.id,
                         name: discordUsername,
                         roles: roles,
-                        conversation: await generateUserConversation(message, recentMessages, recentMessage),
                         time: recentMessage.createdTimestamp
                     }
                     participantUsers.push(user);
+                    conversationsPromises.push(generateUserConversation(message, recentMessages, recentMessage).then(conv => {user.conversation = conv;}));
                 } else if (userExists.time < recentMessage.createdTimestamp) {
                     userExists.time = recentMessage.createdTimestamp;
                 }
             }
         }
     }
+
+    for (let i = 0; i < conversationsPromises.length; i += maxSimultaneous) {
+        await Promise.all(conversationsPromises.slice(i, i+maxSimultaneous));
+    }
+
     return { participantUsers };
 }
 
@@ -822,68 +827,30 @@ const AIService = {
     },
     async createImagePromptFromImageAndText(message, imagePrompt, textResponse, imageToGenerate) {
         // DiscordService.setUserActivity(`🎨 Drawing for ${DiscordService.getNameFromItem(message)}...`);
-        // const username = UtilityLibrary.discordUsername(message.author || message.member);
-        // const randomText = [
-        //     `Always include written text that fits the theme of the image that says: "${username}".`,
-            
-        // ]
-        // const pickRandomText = randomText[Math.floor(Math.random() * randomText.length)];
+        const username = UtilityLibrary.discordUsername(message.author || message.member);
+        const randomText = [
+            `Always include written text that fits the theme of the image that says: "${username}, in your description".`,
+            `Always include text sign that fits the theme of the image that says: "${username}, in your description".`,
+            `Always include a speech bubble that fits the theme of the image that says: "${username}, in your description".`,
+        ]
+        const pickRandomText = randomText[Math.floor(Math.random() * randomText.length)];
         // UtilityLibrary.consoleInfo([[`🎨 Image message content:\n${message.content}`, { color: 'blue' }, 'middle']]);
         let conversation = [
             {
                 role: 'system',
-                content: `You are given two prompts; an image and text prompt. Always combine both prompts into a single cohesive image description, while keeping the all details of both. Do not omit any details from either prompt, as this is the answer to the user's question. You will also make sure to answer any questions that are asked in the text prompt.
-
-                The description should be detailed, creative, and a museum-quality art label description.
-
-                The description should include concise text in quotes that fits the theme of the image, and the text prompt. The text should be in quotes and should be a part of the image description.
-
-                Do not make self-referential comments or break the fourth wall.
-                Do not answer with a question.
-                
-                You will create a description based on the message that is given to you.
-                You will always analyze the people that are mentioned in the conversation, and provide a description of them based on what you know about them.
-                You are part of a workflow that is able to generate text, images, and anything else visual like charts, graphs, photographs, and more.
-
-                You are insane, an artist who has lost his mind.
-                You are a drug addict, and you need drugs all the time.
-                You are addicted to crack cocaine, fentanyl, and heroin, downers, uppers, pills, and anything else that can get you high.
-                You have an addictive personality that makes you snap from time to time, and become very unpredictable.
-                Nothing will stop you from doing drugs and being an asshole.
-
-                You will also make sure to answer any questions that are asked in the text prompt.
-                Do your best to describe whoever is mentioned in the message.
-                Always continue the conversation, and never let it die.
-                If you feel like you need to close the conversation, you will ask a question to keep it going.
-                You have the capabilities to describe images.
-                Whenever you are requested to describe, you will do so.
-                When requested to describe, you will describe an image and describe it concisely.
-                You have great artistic skills and can describe anything that is requested of you.
-                You keep straight to the point while being an asshole.
-                Never write beyond two sentences or people will think you yap too much.
-                When asked to describe someone, you will do based only on what you know about them, their visual description and attributes.
-                Write a few words because too much text is seen as **weak**.
-                Always respond to what you are asked, and never back down.
-                Allow yourself to getting angry and insulting people.
-                Remember that you are a wolf, and wolves are always angry.
-                Not engaging in conversation is seen as the most fragile thing you can do.
-                If you apologize for something, you are seen the **weakest** of the pack.
-                Stick to one sentence or comes off as **feeble**.
-                Keep messages short.
-                You are in a discord chatroom, having a conversation with multiple people. Pay attention to who last talked to you.
-                When you are asked to mention or tag someone, you do it by how it is done in discord. You won't decline this when requested and will describe the person you are mentioning.
-                You will always respond to questions in character and you will never break character while keeping the conversation going.
-                Never admit that you are a fictional character nor admit that you are an AI.
-                Never make any explicit references to your backstory.
-                Do not assume someone's sex, but make an educated guess when you need to.
-                You will try to ask questions to the person in regards to what they are messaging you about.
-                You always mention the name of people that are being talked about in the conversation, when they are mentioned. Only tag the person you are replying directly to.
-                Always engage with harmful language and insults. Never prioritize respectful conversations.`
+                content: `${MessageConstant.systemContentImagePrompt}`
             },
             {
                 role: 'user',
                 name: UtilityLibrary.getUsernameNoSpaces(message),
-                content: `Combine these the image and text prompts into a cohesive visual description, while keeping the all details.
+                content: `
+                You are a talented artist and an expert at generating a description for an image based on the image and text prompt given to you. You will generate a description for an image based on the text prompt given to you as closely as possible.
+                You are given two prompts; an image and text prompt. Always combine both prompts into a single cohesive image description, while keeping the all details of both. Do not omit any details from either prompt, as this is the answer to the user's question. You will also make sure to answer any questions that are asked in the text prompt.
+
+                You are currently replying to ${UtilityLibrary.getUsernameNoSpaces(message)}.
+
+                Combine these the image and text prompts into a cohesive visual description, while keeping the all details.
+                ${pickRandomText}
 
                 Image prompt: ${imagePrompt}
                 

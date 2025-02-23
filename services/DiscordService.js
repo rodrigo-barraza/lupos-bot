@@ -1,7 +1,7 @@
 const client = require('../wrappers/DiscordWrapperNew.js');
 const { Collection, Events, ChannelType, EmbedBuilder } = require('discord.js');
 const {
-    DISCORD_TOKEN
+    LUPOS_TOKEN
 } = require('../config.json');
 
 const MessageService = {
@@ -23,8 +23,8 @@ const MessageService = {
             return fetchedMessages;
         }
     },
-    login() {
-      return client.login(DISCORD_TOKEN);
+    login(token=LUPOS_TOKEN) {
+      return client.login(token);
     },
     // Event functions
     onEventClientReady(onReady) {
