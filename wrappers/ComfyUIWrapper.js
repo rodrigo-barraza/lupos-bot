@@ -7,6 +7,18 @@ const {
     COMFY_UI_IMAGE_MODEL_WEBSOCKET_URL,
 } = require('../config.json');
 
+const fs = require('fs');
+const path = require('path');
+const { pipeline } = require('stream/promises');
+
+async function downloadImage(url, imagePath) {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+  await pipeline(res.body, fs.createWriteStream(imagePath));
+  const windowsImagePath = imagePath.replace(/^\/develop/, 'Y:').replace(/\//g, '\\');
+  return windowsImagePath;
+}
+
 const debugging = false
 
 async function postPrompt(prompt) {
@@ -483,6 +495,198 @@ const fluxPrompt = {
   }
 }
 
+const fluxPromptImageToImage = {
+  "6": {
+    "inputs": {
+      "text": "a crying man looking directly at the camera, in the style renaissance oil painting, 17th century traditional art, oil painting strokes, medieval knight wearing combat armour, battle scars and flaming eyes, depressed, sad, tears, water",
+      "clip": [
+        "11",
+        0
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "CLIP Text Encode (Prompt)"
+    }
+  },
+  "8": {
+    "inputs": {
+      "samples": [
+        "13",
+        0
+      ],
+      "vae": [
+        "10",
+        0
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "VAE Decode"
+    }
+  },
+  "9": {
+    "inputs": {
+      "filename_prefix": "ComfyUI",
+      "images": [
+        "8",
+        0
+      ]
+    },
+    "class_type": "SaveImage",
+    "_meta": {
+      "title": "Save Image"
+    }
+  },
+  "10": {
+    "inputs": {
+      "vae_name": "ae.sft"
+    },
+    "class_type": "VAELoader",
+    "_meta": {
+      "title": "Load VAE"
+    }
+  },
+  "11": {
+    "inputs": {
+      "clip_name1": "t5xxl_fp16.safetensors",
+      "clip_name2": "clip_l.safetensors",
+      "type": "flux"
+    },
+    "class_type": "DualCLIPLoader",
+    "_meta": {
+      "title": "DualCLIPLoader"
+    }
+  },
+  "12": {
+    "inputs": {
+      "unet_name": "flux1-dev.sft",
+      "weight_dtype": "fp8_e4m3fn"
+    },
+    "class_type": "UNETLoader",
+    "_meta": {
+      "title": "Load Diffusion Model"
+    }
+  },
+  "13": {
+    "inputs": {
+      "noise": [
+        "25",
+        0
+      ],
+      "guider": [
+        "22",
+        0
+      ],
+      "sampler": [
+        "16",
+        0
+      ],
+      "sigmas": [
+        "17",
+        0
+      ],
+      "latent_image": [
+        "30",
+        0
+      ]
+    },
+    "class_type": "SamplerCustomAdvanced",
+    "_meta": {
+      "title": "SamplerCustomAdvanced"
+    }
+  },
+  "16": {
+    "inputs": {
+      "sampler_name": "euler"
+    },
+    "class_type": "KSamplerSelect",
+    "_meta": {
+      "title": "KSamplerSelect"
+    }
+  },
+  "17": {
+    "inputs": {
+      "scheduler": "simple",
+      "steps": 28,
+      "denoise": 0.8,
+      "model": [
+        "12",
+        0
+      ]
+    },
+    "class_type": "BasicScheduler",
+    "_meta": {
+      "title": "BasicScheduler"
+    }
+  },
+  "22": {
+    "inputs": {
+      "model": [
+        "12",
+        0
+      ],
+      "conditioning": [
+        "6",
+        0
+      ]
+    },
+    "class_type": "BasicGuider",
+    "_meta": {
+      "title": "BasicGuider"
+    }
+  },
+  "25": {
+    "inputs": {
+      "noise_seed": 686420379242754
+    },
+    "class_type": "RandomNoise",
+    "_meta": {
+      "title": "RandomNoise"
+    }
+  },
+  "26": {
+    "inputs": {
+      "image": "ReviewDexter.jpg",
+      "upload": "image"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "Load Image"
+    }
+  },
+  "29": {
+    "inputs": {
+      "upscale_method": "lanczos",
+      "megapixels": 1.05,
+      "image": [
+        "26",
+        0
+      ]
+    },
+    "class_type": "ImageScaleToTotalPixels",
+    "_meta": {
+      "title": "ImageScaleToTotalPixels"
+    }
+  },
+  "30": {
+    "inputs": {
+      "pixels": [
+        "29",
+        0
+      ],
+      "vae": [
+        "10",
+        0
+      ]
+    },
+    "class_type": "VAEEncode",
+    "_meta": {
+      "title": "VAE Encode"
+    }
+  }
+}
+
 // const prompt = {
 //   "3": {
 //     "inputs": {
@@ -681,13 +885,25 @@ const fluxPrompt = {
 // }
 
 function createImagePromptFromText(text) {
-    const fullPrompt = fluxPrompt
+  const fullPrompt = fluxPrompt
+  if (text) {
+      // fullPrompt["3"]["inputs"]["seed"] = Math.floor(Math.random() * 1000000000000000);
+      // fullPrompt["33"]["inputs"]["seed"] = Math.floor(Math.random() * 1000000000000000);
+      // fullPrompt["271"]["inputs"]["seed"] = Math.floor(Math.random() * 1000000000000000);
+      fullPrompt["25"]["inputs"]["noise_seed"] = Math.floor(Math.random() * 1000000000000000);
+      fullPrompt["6"]["inputs"]["text"] = text;
+  }
+  return fullPrompt
+}
+function createImagePromptFromText2(text, imagePath, denoisingStrength) {
+    const fullPrompt = fluxPromptImageToImage
     if (text) {
-        // fullPrompt["3"]["inputs"]["seed"] = Math.floor(Math.random() * 1000000000000000);
-        // fullPrompt["33"]["inputs"]["seed"] = Math.floor(Math.random() * 1000000000000000);
-        // fullPrompt["271"]["inputs"]["seed"] = Math.floor(Math.random() * 1000000000000000);
-        fullPrompt["25"]["inputs"]["noise_seed"] = Math.floor(Math.random() * 1000000000000000);
-        fullPrompt["6"]["inputs"]["text"] = text;
+      const randomInRange = () => Math.random() * (0.9 - 0.75) + 0.75;
+      fullPrompt["17"]["inputs"]["denoise"] = randomInRange();
+      fullPrompt["17"]["inputs"]["steps"] = 20;
+      fullPrompt["25"]["inputs"]["noise_seed"] = Math.floor(Math.random() * 1000000000000000);
+      fullPrompt["26"]["inputs"]["image"] = imagePath;
+      fullPrompt["6"]["inputs"]["text"] = text;
     }
     return fullPrompt
 }
@@ -701,6 +917,16 @@ const ComfyUIWrapper = {
         } catch (error) {
             return console.error('⚠️ ComfyUI Workflow Error: Cannot Return Image');
         }
+    },
+    async generateImageToImage(text, imageUrl, denoisingStrength) {
+      try {
+        const imagePath = await downloadImage(imageUrl, path.join(__dirname, 'downloadedImage.jpg'));
+        const prompt = createImagePromptFromText2(text, imagePath, denoisingStrength);
+        const images = await generateImage(prompt);
+        return images[9][0];
+      } catch (error) {
+        console.error('⚠️ ComfyUI Workflow Error: Cannot Return Image', error);
+      }
     },
     checkWebsocketStatus: checkWebsocketStatus,
 };

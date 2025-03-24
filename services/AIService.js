@@ -8,6 +8,7 @@ const OpenAIWrapper = require('../wrappers/OpenAIWrapper.js');
 const LocalAIWrapper = require('../wrappers/LocalAIWrapper.js');
 const BarkAIWrapper = require('../wrappers/BarkAIWrapper.js');
 const AnthrophicWrapper = require('../wrappers/AnthropicWrapper.js');
+// const GoogleAIWrapper = require('../wrappers/GoogleAIWrapper.js');
 const PuppeteerWrapper = require('../wrappers/PuppeteerWrapper.js');
 const MessageConstant = require('../constants/MessageConstants.js');
 const DiscordService = require('../services/DiscordService.js');
@@ -94,7 +95,23 @@ async function generateNewConversation(client, message, systemPrompt, recentMess
 
             const modifiedMessage = `${index === recentMessages.length - 1 ? message.content : recentMessage.content}`;
             // const modifiedContent = `${authorName}: ${modifiedMessage}`;
-            const modifiedContent = `Message: ${modifiedMessage}\nMessage by: ${authorName}\nMessage sent on: ${messageSentAt} (${messageSentAtRelative})`;
+
+            const reactions = recentMessage.reactions.cache.map((reaction) => {
+                return `${reaction.emoji.name}`;
+            });
+
+            let reactionsString;
+
+            if (recentMessage.reactions.cache.size) {
+                reactionsString = `Reactions: ${reactions.join(', ')}`;
+            }
+
+            const modifiedContent = 
+`Message: ${modifiedMessage}
+Message by: ${authorName}
+Message sent on: ${messageSentAt} (${messageSentAtRelative})
+Message reactions: ${recentMessage.reactions.cache.size}
+${reactionsString}`;
             conversation.push({
                 role: 'user',
                 name: UtilityLibrary.getUsernameNoSpaces(recentMessage),
@@ -125,7 +142,8 @@ function removeFlaggedWords(text) {
 
     flaggedWordsArray.forEach(word => {
         const regex = new RegExp(`\\b${word}\\b`, "gi");
-        modifiedText = modifiedText.replace(regex, "|| deez nuts ||");
+        modifiedText = modifiedText.replace(regex, (match) => match.replace(/./g, '|| || '));
+        
     });
     
     return modifiedText;
@@ -144,13 +162,18 @@ async function generateImageDescription(imageUrl) {
 
 async function extractImagesFromAttachmentsAndUrls(message) {
     let images = [];
+    let imageUrl;
     if (message) {
         const urls = message.content.match(/(https?:\/\/[^\s]+)/g);
+        const hasExactlyOneImage = message.attachments.size + (urls?.length ?? 0) === 1;
         if (message.attachments.size) {
             for (const attachment of message.attachments.values()) {
                 const isImage = attachment.contentType.includes('image');
                 if (isImage) {
                     images.push(attachment.url);
+                    if (hasExactlyOneImage) {
+                        imageUrl = attachment.url;
+                    }
                 }
             }
         }
@@ -160,6 +183,9 @@ async function extractImagesFromAttachmentsAndUrls(message) {
                     const isImage = await UtilityLibrary.isImageUrl(url);
                     if (isImage) {
                         images.push(url);
+                        if (hasExactlyOneImage) {
+                            imageUrl = attachment.url;
+                        }
                     }
                 } else {
                     const tenorImage = await PuppeteerWrapper.scrapeTenor(url);
@@ -168,7 +194,7 @@ async function extractImagesFromAttachmentsAndUrls(message) {
             }
         }
     }
-    return images;
+    return { images, imageUrl };
 }
 
 async function generateUserConversation(message, recentMessages, recentMessage) {
@@ -341,8 +367,8 @@ async function checkCurrentMessage(client, message) {
     }
 
     // Process images in message
-    const messageImages = await extractImagesFromAttachmentsAndUrls(message);
-    const repliedMessageImages = await extractImagesFromAttachmentsAndUrls(repliedMessage);
+    const { images: messageImages, imageUrl: imageUrl1 } = await extractImagesFromAttachmentsAndUrls(message);
+    const { images: repliedMessageImages, imageUrl: imageUrl2 } = await extractImagesFromAttachmentsAndUrls(repliedMessage);
     await createImagesAttached(messageImages, message);
     await createImagesAttached(repliedMessageImages, repliedMessage);
 
@@ -382,7 +408,10 @@ async function checkCurrentMessage(client, message) {
         scrapedUrls = await PuppeteerWrapper.scrapeURL(urls[0]);
     }
 
-    return { mentionedUsers, imagesAttached, emojisAttached, replies, mentionedNameDescriptions, scrapedUrls };
+    let imageUrl;
+    if (imageUrl1 || imageUrl2) { imageUrl = imageUrl1 || imageUrl2 }
+
+    return { mentionedUsers, imagesAttached, emojisAttached, replies, mentionedNameDescriptions, scrapedUrls, imageUrl };
 }
 
 // Processes multiple messages at the same time
@@ -446,6 +475,18 @@ async function generateTextResponse({
     } else if (type === 'LOCAL') {
         const generateTextModel = performance === 'FAST' ? FAST_LANGUAGE_MODEL_LOCAL : LANGUAGE_MODEL_LOCAL;
         textResponse = await LocalAIWrapper.generateTextResponse(conversation, generateTextModel, tokens, temperature);
+    } else if (type === 'GOOGLE') {
+        // let systemInstruction;
+        // if (conversation[0].role === 'system') {
+        //     systemInstruction = conversation[0].content;
+        // }
+        // textResponse = await GoogleAIWrapper.generateChat(
+        //     history=conversation,
+        //     systemInstruction=systemInstruction,
+        //     model='',
+        //     maxTokens=tokens,
+        //     temperature=temperature
+        // );
     }
     let timeTakenInSeconds = (new Date().getTime() - currentTime) / 1000;
     UtilityLibrary.consoleInfo([
@@ -460,20 +501,39 @@ async function generateVisionResponse(imageUrl, text) {
 }
 
 async function generateImage(text, type='FLUX') {
-    UtilityLibrary.consoleInfo([[`🎨 Image: generation started`, { color: 'yellow' }, 'middle']]);
+    UtilityLibrary.consoleInfo([[`🎨 Text-to-Image: generation started`, { color: 'yellow' }, 'middle']]);
     try {
         await ComfyUIWrapper.checkWebsocketStatus();
         let generatedImage;
         let currentTime = new Date().getTime();
         if (text) {
             generatedImage = await ComfyUIWrapper.generateImage(text);
-            UtilityLibrary.consoleInfo([[`🎨 Image: generation successful`, { color: 'green' }, 'middle']]);
+            UtilityLibrary.consoleInfo([[`🎨 Text-to-Image: generation successful`, { color: 'green' }, 'middle']]);
         }
         let timeTakenInSeconds = (new Date().getTime() - currentTime) / 1000;
         UtilityLibrary.consoleInfo([[`🤖 [generateImage] Type:${type}, Time: ${timeTakenInSeconds}`, { color: 'magenta' }, 'middle']]);
         return generatedImage;
     } catch (error) {
-        UtilityLibrary.consoleInfo([[`🎨 Image: generation failed`, { color: 'red' }, 'middle']]);
+        UtilityLibrary.consoleInfo([[`🎨 Text-to-Image: generation failed`, { color: 'red' }, 'middle']]);
+        return;
+    }
+}
+
+async function generateImageToImage(text, imageUrl, denoisingStrength) {
+    UtilityLibrary.consoleInfo([[`🎨 Image-to-Image: generation started`, { color: 'yellow' }, 'middle']]);
+    try {
+        await ComfyUIWrapper.checkWebsocketStatus();
+        let generatedImage;
+        let currentTime = new Date().getTime();
+        if (text) {
+            generatedImage = await ComfyUIWrapper.generateImageToImage(text, imageUrl, denoisingStrength);
+            UtilityLibrary.consoleInfo([[`🎨 Image-to-Image: generation successful`, { color: 'green' }, 'middle']]);
+        }
+        let timeTakenInSeconds = (new Date().getTime() - currentTime) / 1000;
+        UtilityLibrary.consoleInfo([[`🤖 [generateImage] Type:FLUX, Time: ${timeTakenInSeconds}`, { color: 'magenta' }, 'middle']]);
+        return generatedImage;
+    } catch (error) {
+        UtilityLibrary.consoleInfo([[`🎨 Image-to-Image: generation failed`, { color: 'red' }, 'middle']]);
         return;
     }
 }
@@ -502,6 +562,7 @@ const AIService = {
     generateVisionResponse: generateVisionResponse,
     generateVoice: generateVoice,
     generateImage: generateImage,
+    generateImageToImage: generateImageToImage,
     async checkImageGenerationStatus() {
         try {
             await ComfyUIWrapper.checkWebsocketStatus();
@@ -544,13 +605,14 @@ const AIService = {
         let modifiedMessage;
         let imagePrompt;
         let generatedText;
+        let returnedImageUrl;
 
         try {
             if (DEBUG_MODE) {
                 UtilityLibrary.consoleInfo([[`🎨 generateTextResponse input:\n${message.content}`, { color: 'blue' }, 'middle']]);
             }
 
-            const { mentionedUsers, imagesAttached, emojisAttached, replies, mentionedNameDescriptions, scrapedUrls  } = await checkCurrentMessage(client, message);
+            const { mentionedUsers, imagesAttached, emojisAttached, replies, mentionedNameDescriptions, scrapedUrls, imageUrl: returnedImageUrl  } = await checkCurrentMessage(client, message);
 
             const { participantUsers } = await checkAllMessages(client, message, recentMessages);
 
@@ -776,13 +838,13 @@ const AIService = {
             if (DEBUG_MODE) {
                 UtilityLibrary.consoleInfo([[`🎨 generateTextResponse output:\n${generatedText}`, { color: 'green' }, 'middle']]);
             }
+
+            return { generatedText, imagePrompt, modifiedMessage, systemPrompt, imageUrl: returnedImageUrl };
         } catch (error) {
             generatedText = '...',
             imagePrompt = 'an image of a beautiful purple wolf sleeping under the full moonlight, in the style of a watercolor painting. The text "Lupos sleeps under the full moonlight" is written in a beautiful cursive font at the bottom of the image.';
             UtilityLibrary.consoleInfo([[`📝 generateTextResponse failed:\n${error}`, { color: 'red' }, 'middle']]);
         }
-
-        return { generatedText, imagePrompt, modifiedMessage, systemPrompt };
 
     },
     async generateNewTextResponsePart2(client, message, recentMessages, modifiedMessage, systemPrompt, imagePrompt) {
@@ -829,9 +891,9 @@ const AIService = {
         // DiscordService.setUserActivity(`🎨 Drawing for ${DiscordService.getNameFromItem(message)}...`);
         const username = UtilityLibrary.discordUsername(message.author || message.member);
         const randomText = [
-            `Always include written text that fits the theme of the image that says: "${username}, in your description".`,
-            `Always include text sign that fits the theme of the image that says: "${username}, in your description".`,
-            `Always include a speech bubble that fits the theme of the image that says: "${username}, in your description".`,
+            `Always include written text describes the theme of the image in quotes.`,
+            `Always include text sign describes the theme of the the image in quotes.`,
+            `Always include a speech bubble with text describes the theme of the the image in quotes.`,
         ]
         const pickRandomText = randomText[Math.floor(Math.random() * randomText.length)];
         // UtilityLibrary.consoleInfo([[`🎨 Image message content:\n${message.content}`, { color: 'blue' }, 'middle']]);
@@ -845,9 +907,11 @@ const AIService = {
                 name: UtilityLibrary.getUsernameNoSpaces(message),
                 content: `
                 You are a talented artist and an expert at generating a description for an image based on the image and text prompt given to you. You will generate a description for an image based on the text prompt given to you as closely as possible.
-                You are given two prompts; an image and text prompt. Always combine both prompts into a single cohesive image description, while keeping the all details of both. Do not omit any details from either prompt, as this is the answer to the user's question. You will also make sure to answer any questions that are asked in the text prompt.
+                You are given two prompts; an image and text prompt. Combine both prompts into a single cohesive image description, while keeping the all details of both. Do not omit any details from either prompt, as this is the answer to the user's question. You will also make sure to answer any questions that are asked in the text prompt.
 
                 You are currently replying to ${UtilityLibrary.getUsernameNoSpaces(message)}.
+
+                If the image contains an animal, you will be super excited and happy to draw it. You will include a text that fits the theme of the image that says: "${username}".
 
                 Combine these the image and text prompts into a cohesive visual description, while keeping the all details.
                 ${pickRandomText}

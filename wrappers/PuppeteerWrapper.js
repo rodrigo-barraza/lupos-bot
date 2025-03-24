@@ -131,6 +131,15 @@ const PuppeteerWrapper = {
         return output;
     },
     async scrapeURL(url) {
+        async function isImageURL(url) {
+            const res = await fetch(url, { method: 'HEAD' });
+            const type = res.headers.get('content-type');
+            return type && type.startsWith('image/');
+        }
+        const isImage = await isImageURL(url);
+        if (isImage) {
+            return {};
+        }
         const browser = await puppeteer.launch(puppeteerOptions);
         const page = await browser.newPage();
         await page.goto(url);
@@ -149,65 +158,135 @@ const PuppeteerWrapper = {
             { selector: 'meta[name="keywords"]', property: 'keywords' },
             { selector: 'meta[property="og:image"]', property: 'image' },
         ];
-
+        const result = {};
         const youtubeWatchRegex = /(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]{11})/;
-        if (youtubeWatchRegex) {
+        if (youtubeWatchRegex.test(url)) {
             // Video description
             selectors.push({ selector: 'div[id="description"] span', property: 'description' });
             // Related videos
             selectors.push({ selector: 'div[id="secondary"] a h3', property: 'relatedVideos' });
+            
+            const descriptionElement = await page.waitForSelector('div[id="description"]', { timeout: 5000 });
+            if (descriptionElement) {
+                await page.evaluate(() => document.querySelector('div[id="description"]').click());
+                await page.waitForSelector('button[aria-label="Show transcript"]', { timeout: 5000 });
+                const showTranscriptButton = await page.$('button[aria-label="Show transcript"]');
+                if (showTranscriptButton) {
+                    await page.evaluate(() => document.querySelector('button[aria-label="Show transcript"]').click());
+                    await page.waitForSelector('ytd-transcript-segment-renderer', { timeout: 5000 });
+            
+                    const transcriptData = await page.evaluate(() => {
+                        const transcriptElement = document.querySelector('div[id="panels"]');
+                        const transcriptSegments = Array.from(transcriptElement.querySelectorAll('ytd-transcript-segment-renderer'));
+                        return transcriptSegments.map(segment => {
+                            const timestamp = segment.querySelector('div[class="segment-timestamp style-scope ytd-transcript-segment-renderer"]').innerText;
+                            const innerText = segment.querySelector('yt-formatted-string').innerText;
+                            return { timestamp, innerText };
+                        });
+                    });
+                    
+                    const transcript = transcriptData.map(entry => `${entry.timestamp}: ${entry.innerText}\n`).join('');
+                    result.transcript = transcript;
+                }
+            }
         }
-        
-        const result = {};
         
         await Promise.all(
             selectors.map(async ({ selector, property }) => {
                 try {
-                    await page.waitForSelector(selector, { timeout: 5000 });
-    
+                    const elementExists = await page.$(selector);
+                    if (!elementExists) return;
+            
                     const value = await page.evaluate((s, p) => {
-                        const elements = Array.from(document.querySelectorAll(s));
-                        return elements.map(element => element ? element.innerText || element.getAttribute(p) : null);
+                    const elements = Array.from(document.querySelectorAll(s));
+                    return elements.map(element =>
+                        element ? element.innerText || element.getAttribute(p) : null
+                    );
                     }, selector, property);
-                    
+            
                     if (value) {
-                        result[property] = value.filter(v => v !== null && v.trim() !== '');
+                    result[property] = value.filter(v => v !== null && v.trim() !== '');
                     }
                 } catch (error) {
                     console.error(`Puppeteer Error on ${selector}:\n`, error);
                 }
             })
         );
-
-        const descriptionElement = await page.waitForSelector('div[id="description"]', { timeout: 5000 });
-        if (descriptionElement) {
-            await page.evaluate(() => document.querySelector('div[id="description"]').click());
-            await page.waitForSelector('button[aria-label="Show transcript"]', { timeout: 5000 });
-            const showTranscriptButton = await page.$('button[aria-label="Show transcript"]');
-            if (showTranscriptButton) {
-                await page.evaluate(() => document.querySelector('button[aria-label="Show transcript"]').click());
-                await page.waitForSelector('ytd-transcript-segment-renderer', { timeout: 5000 });
         
-                const transcriptData = await page.evaluate(() => {
-                    const transcriptElement = document.querySelector('div[id="panels"]');
-                    const transcriptSegments = Array.from(transcriptElement.querySelectorAll('ytd-transcript-segment-renderer'));
-                    return transcriptSegments.map(segment => {
-                        const timestamp = segment.querySelector('div[class="segment-timestamp style-scope ytd-transcript-segment-renderer"]').innerText;
-                        const innerText = segment.querySelector('yt-formatted-string').innerText;
-                        return { timestamp, innerText };
-                    });
-                });
-                
-                const transcript = transcriptData.map(entry => `${entry.timestamp}: ${entry.innerText}\n`).join('');
-                result.transcript = transcript;
-            }
+        await browser.close();
+        return result;
+    },
+    async scrapeURL2(url) {
+        async function isImageURL(url) {
+          const res = await fetch(url, { method: 'HEAD' });
+          const type = res.headers.get('content-type');
+          return type && type.startsWith('image/');
         }
-
-
-        console.log(11111111111111111);
-        console.log(result);
-        console.log(11111111111111111);
-        
+      
+        const isImage = await isImageURL(url);
+        if (isImage) return {};
+      
+        const browser = await puppeteer.launch(puppeteerOptions);
+        const page = await browser.newPage();
+        await page.goto(url, { waitUntil: 'networkidle2', timeout: 0 });
+      
+        const selectors = [
+          { selector: 'head title', property: 'title' },
+          { selector: 'p', property: 'text' },
+          { selector: 'h1', property: 'header' },
+          { selector: 'meta[name="description"]', property: 'description' },
+          { selector: 'meta[name="keywords"]', property: 'keywords' },
+          { selector: 'meta[property="og:image"]', property: 'image' },
+        ];
+      
+        const youtubeWatchRegex = /(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]{11})/;
+        const result = {};
+      
+        if (youtubeWatchRegex.test(url)) {
+          selectors.push(
+            { selector: 'div#below div#description yt-formatted-string', property: 'description' },
+            { selector: 'ytd-compact-video-renderer a#video-title', property: 'relatedVideos' }
+          );
+      
+          const expandDescriptionSelector = 'tp-yt-paper-button#expand';
+          try {
+            await page.waitForSelector(expandDescriptionSelector, { timeout: 5000 });
+            await page.click(expandDescriptionSelector);
+          } catch {}
+      
+          const showTranscriptSelector = 'button[aria-label="Show transcript"]';
+          try {
+            await page.waitForSelector(showTranscriptSelector, { timeout: 5000 });
+            await page.click(showTranscriptSelector);
+            await page.waitForSelector('ytd-transcript-segment-renderer', { timeout: 5000 });
+      
+            const transcriptData = await page.evaluate(() => {
+              const segments = Array.from(document.querySelectorAll('ytd-transcript-segment-renderer'));
+              return segments.map(s => {
+                const timestamp = s.querySelector('.segment-timestamp')?.innerText;
+                const text = s.querySelector('yt-formatted-string')?.innerText;
+                return `${timestamp}: ${text}`;
+              });
+            });
+            result.transcript = transcriptData.join('\n');
+          } catch {}
+        }
+      
+        await Promise.all(
+          selectors.map(async ({ selector, property }) => {
+            const elements = await page.$$(selector);
+            if (!elements.length) return;
+            const values = await Promise.all(elements.map(async el => {
+              if (selector.startsWith('meta')) {
+                return await el.evaluate(node => node.getAttribute('content'));
+              } else {
+                return await el.evaluate(node => node.innerText);
+              }
+            }));
+            result[property] = values.filter(v => v && v.trim());
+          })
+        );
+      
         await browser.close();
         return result;
     },

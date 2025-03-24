@@ -16,13 +16,21 @@ const YapperService = require('./services/YapperService.js');
 const luxon = require('luxon');
 const PuppeteerWrapper = require('./wrappers/PuppeteerWrapper.js');
 const LightWrapper = require('./wrappers/LightWrapper.js');
+const birthdays = require('./arrays/birthdays.js');
 
 const IGNORE_PREFIX = "!";
 let previousTopAuthorId;
 let previousOverReactorId;
 let lastMessageSentTime = luxon.DateTime.now().toISO()
 
-const client = DiscordService.client;
+
+const { MongoClient } = require('mongodb');
+
+const url = 'mongodb+srv://hello:***REMOVED***@lupos.fb1bv.mongodb.net/?retryWrites=true&w=majority&appName=lupos';
+const mongo = new MongoClient(url);
+
+
+const discordClient = DiscordService.client;
 
 async function generateOverReactors(combinedMessages, guild) {
     const overReactorRoleId = WHITEMANE_OVERREACTOR_ROLE_ID;
@@ -171,15 +179,24 @@ function displayAllGuilds() {
 async function onReady() {
     UtilityLibrary.consoleInfo([[`👌 Logged in as ${DiscordService.getBotName()}`, { bold: true }]]);
     // AlcoholService.instantiate();
+
+    try {
+        await mongo.connect();
+        console.log('Connected to MongoDB');
+    } catch (error) {
+        console.error('Error connecting to MongoDB:', error);
+    }
+    
+    getCurrentMonthBirthdays();
     MoodService.instantiate();
     displayAllGuilds()
     if (BLABBERMOUTH) {
-        autoAssignRoles(client)
+        autoAssignRoles(discordClient)
         setInterval(() => {
-            autoAssignRoles(client)
+            autoAssignRoles(discordClient)
         }, 10 * 1000);
     }
-    const guild = client.guilds.cache.find(guild => guild.name === 'Classic Whitemane');
+    const guild = discordClient.guilds.cache.find(guild => guild.name === 'Classic Whitemane');
     console.log('Channels for Classic Whitemane:');
     for (const channel of guild.channels.cache.values()) {
         if (channel.type === ChannelType.GuildText &&
@@ -220,6 +237,30 @@ async function onMessageCreateQueue(client, message) {
     if (message.content.startsWith(IGNORE_PREFIX)) { return }
     if (isDirectMessageByBot) { return }
     if (isMessageWithoutBotMention) { return }
+
+    
+    const db = mongo.db('lupos');
+    const collection = db.collection('messages');
+    const userId = message.author.id;
+    const currentTime = luxon.DateTime.now().toISO();
+    // check if the user is in the database
+    const userInCollection = await collection.findOne({ userId: userId });
+    if (!userInCollection) {
+        await collection.insertOne({
+            userId: userId,
+            lastMessageSentTime: currentTime,
+        });
+    } else {
+        await collection.updateOne({ userId: userId }, { $set: { lastMessageSentTime: currentTime } });
+    }
+
+    // assign roles to the user
+    const guild = DiscordService.getGuildById(GUILD_ID_WHITEMANE);
+    const luposChatterRoleId = '1353101921681936456';
+    const member = await guild.members.fetch(userId);
+    member.roles.add(luposChatterRoleId);
+    UtilityLibrary.consoleInfo([[`💬 ${message.author.username} has been given the role Lupos Chatter`, { color: 'red' }]]);
+    
 
     messageQueue.push(message);
 
@@ -441,11 +482,12 @@ async function replyMessage(client, queuedMessage) {
         generatedText, 
         imagePrompt, 
         modifiedMessage, 
-        systemPrompt 
+        systemPrompt,
+        imageUrl,
     } = await AIService.generateNewTextResponse(
         client,
         queuedMessage,
-        recentMessages
+        recentMessages,
     );
     LightWrapper.setState({ color: 'yellow' }, PRIMARY_LIGHT_ID);
 
@@ -470,7 +512,12 @@ async function replyMessage(client, queuedMessage) {
             LightWrapper.setState({ color: 'purple' }, PRIMARY_LIGHT_ID);
     
             if (newImagePrompt) {
-                generatedImage = await AIService.generateImage(newImagePrompt);
+                if (imageUrl) {
+                    generatedImage = await AIService.generateImageToImage(newImagePrompt, imageUrl);
+                } else {
+                    generatedImage = await AIService.generateImage(newImagePrompt);
+                }
+                
                 
                 LightWrapper.setState({ color: 'yellow' }, PRIMARY_LIGHT_ID);
                 if (generatedImage) {
@@ -565,3 +612,72 @@ setInterval(() => {
         lastMessageSentTime = currentTime.toISO();
     }
 }, 1000);
+
+async function getCurrentMonthBirthdays() {
+    const months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+    const currentMonth = months[new Date().getMonth()];
+    
+    const currentMonthData = birthdays.find(item => item.month === currentMonth);
+    const users = currentMonthData ? currentMonthData.users : [];
+
+    // get the guild
+    const guild = DiscordService.getGuildById(GUILD_ID_WHITEMANE);
+    const birthdayRoleId = '733730630935904276';
+    
+    // First, remove birthday roles from everyone who has it
+    const birthdayRoleMembers = guild.members.cache.filter(member => 
+        member.roles.cache.some(role => role.id === birthdayRoleId));
+    
+    // Use Promise.all to wait for all role removals to complete
+    await Promise.all(birthdayRoleMembers.map(member => 
+        member.roles.remove(birthdayRoleId)
+            .catch(err => console.error(`Error removing role from ${member.user.username}:`, err))
+    ));
+    
+    // Now assign the birthday role to each user in the current month
+    const addRolePromises = [];
+    for (const user of users) {
+        const member = guild.members.cache.find(member => member.user.username === user);
+        if (member) {
+            addRolePromises.push(
+                member.roles.add(birthdayRoleId)
+                    .catch(err => console.error(`Error adding role to ${user}:`, err))
+            );
+        }
+    }
+    
+    // Wait for all role additions to complete
+    await Promise.all(addRolePromises);
+    
+    console.log(users);
+    return users;
+}
+
+
+setInterval(() => {
+    getCurrentMonthBirthdays();
+}, 1000 * 60 * 60 * 24); // every 24 hours
+
+// interval every one minute
+setInterval( async () => {
+    // get all users in the database
+    const db = mongo.db('lupos');
+    const collection = db.collection('messages');
+    const findResult = await collection.find({}).toArray();
+    findResult.forEach(user => {
+        const now = luxon.DateTime.now();
+        const lastMessageSentTime = luxon.DateTime.fromISO(user.lastMessageSentTime);
+        const difference = now.diff(lastMessageSentTime, ['seconds']).toObject();
+        // if the difference is greater than 5 minutes, remove the role and delete the user from the database
+        if (difference.seconds >= 300) {
+            const guild = DiscordService.getGuildById(GUILD_ID_WHITEMANE);
+            const member = guild.members.cache.find(member => member.user.id === user.userId);
+            if (member) {
+                const luposChatterRoleId = '1353101921681936456';
+                member.roles.remove(luposChatterRoleId);
+                UtilityLibrary.consoleInfo([[`💬 Removed Lupos Chatter role from: ${member.user.username}`, { color: 'red' }, 'middle']]);
+            }
+            collection.deleteOne({ userId: user.userId });
+        }
+    });
+}, 1000 * 60); // every minute
