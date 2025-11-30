@@ -1,4 +1,4 @@
-const AIService = require('../services/AIService.js');
+const DiscordService = require('./DiscordService.js');
 
 let alcoholLevel = 0;
 

@@ -1,4 +1,3 @@
-'use strict';
 class RequestClass {
     constructor(request) {
         this.request = request;

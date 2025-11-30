@@ -1,101 +1,195 @@
 const moment = require('moment');
-const luxon = require('luxon');
-
-const colors = [
-    'black',
-    'red',
-    'green',
-    'yellow',
-    'blue',
-    'magenta',
-    'cyan',
-    'white',
-    'gray',
-    'pink',
-    'teal',
-    'canary',
-    'azure',
-    'fuchsia',
-    'aqua',
-    'snow',
-]
+const { DateTime } = require('luxon');
+const config = require('../config.json');
+const crypto = require('crypto');
 
 const UtilityLibrary = {
+    // Crypto utilities
+    async generateFileHash(url) {
+        try {
+            const response = await fetch(url);
+            const bytes = await response.bytes();
+            const buffer = Buffer.from(bytes);
+            const fileType = response.headers.get('content-type');
+            
+            const hash = crypto.createHash('sha256').update(buffer).digest('hex');
+            return { hash, fileType };
+        } catch (error) {
+            console.log(`❌ [UtilityLibrary:generateFileHash] Error generating hash:\n`, `${error}`);
+            throw error;
+        }
+    },
+    // String utilities
+    capitalize(string) {
+        if (string) {
+            return string.charAt(0).toUpperCase() + string.slice(1);
+        }
+    },
+    removeFlaggedWords(string) {
+        const flaggedWordsArray = config.FLAGGED_WORDS.split(", ");
+        for (const word of flaggedWordsArray) {
+            const regex = new RegExp(`\\b${word}\\b`, "gi");
+            string = string.replace(regex, (match) => `||${'*'.repeat(match.length)}||`);
+        }
+        return string;
+    },
+    removeMentions(string) {
+        return string
+        .replace(/@here/g, '꩜here')
+        .replace(/@everyone/g, '꩜everyone')
+        .replace(/@horde/g, '꩜horde')
+        .replace(/@alliance/g, '꩜alliance')
+        .replace(/@alliance/g, '꩜alliance')
+        .replace(/@Guild Leader - Horde/g, '꩜Guild Leader - Horde')
+        .replace(/@Guild Leader - Alliance/g, '꩜Guild Leader - Alliance')
+        .replace(/@Guild Officer - Horde/g, '꩜Guild Officer - Horde')
+        .replace(/@Guild Officer - Alliance/g, '꩜Guild Officer - Alliance')
+    },
+    // Fetch utilities
     async isImageUrl(url) {
         try {
             const response = await fetch(url);
             const contentType = response.headers.get('content-type');
             return contentType.startsWith('image/');
         } catch (error) {
-            console.error('Error checking if URL is an image:', error);
+            console.error(`❌ [UtilityLibrary:isImageUrl] Error checking if URL is an image:\n`, `${error}`);
             return false;
         }
     },
     // Date Utilities
     getCurrentDateAndTime(date) {
-        return moment(date).format('YYYY-MM-DD HH:mm:ss');
+        // 2024-01-31 03:45:27 PM
+        return DateTime.fromJSDate(date).toFormat('yyyy-MM-dd HH:mm:ss a');
     },
     getMinutesAgo(date) {
-        return moment(date).fromNow();  
+        return DateTime.fromJSDate(date).toRelative();
     },
-    consoleInfo(messages) {
-        const colorCodes = ['black', 'red', 'green', 'yellow', 'blue', 'magenta', 'cyan', 'white', 'orange']; // Define more as needed
+    consoleLog(symbol, message, styleOptions = {}) {
+        const debugLevel = 3;
+        if (!symbol) {
+            return;
+        }
         const resetStyle = "\x1b[0m";
-
-        // print current time as 1:23:45PM
-        const currentTime = luxon.DateTime.now().toFormat('h:mm:ss:SSS a');
         
-        const formattedMessages = messages.map(([message, { bold, faint, italic, underline, slowBlink, rapidBlink, crossedOut, doubleUnderline, superscript, subscript, color }, position = {}]) => {
-            const colorIndex = color && colorCodes.includes(color.toLowerCase()) ? colorCodes.indexOf(color.toLowerCase()) + 30 : '';
-            const colorCode = color ? `;${colorIndex}` : '';
-            const styleCodes = [
-                bold ? '1' : '',
-                faint ? '2' : '',
-                italic ? '3' : '',
-                underline ? '4' : '',
-                slowBlink ? '5' : '',
-                rapidBlink ? '6' : '',
-                crossedOut ? '9' : '',
-                doubleUnderline ? '21' : '',
-                superscript ? '73' : '',
-                subscript ? '74' : '',
-            ].filter(code => code).join(';');
-            const style = `\x1b[${styleCodes}${colorCode}m`;
+        const stack = new Error().stack;
+        // console.log(stack);
+        const callerLine = stack.split('\n')[2];
+        let trimmedCallerLine = callerLine.trim().replace('at ', '');
 
-            // position can be 'start', 'middle', 'end'
-            // for start return ╔
-            // for middle return ║
-            // for end return ╚
-            const positionCodes = {
-                start: '╔',
-                middle: '║',
-                end: '╚',
-            };
+        trimmedCallerLine = trimmedCallerLine.replace('as _', '_').replace('[', '').replace(']', '').replace('(', '').replace(')', '');
+        const splitString = trimmedCallerLine.split(' ');
+        // console.log(splitString);
+        let funcName;
+        let lineLocation;
+        if (splitString.length === 3) {
+            funcName = splitString[0];
+            lineLocation = splitString[2];
+        } else {
+            funcName = splitString[0];
+            lineLocation = splitString[1];
+        }
+
+        
+        // finalOutput += `\n\x1b[3m\x1b[37m${funcName} ${lineLocation}\x1b[0m`;
     
-            if (typeof message === 'object') {
-                return [style, message, resetStyle];
+        // --- Constants for styling ---
+        const colorCodes = {
+            'black': 30, 'red': 31, 'green': 32, 'yellow': 33,
+            'blue': 34, 'magenta': 35, 'cyan': 36, 'white': 37,
+            'orange': 33,
+        };
+    
+        const time = DateTime.now().toFormat('h:mm:ss a');
+    
+
+        let logText = '';
+
+        const location = `\n${resetStyle}\x1b[2m\x1b[3m\x1b[37m(${lineLocation})${resetStyle}`
+
+
+        if (debugLevel >= 2) {
+            if (symbol === '<') {
+                logText = `${symbol}${funcName}`;
+            } else if (symbol === '>' || symbol === '=') {
+                logText = `${symbol}${funcName}`;
+            }
+        }
+
+        if (message !== undefined && message !== null) {
+            logText += `\n${message}`;
+        }
+
+        if (debugLevel >= 3) {
+            if (symbol === '<') {
+                logText += location;
+            }
+        }
+    
+        const {
+            bold = false,
+            faint = false,
+            italic = false,
+            underline = false,
+            slowBlink = false,
+            rapidBlink = false,
+            crossedOut = false,
+            doubleUnderline = false,
+            superscript = false, // Note: Support varies widely across terminals
+            subscript = false,   // Note: Support varies widely across terminals
+            color = null      // Default to no color
+        } = styleOptions;
+    
+        const styleCodeList = [
+            bold ? '1' : '',
+            faint ? '2' : '',
+            italic ? '3' : '',
+            underline ? '4' : '',
+            slowBlink ? '5' : '',
+            rapidBlink ? '6' : '',
+            crossedOut ? '9' : '',
+            doubleUnderline ? '21' : '',
+            superscript ? '73' : '',
+            subscript ? '74' : '',
+        ].filter(code => code); // Remove empty strings
+    
+        // Add color code if specified and valid
+        const lowerCaseColor = color ? String(color).toLowerCase() : null;
+        if (lowerCaseColor && colorCodes[lowerCaseColor]) {
+            styleCodeList.push(colorCodes[lowerCaseColor]);
+        }
+
+        if (symbol === '<') {
+            styleCodeList.push('1');
+            styleCodeList.push('34');
+        } else if (symbol === '>') {
+            styleCodeList.push('1');
+            styleCodeList.push('32');
+        } else if (symbol === '>!') {
+            styleCodeList.push('1');
+            styleCodeList.push('31');
+        } else if (symbol === '=') {
+            styleCodeList.push('33');
+        }
+
+        if (logText.length) {
+            let finalOutput = '';
+            finalOutput = `${time} - `;
+            if (styleCodeList.length > 0) {
+                const stylePrefix = `\x1b[${styleCodeList.join(';')}m`;
+                finalOutput += `${stylePrefix}${logText}${resetStyle}`;
             } else {
-                return `${currentTime} - ${positionCodes[position] ? positionCodes[position] : ''}${style}${message}${resetStyle}`;
+                // No styles applied
+                finalOutput += logText;
             }
-        });
     
-        console.info(...formattedMessages.flat());
-    },
-    capitalize(string) {
-        if (string) {
-            return string.charAt(0).toUpperCase() + string.slice(1);
-        }
-    },
-    getUsernameNoSpaces(message) {
-        let name = message?.author?.displayName || message?.author?.username || message?.user?.username;
-        let username = 'default';
-        if (name) {
-            username = name ? name.replace(/\s+/g, '_').replace(/[^\w\s]/gi, '') : message?.author?.username || message?.user?.username;
-            if (!username) {
-                username = message?.author?.username || message?.user?.username || 'default';
+            if (debugLevel === 3) {
+                if (symbol === '>' || symbol === '=') {
+                    finalOutput += ` ${location}`;
+                }
             }
-        }
-        return username;
+    
+            console.info(finalOutput);
+        } 
     },
     howl() {
         let howl = 'Aw';
@@ -106,6 +200,7 @@ const UtilityLibrary = {
         howl = howl + '!';
         return howl;
     },
+    // Array utilities
     areArraysEqual(array1, array2) {
         return array1.length === array2.length &&
         array1.every(item1 =>
@@ -121,70 +216,99 @@ const UtilityLibrary = {
             )
         );
     },
-    // Discord Utilities
-    findUserById(client, userId) {
-        const user = client.users.cache.get(userId)
-        return UtilityLibrary.discordUsername(user)
+    // Console utilities
+    ansiEscapeCodes(isConsoleLog = false) {
+        const bold = (text) => isConsoleLog ? `\x1b[1m${text}\x1b[0m` : text;
+        const faint = (text) => isConsoleLog ? `\x1b[2m${text}\x1b[0m` : text;
+        const italic = (text) => isConsoleLog ? `\x1b[3m${text}\x1b[0m` : text;
+        const underline = (text) => isConsoleLog ? `\x1b[4m${text}\x1b[0m` : text;
+        const slowBlink = (text) => isConsoleLog ? `\x1b[5m${text}\x1b[0m` : text;
+        const rapidBlink = (text) => isConsoleLog ? `\x1b[6m${text}\x1b[0m` : text;
+        const inverse = (text) => isConsoleLog ? `\x1b[7m${text}\x1b[0m` : text;
+        const hidden = (text) => isConsoleLog ? `\x1b[8m${text}\x1b[0m` : text;
+        const strikethrough = (text) => isConsoleLog ? `\x1b[9m${text}\x1b[0m` : text;
+        return {
+            bold,
+            faint,
+            italic,
+            underline,
+            slowBlink,
+            rapidBlink,
+            inverse,
+            hidden,
+            strikethrough
+        };
     },
-    discordBotsAmount(message) {
-        if (message) {
-            const bots = message.guild.members.cache.filter(member => member.user.bot).size;
-            return bots;
-        }
-    },
-    discordRoles(member) {
+    getCombinedNamesFromUserOrMember({ user, member }, isConsoleLog = false) {
+        const { bold, faint } = UtilityLibrary.ansiEscapeCodes(isConsoleLog);
+        let parts = [];
+
         if (member) {
-            let roles = member.roles.cache.filter(role => role.name !== '@everyone').map(role => role.name).join(', ');
-            return roles;
+            if (member.nickname) parts.push(bold(member.nickname));
+            if (!member.nickname && member.user?.globalName) parts.push(bold(member.user?.globalName));
+            if (member.user?.username) parts.push(member.user.username);
+            if (member.user?.globalName && member.nickname) parts.push(member.user.globalName);
+            if (member.user?.id) parts.push(faint(`<@${member.user.id}>`));
+        } else if (user) {
+            parts.push(bold(user.username));
+            if (user.globalName) parts.push(user.globalName);
+            if (!user.globalName && user.tag) { parts.push(`${user.tag}`) }
+            parts.push(faint(`<@${user.id}>`));
         }
+
+        return parts.join(' • ');
     },
-    discordUsername(authorOrUser) {
-        if (authorOrUser) {
-            const username = authorOrUser.displayName || authorOrUser.username || authorOrUser.globalName;
-            return username;
+    getCombinedGuildInformationFromGuild(guild, isConsoleLog = false) {
+        const { bold, faint } = UtilityLibrary.ansiEscapeCodes(isConsoleLog);
+        let combinedGuildInformation;
+        if (guild) {
+            combinedGuildInformation = `${bold(guild.name)} • ${faint(guild.id)}`;
         }
+        return combinedGuildInformation;
     },
-    discordUserId(message) {
-        if (message) {
-            const userId = message?.author?.id || message?.user?.id;
-            return userId;
+    getCombinedChannelInformationFromChannel(channel, isConsoleLog = false) {
+        const { bold, faint } = UtilityLibrary.ansiEscapeCodes(isConsoleLog);
+        let combinedChannelInformation;
+        if (channel) {
+            combinedChannelInformation = `#${bold(channel.name)} • ${faint(channel.id)}`;
         }
+        return combinedChannelInformation;
     },
-    discordUserMention(message) {
-        if (message) {
-            const userId = message?.author?.id || message?.user?.id;
-            return `<@${userId}>`;
-        }
-    },
-    discordUserTag(item) {
-        if (item) {
-            const userTag = item?.author?.tag || item?.user?.tag;
-            return userTag;
-        }
-    },
-    discordGetMember(message) {
-        if (message) {
-            const userId = message?.author?.id || message?.user?.id;
-            const member = message.guild.members.cache.get(userId);
-            return member;
-        }
-    },
-    detectHowlAndRespond(message) {
-        if (message.content.toLowerCase().includes('!howl')) {
-            const howl = UtilityLibrary.howl(message);
-            message.channel.send(howl);
-        }
-    },
-    async detectMessageAndReact(message) {
-        if (message.author.id !== message.client.user.id && (message.content.toLowerCase().includes('lupos') || message.content.toLowerCase().includes('good dog') || message.content.toLowerCase().includes('good boy'))) {
-            try {
-                await message.react('1194383720946352200');
-            } catch (error) {
-                // console.error('One of the emojis failed to react.');
-                // Usually because someone has blocked the bot, so the bot cannot react.
+    getCombinedEmojiInformationFromReaction(reaction, isConsoleLog = false) {
+        if (!reaction) return;
+        const { bold, faint } = UtilityLibrary.ansiEscapeCodes(isConsoleLog);
+        const emoji = reaction._emoji;
+        const parts = [];
+        if (emoji) {
+            parts.push(bold(emoji.name));
+            if (emoji.id) {
+                parts.push(faint(`<:${emoji.name}:${emoji.id}>`));
             }
         }
-    }
+        return parts.join(' • ');
+    },
+    getCombinedRoleInformationFromRole(role, isConsoleLog = false) {
+        const { bold, faint } = UtilityLibrary.ansiEscapeCodes(isConsoleLog);
+        let combinedRoleInformation;
+        if (role) {
+            combinedRoleInformation = `${bold(role.name)} • ${faint(role.id)}`;
+        }
+        return combinedRoleInformation;
+    },
+    getCombinedDateInformationFromDate(unixDate, isConsoleLog = false) {
+        const { bold, faint } = UtilityLibrary.ansiEscapeCodes(isConsoleLog);
+        let combinedDateInformation;
+        if (!unixDate) {
+            unixDate = Date.now();
+        }
+        if (unixDate) {
+            const dateTime = DateTime.fromMillis(unixDate);
+            const time = dateTime.setZone('local').toFormat('hh:mm:ss a');
+            const date = dateTime.setZone('local').toFormat('LLLL dd, yyyy');
+            combinedDateInformation = `${bold(time)} ${faint('on')} ${faint(date)} • ${faint(unixDate)}`;
+        }
+        return combinedDateInformation;
+    },
 };
 
 module.exports = UtilityLibrary;

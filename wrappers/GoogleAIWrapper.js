@@ -1,40 +1,86 @@
-require('dotenv/config');
-const { GoogleGenerativeAI } = require("@google/generative-ai");
+const { GoogleGenAI } = require('@google/genai');
 const {
-    LANGUAGE_MODEL_TEMPERATURE,
-    LANGUAGE_MODEL_MAX_TOKENS,
     GOOGLE_KEY
 } = require('../config.json');
 
-const generativeAI = new GoogleGenerativeAI(GOOGLE_KEY);
+const googleGenAI = new GoogleGenAI({
+  apiKey: GOOGLE_KEY,
+});
 
 const GoogleAIWrapper = {
-    async generateChat(
-        history,
-        systemInstruction,
-        model="gemini-1.5-flash",
-        maxTokens=LANGUAGE_MODEL_MAX_TOKENS,
-        temperature=LANGUAGE_MODEL_TEMPERATURE
-    ) {
-        let text;
+    async generateGoogleAIImage(prompt, images = []) {
+        const settings = {
+            model: 'gemini-3-pro-image-preview',
+            contents: [
+                {
+                    role: 'user',
+                    parts: [
+                        {
+                            text: prompt,
+                        },
+                    ],
+                },
+            ],
+        }
+        if (images.length) {
+            for (const image of images) {
+                settings.contents[0].parts.push({
+                    inlineData: {
+                        data: image.data,
+                        mimeType: image.type,
+                    }
+                })
+            }
+        }
+        const response = await googleGenAI.models.generateContentStream(settings);
+        const countTokensResponse = await googleGenAI.models.countTokens(settings);
+        const allInputTokenCount = countTokensResponse.totalTokens;
+        // console.log('Google AI Image Generation Prompt:', prompt);
+        // console.log('Google AI Image Generation Settings:', settings);
+        // console.log('Google AI Image Generation Has Input Images:', images.length);
+        // console.log('Google AI Image Generation Response Stream:');
+        let combinedChunkText = '';
+        for await (const chunk of response) {
+            if (!chunk.candidates || !chunk.candidates[0].content || !chunk.candidates[0].content.parts) {
+                continue;
+            }
+            if (chunk.candidates?.[0]?.finishReason === 'PROHIBITED_CONTENT') {
+                console.error('Content was flagged as PROHIBITED_CONTENT by Google AI.');
+                return { response: null, error: true };
+            }
+            if (chunk.candidates?.[0]?.content?.parts?.[0]?.inlineData) {
+                const inlineData = chunk.candidates[0].content.parts[0].inlineData;
+                // Count combinedChunkText tokens
+                const countTokensResponse = await googleGenAI.models.countTokens({
+                    model: 'gemini-3-pro-image-preview',
+                    contents: [
+                        { 
+                            role: 'user',
+                            parts: [
+                                { 
+                                    text: combinedChunkText
+                                }
+                            ]
+                        }
+                    ]
+                });
+                const textOutputTokenCount = countTokensResponse.totalTokens || 0;
 
-        const model = generativeAI.getGenerativeModel({
-            model: model,
-            systemInstruction: systemInstruction
-        });
+                const responseObject = {
+                    imageData: inlineData.data,
+                    text: combinedChunkText,
+                    allInputTokenCount: allInputTokenCount,
+                    textOutputTokenCount: textOutputTokenCount,
+                }
 
-        model.startChat({
-            history: history,
-            generationConfig: {
-                maxOutputTokens: maxTokens,
-                temperature: temperature,
-            },
-        });
-
-        text = result.response.text()
-
-        return text;
-    },
+                return { response: responseObject, error: null };
+            }
+            else {
+                combinedChunkText += chunk.text;
+                console.log(chunk.text);
+            }
+        }
+    }
 };
 
 module.exports = GoogleAIWrapper;

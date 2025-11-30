@@ -1,4 +1,4 @@
-const AIService = require('../services/AIService.js');
+const DiscordService = require('../services/DiscordService.js');
 
 let alcoholLevel = 0;
 
@@ -103,7 +103,7 @@ const AlcoholService = {
             You will drink whatever is given to you. You will always accept it, and you will take a sip, drink, chug, drink down, the alcoholic drink that has been given to you. You have just been fed alcohol. You are now ${currentAlcoholLevel}/10 drunk. This means that you are at a ${currentAlcoholLevel} out of 10 level of drunkenness. You start acting like you are ${currentAlcoholLevel}/10 drunk. You slur your words and stumble around. Be a little reluctant about having just been given free alcohol. You took a sip out of the alcohol and it tasted about a solid ${currentAlcoholLevel}. Do not mention the numbers 1-10 in any way, but rather how it makes you feel.
         `;
         const userContent = `Here Lupos, have a drink, it's whatever drink you think it is, so assume accordingly. It looks like you're about at a ${currentAlcoholLevel}/10 level of drunk my friend. Mention what type of drink are you drinking and explain more about, what ingredients it uses.?`;
-        return await AIService.generateTextFromSystemUserMessages(systemContent, userContent, interaction);
+        return await DiscordService.generateTextFromSystemUserMessages(systemContent, userContent, interaction);
     }
 }
 

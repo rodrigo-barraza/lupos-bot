@@ -153,7 +153,7 @@ const PuppeteerWrapper = {
           );
         
         await browser.close();
-        UtilityLibrary.consoleInfo([[`║ 🌐 Scraping URL: `, { }], [result, { }]]);
+        // UtilityLibrary.consoleInfo([[`║ 🌐 Scraping URL: `, { }], [result, { }]]);
         return result;
     },
     async scrapeTenor(url) {
@@ -191,7 +191,7 @@ const PuppeteerWrapper = {
         result.name = url.replace('https://tenor.com/view/', '').replace(/-/g, ' ').replace(/%20/g, ' ');
         
         await browser.close();
-        UtilityLibrary.consoleInfo([[`║ 🌐 Scraping Tenor URL: `, { }], [result, { }]]);
+        // UtilityLibrary.consoleInfo([[`║ 🌐 Scraping Tenor URL: `, { }], [result, { }]]);
         return result;
     },
     async scrapeGoogleAlerts(searchText) {
@@ -226,7 +226,7 @@ const PuppeteerWrapper = {
         }
         
         await browser.close();
-        UtilityLibrary.consoleInfo([[`║ 📰 News: `, { }], [result, { }]]);
+        // UtilityLibrary.consoleInfo([[`║ 📰 News: `, { }], [result, { }]]);
         return result;
     },
 };

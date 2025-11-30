@@ -1,4 +1,4 @@
-const AIService = require('../services/AIService.js');
+const AIService = require('./AIService.js');
 const HungerService = require('./HungerService.js');
 const ThirstService = require('./ThirstService.js');
 const BathroomService = require('./BathroomService.js');

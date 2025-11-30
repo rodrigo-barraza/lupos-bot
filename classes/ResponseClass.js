@@ -1,4 +1,3 @@
-'use strict';
 class ResponseClass {
     constructor(response) {
         this.response = response;

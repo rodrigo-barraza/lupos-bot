@@ -11,7 +11,6 @@ const { Collection, Events, ChannelType, EmbedBuilder } = require('discord.js');
 const UtilityLibrary = require('./libraries/UtilityLibrary.js');
 const MoodService = require('./services/MoodService.js');
 const DiscordService = require('./services/DiscordService.js');
-const AIService = require('./services/AIService.js');
 const luxon = require('luxon');
 const PuppeteerWrapper = require('./wrappers/PuppeteerWrapper.js');
 const LightWrapper = require('./wrappers/LightWrapper.js');
@@ -95,34 +94,9 @@ async function onReady() {
 UtilityLibrary.consoleInfo([[`---`, { bold: true, color: 'green' }]]);
 UtilityLibrary.consoleInfo([[`🤖 Vendor the Vending Bot v1.0 starting`, { bold: true, color: 'red' }]]);
 
-// ========================================
-// whenever a user sends a message
-let isProcessingOnMessageQueue = false;
-const messageQueue = [];
-async function onMessageCreateQueue(client, message) {
-    const isDirectMessageByBot = message.channel.type === ChannelType.DM && message.author.id === client.user.id;
-    const isMessageWithoutBotMention = message.channel.type != ChannelType.DM && !message.mentions.has(client.user);
-    if (message.content.startsWith(IGNORE_PREFIX)) { return }
-    if (isDirectMessageByBot) { return }
-    if (isMessageWithoutBotMention) { return }
-
-    messageQueue.push(message);
-
-    if (!isProcessingOnMessageQueue) {
-        isProcessingOnMessageQueue = true;
-        while (messageQueue.length > 0) {
-            const queuedMessage = messageQueue.shift();
-            await replyMessage(client, queuedMessage);
-        }
-        isProcessingOnMessageQueue = false;
-        return
-    } 
-}
-// ========================================
-
 async function replyMessage(client, queuedMessage) {
     LightWrapper.setState({ color: 'purple' }, PRIMARY_LIGHT_ID);
-    await DiscordService.fetchMessages(1302506119813660692, 300);
+    // await DiscordService.fetchMessages(1302506119813660692, 300);
     await queuedMessage.channel.sendTyping();
     let fetchRecentMessages = (await queuedMessage.channel.messages.fetch({ limit: 100 })).reverse();
     let recentMessages = fetchRecentMessages.map((msg) => msg);
@@ -144,7 +118,7 @@ async function replyMessage(client, queuedMessage) {
 
     // Summary of the message in 5 words
     const messageContent = queuedMessage.content.replace(`<@${client.user.id}>`, '');
-    const summary = await AIService.generateSummaryFromMessage(queuedMessage, messageContent);
+    const summary = await DiscordService.generateSummaryFromMessage(queuedMessage, messageContent);
     console.log('Summary:', summary);
     DiscordService.setUserActivity(summary);
     LightWrapper.setState({ color: 'red' }, PRIMARY_LIGHT_ID);
@@ -154,7 +128,7 @@ async function replyMessage(client, queuedMessage) {
         imagePrompt, 
         modifiedMessage, 
         systemPrompt 
-    } = await AIService.generateNewTextResponse(
+    } = await DiscordService.generateNewTextResponse(
         client,
         queuedMessage,
         recentMessages
@@ -164,9 +138,9 @@ async function replyMessage(client, queuedMessage) {
     generatedTextResponse = generatedText;
 
     if (GENERATE_IMAGE) {
-        const imageGenerationStatusIsUp = await AIService.checkImageGenerationStatus();
+        const imageGenerationStatusIsUp = await DiscordService.checkImageGenerationStatus();
         if (true) {
-            let newImagePrompt = await AIService.createImagePromptFromImageAndText(
+            let newImagePrompt = await DiscordService.createImagePromptFromImageAndText(
                 queuedMessage,
                 imagePrompt,
                 generatedText,
@@ -176,13 +150,13 @@ async function replyMessage(client, queuedMessage) {
             LightWrapper.setState({ color: 'purple' }, PRIMARY_LIGHT_ID);
     
             if (newImagePrompt) {
-                generatedImage = await AIService.generateImage(newImagePrompt);
+                generatedImage = await DiscordService.generateImage(newImagePrompt);
                 
                 LightWrapper.setState({ color: 'yellow' }, PRIMARY_LIGHT_ID);
                 if (generatedImage) {
                     const {
                         generatedText: generatedText2
-                    } = await AIService.generateNewTextResponsePart2(
+                    } = await DiscordService.generateNewTextResponsePart2(
                         client,
                         queuedMessage,
                         recentMessages,
@@ -218,7 +192,7 @@ async function replyMessage(client, queuedMessage) {
 
     // if (GENERATE_VOICE) { 
     //     UtilityLibrary.consoleInfo([[`🎤 Generating voice...`, { color: 'yellow' }, 'middle']]);
-    //     ({ filename: generatedAudioFile, buffer: generatedAudioBuffer } = await AIService.generateVoice(message, voicePrompt))
+    //     ({ filename: generatedAudioFile, buffer: generatedAudioBuffer } = await DiscordService.generateVoice(message, voicePrompt))
     //     UtilityLibrary.consoleInfo([[`🎤 ... voice generated.`, { color: 'green' }, 'middle']]);
     // }
 
@@ -260,7 +234,7 @@ async function replyMessage(client, queuedMessage) {
 
 DiscordService.login(VENDOR_TOKEN);
 DiscordService.onEventClientReady(onReady);
-DiscordService.onEventMessageCreate(onMessageCreateQueue);
+DiscordService.onEventMessageCreate(DiscordService.onMessageCreateQueue);
 DiscordService.onEventMessageReactionAdd(onReactionCreateQueue);
 
 // On Webhook Message

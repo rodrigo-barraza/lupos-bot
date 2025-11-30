@@ -14,6 +14,7 @@ const {
     VISION_MODEL_MAX_TOKENS,
     OPENAI_KEY
 } = require('../config.json');
+const fs = require('fs');
 
 const openai = new OpenAI({apiKey: OPENAI_KEY})
 
@@ -77,6 +78,19 @@ const OpenAIWrapper = {
         }
 
     },
+    async speechToText(audioFileObject) {
+        const response = await openai.audio.transcriptions.create({
+            file: audioFileObject,
+            model: "whisper-1",
+            response_format: "text",
+        }).catch((error) => console.error('OpenAI Error:\n', error));
+        if (response) {
+            return response;
+        } else {
+            console.error('OpenAI Error: No text returned from transcription');
+            return null;
+        }
+    },
     async generateVoiceResponse(text) {
         const response = await openai.audio.speech.create({
             model: VOICE_MODEL,
@@ -115,7 +129,7 @@ const OpenAIWrapper = {
         }
         return { response, error };
     },
-    async generateTextResponse(
+    async generateOpenAITextResponse(
         conversation,
         model=LANGUAGE_MODEL_LOCAL,
         tokens=LANGUAGE_MODEL_MAX_TOKENS,
@@ -123,11 +137,14 @@ const OpenAIWrapper = {
     ) {
         let text;
         const response = await openai.chat.completions.create({
-            temperature: temperature,
+            temperature: 1,
             model: model,
             messages: conversation,
-            max_tokens: tokens,
-        }).catch((error) => console.error('OpenAI Error:\n', error));
+            // max_tokens: tokens,
+            // reasoning: {
+            //     effort: 'minimal',
+            // }
+        }).catch((error) => console.error('OpenAI Error:\n', error, 'model:', model, 'tokens:', tokens, 'temperature:', temperature));
         if (response.choices[0].message.content) {
             text = response.choices[0].message.content;
         }

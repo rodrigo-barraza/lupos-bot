@@ -1,11 +1,13 @@
 require('dotenv/config');
 const UtilityLibrary = require('../libraries/UtilityLibrary.js');
+const { consoleInfo } = require('../libraries/UtilityLibrary.js');
 let puppeteer;
 if (process.platform === "win32") { puppeteer = require("puppeteer") } else { puppeteer = require("puppeteer-core") };
 // const puppeteer = require('puppeteer-core');
 const { executablePath } = require('puppeteer-core');
 const xml2js = require('xml2js');
-const AIService = require('../services/AIService.js');
+// const AIService = require('../services/AIService.js');
+// const LogFormatter = require('../formatters/LogFormatter.js');
 
 let puppeteerOptions = {};
 
@@ -33,57 +35,57 @@ const PuppeteerWrapper = {
         const items = result.rss.channel.item;
         return items;
     },
-    async scrapeRSSGoogleNews(message) {
-        const url = 'https://news.google.com/rss?gl=US&hl=en-US&ceid=US:en';
-        const browser = await puppeteer.launch({ headless: true, executablePath: executablePath() });
-        const page = await browser.newPage();
-        await page.goto(url, { waitUntil: 'networkidle0' });
+    // async scrapeRSSGoogleNews(message) {
+    //     const url = 'https://news.google.com/rss?gl=US&hl=en-US&ceid=US:en';
+    //     const browser = await puppeteer.launch({ headless: true, executablePath: executablePath() });
+    //     const page = await browser.newPage();
+    //     await page.goto(url, { waitUntil: 'networkidle0' });
     
-        // Extract XML content from the page
-        let xmlContent = await page.evaluate(() => document.body.innerText);
+    //     // Extract XML content from the page
+    //     let xmlContent = await page.evaluate(() => document.body.innerText);
     
-        await browser.close();
+    //     await browser.close();
 
-        xmlContent = xmlContent.substring(xmlContent.indexOf('<rss'));
+    //     xmlContent = xmlContent.substring(xmlContent.indexOf('<rss'));
 
-        xmlContent = xmlContent.replace(/&(?!nbsp;)/g, '&amp;');
+    //     xmlContent = xmlContent.replace(/&(?!nbsp;)/g, '&amp;');
     
-        // Parse XML content to JSON
-        const parser = new xml2js.Parser({ explicitArray: false, mergeAttrs: true });
-        const result = await parser.parseStringPromise(xmlContent);
+    //     // Parse XML content to JSON
+    //     const parser = new xml2js.Parser({ explicitArray: false, mergeAttrs: true });
+    //     const result = await parser.parseStringPromise(xmlContent);
     
-        let userMessage = "# Latest News\n";
+    //     let userMessage = "# Latest News\n";
     
-        const items = result.rss.channel.item;
-        items.forEach((item) => {
-            const title = item.title;
-            const pubDate = UtilityLibrary.getCurrentDateAndTime(item.pubDate);
-            const minutesAgo = UtilityLibrary.getMinutesAgo(item.pubDate);
-            const link = item.link;
-            const description = item.description || '';
+    //     const items = result.rss.channel.item;
+    //     items.forEach((item) => {
+    //         const title = item.title;
+    //         const pubDate = UtilityLibrary.getCurrentDateAndTime(item.pubDate);
+    //         const minutesAgo = UtilityLibrary.getMinutesAgo(item.pubDate);
+    //         const link = item.link;
+    //         const description = item.description || '';
     
-            userMessage += `## Title: ${title}\n`;
-            userMessage += `- Date: ${pubDate}\n`;
-            userMessage += `- Minutes ago: ${minutesAgo}\n`;
-            userMessage += `- Link: ${link}\n`
-            userMessage += `- Description: ${description}\n`;
-        });
+    //         userMessage += `## Title: ${title}\n`;
+    //         userMessage += `- Date: ${pubDate}\n`;
+    //         userMessage += `- Minutes ago: ${minutesAgo}\n`;
+    //         userMessage += `- Link: ${link}\n`
+    //         userMessage += `- Description: ${description}\n`;
+    //     });
 
-        userMessage += `If any, return the most related news to this: ${message.content}`;
+    //     userMessage += `If any, return the most related news to this: ${message.content}`;
 
-        const systemMessage = `#Task:\n-You return the most related news, and summarize the description without adding more information.\n-If there is no related news, return an empty string.\n\n#Output Format:
-        -## Title: [Title]
-        -Date: [Date]
-        -Minutes ago: [Minutes]
-        -Link: [Link]
-        -Description: [Description]`;
+    //     const systemMessage = `#Task:\n-You return the most related news, and summarize the description without adding more information.\n-If there is no related news, return an empty string.\n\n#Output Format:
+    //     -## Title: [Title]
+    //     -Date: [Date]
+    //     -Minutes ago: [Minutes]
+    //     -Link: [Link]
+    //     -Description: [Description]`;
 
-        const conversation = AIService.rawGenerateConversation(systemMessage, userMessage, message)
+    //     const conversation = await AIService.rawGenerateConversation(systemMessage, userMessage, message)
 
-        AIService.rawGenerateText({conversation, type: 'OPENAI', performance: 'FAST'})
+    //     await AIService.rawGenerateText({conversation, type: 'OPENAI', performance: 'FAST'})
     
-        return userMessage;
-    },
+    //     return userMessage;
+    // },
     async scrapeRSSGoogleTrends() {
         const url = 'https://trends.google.com/trends/trendingsearches/daily/rss?geo=US';
         const browser = await puppeteer.launch({ headless: true });
@@ -131,81 +133,101 @@ const PuppeteerWrapper = {
         return output;
     },
     async scrapeURL(url) {
+        const functionName = 'scrapeURL';
+        if (url.includes('aveda.com')) {
+            // ignore
+            return {};
+        }
         async function isImageURL(url) {
             const res = await fetch(url, { method: 'HEAD' });
             const type = res.headers.get('content-type');
             return type && type.startsWith('image/');
         }
+        
         const isImage = await isImageURL(url);
         if (isImage) {
             return {};
         }
+        
         const browser = await puppeteer.launch(puppeteerOptions);
         const page = await browser.newPage();
         await page.goto(url);
 
-        // if url has youtube.com/watch
-    
         const selectors = [
-            { selector: 'head title', property: 'title' },
-            // { selector: 'a', property: 'links' },
-            { selector: 'p', property: 'text' },
-            // { selector: 'span', property: 'text' },
-            { selector: 'h1', property: 'header' },
-            // { selector: 'h2', property: 'h2' },
-            // { selector: 'h3', property: 'h3' },
-            { selector: 'meta[name="description"]', property: 'description' },
-            { selector: 'meta[name="keywords"]', property: 'keywords' },
-            { selector: 'meta[property="og:image"]', property: 'image' },
+            { selector: 'head title', property: 'title', attribute: null },
+            { selector: 'p', property: 'text', attribute: null },
+            { selector: 'h1', property: 'header', attribute: null },
+            { selector: 'meta[name="description"]', property: 'description', attribute: 'content' },
+            { selector: 'meta[name="keywords"]', property: 'keywords', attribute: 'content' },
+            { selector: 'meta[property="og:image"]', property: 'image', attribute: 'content' },
         ];
+        
         const result = {};
         const youtubeWatchRegex = /(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]{11})/;
+        
         if (youtubeWatchRegex.test(url)) {
             // Video description
-            selectors.push({ selector: 'div[id="description"] span', property: 'description' });
+            selectors.push({ selector: 'div[id="description"] span', property: 'description', attribute: null });
             // Related videos
-            selectors.push({ selector: 'div[id="secondary"] a h3', property: 'relatedVideos' });
+            selectors.push({ selector: 'div[id="secondary"] a h3', property: 'relatedVideos', attribute: null });
             
-            const descriptionElement = await page.waitForSelector('div[id="description"]', { timeout: 5000 });
-            if (descriptionElement) {
-                await page.evaluate(() => document.querySelector('div[id="description"]').click());
-                await page.waitForSelector('button[aria-label="Show transcript"]', { timeout: 5000 });
-                const showTranscriptButton = await page.$('button[aria-label="Show transcript"]');
-                if (showTranscriptButton) {
-                    await page.evaluate(() => document.querySelector('button[aria-label="Show transcript"]').click());
-                    await page.waitForSelector('ytd-transcript-segment-renderer', { timeout: 5000 });
-            
-                    const transcriptData = await page.evaluate(() => {
-                        const transcriptElement = document.querySelector('div[id="panels"]');
-                        const transcriptSegments = Array.from(transcriptElement.querySelectorAll('ytd-transcript-segment-renderer'));
-                        return transcriptSegments.map(segment => {
-                            const timestamp = segment.querySelector('div[class="segment-timestamp style-scope ytd-transcript-segment-renderer"]').innerText;
-                            const innerText = segment.querySelector('yt-formatted-string').innerText;
-                            return { timestamp, innerText };
+            try {
+                const descriptionElement = await page.waitForSelector('div[id="description"]', { timeout: 5000 });
+                if (descriptionElement) {
+                    await page.evaluate(() => document.querySelector('div[id="description"]').click());
+                    await page.waitForSelector('button[aria-label="Show transcript"]', { timeout: 5000 });
+                    const showTranscriptButton = await page.$('button[aria-label="Show transcript"]');
+                    if (showTranscriptButton) {
+                        await page.evaluate(() => document.querySelector('button[aria-label="Show transcript"]').click());
+                        await page.waitForSelector('ytd-transcript-segment-renderer', { timeout: 5000 });
+                
+                        const transcriptData = await page.evaluate(() => {
+                            const transcriptElement = document.querySelector('div[id="panels"]');
+                            const transcriptSegments = Array.from(transcriptElement.querySelectorAll('ytd-transcript-segment-renderer'));
+                            return transcriptSegments.map(segment => {
+                                const timestamp = segment.querySelector('div[class="segment-timestamp style-scope ytd-transcript-segment-renderer"]').innerText;
+                                const innerText = segment.querySelector('yt-formatted-string').innerText;
+                                return { timestamp, innerText };
+                            });
                         });
-                    });
-                    
-                    const transcript = transcriptData.map(entry => `${entry.timestamp}: ${entry.innerText}\n`).join('');
-                    result.transcript = transcript;
+                        
+                        const transcript = transcriptData.map(entry => `${entry.timestamp}: ${entry.innerText}\n`).join('');
+                        if (transcript.trim()) {
+                            result.transcript = transcript;
+                        }
+                    }
                 }
+            } catch (error) {
+                console.error('YouTube transcript extraction error:', error);
             }
         }
         
         await Promise.all(
-            selectors.map(async ({ selector, property }) => {
+            selectors.map(async ({ selector, property, attribute }) => {
                 try {
                     const elementExists = await page.$(selector);
                     if (!elementExists) return;
             
-                    const value = await page.evaluate((s, p) => {
-                    const elements = Array.from(document.querySelectorAll(s));
-                    return elements.map(element =>
-                        element ? element.innerText || element.getAttribute(p) : null
-                    );
-                    }, selector, property);
+                    const value = await page.evaluate((s, attr) => {
+                        const elements = Array.from(document.querySelectorAll(s));
+                        return elements.map(element => {
+                            if (!element) return null;
+                            // If attribute is specified, get that attribute (for meta tags)
+                            if (attr) {
+                                return element.getAttribute(attr);
+                            }
+                            // Otherwise, get innerText
+                            return element.innerText;
+                        });
+                    }, selector, attribute);
             
-                    if (value) {
-                    result[property] = value.filter(v => v !== null && v.trim() !== '');
+                    // Filter out null, undefined, and empty strings
+                    const filteredValue = value.filter(v => v !== null && v !== undefined && v.trim() !== '');
+                    
+                    // Only add to result if there are actual values
+                    if (filteredValue.length > 0) {
+                        // If it's a single value, don't use an array
+                        result[property] = filteredValue.length === 1 ? filteredValue[0] : filteredValue;
                     }
                 } catch (error) {
                     console.error(`Puppeteer Error on ${selector}:\n`, error);
@@ -214,6 +236,7 @@ const PuppeteerWrapper = {
         );
         
         await browser.close();
+        // console.log(...LogFormatter.scrapeSuccess({functionName, url, result}));
         return result;
     },
     async scrapeURL2(url) {
@@ -291,42 +314,108 @@ const PuppeteerWrapper = {
         return result;
     },
     async scrapeTenor(url) {
-        const browser = await puppeteer.launch(puppeteerOptions);
-        const page = await browser.newPage();
-        await page.goto(url);
+        let browser;
+        try {
+            // consoleInfo('<', 'scrapeTenor');
+            // consoleInfo('=', 'scrapeTenor', url);
+            browser = await puppeteer.launch(puppeteerOptions);
+            const page = await browser.newPage();
+            // Set user agent to avoid bot detection
+            await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
+            // Set viewport
+            await page.setViewport({ width: 1920, height: 1080 });
+            await page.goto(url);
 
-        const selectors = [
-            { selector: 'title', property: 'title' },
-            { selector: 'meta[itemprop="contentUrl"]', property: 'image' },
-            { selector: 'meta[itemprop="keywords"]', property: 'keywords' },
-        ];
-          
-        const result = {};
-          
-        await Promise.all(
-            selectors.map(async ({ selector, property }) => {
-            try {
-                await page.waitForSelector(selector, { timeout: 5000 });
-        
-                const value = await page.evaluate((s, p) => {
-                const element = document.querySelector(s);
-                return element ? element[p] || element.getAttribute('content') : null;
-                }, selector, property);
-        
-                if (value) {
-                result[property] = value.trim();
+            const selectors = [
+                { selector: 'title', property: 'title' },
+                { selector: 'meta[itemprop="contentUrl"]', property: 'image' },
+                { selector: 'meta[itemprop="keywords"]', property: 'keywords' },
+            ];
+            
+            const result = {};
+            
+            await Promise.all(
+                selectors.map(async ({ selector, property }) => {
+                try {
+                    await page.waitForSelector(selector, { timeout: 5000 });
+            
+                    const value = await page.evaluate((s, p) => {
+                    const element = document.querySelector(s);
+                    return element ? element[p] || element.getAttribute('content') : null;
+                    }, selector, property);
+            
+                    if (value) {
+                    result[property] = value.trim();
+                    }
+                } catch (error) {
+                    console.error(`Puppeteer Error on ${selector}:\n`, error);
                 }
-            } catch (error) {
-                console.error(`Puppeteer Error on ${selector}:\n`, error);
-            }
-            })
-        );
+                })
+            );
 
-        result.name = url.replace('https://tenor.com/view/', '').replace(/-/g, ' ').replace(/%20/g, ' ');
-        
-        await browser.close();
-        UtilityLibrary.consoleInfo([[`║ 🌐 Scraping Tenor URL: `, { }], [result, { }]]);
-        return result;
+            result.name = url.replace('https://tenor.com/view/', '').replace(/-/g, ' ').replace(/%20/g, ' ');
+            
+            await browser.close();
+            // consoleInfo('=', 'scrapeTenor', result);
+            // consoleInfo('>', 'scrapeTenor');
+            return result;
+        } catch (error) {
+            console.error('Puppeteer Error:\n', error);
+            return {};
+        } finally {
+            if (browser) {
+                await browser.close();
+            }
+        }
+    },
+    async scrapeTwitchUrl(url) {
+        const functionName = 'scrapeTwitchUrl';
+        try {
+            const browser = await puppeteer.launch(puppeteerOptions);
+            const page = await browser.newPage();
+            await page.goto(url, { 
+                timeout: 15000,  // 15 seconds timeout
+                waitUntil: 'domcontentloaded'  // Less strict than 'load' or 'networkidle0'
+            });
+
+            const selectors = [
+                { selector: 'title', property: 'title' },
+                { selector: 'meta[name="description"]', property: 'description' },
+                { selector: 'meta[name="og:description"]', property: 'description' },
+                { selector: 'meta[name="twitter:description"]', property: 'description' },
+                { selector: 'meta[property="og:image"]', property: 'image' },
+                { selector: 'meta[property="og:video"]', property: 'video' },
+            ];
+            
+            const result = {};
+            
+            await Promise.all(
+                selectors.map(async ({ selector, property }) => {
+                    try {
+                        await page.waitForSelector(selector, { timeout: 5000 });
+                
+                        const value = await page.evaluate((s, p) => {
+                            const element = document.querySelector(s);
+                            return element ? element[p] || element.getAttribute('content') : null;
+                        }, selector, property);
+                
+                        if (value) {
+                            result[property] = value.trim();
+                            // console.log(`⚡ [PuppeteerWrapper:scrapeTwitchUrl] Scraped property ${property} for selector ${selector} for URL: ${url} with value:`, result[property]);
+                        }
+                    } catch (error) {
+                        // console.warn(`❌ [PuppeteerWrapper:scrapeTwitchUrl] Error scraping selector: ${selector} for URL: ${url}`);
+                    }
+                })
+            );
+
+            await browser.close();
+            // console.log(...LogFormatter.scrapeSuccess({functionName, url, result}));
+            return result;
+        } catch (error) {
+            console.error('Puppeteer Error:\n', error);
+            return {};
+        }
     },
     async scrapeGoogleAlerts(searchText) {
         let result;
@@ -360,7 +449,7 @@ const PuppeteerWrapper = {
         }
         
         await browser.close();
-        UtilityLibrary.consoleInfo([[`║ 📰 News: `, { }], [result, { }]]);
+        // UtilityLibrary.consoleInfoColor([[`║ 📰 News: `, { }], [result, { }]]);
         return result;
     },
 };

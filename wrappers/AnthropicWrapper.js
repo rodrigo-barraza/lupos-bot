@@ -9,10 +9,10 @@ const {
     ANTHROPIC_KEY
 } = require('../config.json');
 
-const anthropic = new Anthropic({apiKey: ANTHROPIC_KEY})
+const client = new Anthropic({apiKey: ANTHROPIC_KEY})
 
 const AnthrophicWrapper = {
-    async generateTextResponse(
+    async generateAnthropicTextResponse(
       conversation,
       model=LANGUAGE_MODEL_ANTHROPIC,
       tokens=LANGUAGE_MODEL_MAX_TOKENS,
@@ -34,13 +34,16 @@ const AnthrophicWrapper = {
         const mergedData = conversation.reduce((acc, cur, index, array) => {
           if (cur.role === "user" || cur.role === "assistant") {
             if (acc.length && acc[acc.length - 1].role === cur.role) {
+              // Merge consecutive messages from the same role
               if (cur.role === "user" && (index === array.length - 1 || array[index + 1].role !== "user")) {
-                acc[acc.length - 1].content += `# Directly reply to this message:\n\n${cur.content}\n\n`;
+                // Special handling for the last user message in a sequence
+                acc[acc.length - 1].content += `\n\n${cur.content}`;
               } else {
-                acc[acc.length - 1].content += `${cur.content}\n\n`;
+                acc[acc.length - 1].content += `\n\n${cur.content}`;
               }
             } else {
-              acc.push(cur);
+              // Push a COPY of the message, not the reference
+              acc.push({ ...cur });
             }
           }
           return acc;
@@ -50,18 +53,51 @@ const AnthrophicWrapper = {
             mergedData.shift();
         }
 
-        const response = await anthropic.messages.create({
+        const messagesBody = {
             system: systemMessage,
             temperature: temperature,
             model: model,
             messages: mergedData,
             max_tokens: tokens,
-        }).catch((error) => console.error('OpenAI Error:\n', error));
+        };
 
-        if (response.content[0].text) {
-            text = response.content[0].text;
+        try {
+            const response = await client.messages.create(messagesBody);
+            if (response.content[0].text) {
+                text = response.content[0].text;
+            }
+        } catch (error) {
+            console.error('Anthropic Error:\n', error);
+            return { text: null, error };
         }
-        return text;
+
+        return { text, error: null };
+    },
+    async countTokens(
+      conversation,
+      model
+    ) {
+        let tokens;
+        let system;
+        if (conversation[0].role === 'system') {
+            system = conversation.shift().content;
+        }
+        // remove name property from object in conversation
+        conversation = conversation.map((message) => {
+            if (message.name) {
+                delete message.name;
+            }
+            return message;
+        });
+        const response = await client.messages.count_tokens({
+            model: model,
+            system: system,
+            messages: conversation,
+        }).catch((error) => console.error('Anthropic Error:\n', error));
+        if (response.token_count) {
+            tokens = response.token_count;
+        }
+        return tokens;
     },
 };
 

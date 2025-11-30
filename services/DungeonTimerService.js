@@ -1,5 +1,5 @@
 const moment = require('moment');
-const AIService = require('../services/AIService.js');
+const DiscordService = require('../services/DiscordService.js');
 
 const resetFrequencyInDays = 3;
 const initialBFDResetDate = 1707069600;
@@ -76,7 +76,7 @@ const DungeonTimerService = {
             userContent = 'When is the next raid reset date? I cannot wait to throw myself in a raid again. I am so excited!';
         }
         userContent = 'When is the next raid reset date? I cannot wait to throw myself in a raid again. I am so excited!';
-        return await AIService.generateTextFromSystemUserMessages(systemContent, userContent, interaction);
+        return await DiscordService.generateTextFromSystemUserMessages(systemContent, userContent, interaction);
     }
 };
 

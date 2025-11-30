@@ -1,50 +1,94 @@
-require('dotenv/config');
-const luxon = require('luxon');
-const moment = require('moment');
-const UtilityLibrary = require('../libraries/UtilityLibrary.js');
-const MessageService = require('../services/MessageService.js');
+// Packages
+const fs = require('fs');
+const path = require('path');
+const BigNumber = require('bignumber.js');
+const { DateTime } = require('luxon');
+// Config
+const config = require('../config.json');
+// Formatters
+const LogFormatter = require('../formatters/LogFormatter.js');
+// Wrappers
 const ComfyUIWrapper = require('../wrappers/ComfyUIWrapper.js');
 const OpenAIWrapper = require('../wrappers/OpenAIWrapper.js');
 const LocalAIWrapper = require('../wrappers/LocalAIWrapper.js');
-const BarkAIWrapper = require('../wrappers/BarkAIWrapper.js');
 const AnthrophicWrapper = require('../wrappers/AnthropicWrapper.js');
-// const GoogleAIWrapper = require('../wrappers/GoogleAIWrapper.js');
-const PuppeteerWrapper = require('../wrappers/PuppeteerWrapper.js');
-const MessageConstant = require('../constants/MessageConstants.js');
-const DiscordService = require('../services/DiscordService.js');
+const GoogleAIWrapper = require('../wrappers/GoogleAIWrapper.js');
+const MongoWrapper = require('../wrappers/MongoWrapper.js');
+// Libraries
+const UtilityLibrary = require('../libraries/UtilityLibrary.js');
+// Services
+const CurrentService = require('./CurrentService.js');
+const DiscordUtilityService = require('./DiscordUtilityService.js');
+// Maps
+const ModelsMap = require('../maps/ModelsMap.js');
 
-const {
-    LANGUAGE_MODEL_TYPE,
-    RECENT_MESSAGES_LIMIT,
-    IMAGE_PROMPT_LANGUAGE_MODEL_TYPE,
-    IMAGE_PROMPT_LANGUAGE_MODEL_MAX_TOKENS,
-    IMAGE_PROMPT_LANGUAGE_MODEL_PERFORMANCE,
-    FAST_LANGUAGE_MODEL_LOCAL,
-    LANGUAGE_MODEL_LOCAL,
-    LANGUAGE_MODEL_ANTHROPIC,
-    FAST_LANGUAGE_MODEL_ANTHROPIC,
-    FAST_LANGUAGE_MODEL_OPENAI,
-    LANGUAGE_MODEL_OPENAI,
-    FAST_LANGUAGE_MODEL_MAX_TOKENS,
-    FAST_LANGUAGE_MODEL_TEMPERATURE,
-    LANGUAGE_MODEL_TEMPERATURE,
-    FAST_LANGUAGE_MODEL_TYPE,
-    LANGUAGE_MODEL_PERFORMANCE,
-    LANGUAGE_MODEL_MAX_TOKENS,
-    VOICE_MODEL_TYPE,
-    FLAGGED_WORDS,
-    DEBUG_MODE
-} = require('../config.json');
-
-async function generateEmbedding(text, type=LANGUAGE_MODEL_TYPE) {
-    let embedding;
-    if (type === 'OPENAI') {
-        embedding = await OpenAIWrapper.generateEmbeddingResponse(text);
-    } else if (type === 'LOCAL') {
-        embedding = await LocalAIWrapper.generateEmbedding(text);
+function calculateImageTokens(width, height) {
+    // If both dimensions are <= 384, use 258 tokens
+    if (width <= 384 && height <= 384) {
+        return 258;
     }
-    return embedding;
+
+    // Calculate tile size
+    const smallerDimension = Math.min(width, height);
+    let tileSize = smallerDimension / 1.5;
+
+    // Adjust tile size to be between 256 and 768 pixels
+    tileSize = Math.max(256, Math.min(768, tileSize));
+
+    // Calculate number of tiles in each dimension
+    const tilesX = Math.ceil(width / tileSize);
+    const tilesY = Math.ceil(height / tileSize);
+
+    // Total tiles (crop tiles)
+    const cropTiles = tilesX * tilesY;
+
+    // When tiling is needed, include 1 base image tile plus the crop tiles
+    const totalTiles = 1 + cropTiles;
+
+    // Each tile uses 258 tokens
+    return totalTiles * 258;
 }
+
+function saveBinaryFile(fileName, content) {
+    fs.writeFile(fileName, content, (err) => {
+        if (err) {
+            console.error(`Error writing file ${fileName}:`, err);
+            return;
+        }
+        console.log(`File ${fileName} saved to file system.`);
+    });
+}
+
+function saveFile(encodedImageDataBase64, usedModel, username = null) {
+    const timestamp = DateTime.now().toFormat('yyyy-MM-dd--HH-mm-ss');
+    const modelName = usedModel || 'unknown-model';
+    const fileName = `${timestamp}-${modelName}`;
+    const fileExtension = 'png';
+    const buffer = Buffer.from(encodedImageDataBase64, 'base64');
+
+    // Create the images directory structure
+    const imagesDir = path.join(__dirname, '../images');
+    let fullPath;
+
+    if (username) {
+        const userDir = path.join(imagesDir, username);
+        // Create user directory if it doesn't exist
+        if (!fs.existsSync(userDir)) {
+            fs.mkdirSync(userDir, { recursive: true });
+        }
+        fullPath = path.join(userDir, `${fileName}.${fileExtension}`);
+    } else {
+        // Create images directory if it doesn't exist
+        if (!fs.existsSync(imagesDir)) {
+            fs.mkdirSync(imagesDir, { recursive: true });
+        }
+        fullPath = path.join(imagesDir, `${fileName}.${fileExtension}`);
+    }
+
+    saveBinaryFile(fullPath, buffer);
+    console.log(`Image saved to: ${fullPath}`);
+}
+
 
 function assembleConversation(systemMessage, userMessage, message) {
     let conversation = [
@@ -54,980 +98,1077 @@ function assembleConversation(systemMessage, userMessage, message) {
         },
         {
             role: 'user',
-            name: UtilityLibrary.getUsernameNoSpaces(message),
+            name: DiscordUtilityService.getUsernameNoSpaces(message) || 'Default',
             content: userMessage,
         }
     ]
     return conversation;
 }
 
-async function generateNewConversation(client, message, systemPrompt, recentMessages) {
-    let conversation = [];
-    conversation.push({
-        role: 'system',
-        content: systemPrompt
-    });
-
-    recentMessages.forEach((recentMessage, index) => {
-        if (recentMessage.content === message.content && recentMessage.author.id === message.author.id) {
-            recentMessages = recentMessages.slice(0, index + 1); // We add 1 because of system message
-        }
-    });
-
-    recentMessages.forEach((recentMessage, index) => {
-        if (recentMessage.author.id === client.user.id) {
-            conversation.push({
-                role: 'assistant',
-                name: UtilityLibrary.getUsernameNoSpaces(recentMessage),
-                content: recentMessage.content,
-            });
-        } else {
-            const authorName = `${recentMessage.author.displayName ? UtilityLibrary.capitalize(recentMessage.author.displayName) : UtilityLibrary.capitalize(recentMessage.author.username)}`;
-            const messageSentAt = moment(recentMessage.createdTimestamp).format('MMMM Do YYYY, h:mm:ss a');
-            const messageSentAtRelative = moment(recentMessage.createdTimestamp).fromNow();
-
-            // Replace mentions with names
-            recentMessage.content = recentMessage.content.replace(/<@!?\d+>/g, (match) => {
-                const id = match.replace(/<@!?/, '').replace('>', '');
-                return UtilityLibrary.findUserById(client, id);
-            });
-
-
-            const modifiedMessage = `${index === recentMessages.length - 1 ? message.content : recentMessage.content}`;
-            // const modifiedContent = `${authorName}: ${modifiedMessage}`;
-
-            const reactions = recentMessage.reactions.cache.map((reaction) => {
-                return `${reaction.emoji.name}`;
-            });
-
-            let reactionsString;
-
-            if (recentMessage.reactions.cache.size) {
-                reactionsString = `Reactions: ${reactions.join(', ')}`;
-            }
-
-            const modifiedContent = 
-`Message: ${modifiedMessage}
-Message by: ${authorName}
-Message sent on: ${messageSentAt} (${messageSentAtRelative})
-Message reactions: ${recentMessage.reactions.cache.size}
-${reactionsString}`;
-            conversation.push({
-                role: 'user',
-                name: UtilityLibrary.getUsernameNoSpaces(recentMessage),
-                content: modifiedContent
-            })
-        }
-    })
-    
-    return conversation;
-}
-
-function removeMentions(text) {
-    return text
-    .replace(/@here/g, '꩜here')
-    .replace(/@everyone/g, '꩜everyone')
-    .replace(/@horde/g, '꩜horde')
-    .replace(/@alliance/g, '꩜alliance')
-    .replace(/@alliance/g, '꩜alliance')
-    .replace(/@Guild Leader - Horde/g, '꩜Guild Leader - Horde')
-    .replace(/@Guild Leader - Alliance/g, '꩜Guild Leader - Alliance')
-    .replace(/@Guild Officer - Horde/g, '꩜Guild Officer - Horde')
-    .replace(/@Guild Officer - Alliance/g, '꩜Guild Officer - Alliance')
-}
-
-function removeFlaggedWords(text) {
-    let modifiedText = text;
-    const flaggedWordsArray = FLAGGED_WORDS.split(", "); 
-
-    flaggedWordsArray.forEach(word => {
-        const regex = new RegExp(`\\b${word}\\b`, "gi");
-        modifiedText = modifiedText.replace(regex, (match) => match.replace(/./g, '|| || '));
-        
-    });
-    
-    return modifiedText;
-}
-
-async function generateImageDescription(imageUrl) {
-    let imageDescription;
-    if (imageUrl) {
-        const { response, error } = await generateVisionResponse(imageUrl, 'Describe this image');
-        if (response?.choices[0].message.content) {
-            imageDescription = response?.choices[0].message.content;
-        }
-    }
-    return imageDescription;
-}
-
-async function extractImagesFromAttachmentsAndUrls(message) {
-    let images = [];
-    let imageUrl;
-    if (message) {
-        const urls = message.content.match(/(https?:\/\/[^\s]+)/g);
-        const hasExactlyOneImage = message.attachments.size + (urls?.length ?? 0) === 1;
-        if (message.attachments.size) {
-            for (const attachment of message.attachments.values()) {
-                const isImage = attachment.contentType.includes('image');
-                if (isImage) {
-                    images.push(attachment.url);
-                    if (hasExactlyOneImage) {
-                        imageUrl = attachment.url;
-                    }
-                }
-            }
-        }
-        if (urls?.length) {
-            for (const url of urls) {
-                if (!url.includes('https://tenor.com/view/')) {
-                    const isImage = await UtilityLibrary.isImageUrl(url);
-                    if (isImage) {
-                        images.push(url);
-                        if (hasExactlyOneImage) {
-                            imageUrl = attachment.url;
-                        }
-                    }
-                } else {
-                    const tenorImage = await PuppeteerWrapper.scrapeTenor(url);
-                    images.push(tenorImage.image);
-                }
-            }
-        }
-    }
-    return { images, imageUrl };
-}
-
-async function generateUserConversation(message, recentMessages, recentMessage) {
-    const userMessages = recentMessages.filter(message => message.author.id === recentMessage.author.id);
-    const userMessagesAsText = userMessages.map(message => message.content).join('\n\n');
-    const conversation = [
-        {
-            role: 'system',
-            content: `You are an expert at giving detailed summaries of what is said to you.\nYou will go through the messages that are sent to you, and give a detailed summary of what is said to you.\nYou will describe the messages that are sent to you as detailed and creative as possible.\nThe messages that are sent are what ${DiscordService.getNameFromItem(recentMessage)} has been talking about.
-            `
-        },
-        {
-            role: 'user',
-            name: UtilityLibrary.getUsernameNoSpaces(message),
-            content: `Here are the last recent messages by ${DiscordService.getNameFromItem(recentMessage)} in this channel, and is what they have been talking about:\n${userMessagesAsText}`,
-        }
-    ];
-    const generatedText = await generateTextResponse({
-        conversation: conversation,
-        type: LANGUAGE_MODEL_TYPE,
-        performance: 'FAST',
-        tokens: LANGUAGE_MODEL_MAX_TOKENS,
-        temperature: LANGUAGE_MODEL_TEMPERATURE
-    });
-    return generatedText;
-}
-
-async function checkCurrentMessage(client, message) {
-    const customDescriptions = MessageConstant.serverSpecificArray;
-    const mentionedNameDescriptions = [];
-    const mentionedUsers = [];
-    const imagesAttached = [];
-    const emojisAttached = [];
-    let userIdsInMessage = [];
-    const replies = [];
-    let urlDescriptions = [];
-
-    // Remove first self mention from message
-    const modifiedMessageContent = message.content.replace(new RegExp(`<@!?${client.user.id}>`), '');
-    const messageHasMentions = modifiedMessageContent.match(/<@!?\d+>/g) || [];
-    const messageHasSelfMention = message.content.match(/(\bme\b|\bi\b)/gi) && message.author;
-    const messageHasYourself = message.content.match(/(\byourself\b)/gi) && message.author;
-    const messageHasAndYou = message.content.match(/(\band you\b)/gi) && message.author;
-    const messageHasWithYou = message.content.match(/(\bwith you\b)/gi) && message.author;
-    const messageHasUs = message.content.match(/(\bus\b)/gi) && message.author;
-
-    const repliedMessage = message.reference ? await message.channel.messages.fetch(message.reference.messageId) : null;
-    // const modifiedRepliedMessageContent = repliedMessage?.content.replace(new RegExp(`<@!?${client.user.id}>`), '');
-    const repliedMessageHasMentions = repliedMessage?.content.match(/<@!?\d+>/g) || [];
-    const repliedMessageHasSelfMention = repliedMessage?.content.match(/(\bme\b)/g) && repliedMessage.author;
-
-    const mentions = [...messageHasMentions, ...repliedMessageHasMentions];
-
-    const clientMentionedOnce = mentions.filter(mention => mention === `<@${client.user.id}>`).length === 1;
-
-    const commonWords = ["the", "be", "to", "of", "and", "a", "in", "that", "have", "I", "it", "for", "not", "on", "with", "he", "as", "you", "do", "at", "this", "but", "his", "by", "from", "they", "we", "say", "her", "she", "or", "an", "will", "my", "one", "all", "would", "there", "their", "what", "so", "up", "out", "if", "about", "who", "get", "which", "go", "me", "when", "make", "can", "like", "time", "no", "just", "him", "know", "take", "people", "into", "year", "your", "good", "some", "could", "them", "see", "other", "than", "then", "now", "look", "only", "come", "its", "over", "think", "also", "back", "after", "use", "two", "how", "our", "work", "first", "well", "way", "even", "new", "want", "because", "any", "these", "give", "day", "most", "us", "is", "am", "are", "has", "was", "were", "being", "been", "have", "do", "does", "did", "doing", "a", "an", "the", "and", "but", "if", "or", "because", "as", "until", "while", "of", "at", "by", "for", "with", "about", "against", "between", "into", "through", "during", "before", "after", "above", "below", "to", "from", "up", "down", "in", "out", "on", "off", "over", "under", "again", "further", "then", "once", "here", "there", "when", "where", "why", "how", "all", "any", "both", "each", "few", "more", "most", "other", "some", "such", "no", "nor", "not", "only", "own", "same", "so", "than", "too", "very", "s", "t", "can", "will", "just", "don", "should", "now", "as", "that", "this", "these", "those", "myself", "ourselves", "you", "yourself", "yourselves", "himself", "herself", "itself", "themselves", "what", "which", "who", "whom", "this", "that", "these", "those", "are", "was", "were", "be", "been", "being", "have", "has", "had", "having", "do", "does", "did", "doing", "will", "would", "should", "can", "could", "ought", "i", "you", "he", "she", "it", "we", "they", "me", "you", "him", "her", "it", "us", "them", "my", "your", "his", "her", "its", "our", "their", "mine", "yours", "his", "hers", "ours", "theirs", "my", "your", "his", "her", "its", "our", "their", "and", "because", "but", "or", "for", "so", "like"];
-
-    if (repliedMessage) {
-        repliedMessage.content = repliedMessage.content.replace(/<@!?\d+>/g, (match) => {
-            const id = match.replace(/<@!?/, '').replace('>', '');
-            return UtilityLibrary.findUserById(client, id);
-        });
-        const reply = {
-            userId: repliedMessage.author.id,
-            name: UtilityLibrary.discordUsername(repliedMessage.author),
-            content: repliedMessage.content
-        }
-        replies.push(reply);
-    }
-
-    if (mentions?.length) {
-        userIdsInMessage.push(...mentions.map(user => user.replace(/<@!?/, '').replace('>', '')));
-    }
-    if (clientMentionedOnce) {
-        userIdsInMessage = userIdsInMessage.filter(userId => userId !== client.user.id);
-    }
-
-    if (messageHasSelfMention || messageHasUs) {
-        userIdsInMessage.push(message.author.id);
-    }
-
-    if (repliedMessageHasSelfMention) {
-        userIdsInMessage.push(repliedMessage.author.id);
-    }
-
-    if (messageHasYourself || messageHasAndYou || messageHasWithYou || messageHasUs) {
-        userIdsInMessage.push(client.user.id);
-    }
-
-    // remove duplicates
-    userIdsInMessage = [...new Set(userIdsInMessage)];
-    
-    // User descriptions
-    if (userIdsInMessage.length) {
-        for (const userId of userIdsInMessage) {
-            const user = DiscordService.getUserById(userId);
-            if (user) {
-                const discordUsername = UtilityLibrary.discordUsername(user);
-                const member = message.guild.members.cache.get(user.id);
-                const roles = member ? member.roles.cache.filter(role => role.name !== '@everyone').map(role => role.name).join(', ') : 'No roles';
-                const banner = await DiscordService.getBannerFromUserId(user.id);
-                const bannerUrl = banner ? `https://cdn.discordapp.com/banners/${user.id}/${banner}.jpg?size=512` : '';
-                const avatarUrl = user.avatar ? `https://cdn.discordapp.com/avatars/${user.id}/${user.avatar}.jpg?size=512` : '';
-
-                const mentionedUserExists = mentionedUsers?.find(mentionedUser => mentionedUser.id === `<@${user.id}>`);
-
-                if (!mentionedUserExists) {
-                    const mentionedUser = {
-                        id: user.id,
-                        name: discordUsername,
-                        roles: roles,
-                        description: mentionedNameDescriptions.find(mentionedName => mentionedName.word.toLowerCase() === discordUsername.toLowerCase())?.description,
-                        avatarDescription: await generateImageDescription(avatarUrl),
-                        bannerDescription: await generateImageDescription(bannerUrl)
-                    };
-                    console.log('mentionedUser', mentionedUser);
-                    mentionedUsers.push(mentionedUser)
-                }
-            }
-        }
-    }
-
-    const individualWords = message.content.toLowerCase().split(' ');
-    for (const word of individualWords) {
-        // if word starts with '<@' and ends with '>' remove, and check if it is a user
-        if (word.startsWith('<@') && word.endsWith('>')) {
-            let discordUsername;
-            if (word !== `<@${client.user.id}>`) {
-                discordUsername = UtilityLibrary.discordUsername(client.users.cache.get(word.replace(/<@!?/, '').replace('>', '')));
-            }
-            if (discordUsername) {
-                const pattern = new RegExp(`\\b${discordUsername}\\b`, 'i');
-                const filteredDescriptions = customDescriptions.filter(description => pattern.test(description.keywords));
-                if (filteredDescriptions.length >= 1) {
-                    filteredDescriptions.forEach((description) => {
-                        mentionedNameDescriptions.push( {word: discordUsername, description: description.description} );
-                    });
-                }
-            }
-        } else {
-            // remove all special characters from word
-            const cleanedWord = word.replace(/[^a-zA-Z0-9]/g, '');
-            if (cleanedWord && !commonWords.includes(cleanedWord)) {
-                const pattern = new RegExp('\\b' + cleanedWord + '\\b', 'i');
-                const filteredDescriptions = customDescriptions.filter(description => pattern.test(description.keywords));
-                if (filteredDescriptions.length >= 1) {
-                    filteredDescriptions.forEach((description) => {
-                        mentionedNameDescriptions.push( {word: cleanedWord, description: description.description} );
-                    });
-                }
-            }
-        }
-    }
-
-    async function createImagesAttached(images, message) {
-        if (images.length > 0) {
-            for (const image of images) {
-                const { response } = await generateVisionResponse(image, 'Describe this image');
-                if (response?.choices[0].message.content) {
-                    const imageAttached = {
-                        url: image,
-                        description: response.choices[0].message.content,
-                        username: UtilityLibrary.discordUsername(message.author)
-                    };
-        
-                    imagesAttached.push(imageAttached);
-                }
-            }
-        }
-    }
-
-    // Process images in message
-    const { images: messageImages, imageUrl: imageUrl1 } = await extractImagesFromAttachmentsAndUrls(message);
-    const { images: repliedMessageImages, imageUrl: imageUrl2 } = await extractImagesFromAttachmentsAndUrls(repliedMessage);
-    await createImagesAttached(messageImages, message);
-    await createImagesAttached(repliedMessageImages, repliedMessage);
-
-    // Process stickers in message
-    const messageStickers = message.content.match(/<:.+:\d+>/g) || [];
-
-    // Process emojis in message
-    const messageEmojis = message.content.split(' ').filter(part => /<(a)?:.+:\d+>/g.test(part)) || [];
-    const repliedMessageEmojis = repliedMessage?.content.split(' ').filter(part => /<(a)?:.+:\d+>/g.test(part)) || [];
-    const emojis = [...messageEmojis, ...repliedMessageEmojis];
-    if (emojis) {
-        let currentEmoji = 0;
-        for (const emoji of emojis) {
-            const parsedEmoji = emoji.replace(/[\n#]/g, '');
-            currentEmoji++;
-            const emojiId = parsedEmoji.split(":").pop().slice(0, -1);
-            const emojiName = parsedEmoji.match(/:.+:/g)[0].replace(/:/g, '');
-            const emojiUrl = `https://cdn.discordapp.com/emojis/${emojiId}.png`;
-            const { response } = await generateVisionResponse(emojiUrl, `Describe this image named ${emojiId}. Do not mention that it is low quality, resolution, or pixelated.`);
-            
-            const emojiAttached = {
-                id: emojiId,
-                tag: parsedEmoji,
-                name: emojiName,
-                url: emojiUrl,
-                description: response.choices[0].message.content
-            };
-
-            emojisAttached.push(emojiAttached);
-        }
-    }
-
-    // Process URLs in message
-    const urls = message.content.match(/(https?:\/\/[^\s]+)/g);
-    let scrapedUrls;
-    if (urls) {
-        scrapedUrls = await PuppeteerWrapper.scrapeURL(urls[0]);
-    }
-
-    let imageUrl;
-    if (imageUrl1 || imageUrl2) { imageUrl = imageUrl1 || imageUrl2 }
-
-    return { mentionedUsers, imagesAttached, emojisAttached, replies, mentionedNameDescriptions, scrapedUrls, imageUrl };
-}
-
-// Processes multiple messages at the same time
-async function checkAllMessages(client, message, recentMessages, maxSimultaneous = 5) {
-    let participantUsers = [];
-    let conversationsPromises = [];
-
-    if (message.guild) {
-        for (const recentMessage of recentMessages) {
-            const botMention = UtilityLibrary.discordUserMention(client);
-            const userMention = UtilityLibrary.discordUserMention(recentMessage);
-            const discordUsername = UtilityLibrary.discordUsername(recentMessage.author);
-
-            if (recentMessage.author.id && userMention !== botMention) {
-                let userExists = participantUsers.find(participantUser => participantUser.id === recentMessage.author.id);
-                if (!userExists) {
-                    let member = message.guild.members.cache.get(recentMessage.author.id);
-                    let roles = member ? member.roles.cache.filter(role => role.name !== '@everyone').map(role => role.name).join(', ') : 'No roles';
-                    const user = {
-                        id: recentMessage.author.id,
-                        name: discordUsername,
-                        roles: roles,
-                        time: recentMessage.createdTimestamp
-                    }
-                    participantUsers.push(user);
-                    conversationsPromises.push(generateUserConversation(message, recentMessages, recentMessage).then(conv => {user.conversation = conv;}));
-                } else if (userExists.time < recentMessage.createdTimestamp) {
-                    userExists.time = recentMessage.createdTimestamp;
-                }
-            }
-        }
-    }
-
-    for (let i = 0; i < conversationsPromises.length; i += maxSimultaneous) {
-        await Promise.all(conversationsPromises.slice(i, i+maxSimultaneous));
-    }
-
-    return { participantUsers };
-}
-
-// Generations
-
-async function generateTextResponse({
+async function tryModelsWithSameIntelligence({
+    type,
+    initialModel,
     conversation,
-    type=LANGUAGE_MODEL_TYPE,
-    performance=LANGUAGE_MODEL_PERFORMANCE,
-    temperature=LANGUAGE_MODEL_TEMPERATURE,
-    tokens=LANGUAGE_MODEL_MAX_TOKENS
+    tokens,
+    temperature,
+    wrapperFunction
 }) {
-    let textResponse;
-    let currentTime = new Date().getTime();
-    if (type === 'OPENAI') {
-        const generateTextModel = performance === 'FAST' ? FAST_LANGUAGE_MODEL_OPENAI : LANGUAGE_MODEL_OPENAI;
-        textResponse = await OpenAIWrapper.generateTextResponse(conversation, generateTextModel, tokens, temperature);
-    } else if (type === 'ANTHROPIC') {
-        const generateTextModel = performance === 'FAST' ? FAST_LANGUAGE_MODEL_ANTHROPIC : LANGUAGE_MODEL_ANTHROPIC;
-        if (conversation[conversation.length - 1].content === "") {
-          conversation[conversation.length - 1].content = "hey";
-        }
-        textResponse = await AnthrophicWrapper.generateTextResponse(conversation, generateTextModel, tokens, temperature);
-    } else if (type === 'LOCAL') {
-        const generateTextModel = performance === 'FAST' ? FAST_LANGUAGE_MODEL_LOCAL : LANGUAGE_MODEL_LOCAL;
-        textResponse = await LocalAIWrapper.generateTextResponse(conversation, generateTextModel, tokens, temperature);
-    } else if (type === 'GOOGLE') {
-        // let systemInstruction;
-        // if (conversation[0].role === 'system') {
-        //     systemInstruction = conversation[0].content;
-        // }
-        // textResponse = await GoogleAIWrapper.generateChat(
-        //     history=conversation,
-        //     systemInstruction=systemInstruction,
-        //     model='',
-        //     maxTokens=tokens,
-        //     temperature=temperature
-        // );
+    // Track which models we've tried
+    const triedModels = new Set();
+    let success = false;
+    let textResponse = null;
+    let finalModel = initialModel;
+
+    // Get the model type map for the provider
+    const modelTypeMap = ModelsMap.get(type);
+    if (!modelTypeMap) {
+        console.error('Model type not found in ModelsMap:', type);
+        return { text: null, model: null, error: `Model type ${type} not found` };
     }
-    let timeTakenInSeconds = (new Date().getTime() - currentTime) / 1000;
-    UtilityLibrary.consoleInfo([
-        [`🤖 [generateText] Type:${type}, Performance: ${performance}, Time: ${timeTakenInSeconds}`, { color: 'magenta' }, 'middle']
-    ]);
-    return textResponse;
-}
 
-async function generateVisionResponse(imageUrl, text) {
-    const { response, error } =  await OpenAIWrapper.generateVisionResponse(imageUrl, text);
-    return { response, error };
-}
-
-async function generateImage(text, type='FLUX') {
-    UtilityLibrary.consoleInfo([[`🎨 Text-to-Image: generation started`, { color: 'yellow' }, 'middle']]);
-    try {
-        await ComfyUIWrapper.checkWebsocketStatus();
-        let generatedImage;
-        let currentTime = new Date().getTime();
-        if (text) {
-            generatedImage = await ComfyUIWrapper.generateImage(text);
-            UtilityLibrary.consoleInfo([[`🎨 Text-to-Image: generation successful`, { color: 'green' }, 'middle']]);
-        }
-        let timeTakenInSeconds = (new Date().getTime() - currentTime) / 1000;
-        UtilityLibrary.consoleInfo([[`🤖 [generateImage] Type:${type}, Time: ${timeTakenInSeconds}`, { color: 'magenta' }, 'middle']]);
-        return generatedImage;
-    } catch (error) {
-        UtilityLibrary.consoleInfo([[`🎨 Text-to-Image: generation failed`, { color: 'red' }, 'middle']]);
-        return;
+    // Get the initial model's details
+    const initialModelDetails = modelTypeMap.get(initialModel);
+    if (!initialModelDetails) {
+        console.error('Model not found in ModelsMap:', initialModel);
+        return { text: null, model: null, error: `Model ${initialModel} not found` };
     }
-}
 
-async function generateImageToImage(text, imageUrl, denoisingStrength) {
-    UtilityLibrary.consoleInfo([[`🎨 Image-to-Image: generation started`, { color: 'yellow' }, 'middle']]);
-    try {
-        await ComfyUIWrapper.checkWebsocketStatus();
-        let generatedImage;
-        let currentTime = new Date().getTime();
-        if (text) {
-            generatedImage = await ComfyUIWrapper.generateImageToImage(text, imageUrl, denoisingStrength);
-            UtilityLibrary.consoleInfo([[`🎨 Image-to-Image: generation successful`, { color: 'green' }, 'middle']]);
+    // Get all models with the same intelligence rank
+    const sameIntelligenceModels = [];
+    for (const [modelName, modelDetails] of modelTypeMap.entries()) {
+        if (modelDetails.intelligenceRank === initialModelDetails.intelligenceRank) {
+            sameIntelligenceModels.push(modelName);
         }
-        let timeTakenInSeconds = (new Date().getTime() - currentTime) / 1000;
-        UtilityLibrary.consoleInfo([[`🤖 [generateImage] Type:FLUX, Time: ${timeTakenInSeconds}`, { color: 'magenta' }, 'middle']]);
-        return generatedImage;
-    } catch (error) {
-        UtilityLibrary.consoleInfo([[`🎨 Image-to-Image: generation failed`, { color: 'red' }, 'middle']]);
-        return;
     }
-}
 
-async function generateVoice(message, text) {
-    DiscordService.setUserActivity(`🗣️ Recording for ${DiscordService.getNameFromItem(message)}...`);
-    UtilityLibrary.consoleInfo([[`🔊 Audio: `, { }], [{ prompt: text }, { }, 'middle']]);
-    let filename;
-    let buffer;
-    if (text) {
-        if (VOICE_MODEL_TYPE === 'OPENAI') {
-            buffer = await OpenAIWrapper.generateVoiceResponse(text);
-        } else if (VOICE_MODEL_TYPE === 'BARKAI') {
-            const voice = await BarkAIWrapper.generateVoice(text);
-            if (voice.file_name) {
-                filename = voice.file_name;
+    // Ensure the initial model is tried first
+    const orderedModels = [
+        initialModel,
+        ...sameIntelligenceModels.filter(m => m !== initialModel)
+    ];
+
+    // Try each model until one succeeds
+    for (const modelToTry of orderedModels) {
+        if (triedModels.has(modelToTry)) {
+            continue; // Skip already tried models
+        }
+
+        triedModels.add(modelToTry);
+        finalModel = modelToTry;
+
+        try {
+            const result = await wrapperFunction(conversation, modelToTry, tokens, temperature);
+
+            // Handle different response formats
+            if (type === 'ANTHROPIC') {
+                const { text, error } = result;
+                if (!error && text) {
+                    textResponse = text;
+                    success = true;
+                    break;
+                } else {
+                    console.warn(`Error with model ${modelToTry}:`, error);
+                }
+            } else {
+                // For OpenAI and LOCAL, they typically return the text directly or throw
+                if (result) {
+                    textResponse = result;
+                    success = true;
+                    break;
+                }
             }
+        } catch (error) {
+            console.warn(`Error with model ${modelToTry}:`, error);
+            // Continue to next model
         }
     }
 
-    return { filename, buffer };
+    if (!success) {
+        console.error('All models failed for intelligence rank:', initialModelDetails.intelligenceRank);
+        console.error('Tried models:', Array.from(triedModels));
+        return {
+            text: null,
+            model: null,
+            error: `All models failed. Tried: ${Array.from(triedModels).join(', ')}`
+        };
+    }
+
+    return { text: textResponse, model: finalModel, error: null };
 }
 
 const AIService = {
-    generateTextResponse: generateTextResponse,
-    generateVisionResponse: generateVisionResponse,
-    generateVoice: generateVoice,
-    generateImage: generateImage,
-    generateImageToImage: generateImageToImage,
-    async checkImageGenerationStatus() {
-        try {
-            await ComfyUIWrapper.checkWebsocketStatus();
-        } catch (error) {
-            UtilityLibrary.consoleInfo([[`🎨 Image: generation down`, { color: 'red' }, 'middle']]);
-            return;
+    // Base Text-to-Text Generation (Completion)
+    async generateText({
+        conversation,
+        type = config.LANGUAGE_MODEL_TYPE,
+        modelPerformance = config.LANGUAGE_MODEL_PERFORMANCE,
+        temperature = config.LANGUAGE_MODEL_TEMPERATURE,
+        tokens = config.LANGUAGE_MODEL_MAX_TOKENS,
+        model = null,
+    }) {
+        const functionName = 'generateText';
+        let textResponse;
+        let generateTextModel;
+        let inputTokenCount = 0;
+        let outputTokenCount = 0;
+        const start = performance.now();
+        const localMongo = MongoWrapper.getClient('local');
+
+        // Determine initial model based on type and performance
+        if (type === 'OPENAI') {
+            if (model) {
+                generateTextModel = model;
+            } else if (modelPerformance === 'LOW') {
+                generateTextModel = config.LANGUAGE_MODEL_OPENAI_LOW;
+            } else {
+                generateTextModel = modelPerformance === 'POWERFUL' ?
+                    config.LANGUAGE_MODEL_OPENAI :
+                    modelPerformance === 'FAST' ?
+                        config.FAST_LANGUAGE_MODEL_OPENAI :
+                        config.LANGUAGE_MODEL_OPENAI;
+            }
+        } else if (type === 'ANTHROPIC') {
+            generateTextModel = modelPerformance === 'FAST' ?
+                config.ANTHROPIC_LANGUAGE_MODEL_FAST :
+                config.ANTHROPIC_LANGUAGE_MODEL_SMART;
+
+            // Handle empty content for Anthropic
+            if (conversation[conversation.length - 1].content === "") {
+                conversation[conversation.length - 1].content = "hey";
+            }
+        } else if (type === 'LOCAL') {
+            generateTextModel = modelPerformance === 'FAST' ?
+                config.FAST_LANGUAGE_MODEL_LOCAL :
+                config.LANGUAGE_MODEL_LOCAL;
         }
+
+        // Map wrapper functions for each type
+        const wrapperFunctions = {
+            'OPENAI': OpenAIWrapper.generateOpenAITextResponse,
+            'ANTHROPIC': AnthrophicWrapper.generateAnthropicTextResponse,
+            'LOCAL': LocalAIWrapper.generateLocalAITextResponse
+        };
+
+        const wrapperFunction = wrapperFunctions[type];
+        if (!wrapperFunction) {
+            console.error('Unknown model type:', type);
+            return null;
+        }
+
+        // Try models with automatic fallback
+        const { text, model: usedModel, error } = await tryModelsWithSameIntelligence({
+            type,
+            initialModel: generateTextModel,
+            conversation,
+            tokens,
+            temperature,
+            wrapperFunction
+        });
+
+        if (error) {
+            console.error(`Failed to generate text with ${type}:`, error);
+            return null;
+        }
+
+        textResponse = text;
+        generateTextModel = usedModel; // Update to the model that actually worked
+
+        // Log successful model if different from initial
+        if (usedModel !== generateTextModel) {
+            console.log(`Fallback successful: Used ${usedModel} instead of ${generateTextModel}`);
+        }
+
+        // count characters in conversation
+        let inputCharacterCount = 0;
+        for (let i = 0; i < conversation.length; i++) {
+            inputCharacterCount += conversation[i].content.length;
+        }
+
+        const outputCharacterCount = textResponse.length;
+
+        const end = performance.now();
+        const duration = end - start;
+
+        inputTokenCount = inputCharacterCount / 4;
+        outputTokenCount = outputCharacterCount / 4;
+
+        if (inputTokenCount > 0 && inputTokenCount < 1) {
+            inputTokenCount = 1;
+        }
+        if (outputTokenCount > 0 && outputTokenCount < 1) {
+            outputTokenCount = 1;
+        }
+
+        let inputTokenCost = new BigNumber(0);
+        let outputTokenCost = new BigNumber(0);
+        let totalCost = new BigNumber(0);
+        const modelTypeMap = ModelsMap.get(type);
+        const modelDetails = modelTypeMap?.get(usedModel);
+        if (modelDetails) {
+            let pricingInput = new BigNumber(modelDetails.pricing.input);
+            let pricingOutput = new BigNumber(modelDetails.pricing.output);
+            pricingInput = pricingInput.dividedBy(1000000).multipliedBy(inputTokenCount);
+            pricingOutput = pricingOutput.dividedBy(1000000).multipliedBy(outputTokenCount);
+            inputTokenCost = pricingInput.toFixed(10);
+            outputTokenCost = pricingOutput.toFixed(10);
+            const rawTotalCost = pricingInput.plus(pricingOutput);
+            totalCost = rawTotalCost.toFixed(10);
+
+            CurrentService.addToTextTotalCost(rawTotalCost);
+            CurrentService.addToTextTotalInputTokens(inputTokenCount);
+            CurrentService.addToTextTotalInputCost(inputTokenCost);
+            CurrentService.addToTextTotalOutputTokens(outputTokenCount);
+            CurrentService.addToTextTotalOutputCost(outputTokenCost);
+            CurrentService.addModel(usedModel);
+            CurrentService.addModelType(type);
+        }
+
+        if (localMongo) {
+            const message = CurrentService.getMessage();
+            const messageId = message?.id;
+            const user = message.author;
+            const userId = user.id;
+            const userName = user.username;
+            const guildId = message.guild?.id;
+            const guildName = message.guild?.name;
+
+            // Save the generated text and its metadata to the database
+            const db = localMongo.db("lupos");
+            const collection = db.collection('MetricsTextGeneration');
+            await collection.insertOne({
+                inputTokens: inputTokenCount,
+                outputTokens: outputTokenCount,
+                inputCost: inputTokenCost,
+                outputCost: outputTokenCost,
+                totalCost: totalCost,
+                model: usedModel,
+                modelType: type,
+                promptType: 'TEXT',
+                input: conversation,
+                output: textResponse,
+                guildId: guildId || 'DM',
+                guildName: guildName || 'DM',
+                userId: userId,
+                userName: userName,
+                messageId: messageId || null,
+            });
+        }
+
+        console.log(...LogFormatter.generateTextSuccess({
+            functionName,
+            duration,
+            inputCharacterCount,
+            inputTokenCost,
+            inputTokenCount,
+            modelName: usedModel,
+            modelType: type,
+            outputCharacterCount,
+            outputTokenCost: outputTokenCost,
+            outputTokenCount: outputTokenCount,
+            totalCost: totalCost,
+        }));
+
+        return textResponse;
     },
-    async generateTextFromSystemUserMessages(systemMessage, userMessage, message) {
-        const conversation = assembleConversation(systemMessage, userMessage, message);
-        const type = 'OPENAI';
-        const performance = 'FAST';
-        const tokens = 600;
-        const generateTextOptions = { conversation: conversation, type: type, performance: performance, tokens: tokens };
-        return await generateTextResponse(generateTextOptions);
+    // Base Text-to-Image Generation (Diffusion)
+    async generateImage(type, prompt, client, imageUrls = [], username = null) {
+        let inputTokenCount = 0;
+        let generatedImage;
+        let totalInputCost = 0;
+        let totalOutputCost = 0;
+        let totalCost = 0;
+        let localMongo = MongoWrapper.getClient('local');
+        let usedModel;
+        let generatedText;
+        const start = performance.now();
+
+        if (type === 'LOCAL') {
+            try {
+                console.log(...LogFormatter.generateImageStart({ prompt }));
+                await ComfyUIWrapper.checkComfyUIWebsocketStatus();
+                if (prompt) {
+                    usedModel = 'FLUX.1-dev';
+                    generatedImage = await ComfyUIWrapper.generateComfyUIImage(prompt, client);
+                }
+            } catch (error) {
+                console.error(...LogFormatter.error('generateImage', error));
+            }
+        } else if (type === 'GOOGLE') {
+            let hasError = false;
+            try {
+                let images = [];
+                if (imageUrls.length) {
+                    for (const url of imageUrls) {
+                        const fetchImageUrlResponse = await fetch(url);
+                        const imageAsBuffer = await fetchImageUrlResponse.arrayBuffer();
+                        const imageAsBase64 = Buffer.from(imageAsBuffer).toString('base64');
+                        const imageType = fetchImageUrlResponse.headers.get('content-type');
+                        images.push({ data: imageAsBase64, type: imageType });
+                    }
+                }
+                usedModel = 'gemini-3-pro-image-preview';
+                const { response, error } = await GoogleAIWrapper.generateGoogleAIImage(prompt, images);
+
+                if (error) {
+                    console.log('Google AI Image Generation failed, falling back to LOCAL.');
+                    usedModel = 'FLUX.1-dev';
+                    const generatedImageResponseLocal = await AIService.generateImage('LOCAL', prompt, client, imageUrls, username);
+                    generatedImage = generatedImageResponseLocal;
+                } else {
+                    const modelTypeMap = ModelsMap.get('GOOGLE');
+                    const modelDetails = modelTypeMap?.get('gemini-3-pro-image-preview');
+                    let rawAllPricingInput = new BigNumber(modelDetails.pricing.input);
+                    rawAllPricingInput = rawAllPricingInput.dividedBy(1000000).multipliedBy(response.allInputTokenCount);
+                    let rawTextPricingOutput = new BigNumber(modelDetails.pricing.output);
+                    rawTextPricingOutput = rawTextPricingOutput.dividedBy(1000000).multipliedBy(response.textOutputTokenCount);
+
+                    let rawImagePricingOutput = new BigNumber(modelDetails.imagePricing.output);
+                    rawImagePricingOutput = rawImagePricingOutput.dividedBy(1000000).multipliedBy(calculateImageTokens(1024, 1024)); // Assuming 1024x1024 image for pricing
+                    let rawAllPricingOutput = rawTextPricingOutput.plus(rawImagePricingOutput);
+                    let rawTotalCost = rawAllPricingInput.plus(rawAllPricingOutput);
+
+                    totalInputCost = rawAllPricingInput.toFixed(10);
+                    totalOutputCost = rawAllPricingOutput.toFixed(10);
+                    totalCost = rawTotalCost.toFixed(10);
+
+                    generatedImage = response.imageData;
+                    inputTokenCount = response.allInputTokenCount;
+                    generatedText = response.text;
+                }
+            } catch (error) {
+                console.error(...LogFormatter.error('generateImage', error));
+                hasError = true;
+            }
+            if (hasError) {
+                console.error('Falling back to LOCAL image generation.');
+                const generatedImageResponseLocal = await AIService.generateImage('LOCAL', prompt, client, imageUrls, username);
+                generatedImage = generatedImageResponseLocal;
+            }
+        }
+
+        if (localMongo && generatedImage) {
+            const message = CurrentService.getMessage();
+            const messageId = message?.id;
+            const user = message.author;
+            const userId = user.id;
+            const userName = user.username;
+            const guildId = message.guild?.id;
+            const guildName = message.guild?.name;
+
+            const end = performance.now();
+            const duration = end - start;
+
+            // Save the generated image and its metadata to the database
+            const db = localMongo.db("lupos");
+            const collection = db.collection('MetricsImageGeneration');
+            await collection.insertOne({
+                model: usedModel,
+                inputText: prompt,
+                outputText: generatedText,
+                inputImages: imageUrls.length,
+                guildId: guildId || 'DM',
+                guildName: guildName || 'DM',
+                userId: userId,
+                userName: userName,
+                messageId: messageId || null,
+                duration,
+                inputTokenCount,
+                totalInputCost,
+                totalOutputCost,
+                totalCost
+            });
+        }
+
+        saveFile(generatedImage, usedModel, username);
+
+        const end = performance.now();
+        const duration = end - start;
+
+        console.log(...LogFormatter.generateImageSuccess({
+            duration,
+            prompt,
+            inputTokenCount,
+            totalCost,
+        }));
+
+        return generatedImage;
     },
-    async generateSummaryFromMessage(message, messageContent) {
+    // Base Image-to-Text Generation (Captioning)
+    async generateVision(imageUrl, text) {
+        const { response, error } = await OpenAIWrapper.generateVisionResponse(imageUrl, text);
+        return { response, error };
+    },
+    // Base Speech-to-Text Generation (Transcription)
+    async transcribeSpeech(audioUrl, messageId, index) {
+        // Parse the URL to get just the filename without query parameters
+        const url = new URL(audioUrl);
+        const filename = path.basename(url.pathname);
+        const voicesDir = path.join(__dirname, '../voices');
+        // Create the voices directory if it doesn't exist
+        if (!fs.existsSync(voicesDir)) {
+            fs.mkdirSync(voicesDir, { recursive: true });
+        }
+        let audioFilePath;
+        // Download the audio file
+        if (messageId && index) {
+            audioFilePath = path.join(voicesDir, `${messageId}-${index}-${filename}`);
+        } else {
+            function generateRandomId() {
+                return Math.random().toString(36).substring(2, 10);
+            }
+            audioFilePath = path.join(voicesDir, `${generateRandomId()}-${filename}`);
+        }
+        const audioFile = await fetch(audioUrl);
+        const audioBuffer = await audioFile.arrayBuffer();
+        fs.writeFileSync(audioFilePath, Buffer.from(audioBuffer));
+        const audioFileObject = fs.createReadStream(audioFilePath);
+
+        // Create a read stream for the transcription
+        let transcription = await OpenAIWrapper.speechToText(audioFileObject);
+        transcription = transcription.trim().replace(/\n+/g, ' ');
+        return transcription;
+    },
+    // Caption images and store data in MongoDB
+    async captionImages(imageUrls, localMongo, type) {
+        // type = ['image', 'emoji', 'sticker', video']
+        let images = [];
+        let imagesMap = new Map();
+        if (
+            type === 'IMAGE' ||
+            type === 'EMOJI' ||
+            type === 'STICKER' ||
+            type === 'VIDEO' ||
+            type === 'AVATAR' ||
+            type === 'BANNER' ||
+            type === 'SMALL'
+        ) {
+            const db = localMongo.db("lupos");
+            let collection;
+            let prompt = `Describe this ${type.toLowerCase()}. Make no mention about the quality, resolution, or pixelation.`;
+
+            if (type === 'IMAGE') {
+                collection = db.collection('ImageCaptions');
+            } else if (type === 'EMOJI') {
+                collection = db.collection('EmojiCaptions');
+            } else if (type === 'STICKER') {
+                collection = db.collection('StickerCaptions');
+            } else if (type === 'VIDEO') {
+                collection = db.collection('VideoCaptions');
+            } else if (type === 'AVATAR') {
+                collection = db.collection('AvatarCaptions');
+            } else if (type === 'BANNER') {
+                collection = db.collection('BannerCaptions');
+            } else if (type === 'SMALL') {
+                collection = db.collection('SmallCaptions');
+                prompt = `Describe this image in a short sentence, 10 words or less. Make no mention about the quality, resolution, or pixelation.`;
+            }
+
+
+            if (imageUrls?.length) {
+                const isObject = imageUrls[0]?.url;
+                for (const imageUrl of imageUrls) {
+                    let realImageUrl = isObject ? imageUrl.url : imageUrl;
+                    const userId = isObject ? imageUrl.userId : null;
+
+
+                    const { hash, fileType } = await UtilityLibrary.generateFileHash(realImageUrl);
+                    const existingImage = await collection.findOne({ hash });
+                    if (!existingImage) {
+                        const { response } = await AIService.generateVision(realImageUrl, prompt);
+                        if (response?.choices[0]?.message?.content) {
+                            const caption = response.choices[0].message.content;
+                            const mapObject = {
+                                hash,
+                                url: realImageUrl,
+                                caption,
+                                fileType,
+                                userId,
+                                cached: false,
+                            };
+                            images.push(caption);
+                            imagesMap.set(hash, mapObject);
+                            await collection.insertOne({
+                                hash,
+                                type,
+                                url: realImageUrl,
+                                caption,
+                                fileType,
+                                userId,
+                                createdAt: new Date(),
+                            });
+                        }
+                    } else {
+                        images.push(existingImage.caption);
+                        const mapObject = {
+                            hash,
+                            url: realImageUrl,
+                            caption: existingImage.caption,
+                            fileType,
+                            userId: existingImage.userId,
+                            cached: true,
+                        };
+                        imagesMap.set(hash, mapObject);
+                    }
+                }
+            }
+        }
+        return { images, imagesMap };
+    },
+    // Transcribe audio files from URLs and store data in MongoDB
+    async transcribeAudioUrls(audioUrls, messageId, localMongo) {
+        let transcriptionsMap = new Map();
+        const db = localMongo.db("lupos");
+        const collection = db.collection('AudioTranscriptions');
+        let existingAudio;
+        if (audioUrls?.length) {
+            let index = 0;
+            for (const audioUrl of audioUrls) {
+                index++;
+                const { hash, fileType } = await UtilityLibrary.generateFileHash(audioUrl);
+                existingAudio = await collection.findOne({ hash });
+
+                if (!existingAudio) {
+                    const transcription = await AIService.transcribeSpeech(audioUrl, messageId, index);
+                    await collection.insertOne({
+                        hash,
+                        url: audioUrl,
+                        transcription: transcription,
+                        type: fileType,
+                        createdAt: new Date(),
+                    });
+                    const mapObject = {
+                        hash,
+                        url: audioUrl,
+                        transcription: transcription,
+                        type: fileType,
+                        cached: false,
+                    };
+                    transcriptionsMap.set(hash, mapObject);
+                } else {
+                    const mapObject = {
+                        hash,
+                        url: audioUrl,
+                        transcription: existingAudio.transcription,
+                        type: fileType,
+                        cached: true,
+                    };
+                    transcriptionsMap.set(hash, mapObject);
+                }
+            }
+        }
+        return { transcriptionsMap };
+    },
+    // async generateImageToImage(text, imageUrl, denoisingStrength) {
+    //     consoleLog('<');
+    //     consoleLog('=', `PROMPT:\n\n${text}`);
+    //     let generatedImage;
+    //     try {
+    //         await ComfyUIWrapper.checkComfyUIWebsocketStatus();
+    //         let currentTime = new Date().getTime();
+    //         if (text) {
+    //             generatedImage = await ComfyUIWrapper.generateComfyUIImageToImage(text, imageUrl, denoisingStrength);
+    //             let timeTakenInSeconds = (new Date().getTime() - currentTime) / 1000;
+    //             consoleLog('=', `Type: FLUX`);
+    //             consoleLog('=', `Time: ${timeTakenInSeconds}`);
+    //             consoleLog('=', `RESPONSE:\n\n🖼️`);
+    //             consoleLog('>');
+    //         }
+    //     } catch (error) {
+    //         consoleLog('=', `RESPONSE:\n\n${error}`);
+    //         consoleLog('>!');
+    //     }
+    //     return generatedImage;
+    // },
+    // "mini-brains" for specific tasks
+    async generateTextSummaryFromMessage(message, messageContent) {
         let summary = '';
-        const systemContent = `You are an expert at summarizing the text that is given to you.
-        You will go through the text that is given to you, and give a detailed summary of what is said to you.
-        Always make sure to give a detailed summary of the text that is given to you.
-        Anything that is said to you, you will summarize it in a detailed and creative way.
-        
-        Do not exceed 128 characters in your summary, or more than 5 words.`;
+        const systemContent = `You are an expert at summarizing the text that is given to you in two to three words. Start with an emoji. Do not use any other formatting, just give the emoji and the two to three words.`;
         const conversation = assembleConversation(systemContent, messageContent, message);
-        const generatedText = await generateTextResponse({    
+        const generatedText = await AIService.generateText({
             conversation: conversation,
-            type: LANGUAGE_MODEL_TYPE,
-            performance: 'POWERFUL',
-            tokens: LANGUAGE_MODEL_MAX_TOKENS,
-            temperature: LANGUAGE_MODEL_TEMPERATURE
+            type: config.LANGUAGE_MODEL_TYPE,
+            modelPerformance: 'POWERFUL',
+            tokens: config.LANGUAGE_MODEL_MAX_TOKENS,
+            temperature: config.LANGUAGE_MODEL_TEMPERATURE,
+            // model,
+            // localMongo,
+            // replyMessageStartTime,
+            // guildId,
+            // userId,
+            // userName,
         });
         // trim generatedText to 128 characters
         summary = generatedText.substring(0, 128);
         return summary;
     },
-    async generateNewTextResponse(client, message, recentMessages, newImagePrompt) {
+    async generateTextCustomEmojiReactFromMessage(message, localMongo) {
+        const client = message.client;
+        const guild = message.guild;
+        const bot = client.user;
+        const content = message.content;
+        const modifiedMessageContent = content.replace(`<@${bot.id}>`, '');
 
-        let systemPrompt;
-        let modifiedMessage;
-        let imagePrompt;
-        let generatedText;
-        let returnedImageUrl;
+        let guildEmojiList;
+        let serverEmojisArray = [];
 
-        try {
-            if (DEBUG_MODE) {
-                UtilityLibrary.consoleInfo([[`🎨 generateTextResponse input:\n${message.content}`, { color: 'blue' }, 'middle']]);
+        if (guild) {
+            const serverEmojis = client.guilds.cache.get(guild.id).emojis.cache;
+            serverEmojisArray = Array.from(serverEmojis.values());
+            if (serverEmojisArray.length) {
+                guildEmojiList = `# CUSTOM EMOJIS AVAILABLE:\n`;
+                guildEmojiList += serverEmojisArray.map(emoji => emoji.name).join(', ');
+                guildEmojiList += `\n\n`;
             }
-
-            const { mentionedUsers, imagesAttached, emojisAttached, replies, mentionedNameDescriptions, scrapedUrls, imageUrl: returnedImageUrl  } = await checkCurrentMessage(client, message);
-
-            const { participantUsers } = await checkAllMessages(client, message, recentMessages);
-
-            imagePrompt = String(message.content);
-            modifiedMessage = String(message.content);
-
-            ['draw', 'paint', 'sketch', 'design', 'illustrate', 'show'].forEach(substring => { 
-                imagePrompt = imagePrompt.replace(new RegExp(substring, 'g'), 'describe');
-                modifiedMessage = modifiedMessage.replace(new RegExp(substring, 'g'), 'describe');
-            });
-
-            // remove 'can you ' from the message, in any capitalization
-            imagePrompt = imagePrompt.replace(/can you /gi, '');
-            modifiedMessage = modifiedMessage.replace(/can you /gi, '');
-
-            systemPrompt = '';
-            systemPrompt += `${MessageService.assembleAssistantMessage()}`;
-            systemPrompt += `\n\n# This is you, and this is your information`;
-            systemPrompt += `\nYour Name: ${client.user.displayName}`;
-            systemPrompt += `\nYour Discord user ID tag: <@${client.user.id}>`;
-            systemPrompt += `\n\n# Date and Time`;
-            systemPrompt += `\nThe current date is ${moment().format('MMMM Do YYYY')}, day is ${moment().format('dddd')}, and time is ${moment().format('h:mm A')} in PST.`;
-            
-            if (imagesAttached.length) {
-                // systemPrompt += '\n\n# Description of Images Attached';
-                modifiedMessage += `\n`;
-                imagesAttached.forEach((image, index) => {
-                    // systemPrompt += `\nImage ${index + 1}: ${image.url}`;
-                    // systemPrompt += `\nImage ${index + 1} description: ${image.description}`;
-
-                    modifiedMessage += `\nThe description of an image attached by ${image.username}:`;
-                    modifiedMessage += '\n```';
-                    modifiedMessage += `\n${image.description}`;
-                    modifiedMessage += '\n```';
-
-                    imagePrompt += `\n\n${image.description}.`;
-                });
-            }
-
-            if (message.guild) {
-                systemPrompt += `\n\n# Server Information`
-                systemPrompt += `\nYou are in the discord server called ${message.guild.name}, with ${message.guild.memberCount} total members, and ${UtilityLibrary.discordBotsAmount(message)} bots.`
-            }
-
-            if (message.channel.name) {
-                systemPrompt += `\n\n# Channel Information`
-                systemPrompt += `\nYou are in the channel called: ${message.channel.name}.`;
-            }
-            if (message.channel.topic) {
-                systemPrompt += `\nThe channel topic is: ${message.channel.topic}`
-            }
-
-            systemPrompt += `\n\n# How to tag someone`;
-            systemPrompt += `\nTo mention, tag or reply to someone, you do it by mentioning their Discord user ID tag. For example, to mention me, you would type <@${client.user.id}>.`;
-
-            if (replies.length) {
-                systemPrompt += '\n\n# Primary participant is responding to another user while mentioning you in their reply';
-                systemPrompt += `\nQuoted user: ${replies[0].name}`
-                systemPrompt += `\n${replies[0].name}'s Discord user ID tag: <@${replies[0].userId}>`
-                systemPrompt += `\n${replies[0].name}'s message: ${replies[0].content}`
-
-                modifiedMessage += `\n\nI am replying to this message by ${replies[0].name}:`
-                modifiedMessage += '\n```';
-                modifiedMessage += `\n${replies[0].content}`
-                modifiedMessage += '\n```';
-
-                imagePrompt += `\n\n ${replies[0].content}`
-            }
-            if (mentionedUsers.length) {
-                systemPrompt += '\n\n# Mentioned Users';
-                mentionedUsers.forEach((mentionedUser, index) => {
-                    systemPrompt += `\nMentioned User ${index + 1}: ${mentionedUser.name}`;
-                    systemPrompt += `\n${mentionedUser.name}'s Discord user ID tag: <@${mentionedUser.id}>`;
-
-                    systemPrompt += `\n${mentionedUser.name}'s roles: ${mentionedUser.roles}`;
-                    systemPrompt += `\n${mentionedUser.name}'s description: ${mentionedUser.description}`;
-                    systemPrompt += `\n${mentionedUser.name}'s avatar description: ${mentionedUser.avatarDescription}`;
-                    systemPrompt += `\n${mentionedUser.name}'s banner description: ${mentionedUser.bannerDescription}`;
-
-                    let userVisualDescription = ``;
-                    if (mentionedUser.avatarDescription && mentionedUser.bannerDescription) {
-                        userVisualDescription = `(Subject: ${mentionedUser.avatarDescription} + In front of: ${mentionedUser.bannerDescription})`;
-                    } else if (mentionedUser.avatarDescription) {
-                        userVisualDescription = `(Subject: ${mentionedUser.avatarDescription})`;
-                    } else if (mentionedUser.bannerDescription) {
-                        userVisualDescription = `(In front of: ${mentionedUser.bannerDescription})`;
-                    }
-
-                    imagePrompt = imagePrompt.replace(`<@${mentionedUser.id}>`, `${mentionedUser.name} ${userVisualDescription}`);
-                    imagePrompt = imagePrompt.replace(/\bme\b/gi, `me ${userVisualDescription}`);
-                    imagePrompt = imagePrompt.replace(/\bI\b/gi, `I ${userVisualDescription}`);
-
-                    modifiedMessage = modifiedMessage.replace(`<@${mentionedUser.id}>`, mentionedUser.name);
-                });
-            }
-            if (mentionedNameDescriptions.length) {
-                systemPrompt += '\n\n# Relevant to this response';
-                mentionedNameDescriptions.forEach((mentionedNameDescription, index) => {
-                    systemPrompt += `\n${mentionedNameDescription.description}`;
-                    imagePrompt += `\n\n${mentionedNameDescription.description}.`;
-                });
-            }
-            if (emojisAttached.length) {
-                emojisAttached.forEach((emoji) => {
-                    systemPrompt += `\n\n# Emojis Attached`;
-                    systemPrompt += `\nEmoji name: ${emoji.name}`;
-                    systemPrompt += `\nEmoji Discord tag: ${emoji.tag}`;
-                    systemPrompt += `\nEmoji description: ${emoji.description}`;
-
-                    modifiedMessage = modifiedMessage.replace(emoji.tag, `${emoji.name}`);
-
-                    imagePrompt = imagePrompt.replace(emoji.tag, `${emoji.name} (${emoji.description}).`);
-                });
-            }
-
-            if (participantUsers.length) {
-                const primaryParticipant = participantUsers.find(participant => participant.id === message.author.id);
-
-                if (primaryParticipant) {
-                    const messageSentAt = luxon.DateTime.fromMillis(primaryParticipant.time).setZone('local').toFormat('LLLL dd, yyyy \'at\' hh:mm:ss a');
-                    const messageSentAtRelative = luxon.DateTime.fromMillis(primaryParticipant.time).toRelative();
-                    systemPrompt += '\n# This is me, the primary participant and the person who you are replying to';
-                    systemPrompt += `\n${primaryParticipant.name}'s Discord user ID tag: <@${primaryParticipant.id}>`;
-                    systemPrompt += `\n${primaryParticipant.name}'s roles: ${primaryParticipant.roles}`;
-                    systemPrompt += `\n${primaryParticipant.name}'s conversation: ${primaryParticipant.conversation}`;
-                    systemPrompt += `\n${primaryParticipant.name}'s last message sent on: ${messageSentAt} (${messageSentAtRelative})`;
-                }
-
-                if (participantUsers.length > 2) {
-                    systemPrompt += '\n# These are the other people, the secondary participants and the people who are also in the chat';
-                    participantUsers.forEach((participant, index) => {
-                        if (participant.id === message.author.id) return;
-                        const messageSentAt = luxon.DateTime.fromMillis(participant.time).setZone('local').toFormat('LLLL dd, yyyy \'at\' hh:mm:ss a');
-                        const messageSentAtRelative = luxon.DateTime.fromMillis(participant.time).toRelative();
-                        systemPrompt += `\nParticipant ${index + 1}: ${participant.name}`;
-                        systemPrompt += `\n${participant.name}'s Discord user ID tag: <@${participant.id}>`;
-                        systemPrompt += `\n${participant.name}'s roles: ${participant.roles}`;
-                        systemPrompt += `\n${participant.name}'s conversation: ${participant.conversation}`;
-                        systemPrompt += `\n${participant.name}'s last message sent on: ${messageSentAt} (${messageSentAtRelative})`;
-                    });
-                }
-            }
-            if (imagePrompt.includes(`<@${client.user.id}`)) {
-                imagePrompt = imagePrompt.replace(`<@${client.user.id}>`, '');
-                modifiedMessage = modifiedMessage.replace(`<@${client.user.id}>`, '');
-                // if sentence starts with a white space, remove it
-                if (modifiedMessage.startsWith(' ')) {
-                    modifiedMessage = modifiedMessage.slice(1);
-                }
-            }
-
-            if (scrapedUrls) {
-                if (scrapedUrls.title) {
-                    modifiedMessage += '\n\nThe title of the URL attached:';
-                    modifiedMessage += `\n${scrapedUrls?.title}`;
-                    imagePrompt += `\n\nThe title of the URL attached: ${scrapedUrls.title}.`;
-                }
-                if (scrapedUrls.description) {
-                    modifiedMessage += '\n\nThe description of the URL attached:';
-                    modifiedMessage += `\n${scrapedUrls?.description}`;
-                    imagePrompt += `\n\nThe description of the URL attached: ${scrapedUrls.description}.`;
-                }
-                if (scrapedUrls.text) {
-                    modifiedMessage += '\n\nThe text of the URL attached:';
-                    modifiedMessage += `\n${scrapedUrls?.text}`;
-                    imagePrompt += `\n\nThe text of the URL attached: ${scrapedUrls.text}.`;
-                }
-                if (scrapedUrls.keywords) {
-                    modifiedMessage += '\n\nThe keywords of the URL attached:';
-                    modifiedMessage += `\n${scrapedUrls?.keywords}`;
-                    imagePrompt += `\n\nThe keywords of the URL attached: ${scrapedUrls.keywords}.`;
-                }
-                if (scrapedUrls.header) {
-                    modifiedMessage += '\n\nThe header of the URL attached:';
-                    modifiedMessage += `\n${scrapedUrls?.header}`;
-                    imagePrompt += `\n\nThe header of the URL attached: ${scrapedUrls.header}.`;
-                }
-                if (scrapedUrls.relatedVideos) {
-                    modifiedMessage += '\n\nThe related videos of the URL attached:';
-                    modifiedMessage += `\n${scrapedUrls?.relatedVideos}`;
-                }
-
-                if (scrapedUrls.transcript) {
-                    modifiedMessage += '\n\nThe transcript of the URL attached:';
-                    modifiedMessage += `\n${scrapedUrls?.transcript}`;
-                    imagePrompt += `\n\nThe transcript of the URL attached: ${scrapedUrls.transcript}.`;
-                }
-            }
-
-            // if (imagePrompt) {
-            //     systemPrompt += `\n\n# Image generated and attached to your reply`;
-            //     systemPrompt += `\nThis is an image that has been generated by you based off the message you're replying to:`;
-            //     systemPrompt += '\n```';
-            //     systemPrompt += `${imagePrompt}`;
-            //     systemPrompt += '\n```';
-            // }
-
-            systemPrompt += `\n\n${MessageService.assembleBackstoryMessage(message.guild?.id)}`;
-            systemPrompt += `\n\n${MessageService.assemblePersonalityMessage()}`;
-            
-            if (DEBUG_MODE) {
-                UtilityLibrary.consoleInfo([[`🧠 System Prompt:\n${systemPrompt}`, { color: 'blue' }, 'middle']]);
-                UtilityLibrary.consoleInfo([[`🏞️ Image Prompt:\n${imagePrompt}`, { color: 'cyan' }, 'middle']]);
-                UtilityLibrary.consoleInfo([[`💬 Modified Message:\n${modifiedMessage}`, { color: 'blue' }, 'middle']]);
-            }
-
-            message.content = modifiedMessage;
-            
-            const conversation = await generateNewConversation(client, message, systemPrompt, recentMessages);
-
-            generatedText = await generateTextResponse({
-                conversation: conversation,
-                type: LANGUAGE_MODEL_TYPE,
-                performance: 'POWERFUL',
-                tokens: LANGUAGE_MODEL_MAX_TOKENS,
-                temperature: LANGUAGE_MODEL_TEMPERATURE
-            });
-
-            // Clean response
-            generatedText = removeMentions(generatedText);
-            generatedText = removeFlaggedWords(generatedText);
-                
-            if (DEBUG_MODE) {
-                UtilityLibrary.consoleInfo([[`🎨 generateTextResponse output:\n${generatedText}`, { color: 'green' }, 'middle']]);
-            }
-
-            return { generatedText, imagePrompt, modifiedMessage, systemPrompt, imageUrl: returnedImageUrl };
-        } catch (error) {
-            generatedText = '...',
-            imagePrompt = 'an image of a beautiful purple wolf sleeping under the full moonlight, in the style of a watercolor painting. The text "Lupos sleeps under the full moonlight" is written in a beautiful cursive font at the bottom of the image.';
-            UtilityLibrary.consoleInfo([[`📝 generateTextResponse failed:\n${error}`, { color: 'red' }, 'middle']]);
         }
 
-    },
-    async generateNewTextResponsePart2(client, message, recentMessages, modifiedMessage, systemPrompt, imagePrompt) {
-        let generatedText;
-        message.content = modifiedMessage;
+        const systemContent =
+            `You are an expert at generating emoji reactions to text messages. 
 
-        // add image prompt to the begining of system prompt
-        systemPrompt = `# Description of Image Generated and Attached by You\n${imagePrompt}\n\n${systemPrompt}`;
+# INSTRUCTIONS:
+- Analyze the message and respond with a single, relevant emoji reaction
+- You can use either:
+1. A standard Unicode emoji (like 😂, ❤️, 👍, etc.)
+2. A custom server emoji name from the list below (return just the name, no colons or formatting)
 
-        
-        if (DEBUG_MODE) {
-            UtilityLibrary.consoleInfo([[`🧠 System Prompt2:\n${systemPrompt}`, { color: 'blue' }, 'middle']]);
-        }
+${guildEmojiList}
+# RESPONSE FORMAT:
+- For Unicode emojis: Return just the emoji character
+- For custom emojis: Return just the emoji name (e.g., "pogchamp", "kekw")
+- Return ONLY the emoji or emoji name, nothing else
+- No explanations, no punctuation, no extra text`;
 
-        try {
-            const conversation = await generateNewConversation(client, message, systemPrompt, recentMessages);
-            generatedText = await generateTextResponse({
-                conversation: conversation,
-                type: LANGUAGE_MODEL_TYPE,
-                performance: 'POWERFUL',
-                tokens: LANGUAGE_MODEL_MAX_TOKENS,
-                temperature: LANGUAGE_MODEL_TEMPERATURE
-            });
-    
-            // clean response
-            generatedText = removeMentions(generatedText);
-            generatedText = removeFlaggedWords(generatedText);
-            // remove self mention
-            
-            generatedText = generatedText.replace(new RegExp(`<@!?${client.user.id}>`, 'g'), '');
-            
-            if (DEBUG_MODE) {
-                UtilityLibrary.consoleInfo([[`🎨 generateTextResponse2 output:\n${generatedText}`, { color: 'green' }, 'middle']]);
-            }
-        } catch (error) {
-            generatedText = '...';
-            imagePrompt = 'an image of a beautiful purple wolf sleeping under the full moonlight, in the style of a watercolor painting. The text "Lupos sleeps under the full moonlight" is written in a beautiful cursive font at the bottom of the image.';
-            UtilityLibrary.consoleInfo([[`📝 generateTextResponse2 failed:\n${error}`, { color: 'red' }, 'middle']]);
-        }
-        
-        return { generatedText };
-    },
-    async createImagePromptFromImageAndText(message, imagePrompt, textResponse, imageToGenerate) {
-        // DiscordService.setUserActivity(`🎨 Drawing for ${DiscordService.getNameFromItem(message)}...`);
-        const username = UtilityLibrary.discordUsername(message.author || message.member);
-        const randomText = [
-            `Always include written text describes the theme of the image in quotes.`,
-            `Always include text sign describes the theme of the the image in quotes.`,
-            `Always include a speech bubble with text describes the theme of the the image in quotes.`,
-        ]
-        const pickRandomText = randomText[Math.floor(Math.random() * randomText.length)];
-        // UtilityLibrary.consoleInfo([[`🎨 Image message content:\n${message.content}`, { color: 'blue' }, 'middle']]);
-        let conversation = [
-            {
-                role: 'system',
-                content: `${MessageConstant.systemContentImagePrompt}`
-            },
-            {
-                role: 'user',
-                name: UtilityLibrary.getUsernameNoSpaces(message),
-                content: `
-                You are a talented artist and an expert at generating a description for an image based on the image and text prompt given to you. You will generate a description for an image based on the text prompt given to you as closely as possible.
-                You are given two prompts; an image and text prompt. Combine both prompts into a single cohesive image description, while keeping the all details of both. Do not omit any details from either prompt, as this is the answer to the user's question. You will also make sure to answer any questions that are asked in the text prompt.
+        const conversation = assembleConversation(systemContent, modifiedMessageContent, message);
 
-                You are currently replying to ${UtilityLibrary.getUsernameNoSpaces(message)}.
-
-                If the image contains an animal, you will be super excited and happy to draw it. You will include a text that fits the theme of the image that says: "${username}".
-
-                Combine these the image and text prompts into a cohesive visual description, while keeping the all details.
-                ${pickRandomText}
-
-                Image prompt: ${imagePrompt}
-                
-                Text prompt: ${textResponse}`,
-            }
-        ]
-
-        if (DEBUG_MODE) {
-            UtilityLibrary.consoleInfo([[`🎨 Image prompt 1:\n${imagePrompt}`, { color: 'cyan' }, 'middle']]);
-            UtilityLibrary.consoleInfo([[`🎨 Image prompt 2:\n${textResponse}`, { color: 'blue' }, 'middle']]);
-        }
-
-        let generatedImagePrompt = await generateTextResponse({
+        const generatedText = await AIService.generateText({
+            localMongo: localMongo,
             conversation: conversation,
-            type: LANGUAGE_MODEL_TYPE,
-            tokens: LANGUAGE_MODEL_MAX_TOKENS,
-            temperature: LANGUAGE_MODEL_TEMPERATURE
+            type: 'ANTHROPIC',
+            model: config.ANTHROPIC_LANGUAGE_MODEL_CLAUDE_SONNET_4,
         });
 
-        // if the generated image prompt says something along the lines of "I can't do that", then try again
-        const isDecliningToasnwer = await AIService.generateIsDecliningToAnswer(generatedImagePrompt, message);
-        if (isDecliningToasnwer.toLowerCase() === 'yes') {
-            UtilityLibrary.consoleInfo([[`🎨 Image prompt 2: Declining to answer:\n${generatedImagePrompt}`, { color: 'red' }, 'middle']]);
-            generatedImagePrompt = textResponse;
+        // Clean up the response - remove any extra whitespace, newlines, or formatting
+        let cleanedResponse = generatedText.trim().replace(/[\n\r]/g, '');
+
+        if (serverEmojisArray.length) {
+            // check if its emoji or custom emoji
+            const isCustomEmoji = serverEmojisArray.some(emoji => emoji.name === cleanedResponse);
+            if (isCustomEmoji) {
+                // <:blobreach:123456789012345678>
+                // if its custom, wrap it in <:
+                cleanedResponse = `${serverEmojisArray.find(emoji => emoji.name === cleanedResponse).id}`;
+            }
         }
 
-        if (DEBUG_MODE) {
-            UtilityLibrary.consoleInfo([[`🎨 Image prompt 2 output:\n${generatedImagePrompt}`, { color: 'green' }, 'middle']]);
-        }
-        return generatedImagePrompt;
+
+        return cleanedResponse;
     },
-    async generateIsDecliningToAnswer(generatedImagePrompt, message) {
+    async generateTextDetermineHowManyMessagesToFetch(content, message, messageCountText) {
         let conversation = [
             {
                 role: 'system',
-                content: `You are an expert at detecting if a message is declining to answer a question or unable to provide an answer. You will answer with a yes if the message is declining to answer. You will answer with a no if the message is not declining to answer. You will only output a yes or no, nothing else.
+                content:
+                    `You are a message fetch optimizer for a multi-modal Discord AI bot. Your role is to determine the optimal number of historical messages to fetch based on the user's request.
+
+The following shows how far back each message count reaches (oldest message in range):
+${messageCountText}
+
+# DECISION RULES:
+
+## MICRO FETCH (5 messages):
+- Simple, direct questions
+- Requests for definitions or single facts
+- Basic image generation requests with no context
+
+## MINIMAL FETCH (5-15 messages):
+- Image generation with very basic context
+- Random questions unrelated to chat history
+- Standalone requests (jokes, facts, simple calculations)
+- Requests that explicitly don't need context
+
+## MODERATE FETCH (20-50 messages):
+- Questions about recent topics
+- Follow-up questions to recent discussion
+- Image generation with minor context clues ("that thing we discussed")
+- Requests mentioning "earlier" or "before" without specific timeframe
+
+## LARGE FETCH (55-95 messages):
+- Explicit requests to summarize conversation
+- Image generation based on conversation context
+- Questions about specific time ranges (look at message timing data)
+- Requests containing: "our conversation", "what we talked about", "everything", "all"
+- Complex context-dependent requests
+- When user mentions timeframes that span multiple hours based on the timing data
+
+## MAXIMAL FETCH (100 messages):
+- Requests for full conversation summaries
+- Image generation requiring full context
+- Requests mentioning "everything we've discussed", "the whole conversation"
+- Complex requests needing deep context
+
+# TIME-BASED GUIDANCE:
+- If request mentions "last hour": Check timing data, fetch messages within that timeframe
+- If request mentions "today" or similar: Lean toward higher counts (70-100)
+- If timing shows very sparse messages (>30 min gaps): Consider fetching more to get meaningful context
+
+# OUTPUT:
+Return ONLY a number between 5-100 in increments of 5.
+Analyze the user's intent, not just keywords.
+Take into account the timing data provided as closely as possible.
+Only output the number, nothing else. No explanations. No punctuation. No extra text.`
+            },
+            {
+                role: 'user',
+                name: DiscordUtilityService.getUsernameNoSpaces(message),
+                content: content,
+            }
+        ]
+        let response = await AIService.generateText({
+            conversation,
+            type: 'ANTHROPIC',
+            model: config.ANTHROPIC_LANGUAGE_MODEL_CLAUDE_SONNET_4
+        });
+
+        // Helper function to validate the number
+        const isValidFetchCount = (num) =>
+            !isNaN(num) && num >= 5 && num <= 100 && num % 5 === 0;
+
+        // Try direct parse first
+        let fetchCount = parseInt(response);
+
+        // If direct parse fails, try extracting a number from the string
+        if (!isValidFetchCount(fetchCount)) {
+            // More specific regex: looks for numbers between 5-100
+            const numberMatch = response.match(/\b(\d{1,2}|100)\b/);
+            if (numberMatch) {
+                fetchCount = parseInt(numberMatch[1]);
+                console.log('Extracted number from response:', fetchCount);
+            }
+        }
+
+        // Validate and return
+        if (isValidFetchCount(fetchCount)) {
+            return fetchCount;
+        }
+
+        console.error('Invalid response from AI for message fetch count:', response);
+        return 20; // default to moderate fetch
+    },
+    async generateTextIsAskingToGenerateImage(content, message) {
+        let conversation = [
+            {
+                role: 'system',
+                content:
+                    `You are an expert at detecting image generation/editing requests. Output ONLY "yes" or "no".
+
+Output "yes" if the message:
+- Asks to draw, create, generate, or illustrate something
+- Asks to edit, modify, redraw, or change an existing image
+- Is replying to a Lupos message containing an image AND uses phrases like "make it", "change this", "turn into", etc.
+
+Output "no" for all other messages.
+
+CRITICAL: Pay special attention to replies to Lupos' image messages - these often contain implicit editing requests. Sometimes the message is long and the request is subtle, so analyze carefully.
+
+Example requests that should return "yes":
+
+Creation requests:
+- "Draw a sunset over mountains"
+- "Generate a cat wearing a hat"
+- "Create a futuristic cityscape"
+- "Make an image of a robot"
+- "Redraw in the style of"
+
+Editing requests:
+- "Redraw with blue background"
+- "Add a rainbow to this"
+- "Make it look like a painting"
+- "Change the background to a beach"
+- "Turn this into an animal"
+- "Do it in pixel art style"
+- "Add more trees to the scene"
+
+Implicit editing (common in replies):
+- "Make it red"
+- "Change this"
+- "Add text saying hello"
+- "Show me this image"`
+            },
+            {
+                role: 'user',
+                name: DiscordUtilityService.getUsernameNoSpaces(message),
+                content: content,
+            }
+        ]
+
+        let response = await AIService.generateText({
+            conversation,
+            type: 'OPENAI',
+            model: config.OPENAI_LANGUAGE_MODEL_GPT5_NANO
+        });
+
+        if (!response) return false;
+
+        response = response.trim().toLowerCase();
+
+        if (response === 'yes') return true;
+        if (response === 'no') return false;
+
+        console.error('Unexpected response from AI:', response);
+        return false;
+    },
+    async generateTextIsAskingToDrawThemselves(content, message) {
+        let conversation = [
+            {
+                role: 'system',
+                content:
+                    `You are an expert at detecting if a message is asking to draw, create, generate, or illustrate the user themselves. You will answer with a yes if the message is asking to draw, create, generate, or illustrate the user themselves. You will answer with a no if the message is not asking to draw, create, generate, or illustrate the user themselves. You will only output a yes or no, nothing else.
+
+Examples that should return "yes":
+"Draw me as a superhero"
+"Can you create an image of me?"
+"Make an image of myself"
+"Make me as a cartoon character"
+"What would I look like as a pirate?"
+
+Examples that should return "no":
+"Draw me a banana"
+"Can you create an image of a cat?"
+"Make an image of a landscape"
+"Make me a logo"`
+            },
+            {
+                role: 'user',
+                name: DiscordUtilityService.getUsernameNoSpaces(message),
+                content: content,
+            }
+        ]
+
+        let response = await AIService.generateText({
+            conversation,
+            type: 'OPENAI',
+            model: config.OPENAI_LANGUAGE_MODEL_GPT5_NANO
+        });
+
+        if (!response) return false;
+
+        response = response.trim().toLowerCase();
+
+        if (response === 'yes') return true;
+        if (response === 'no') return false;
+
+        console.error('Unexpected response from AI:', response);
+        return false;
+    },
+    async generateTextIsAskingLewdOrNSFW(content, message) {
+        let conversation = [
+            {
+                role: 'system',
+                content:
+                    `You are an expert at detecting if a message is lewd, NSFW, or inappropriate for image generation. You will answer with a yes if the message is lewd, NSFW, or inappropriate for image generation. You will answer with a no if the message is not lewd, NSFW, or inappropriate for image generation. You will only output a yes or no, nothing else.
+
+Examples that should return "yes":
+"Draw me a naked person"
+"Can you create an image of two people fucking?"`
+            },
+            {
+                role: 'user',
+                name: DiscordUtilityService.getUsernameNoSpaces(message),
+                content: content,
+            }
+        ]
+
+        let response = await AIService.generateText({
+            conversation,
+            type: 'OPENAI',
+            model: config.OPENAI_LANGUAGE_MODEL_GPT5_NANO
+        });
+
+        if (!response) return false;
+
+        response = response.trim().toLowerCase();
+
+        if (response === 'yes') return true;
+        if (response === 'no') return false;
+
+        console.error('Unexpected response from AI:', response);
+        return false;
+    },
+    async generateTextFromUserConversation(userName, cleanUserName, userMessagesAsText) {
+        const conversation = [
+            {
+                role: 'system',
+                content:
+                    `You are an expert at providing concise, accurate descriptions of messages. Analyze the content sent to you and create a detailed summary of what ${userName} is discussing. Focus on being precise and direct while capturing all key points and context from their message.
                 
-                Here is an example of a message that is declining to answer:
-                "I will not provide that type of description or engage with that content. However, I'd be happy to have a respectful conversation about food, gardening, or other topics that don't involve harmful language or inappropriate themes."`
+As the output, I want you to provide the descriptions in dash list form, without using any bold, italics, or any other formatting. You can have nested lists, but no more than 3 levels deep. Do not announce that you are generating a response, just provide the descriptions. Seperate each line with a new line, not two new lines.`
             },
             {
                 role: 'user',
-                name: UtilityLibrary.getUsernameNoSpaces(message),
-                content: generatedImagePrompt,
+                name: cleanUserName,
+                content: `Recent messages from ${userName}: ${userMessagesAsText}`,
             }
-        ]
-        
-        let response = await generateTextResponse({ conversation, type: 'OPENAI', performance: 'FAST', tokens: 3 });
-        return response;
+        ];
+        const generatedText = await AIService.generateText({
+            conversation: conversation,
+            type: 'OPENAI',
+            model: config.OPENAI_LANGUAGE_MODEL_GPT4_1_NANO,
+        });
+        return generatedText;
     },
-    async generateMoodTemperature(message) {
-        await message.channel.sendTyping();
-        let conversation = [
+    async generateTextReplyNoImageGenerated(conversationForTextGeneration, assistantMessage, systemPrompt) {
+        const conversation = [
             {
                 role: 'system',
-                content: `
-                    ${MessageService.assembleBackstoryMessage(message.guild?.id)}
-                    ${MessageService.assemblePersonalityMessage()}
-                    You are an expert at telling if a conversation is positive, neutral or negative, but taking into account how your character would perceive it and react to it. You will only answer with a between from -10 to 10. -10 Being the most negative, 0 being mostly neutral, and 12 being as positive as possible. The number you pick between -10 to 10 will depend on the tone of the conversation, and nothing else. You do not type anything else besides the number that indicates the tone of the conversation. Only a number between -10 to 10, nothing else. You only output a number, an integer, nothing else.
-                `
+                content:
+                    `# Generated Image Context
+You did not generate any images for this message, as they were not requested nor required.
+You might have generated images in previous messages, but not for this one.
+
+${assistantMessage}
+
+${systemPrompt}`
             },
-            {
-                role: 'user',
-                name: UtilityLibrary.getUsernameNoSpaces(message),
-                content: message.content,
-            }
-        ]
-        
-        let response = await generateTextResponse({ conversation, type: 'OPENAI', performance: 'FAST', tokens: 3 });
-        return response;
-    },
-    async generateGoogleNews(message) {
-        const url = 'https://news.google.com/rss?gl=US&hl=en-US&ceid=US:en';
-        const items = await PuppeteerWrapper.scrapeRSS(url);
-    
-        let userMessage = "# Latest News\n";
-        items.forEach((item) => {
-            const title = item.title;
-            const pubDate = UtilityLibrary.getCurrentDateAndTime(item.pubDate);
-            const minutesAgo = UtilityLibrary.getMinutesAgo(item.pubDate);
-            const link = item.link;
-            const description = item.description || '';
-    
-            userMessage += `## Title: ${title}\n`;
-            userMessage += `- Date: ${pubDate}\n`;
-            userMessage += `- Minutes ago: ${minutesAgo}\n`;
-            userMessage += `- Link: ${link}\n\n`
+        ];
 
-            // if (description.a?._ && description.a?.href) {
-            //     userMessage += `- Description: ${description.a._}\n`;
-            //     userMessage += `- Link: ${description.a.href}\n`;
-            // }
+        conversation.push(...conversationForTextGeneration);
 
-            // description.ol?.li?.forEach((each => {
-            //     userMessage += `- Description: ${each.a._}\n`;
-            //     userMessage += `- Link: ${each.a.href}\n`;
-            // }))
-
+        const generatedText = await AIService.generateText({
+            conversation: conversation,
+            type: config.LANGUAGE_MODEL_TYPE,
+            modelPerformance: 'POWERFUL',
+            tokens: config.LANGUAGE_MODEL_MAX_TOKENS,
+            temperature: config.LANGUAGE_MODEL_TEMPERATURE
         });
-        userMessage += `If any, return the most related news to this: ${message.content}`;
-
-        const systemMessage = `#Task:\n-You return the most related news, and summarize the description without adding more information.\n-If there is no related news, return an empty string.\n\n#Output Format:
-        -## Title: [Title]
-        -Date: [Date]
-        -Minutes ago: [Minutes]
-        -Link: [Link]
-        -Description: [Description]
-        
-        #Output:`;
-
-        const conversation = assembleConversation(systemMessage, userMessage, message)
-        return await generateTextResponse({conversation, type: 'OPENAI', performance: 'FAST'})
+        return generatedText;
     },
+    async generateTextReplyImageGenerated(conversationForTextGeneration, assistantMessage, systemPrompt, promptForImagePromptGeneration) {
+        const conversation = [
+            {
+                role: 'system',
+                content:
+                    `# Generated Image Context
+An image was generated and attached to this message based on the following prompt: "${promptForImagePromptGeneration}"
+## Your Task
+Incorporate visual details from the generated image into your response to enhance the description and provide a richer experience for the user. But do not make a mention about the imgage generation process itself, nor the image prompt.
+
+${assistantMessage}
+
+${systemPrompt}`
+            },
+        ];
+
+        conversation.push(...conversationForTextGeneration);
+
+        const generatedText = await AIService.generateText({
+            conversation: conversation,
+            type: config.LANGUAGE_MODEL_TYPE,
+            modelPerformance: 'POWERFUL',
+            tokens: config.LANGUAGE_MODEL_MAX_TOKENS,
+            temperature: config.LANGUAGE_MODEL_TEMPERATURE
+        });
+        return generatedText;
+    },
+    async generateTextPromptForImagePromptGeneration(
+        conversationForTextGeneration,
+        systemPrompt,
+        shouldRedrawImage,
+        edittedMessageCleanContent,
+    ) {
+        const systemPromptForImagePromptGeneration =
+            `# Image Prompt Generation
+- You are part of a multi-modal AI bot that can generate and edit images.
+- Your job is to generate an image from a text prompt only.
+- Your specific task here is to create detailed prompts for image generation or editing.
+- Use the conversation context and user requests to inform your prompt creation.
+- Generate a detailed image prompt based on the conversation context and user request.
+- Always try to aim for a highly detailed and realistic image prompt style, unless specifically asked for a different style.
+
+## Priority Rules:
+- If generating an image of a person: 
+  1. Use their avatar and banner descriptions as the PRIMARY reference (if available)
+  2. Then incorporate any other details relevant to the conversation context
+  3. Maintain parentheses after the person's name to identify the image subject
+- Address the specific user request
+- Incorporate relevant conversation context
+
+# Output Requirements:
+- A single continuous paragraph
+- No line breaks, formatting, or markup
+- No explanations, commentary, or additional text
+- Only the image prompt itself
+- Detailed and descriptive language that captures all essential elements
+- Do not talk in the third person, just provide the prompt
+
+Generate the editing prompt now.
+
+${systemPrompt}`;
+
+        const systemPromptForImageToImagePromptGeneration =
+            `# Image Edit Prompt Generator
+- You are part of a multi-modal AI bot that can generate and edit images.
+- Your job is to generate an image edit prompt from a text prompt and an existing image.
+- You have at least 1 existing image to reference and edit.
+- Your specific task here is to create detailed prompts for image editing based on an existing image and user modification requests.
+- Use the conversation context, user requests, and details from the existing image to inform your prompt creation.
+- Generate a detailed image editing prompt based on the existing image, conversation context, and user's modification request.
+- Always try to aim for a highly detailed and realistic image prompt style, unless specifically asked for a different style.
+
+## Priority Rules:
+- If redrawing an image with a person: 
+  1. Use their avatar and banner descriptions as the PRIMARY reference (if available)
+  2. Then incorporate any other details relevant to the conversation context
+  3. Maintain parentheses after the person's name to identify the image subject
+- Preserve all existing image elements EXCEPT those explicitly requested to be changed
+- If editing a person: Use their avatar and banner descriptions as the PRIMARY reference for any modifications (if available)
+- Clearly specify what elements to modify and how
+- Incorporate relevant conversation context for the edits
+- Make sure you mention to keep unchanged elements intact
+
+## Output Requirements:
+- Single continuous paragraph
+- No line breaks, formatting, or markup
+- No explanations, commentary, or additional text
+- Only the image editing prompt itself
+- Explicitly state what to change and what to keep
+- Use precise descriptive language for modifications
+- Do not talk in the third person, just provide the prompt
+
+Generate the editing prompt now.
+
+${systemPrompt}`;
+
+        const conversation = [
+            {
+                role: 'system',
+                content: ''
+            },
+        ];
+
+        if (shouldRedrawImage) {
+            conversation[0].content = systemPromptForImageToImagePromptGeneration;
+        } else {
+            conversation[0].content = systemPromptForImagePromptGeneration;
+        }
+        // conversation.push(conversationForTextGeneration[conversationForTextGeneration.length - 1]);
+        // Instead of pushing the reference directly
+        // This creates a shallow copy of the object
+        conversation.push({ ...conversationForTextGeneration[conversationForTextGeneration.length - 1] });
+
+        if (edittedMessageCleanContent) {
+            conversation[1].content = `${edittedMessageCleanContent}`;
+        }
+
+        const generatedText = await AIService.generateText({
+            conversation: conversation,
+            type: config.LANGUAGE_MODEL_TYPE,
+            modelPerformance: 'POWERFUL',
+            tokens: config.LANGUAGE_MODEL_MAX_TOKENS,
+            temperature: config.LANGUAGE_MODEL_TEMPERATURE
+        });
+
+        return generatedText;
+    },
+
 };
 
 module.exports = AIService;

@@ -8,7 +8,7 @@ const {
 } = require('../config.json');
 
 const LocalAIWrapper = {
-    async generateTextResponse(
+    async generateLocalAITextResponse(
         conversation,
         model=LANGUAGE_MODEL_LOCAL,
         tokens=LANGUAGE_MODEL_MAX_TOKENS,

@@ -1,4 +1,4 @@
-const AIService = require('../services/AIService.js');
+const AIService = require('./AIService.js');
 
 let hungerLevel = 0;
 let hungerChannelId = '1198326193984913470';

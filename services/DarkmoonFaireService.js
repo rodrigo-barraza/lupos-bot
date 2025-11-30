@@ -1,5 +1,5 @@
 const { ActivityType } = require('discord.js');
-const AIService = require('../services/AIService.js');
+const DiscordService = require('../services/DiscordService.js');
 const moment = require('moment')
 
 const DarkmoonFaireService = {
@@ -73,7 +73,7 @@ const DarkmoonFaireService = {
             `;
             userContent = 'Can you explain when is the next Darkmoon Faire week, when does it go until, and how long does it last?';
         }
-        return await AIService.generateTextFromSystemUserMessages(systemContent, userContent, interaction);
+        return await DiscordService.generateTextFromSystemUserMessages(systemContent, userContent, interaction);
     },
 }
 

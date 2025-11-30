@@ -34,6 +34,9 @@ const birthdays = [
             'manyak',
             'benjamminmiller',
             'tayhoot',
+            'ivybay',
+            'scyther',
+
         ],
     },
     {
@@ -49,6 +52,7 @@ const birthdays = [
             'cg1063',
             'shadypal',
             'larryisfine',
+            'deuxv',
         ],
     },
     {
@@ -56,6 +60,7 @@ const birthdays = [
         users: [
             'nothics',
             'parasite',
+            'zrakki'
         ],
     },
     {
@@ -70,6 +75,7 @@ const birthdays = [
             'yams3343',
             'klov',
             'telrain_axis',
+            'dooder6257',
         ],
     },
     {
@@ -92,6 +98,11 @@ const birthdays = [
             '.yunnie',
             'notalicia',
             'atheistftw',
+            'hejskippi',
+            'm0nad',
+            'hejskippi',
+            'cencil',
+            'faymus93', '19',
         ],
     },
     {

@@ -1,4 +1,7 @@
 /node_modules
+/images
+/recordings
+/voices
 config.json
 .env
 .vscode/settings.json

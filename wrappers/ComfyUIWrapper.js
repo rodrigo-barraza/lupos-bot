@@ -1,6 +1,11 @@
 const WebSocket = require('ws');
 const crypto = require('crypto');
 const clientId = crypto.randomBytes(20).toString('hex');
+const { consoleLog } = require('../libraries/UtilityLibrary.js');
+const config = require('../config.json');
+// Formatter
+const LogFormatter = require('../formatters/LogFormatter.js');
+const LightWrapper = require('../wrappers/LightWrapper.js');
 
 const {
     COMFY_UI_IMAGE_MODEL_API_URL,
@@ -20,6 +25,18 @@ async function downloadImage(url, imagePath) {
 }
 
 const debugging = false
+
+const loadingSymbols = [
+  ['♥', '♡'], ['★', '☆'], ['♦', '♢'], ['♣', '♧'], ['♠', '♤'],
+  ['█', '░'], ['■', '□'], ['●', '○'], ['◆', '◇'], ['◼', '◻'],
+]
+
+function generateProgressBar(percentage) {
+    const barLength = 10;
+    const filled = Math.round((percentage / 100) * barLength);
+    const empty = barLength - filled;
+    return '█'.repeat(filled) + '░'.repeat(empty);
+}
 
 async function postPrompt(prompt) {
     try {
@@ -58,21 +75,95 @@ function calculatePeriodsIncreaseOverTime(periods = '') {
   
 }
 
-async function generateImage(prompt) {
+async function generateImageWithTracking(prompt, client) {
     try {
         return new Promise((resolve, reject) => {
             const websocket = new WebSocket(`${COMFY_UI_IMAGE_MODEL_WEBSOCKET_URL}/ws?clientId=${clientId}`);
+            let promptId = null;
+            let isResolved = false;
+            let executionStarted = false;
+            let currentNode = null;
+            let progressDots = '';
+            
+            const timeout = setTimeout(() => {
+                if (!isResolved) {
+                    isResolved = true;
+                    websocket.close();
+                    console.error('⏱️ Image generation timeout after 60 seconds');
+                    reject(new Error('Image generation timeout'));
+                }
+            }, 60000);
+            
+            const cleanup = () => {
+                clearTimeout(timeout);
+                if (websocket.readyState === WebSocket.OPEN) {
+                    websocket.close();
+                }
+            };
+            
             websocket.onopen = async () => {
                 try {
-                    const { prompt_id: promptId } = await postPrompt(prompt);
-                    const outputImages = {};
-
-                    websocket.onmessage = async (event) => {
-                        const message = JSON.parse(event.data);
-                        if (message.type === 'executing' && message.data.node === null && message.data.prompt_id === promptId) {
-                            websocket.close();
+                    console.log('🔌 WebSocket connected, submitting prompt...');
+                    const response = await postPrompt(prompt);
+                    promptId = response.prompt_id;
+                    
+                    if (!promptId) {
+                        cleanup();
+                        reject(new Error('No prompt ID received'));
+                        return;
+                    }
+                    
+                    console.log(`📝 Prompt submitted with ID: ${promptId}`);
+                } catch (innerError) {
+                    cleanup();
+                    reject(innerError);
+                }
+            };
+            
+            websocket.onmessage = async (event) => {
+                if (isResolved) return;
+                
+                try {
+                    const message = JSON.parse(event.data);
+                    
+                    // Track execution start
+                    if (message.type === 'execution_start' && message.data.nodes[13].prompt_id === promptId) {
+                        executionStarted = true;
+                        console.log(`\n🚀 Execution started for prompt ${promptId}`);
+                    }
+                    
+                    // Track cached nodes
+                    if (message.type === 'execution_cached' && message.data.nodes[13].prompt_id === promptId) {
+                        const cachedNodes = message.data.nodes || [];
+                        if (cachedNodes.length > 0) {
+                            console.log(`⚡ Using cached results for nodes: ${cachedNodes.join(', ')}`);
+                        }
+                    }
+                    // Track currently executing node
+                    if (message.type === 'executing') {
+                        if (message.data.prompt_id === promptId) {
+                            if (message.data.node) {
+                                currentNode = message.data.node;
+                                console.log(`\n📦 Executing node: ${currentNode}`);
+                            }
+                        }
+                        
+                        // Check for completion (must match exact conditions from original)
+                        if (message.data.node === null && message.data.prompt_id === promptId) {
+                            console.log(`\n✅ Execution completed for prompt ${promptId}`);
+                            isResolved = true;
+                            cleanup();
+                            
                             const history = await getHistory(promptId);
                             const historyPromptId = history[promptId];
+                            
+                            if (!historyPromptId || !historyPromptId.outputs) {
+                                reject(new Error('No outputs in history'));
+                                return;
+                            }
+                            
+                            const outputImages = {};
+                            
                             for (const node_id in historyPromptId.outputs) {
                                 const nodeOutput = historyPromptId.outputs[node_id];
                                 if ('images' in nodeOutput) {
@@ -85,29 +176,203 @@ async function generateImage(prompt) {
                                     outputImages[node_id] = imagesOutput;
                                 }
                             }
+                            
                             resolve(outputImages);
                         }
-                    };
+                    }
+                    // Track progress updates
+                    if (message.type === 'progress_state') {
+                        const { value, max } = message.data.nodes[13];
+                        const percentage = Math.round((value / max) * 100);
+                        progressDots = calculatePeriodsIncreaseOverTime(progressDots);
+
+                        LightWrapper.cycleColor(config.PRIMARY_LIGHT_ID, 'rainbow');
+                        
+                        // Clear the line and show progress
+                        // console.log('\x1b[2K'); // Clear the entire line
+                        console.log(`   Progress: [${generateProgressBar(percentage)}] ${percentage}% (${value}/${max}) ${progressDots}`);
+                        // client.user.setActivity(`${generateProgressBar(percentage)}`, { type: 4 });
+                        // update activity once every 20%
+                        const clockEmojis = ['🕛', '🕐', '🕑', '🕒', '🕓', '🕔', '🕕', '🕖', '🕗', '🕘', '🕙', '🕚'];
+                        if (percentage === 100) {
+                            client.user.setActivity(`Don't tag me...`, { type: 4 });
+                        } else if (percentage % 10 === 0) {
+                            const clockIndex = Math.floor(percentage / 10) % clockEmojis.length;
+                            client.user.setActivity(`${clockEmojis[clockIndex]}🖼️: ${generateProgressBar(percentage)} ${percentage}%`, { type: 4 });
+                        }
+                        // process.stdout.write(`\r   Progress: [${generateProgressBar(percentage)}] ${percentage}% (${value}/${max}) ${progressDots}`);
+                        
+                        if (value === max) {
+                            console.log(''); // New line after completion
+                        }
+                    }
+                    
+                    // Track completed nodes
+                    if (message.type === 'executed' && message.data.nodes[13].prompt_id === promptId) {
+                        if (message.data.nodes[13].node_id) {
+                            console.log(`   ✔️  Node ${message.data.nodes[13].node_id} completed`);
+                        }
+                    }
+                    
+                    // Track status updates
+                    if (message.type === 'status') {
+                        const { exec_info } = message.data.nodes[13].status || {};
+                        if (exec_info && exec_info.queue_remaining) {
+                            if (debugging) {
+                                console.log(`📊 Queue status - Remaining: ${exec_info.queue_remaining}`);
+                            }
+                        }
+                    }
+                    
+                } catch (error) {
+                    if (debugging) {
+                        console.error('Error processing message:', error);
+                    }
+                }
+            };
+            
+            websocket.onerror = (error) => {
+                if (!isResolved) {
+                    isResolved = true;
+                    cleanup();
+                    console.error('❌ WebSocket error:', error);
+                    reject(new Error('WebSocket error'));
+                }
+            };
+            
+            websocket.onclose = () => {
+                if (!isResolved) {
+                    isResolved = true;
+                    cleanup();
+                    reject(new Error('WebSocket closed unexpectedly'));
+                }
+            };
+        });
+    } catch (error) {
+        console.error('Error generating image:', error);
+        throw error;
+    }
+}
+
+
+async function generateImage(prompt) {
+    try {
+        return new Promise((resolve, reject) => {
+            const websocket = new WebSocket(`${COMFY_UI_IMAGE_MODEL_WEBSOCKET_URL}/ws?clientId=${clientId}`);
+            let promptId = null;
+            let isResolved = false;
+            
+            // Add timeout for the entire operation
+            const timeout = setTimeout(() => {
+                if (!isResolved) {
+                    isResolved = true;
+                    websocket.close();
+                    if (debugging) {
+                        console.error('Image generation timeout after 60 seconds');
+                    }
+                    reject(new Error('Image generation timeout'));
+                }
+            }, 60000); // 60 second timeout
+            
+            // Cleanup function
+            const cleanup = () => {
+                clearTimeout(timeout);
+                if (websocket.readyState === WebSocket.OPEN) {
+                    websocket.close();
+                }
+            };
+            
+            websocket.onopen = async () => {
+                try {
+                    const response = await postPrompt(prompt);
+                    promptId = response.prompt_id;
+                    
+                    if (!promptId) {
+                        cleanup();
+                        reject(new Error('No prompt ID received'));
+                        return;
+                    }
                 } catch (innerError) {
+                    cleanup();
                     reject(innerError);
                 }
             };
-
+            
+            websocket.onmessage = async (event) => {
+                if (isResolved) return;
+                
+                try {
+                    const message = JSON.parse(event.data);
+                    
+                    // Log progress messages if debugging
+                    if (debugging && message.type === 'progress') {
+                        console.log(`Progress: ${message.data.value}/${message.data.max}`);
+                    }
+                    
+                    if (message.type === 'executing' && message.data.node === null && message.data.prompt_id === promptId) {
+                        isResolved = true;
+                        cleanup();
+                        
+                        const history = await getHistory(promptId);
+                        const historyPromptId = history[promptId];
+                        
+                        if (!historyPromptId || !historyPromptId.outputs) {
+                            reject(new Error('No outputs in history'));
+                            return;
+                        }
+                        
+                        const outputImages = {};
+                        
+                        for (const node_id in historyPromptId.outputs) {
+                            const nodeOutput = historyPromptId.outputs[node_id];
+                            if ('images' in nodeOutput) {
+                                const imagesOutput = [];
+                                for (const image of nodeOutput.images) {
+                                    const imageBuffer = await getImage(image.filename, image.subfolder, image.type);
+                                    const base64Image = Buffer.from(imageBuffer).toString('base64');
+                                    imagesOutput.push(base64Image);
+                                }
+                                outputImages[node_id] = imagesOutput;
+                            }
+                        }
+                        
+                        resolve(outputImages);
+                    }
+                } catch (error) {
+                    if (debugging) {
+                        console.error('Error processing message:', error);
+                    }
+                }
+            };
+            
             websocket.onerror = (error) => {
-                reject();
-                // reject(new Error('WebSocket error: ' + error.message));
-                // resolve({})
+                if (!isResolved) {
+                    isResolved = true;
+                    cleanup();
+                    if (debugging) {
+                        console.error('WebSocket error:', error);
+                    }
+                    reject(new Error('WebSocket error'));
+                }
+            };
+            
+            websocket.onclose = () => {
+                if (!isResolved) {
+                    isResolved = true;
+                    cleanup();
+                    reject(new Error('WebSocket closed unexpectedly'));
+                }
             };
         });
     } catch (error) {
         if (debugging) {
-          console.error('Error generating image:', error);
+            console.error('Error generating image:', error);
         }
-        throw error
+        throw error;
     }
 }
 
-async function checkWebsocketStatus() {
+async function checkWebsocketStatus2() {
     try {
         return new Promise((resolve, reject) => {
             const websocket = new WebSocket(`${COMFY_UI_IMAGE_MODEL_WEBSOCKET_URL}/ws?clientId=${clientId}`);
@@ -226,7 +491,7 @@ const sd3Prompt = {
   },
   "71": {
     "inputs": {
-      "text": "bad quality, poor quality, doll, disfigured, jpg, toy, bad anatomy, missing limbs, missing fingers",
+      "text": "bad quality, poor quality, doll, disfigured, jpg, toy, bad anatomy, missing limbs, missing fingers, child, kid, anime",
       "clip": [
         "11",
         0
@@ -335,8 +600,12 @@ const sd3Prompt = {
 const fluxPrompt = {
   "5": {
     "inputs": {
+      // "width": 1024,
+      // "height": 728,
       "width": 1024,
       "height": 1024,
+      // "width": 512,
+      // "height": 512,
       "batch_size": 1
     },
     "class_type": "EmptyLatentImage",
@@ -456,7 +725,7 @@ const fluxPrompt = {
   "17": {
     "inputs": {
       "scheduler": "simple",
-      "steps": 20,
+      "steps": 30,
       "denoise": 1,
       "model": [
         "12",
@@ -884,7 +1153,15 @@ const fluxPromptImageToImage = {
 //   }
 // }
 
-function createImagePromptFromText(text) {
+
+function generateRandomRange(min, max) {
+    const random = Math.random() * (max - min) + min;
+    // Multiply by 100, round, then divide by 100
+    return Math.round(random * 100) / 100;
+  }
+  
+
+function generateTextToImagePrompt(text) {
   const fullPrompt = fluxPrompt
   if (text) {
       // fullPrompt["3"]["inputs"]["seed"] = Math.floor(Math.random() * 1000000000000000);
@@ -895,41 +1172,89 @@ function createImagePromptFromText(text) {
   }
   return fullPrompt
 }
-function createImagePromptFromText2(text, imagePath, denoisingStrength) {
+function generateImageToImagePrompt(text, imagePath, denoisingStrength) {
+    consoleLog('<');
     const fullPrompt = fluxPromptImageToImage
     if (text) {
-      const randomInRange = () => Math.random() * (0.9 - 0.75) + 0.75;
-      fullPrompt["17"]["inputs"]["denoise"] = randomInRange();
-      fullPrompt["17"]["inputs"]["steps"] = 20;
-      fullPrompt["25"]["inputs"]["noise_seed"] = Math.floor(Math.random() * 1000000000000000);
-      fullPrompt["26"]["inputs"]["image"] = imagePath;
-      fullPrompt["6"]["inputs"]["text"] = text;
+        // Anything under 0.7 is too low and doesn't change the image that much
+        // Anything over 0.9 is too high and the image is too different
+        const randomRange = generateRandomRange(0.78, 0.88);
+        fullPrompt["17"]["inputs"]["denoise"] = randomRange;
+        fullPrompt["17"]["inputs"]["steps"] = 40;
+        fullPrompt["25"]["inputs"]["noise_seed"] = denoisingStrength || Math.floor(Math.random() * 1000000000000000);
+        fullPrompt["26"]["inputs"]["image"] = imagePath;
+        fullPrompt["6"]["inputs"]["text"] = text;
+        consoleLog('=', `DENOISE: ${randomRange}`);
+        consoleLog('=', `TEXT: ${text}`);
     }
+    consoleLog('>');
     return fullPrompt
 }
 
 const ComfyUIWrapper = {
-    async generateImage(text) {
+    async generateComfyUIImage(text, client) {
         try {
-            const prompt = createImagePromptFromText(text);
-            const images = await generateImage(prompt);
+            // Check if ComfyUI is available before attempting generation
+            await ComfyUIWrapper.checkComfyUIWebsocketStatus();
+            
+            const prompt = generateTextToImagePrompt(text);
+            const images = await generateImageWithTracking(prompt, client);
+            
+            if (!images || !images[9] || !images[9][0]) {
+                throw new Error('No image generated');
+            }
+            
             return images[9][0];
         } catch (error) {
-            return console.error('⚠️ ComfyUI Workflow Error: Cannot Return Image');
+            console.error('⚠️ ComfyUI Workflow Error: Cannot Return Image', error.message);
+            throw error; // Re-throw to let caller handle it
         }
     },
-    async generateImageToImage(text, imageUrl, denoisingStrength) {
-      try {
-        const imagePath = await downloadImage(imageUrl, path.join(__dirname, 'downloadedImage.jpg'));
-        const prompt = createImagePromptFromText2(text, imagePath, denoisingStrength);
-        const images = await generateImage(prompt);
-        return images[9][0];
-      } catch (error) {
-        console.error('⚠️ ComfyUI Workflow Error: Cannot Return Image', error);
-      }
+    async generateComfyUIImageToImage(text, imageUrl, denoisingStrength) {
+        try {
+            // Check if ComfyUI is available before attempting generation
+            await ComfyUIWrapper.checkComfyUIWebsocketStatus();
+            
+            const imagePath = await downloadImage(imageUrl, path.join(__dirname, 'downloadedImage.jpg'));
+            const prompt = generateImageToImagePrompt(text, imagePath, denoisingStrength);
+            const images = await generateImage(prompt);
+            
+            if (!images || !images[9] || !images[9][0]) {
+                throw new Error('No image generated');
+            }
+            
+            return images[9][0];
+        } catch (error) {
+            console.error('⚠️ ComfyUI Workflow Error: Cannot Return Image', error.message);
+            throw error; // Re-throw to let caller handle it
+        }
     },
-    checkWebsocketStatus: checkWebsocketStatus,
-};
+    async checkComfyUIWebsocketStatus() {
+        const functionName = 'checkComfyUIWebsocketStatus';
+        return new Promise((resolve, reject) => {
+            const websocket = new WebSocket(`${COMFY_UI_IMAGE_MODEL_WEBSOCKET_URL}/ws?clientId=${clientId}`);
+            
+            // Add timeout
+            const timeout = setTimeout(() => {
+                websocket.close();
+                console.error(...LogFormatter.comfyUITimedOut(functionName));
+                reject(new Error('WebSocket connection timeout'));
+            }, 10000);
 
+            websocket.onopen = () => {
+                clearTimeout(timeout);
+                websocket.close();
+                console.log(...LogFormatter.comfyUIUp(functionName));
+                resolve();
+            };
+            
+            websocket.onerror = (error) => {
+                clearTimeout(timeout);
+                console.warn(...LogFormatter.comfyUIDown(functionName));
+                reject();
+            };
+        })
+    }
+};
 
 module.exports = ComfyUIWrapper;

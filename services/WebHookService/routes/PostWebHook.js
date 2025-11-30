@@ -2,10 +2,11 @@
 const EventsEventEmitter = require('events').EventEmitter;
 const ResponseClass = require.main.require('./classes/ResponseClass');
 const RequestClass = require.main.require('./classes/RequestClass');
-const EventController = require.main.require('./controllers/EventController');
+const MessageQueueService = require.main.require('./services/MessageQueueService');
 
 const PostWebHook = () => {
     return (req, res) => {
+        console.log('fire')
         const EventEmitter = new EventsEventEmitter();
         const response = new ResponseClass(res);
         const request = new RequestClass(req);
@@ -28,11 +29,9 @@ const PostWebHook = () => {
             }
         }
 
-        function sendResponse() {
-            EventController.sendResponse(body.category, body.action, body.label, body.value, headers)
-            .then((eventResponse, responseError) => {
-                return response.sendSuccessMessage('');
-            });
+        async function sendResponse() {
+            const res = await MessageQueueService.assembleCurrentVoiceConversation(body.text);
+            return response.sendSuccessMessage(res);
         }
 
         EventEmitter.on('verify-parameters', verifyParameters);
