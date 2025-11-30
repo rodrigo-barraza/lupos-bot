@@ -2076,12 +2076,12 @@ async function luposOnReadyReports(client, mongo) {
 }
 
 async function luposOnReadyCloneMessages(client, { localMongo }) {
-    await DiscordUtilityService.fetchAndSaveAllServerMessages(client, localMongo, '609471635308937237', {
-        // await DiscordUtilityService.fetchAndSaveAllServerMessages(client, localMongo, '249010731910037507',{
-        resumePoints: [
-            { channelId: '762734438375096380', lastMessageId: '901349132701155349' },  // politics
-        ]
-    });
+    // await DiscordUtilityService.fetchAndSaveAllServerMessages(client, localMongo, '609471635308937237', {
+    //     resumePoints: [
+    //         { channelId: '762734438375096380', lastMessageId: '901349132701155349' },  // politics
+    //     ]
+    // });
+    await DiscordUtilityService.fetchAndSaveAllServerMessages(client, localMongo, '609471635308937237');
 }
 
 async function processMessage(client, { mongo, localMongo }, message, actionType) {
