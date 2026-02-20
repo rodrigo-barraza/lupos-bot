@@ -22,6 +22,32 @@ const DiscordUtilityService = require('./DiscordUtilityService.js');
 // Maps
 const ModelsMap = require('../maps/ModelsMap.js');
 
+// Image processing - prefer sharp, fallback to Jimp
+let sharp;
+let Jimp;
+
+try {
+    sharp = require('sharp');
+    console.log('Using sharp for image processing');
+} catch (error) {
+    const jimp = require('jimp');
+    Jimp = jimp.Jimp;
+    console.log('sharp unavailable, using Jimp for image processing');
+}
+
+async function convertGifToPng(imageBuffer) {
+    if (sharp) {
+        const pngBuffer = await sharp(imageBuffer, { animated: false })
+            .png()
+            .toBuffer();
+        return pngBuffer;
+    } else {
+        const image = await Jimp.read(imageBuffer);
+        const pngBuffer = await image.getBuffer('image/png');
+        return pngBuffer;
+    }
+}
+
 function calculateImageTokens(width, height) {
     // If both dimensions are <= 384, use 258 tokens
     if (width <= 384 && height <= 384) {
@@ -401,8 +427,18 @@ const AIService = {
                     for (const url of imageUrls) {
                         const fetchImageUrlResponse = await fetch(url);
                         const imageAsBuffer = await fetchImageUrlResponse.arrayBuffer();
-                        const imageAsBase64 = Buffer.from(imageAsBuffer).toString('base64');
-                        const imageType = fetchImageUrlResponse.headers.get('content-type');
+                        let imageType = fetchImageUrlResponse.headers.get('content-type');
+                        let imageAsBase64;
+
+                        // Convert GIF to PNG (first frame) since Gemini doesn't support GIFs
+                        if (imageType === 'image/gif') {
+                            const pngBuffer = await convertGifToPng(Buffer.from(imageAsBuffer));
+                            imageAsBase64 = pngBuffer.toString('base64');
+                            imageType = 'image/png';
+                        } else {
+                            imageAsBase64 = Buffer.from(imageAsBuffer).toString('base64');
+                        }
+
                         images.push({ data: imageAsBase64, type: imageType });
                     }
                 }

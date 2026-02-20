@@ -46,6 +46,7 @@ const UtilityLibrary = require('../libraries/UtilityLibrary.js');
 const LogFormatter = require('../formatters/LogFormatter.js');
 // CONSTANTS
 const MessageConstant = require('../constants/MessageConstants.js');
+const CensorService = require('./CensorService.js');
 
 
 // eslint-disable-next-line no-undef
@@ -976,6 +977,7 @@ ${combinedGuildInformation && combinedChannelInformation ? `URL: https://discord
         LightWrapper.cycleColor(config.PRIMARY_LIGHT_ID, 'purples');
     } catch (error) {
         console.warn(`❌ [DiscordService:replyMessage] MESSAGE NOT FOUND (OR DELETED)
+            ${error}
     ${member ? `Member: ${combinedNames}` : `User: ${combinedNames}`}
     ${combinedGuildInformation ? `Guild: ${combinedGuildInformation}` : 'Direct Message'}
     ${combinedChannelInformation ? `Channel: ${combinedChannelInformation}` : ''}
@@ -1493,12 +1495,13 @@ async function extractContentFromMessages(queuedDatum, localMongo, maxSimultaneo
 
                 // Queue reply fetching
                 if (recentMessage.reference?.messageId) {
-                    let repliedMessage = recentMessage.channel.messages.cache.get(recentMessage.reference.messageId);
+                    const channel = recentMessage.channel || message.channel;
+                    let repliedMessage = channel?.messages.cache.get(recentMessage.reference.messageId);
                     if (!repliedMessage) {
                         allPromises.replies.push({
                             messageId: recentMessage.id,
                             referenceId: recentMessage.reference.messageId,
-                            promise: recentMessage.channel.messages.fetch(recentMessage.reference.messageId).catch(error => {
+                            promise: channel?.messages.fetch(recentMessage.reference.messageId).catch(error => {
                                 console.log(`Could not fetch replied message ${recentMessage.reference.messageId}:`, error.message);
                                 return null;
                             })
@@ -2016,7 +2019,20 @@ async function luposOnReady(client, { mongo }) {
                 intervalMinutes: 1,
             });
         }
-    } else if (mode === "Messages") {
+    } else if (mode === "messages") {
+        // Reset bot nickname to "Lupos" in specific guild on startup
+        try {
+            const targetGuild = client.guilds.cache.get('1388329197260505262');
+            if (targetGuild) {
+                const botMember = await targetGuild.members.fetch(client.user.id);
+                if (botMember) {
+                    await botMember.setNickname('Lupos');
+                    console.log(`Bot nickname reset to "Lupos" in guild ${targetGuild.name}`);
+                }
+            }
+        } catch (error) {
+            console.error('Failed to reset bot nickname on startup:', error);
+        }
         // Check the last 100 messages in the channel politics, and if there is a message that mentions me that I haven't replied to in the last 5 minutes, reply to it
         // const politicsChannel = DiscordUtilityService.getChannelById(client, config.CHANNEL_ID_POLITICS);
         // // console.log('Politics channel found:', !!politicsChannel);
@@ -2070,8 +2086,8 @@ async function luposOnReadyReports(client, mongo) {
     }
     // DiscordUtilityService.printOutAllRoles(client);
     // DiscordUtilityService.printOutAllEmojis(client);
-    // DiscordUtilityService.displayAllChannelActivity(client, mongo)
-    await DiscordUtilityService.calculateMessagesSentOnAveragePerDayInChannel(client, config.CHANNEL_ID_POLITICS);
+    DiscordUtilityService.displayAllChannelActivity(client, mongo)
+    // await DiscordUtilityService.calculateMessagesSentOnAveragePerDayInChannel(client, config.CHANNEL_ID_POLITICS);
     UtilityLibrary.consoleLog('>');
 }
 
@@ -2084,6 +2100,10 @@ async function luposOnReadyCloneMessages(client, { localMongo }) {
     await DiscordUtilityService.fetchAndSaveAllServerMessages(client, localMongo, '609471635308937237');
 }
 
+async function luposOnReadyDeleteDuplicateMessages(client, { localMongo }) {
+    await DiscordUtilityService.deleteDuplicateMessagesByID(localMongo);
+}
+
 async function processMessage(client, { mongo, localMongo }, message, actionType) {
 
     const { slowBlink, bold, faint } = UtilityLibrary.ansiEscapeCodes(true);
@@ -2093,6 +2113,66 @@ async function processMessage(client, { mongo, localMongo }, message, actionType
     const isMessageWithoutSelfMention = !isDirectMessage && !message.mentions.has(client.user);
     const isMessageFromBot = message.author.bot;
     const isGuildWhitemane = message?.guildId === config.GUILD_ID_PRIMARY;
+    const isMentioningBot = isDirectMessage || message.mentions.has(client.user);
+
+    // const allowedUsers = [
+    //     "110985818159489024",  // exuu
+    //     "470691659320000514",  // kimpackabowl
+    //     "196691344859725824",  // grim
+    //     "793352645217615893",   // nikki
+    //     "166745313258897409",   // Rodrigo
+    //     "791136120472600646",   // adira
+    //     "1249923990026326107",  //papiputin9_92613
+    // ];
+
+    const disallowedGuilds = [
+        "1388329197260505262", // Grobbulus
+    ];
+
+    // if (disallowedGuilds.includes(message.guildId) && !allowedUsers.includes(message.author.id)) {
+    //     return;
+    // }
+    if (disallowedGuilds.includes(message.guildId)) {
+        return;
+    }
+
+    const disallowedUsers = [
+        "108079833283604480", // dementrius.
+        "150025324095209472", // borgrar
+    ]
+
+    if (disallowedUsers.includes(message.author.id)) {
+        return;
+    }
+
+    // Check for flagged words and ignore the message if found
+    if (!isSelfMessage && !isMessageFromBot && isMentioningBot && message.content && CensorService.containsFlaggedWords(message.content)) {
+        console.log(`⛔ [DiscordService:replyMessage] Message contains flagged words, ignoring.`);
+        try {
+            await message.reply("beep boop, no slurs, ya dumbass");
+        } catch (error) {
+            console.log('Error sending flagged words response:', error);
+        }
+        return;
+    }
+
+    // Check if replying to a message with flagged words
+    if (!isSelfMessage && !isMessageFromBot && isMentioningBot && message.reference) {
+        try {
+            const repliedMessage = await message.channel.messages.fetch(message.reference.messageId);
+            if (repliedMessage.content && CensorService.containsFlaggedWords(repliedMessage.content)) {
+                console.log(`⛔ [DiscordService:replyMessage] Replied message contains flagged words, ignoring.`);
+                try {
+                    await message.reply("beep boop, no slurs, ya dumbass");
+                } catch (error) {
+                    console.log('Error sending flagged words response:', error);
+                }
+                return;
+            }
+        } catch (error) {
+            console.log('Error fetching replied message:', error);
+        }
+    }
 
     try {
         if (!message.author.bot) {
@@ -2263,7 +2343,9 @@ URL: https://discord.com/channels/${message.guild?.id}/${message.channel.id}/${m
             const currentChannelId = queuedDatum.message.channel.id;
             await replyMessage(queuedDatum, localMongo);
             // R: If there are no more messages in the queue for this channel, clear the typing interval
-            if (!queuedData.some(q => q.message.channel.id === currentChannelId)) {
+            // R: We use the optional chaining operator (?.), but I believe it's not needed, as it was crashing, whenever the bot kept getting kicked from the server.
+            if (!queuedData.some(q => q.message?.channel?.id === currentChannelId)) {
+                // if (!queuedData.some(q => q.message.channel.id === currentChannelId)) {
                 // Clear typing for this specific channel only
                 if (typingIntervals[currentChannelId]) {
                     DiscordUtilityService.clearTypingInterval(typingIntervals[currentChannelId]);
@@ -2627,11 +2709,32 @@ async function luposOnGuildMemberAdd(client, mongo, member) {
     const functionName = 'luposOnGuildMemberAdd';
     if (member.guild.id !== config.GUILD_ID_PRIMARY) return;
     console.log(...LogFormatter.memberJoinedGuild(functionName, member));
+
+    // Assign politics mute role if user is in the muted list
+    if (config.USER_IDS_POLITICS_MUTED?.includes(member.id)) {
+        await DiscordUtilityService.addRoleToMember(member, config.ROLE_ID_POLITICS_MUTE);
+    }
 }
 
 // Whenever a member is updated
 async function luposOnGuildMemberUpdate(client, mongo, oldMember, newMember) {
     const functionName = 'luposOnGuildMemberUpdate';
+
+    // Revert bot nickname if changed in specific server
+    if (newMember.guild.id === '1388329197260505262' && newMember.id === client.user.id) {
+        const expectedNickname = 'Lupos';
+        // Only act if nickname changed AND is not the expected name
+        if (oldMember.nickname !== newMember.nickname && newMember.nickname !== expectedNickname) {
+            try {
+                await newMember.setNickname(expectedNickname);
+                console.log(`[${functionName}] Bot nickname was changed to "${newMember.nickname}", reverted to "${expectedNickname}"`);
+            } catch (error) {
+                console.error(`[${functionName}] Failed to revert bot nickname:`, error);
+            }
+        }
+    }
+
+    // console.log(...LogFormatter.memberUpdate(functionName, oldMember, newMember));
     if (oldMember.guild.id !== config.GUILD_ID_PRIMARY) return;
     // Whenever a user completes onboarding
     const hasOldMemberCompletedOnboarding = oldMember.flags & 1 << 1;
@@ -2659,6 +2762,7 @@ async function luposOnInteractionCreate(client, mongo, interaction) {
                 await interaction.reply({ content: `Removing <@&${roleId}>...`, flags: MessageFlags.Ephemeral });
                 await DiscordUtilityService.removeRoleFromMember(member, roleId);
                 // update reply message to say role removed
+                // I want to get the http response from the editReply call and log it
                 await interaction.editReply({ content: `Removed <@&${roleId}>!`, flags: MessageFlags.Ephemeral });
                 // wait 5 seconds before deleting the reply
                 await new Promise(resolve => setTimeout(resolve, 5000));
@@ -3054,6 +3158,17 @@ async function generateEmojiResponse(message, isReply = false) {
 }
 
 const DiscordService = {
+    // VENDER
+    async initializeBotVender() {
+        const venderClient = DiscordWrapper.createClient("vender", config.VENDER_TOKEN);
+        // Initialize MongoDB client
+        await MongoWrapper.createClient('local', config.LOCAL_DATABASE_URL);
+        const mongo = MongoWrapper.getClient('local');
+        DiscordUtilityService.onEventClientReady(venderClient, { mongo }, venderOnReady);
+        DiscordUtilityService.onEventMessageCreate(venderClient, { mongo }, venderOnMessageCreate);
+        DiscordUtilityService.onEventInteractionCreate(venderClient, mongo, venderOnInteractionCreate);
+    },
+    // LUPOS
     async initializeBotLupos() {
         const luposClient = DiscordWrapper.createClient("lupos", config.LUPOS_TOKEN);
         // Initialize MongoDB clients
@@ -3074,7 +3189,28 @@ const DiscordService = {
             DiscordUtilityService.onEventVoiceStateUpdate(luposClient, mongo, luposOnVoiceStateUpdate);
             DiscordUtilityService.onEventInteractionCreate(luposClient, mongo, luposOnInteractionCreate);
             DiscordUtilityService.onEventMessageDelete(luposClient, mongo, luposOnMessageDelete);
-        } else if (mode === "Messages") {
+
+            // I want to also edit this messageId: '1445112669265985718', in serverId: '609471635308937237', in channelId: '1400554512472866926' to say editted message
+            // and console.log the res.headers
+            // const channelId = '1400554512472866926';
+            // const messageId = '1445112669265985718';
+            // const serverId = '609471635308937237';
+            // const newContent = `editted message.`;
+            // fetch(`https://discord.com/api/v10/channels/${channelId}/messages/${messageId}`, {
+            //     method: 'PATCH',
+            //     headers: { 'Authorization': `Bot ${config.LUPOS_TOKEN}`, 'Content-Type': 'application/json' },
+            //     body: JSON.stringify({ content: newContent })
+            // })
+            // .then(res => {
+            //     console.log('Edit Message Status:', res.status);
+            //     console.log('\n=== Rate Limit Headers After Edit ===');
+            //     console.log('res.headers:', res.headers);
+            //     return res.json();
+            // })
+            // .then(data => console.log('\nEdited Message:', data.content))
+            // .catch(error => console.error('Error editing message:', error));
+
+        } else if (mode === "messages") {
             DiscordUtilityService.onEventMessageCreate(luposClient, { mongo, localMongo }, luposOnMessageCreate);
             console.log(...LogFormatter.readyToProcessMessages());
             DiscordUtilityService.onEventMessageUpdate(luposClient, { mongo, localMongo }, luposOnMessageUpdate);
@@ -3129,7 +3265,14 @@ const DiscordService = {
         const localMongo = MongoWrapper.getClient('local');
         DiscordUtilityService.onEventClientReady(luposClient, { localMongo }, luposOnReadyCloneMessages);
     },
-    initializeBotLuposReports(mongo) {
+    async deleteDuplicateMessages() {
+        const luposClient = DiscordWrapper.createClient("lupos", config.LUPOS_TOKEN);
+        await MongoWrapper.createClient('local', config.LOCAL_DATABASE_URL);
+        const localMongo = MongoWrapper.getClient('local');
+        DiscordUtilityService.onEventClientReady(luposClient, { localMongo }, luposOnReadyDeleteDuplicateMessages);
+    },
+    initializeBotLuposReports() {
+        const mongo = MongoWrapper.getClient('local');
         const luposClient = DiscordWrapper.createClient("lupos", config.LUPOS_TOKEN);
         DiscordUtilityService.onEventClientReady(luposClient, { mongo }, luposOnReadyReports);
     },

@@ -17,6 +17,13 @@ anthropicModelsMap.set('claude-sonnet-4-5-20250929', {
   intelligenceRank: 2,
   pricing: { input: 3, output: 15 },
 });
+// Haiku
+anthropicModelsMap.set('claude-haiku-4-5-20251001', {
+  type: 'ANTHROPIC',
+  name: 'claude-haiku-4-5-20251001',
+  intelligenceRank: 3,
+  pricing: { input: 0.80, output: 4 },
+});
 // Rodrigo: Older model
 anthropicModelsMap.set('claude-3-7-sonnet-20250219', {
   type: 'ANTHROPIC',

@@ -26,6 +26,8 @@ function main() {
         console.log(...LogFormatter.luposInitializing());
         if (mode === 'clone:messages') {
             DiscordService.cloneMessages();
+        } else if (mode === 'delete:duplicates') {
+            DiscordService.deleteDuplicateMessages();
         } else if (mode === 'reports') {
             DiscordService.initializeBotLuposReports();
         } else {

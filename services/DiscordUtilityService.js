@@ -617,10 +617,10 @@ const DiscordUtilityService = {
     async fetchAndSaveAllServerMessages(client, mongo, guildId, options = {}) {
         const {
             collectionName = 'Messages',
-            concurrencyLimit = 15,
+            concurrencyLimit = 10,
             resumePoints = null, // Array of { channelId, lastMessageId }
             batchSize = 100, // Number of messages to process in each bulk operation
-            dateLimit = null // e.g., '2020-06-15' or new Date(2020, 5, 15) - stops fetching when messages are older than this date
+            dateLimit = '2025-11-01' // e.g., '2020-06-15' or new Date(2020, 5, 15) - stops fetching when messages are older than this date
         } = options;
 
         console.log(`[START] Beginning message fetch for guild: ${guildId}`);
@@ -893,6 +893,52 @@ const DiscordUtilityService = {
             totalErrors,
         };
     },
+    async deleteDuplicateMessagesByID(mongo, collectionName = "Messages") {
+        const db = mongo.db("lupos");
+        const collection = db.collection(collectionName);
+
+        console.log('[START] Finding and deleting duplicate messages...');
+
+        // Find all duplicate IDs using aggregation
+        const duplicates = await collection.aggregate([
+            {
+                $group: {
+                    _id: "$id",
+                    count: { $sum: 1 },
+                    docs: { $push: "$_id" }
+                }
+            },
+            {
+                $match: {
+                    count: { $gt: 1 }
+                }
+            }
+        ]).toArray();
+
+        console.log(`[INFO] Found ${duplicates.length} message IDs with duplicates`);
+
+        let totalDeleted = 0;
+
+        for (const duplicate of duplicates) {
+            // Keep the first document, delete the rest
+            const docsToDelete = duplicate.docs.slice(1);
+
+            if (docsToDelete.length > 0) {
+                const result = await collection.deleteMany({
+                    _id: { $in: docsToDelete }
+                });
+                totalDeleted += result.deletedCount;
+                console.log(`[DELETE] Deleted ${result.deletedCount} duplicate(s) for message ID: ${duplicate._id}`);
+            }
+        }
+
+        console.log(`[COMPLETE] Total duplicates deleted: ${totalDeleted}`);
+
+        return {
+            duplicateIdsFound: duplicates.length,
+            totalDeleted: totalDeleted
+        };
+    },
     getUsernameNoSpaces(message) {
         let name = message?.author?.displayName || message?.author?.username || message?.user?.username;
         let username = 'default';
@@ -932,50 +978,51 @@ const DiscordUtilityService = {
             { upsert: false }
         );
     },
-    async extractAllAttachmentTypesFromMessage(message) {
-        const audioCollection = new Collection();
-        const imageCollection = new Collection();
-        const videoCollection = new Collection();
-        const applicationCollection = new Collection();
-        const textCollection = new Collection();
-        const fontCollection = new Collection();
-        const otherCollection = new Collection();
-        if (message?.attachments?.size) {
-            for (const attachment of message.attachments.values()) {
-                const isAudio = attachment.contentType.includes('audio/');
-                const isImage = attachment.contentType.includes('image/');
-                const isVideo = attachment.contentType.includes('video/');
-                const isApplication = attachment.contentType.includes('application/');
-                const isText = attachment.contentType.includes('text/');
-                const isFont = attachment.contentType.includes('font/');
-                const isOther = !isAudio && !isImage && !isVideo && !isApplication && !isText && !isFont;
-                if (isAudio) {
-                    audioCollection.set(attachment.id, attachment);
-                } else if (isImage) {
-                    imageCollection.set(attachment.id, attachment);
-                } else if (isVideo) {
-                    videoCollection.set(attachment.id, attachment);
-                } else if (isApplication) {
-                    applicationCollection.set(attachment.id, attachment);
-                } else if (isText) {
-                    textCollection.set(attachment.id, attachment);
-                } else if (isFont) {
-                    fontCollection.set(attachment.id, attachment);
-                } else if (isOther) {
-                    otherCollection.set(attachment.id, attachment);
-                }
-            }
-        }
-        return {
-            audioCollection,
-            imageCollection,
-            videoCollection,
-            applicationCollection,
-            textCollection,
-            fontCollection,
-            otherCollection,
-        };
-    },
+    // UNUSED FUNCTION
+    // async extractAllAttachmentTypesFromMessage(message) {
+    //     const audioCollection = new Collection();
+    //     const imageCollection = new Collection();
+    //     const videoCollection = new Collection();
+    //     const applicationCollection = new Collection();
+    //     const textCollection = new Collection();
+    //     const fontCollection = new Collection();
+    //     const otherCollection = new Collection();
+    //     if (message?.attachments?.size) {
+    //         for (const attachment of message.attachments.values()) {
+    //             const isAudio = attachment.contentType.includes('audio/');
+    //             const isImage = attachment.contentType.includes('image/');
+    //             const isVideo = attachment.contentType.includes('video/');
+    //             const isApplication = attachment.contentType.includes('application/');
+    //             const isText = attachment.contentType.includes('text/');
+    //             const isFont = attachment.contentType.includes('font/');
+    //             const isOther = !isAudio && !isImage && !isVideo && !isApplication && !isText && !isFont;
+    //             if (isAudio) {
+    //                 audioCollection.set(attachment.id, attachment);
+    //             } else if (isImage) {
+    //                 imageCollection.set(attachment.id, attachment);
+    //             } else if (isVideo) {
+    //                 videoCollection.set(attachment.id, attachment);
+    //             } else if (isApplication) {
+    //                 applicationCollection.set(attachment.id, attachment);
+    //             } else if (isText) {
+    //                 textCollection.set(attachment.id, attachment);
+    //             } else if (isFont) {
+    //                 fontCollection.set(attachment.id, attachment);
+    //             } else if (isOther) {
+    //                 otherCollection.set(attachment.id, attachment);
+    //             }
+    //         }
+    //     }
+    //     return {
+    //         audioCollection,
+    //         imageCollection,
+    //         videoCollection,
+    //         applicationCollection,
+    //         textCollection,
+    //         fontCollection,
+    //         otherCollection,
+    //     };
+    // },
     async extractAudioUrlsFromMessage(message) {
         let audioUrls = [];
         if (message?.attachments?.size) {
@@ -1452,24 +1499,27 @@ const DiscordUtilityService = {
         return returnedFirstMessage;
     },
     // Utility functions
-    async displayAllChannelActivity(client, mongo) {
+    async displayAllChannelActivity(client) {
+        const MONTHS_TO_ANALYZE = 36;
+        const CONCURRENT_CHANNELS = 10; // Number of channels to process simultaneously
+        const periodText = MONTHS_TO_ANALYZE === 1 ? '1 month' : `${MONTHS_TO_ANALYZE} months`;
+
         const startTime = Date.now();
-        consoleLog('>', 'Displaying all channel activity (past 3 months)');
-        const db = mongo.db("lupos");
-        const collection = db.collection("Messages");
+        consoleLog('>', `Displaying all channel activity (past ${periodText})`);
         console.log('[START] Beginning channel activity analysis...');
         console.log(`[START] Started at: ${new Date(startTime).toISOString()}`);
+        console.log(`[CONFIG] Processing ${CONCURRENT_CHANNELS} channels concurrently`);
 
-        const guild = client.guilds.cache.find(guild => guild.name === 'Classic Whitemane');
+        const guild = client.guilds.cache.get(config.GUILD_ID_PRIMARY);
         console.log(`[GUILD] Found guild: ${guild.name} with ${guild.channels.cache.size} total channels`);
 
         const excludedCategories = [
-            'Archived',
-            'Archived02',
-            'Archived: First Purge',
-            'Archived: SOD',
-            'Archived: Alliance',
-            'Archived: WoW Classes',
+            // 'Archived',
+            // 'Archived02',
+            // 'Archived: First Purge',
+            // 'Archived: SOD',
+            // 'Archived: Alliance',
+            // 'Archived: WoW Classes',
             '⚒ Administration',
             'Info',
             'Welcome',
@@ -1478,478 +1528,274 @@ const DiscordUtilityService = {
 
         const excludedChannels = [
             '609498307626008576',
+            '762734438375096380', // politics
+            '844637988159356968' // sportsmane
         ];
 
         console.log(`[FILTER] Excluding categories: ${excludedCategories.join(', ')}`);
         console.log(`[FILTER] Excluding ${excludedChannels.length} specific channels`);
 
         const channelStats = [];
-        const globalUserStats = {}; // Track all users across all channels
+        const globalUserStats = {};
         const now = DateTime.local();
-        const threeMonthsAgo = now.minus({ months: 12 });
+        const cutoffDate = now.minus({ months: MONTHS_TO_ANALYZE });
         console.log(`[TIME] Current time: ${now.toISO()}`);
-        console.log(`[TIME] Three months ago: ${threeMonthsAgo.toISO()}`);
+        console.log(`[TIME] Cutoff date (${periodText} ago): ${cutoffDate.toISO()}`);
 
-        // Count eligible channels
-        let eligibleChannelCount = 0;
         let processedChannelCount = 0;
         let totalFetchCount = 0;
 
+        // Collect all eligible channels first
+        const eligibleChannels = [];
         for (const channel of guild.channels.cache.values()) {
             if (channel.type === ChannelType.GuildText &&
                 channel.parent &&
                 !excludedCategories.includes(channel.parent.name) &&
                 !excludedChannels.includes(channel.id)) {
-                eligibleChannelCount++;
+                eligibleChannels.push(channel);
             }
         }
+
+        const eligibleChannelCount = eligibleChannels.length;
         console.log(`[CHANNELS] Found ${eligibleChannelCount} eligible text channels to process`);
         console.log('----------------------------------------');
 
-        // Collect channel statistics
-        for (const channel of guild.channels.cache.values()) {
-            if (channel.type === ChannelType.GuildText &&
-                channel.parent &&
-                !excludedCategories.includes(channel.parent.name) &&
-                !excludedChannels.includes(channel.id)) {
+        // Function to process a single channel
+        const processChannel = async (channel, channelIndex) => {
+            const logPrefix = `[CH ${channelIndex}/${eligibleChannelCount}]`;
+            console.log(`\n${logPrefix} Processing: #${channel.name} (Category: ${channel.parent.name})`);
+
+            try {
+                let allMessages = [];
+                let lastMessageId = null;
+                let fetchMore = true;
+                let fetchCount = 0;
+                let channelFetchCount = 0;
+                let consecutiveDuplicates = 0;
+                let previousOldestId = null;
+
+                console.log(`  ${logPrefix} [FETCH] Starting message fetch for #${channel.name}...`);
+
+                while (fetchMore) {
+                    fetchCount++;
+                    channelFetchCount++;
+                    totalFetchCount++;
+
+                    console.log(`  ${logPrefix} [FETCH] Fetching batch ${fetchCount}...`);
+
+                    const messages = await fetchMessagesWithOptionalLastId(
+                        client,
+                        channel.id,
+                        100,
+                        lastMessageId ? lastMessageId : undefined
+                    );
+
+                    const messagesArray = Array.from(messages.values());
+
+                    if (messagesArray.length === 0) {
+                        console.log(`  ${logPrefix} [FETCH] No messages found, stopping fetch`);
+                        fetchMore = false;
+                        break;
+                    }
+
+                    const oldestMessage = messagesArray[messagesArray.length - 1];
+                    const oldestMessageDateTime = DateTime.fromMillis(oldestMessage.createdTimestamp);
+                    const newestMessage = messagesArray[0];
+                    const newestMessageDateTime = DateTime.fromMillis(newestMessage.createdTimestamp);
+
+                    if (previousOldestId === oldestMessage.id) {
+                        consecutiveDuplicates++;
+                        console.log(`  ${logPrefix} [FETCH] WARNING: Got same oldest message ID as previous batch (duplicate #${consecutiveDuplicates})`);
+                        if (consecutiveDuplicates >= 3) {
+                            console.log(`  ${logPrefix} [FETCH] ERROR: Too many duplicate batches, stopping to prevent infinite loop`);
+                            fetchMore = false;
+                            break;
+                        }
+                    } else {
+                        consecutiveDuplicates = 0;
+                        previousOldestId = oldestMessage.id;
+                    }
+
+                    const newMessages = messagesArray.filter(msg =>
+                        !allMessages.some(existingMsg => existingMsg.id === msg.id)
+                    );
+
+                    if (newMessages.length === 0) {
+                        console.log(`  ${logPrefix} [FETCH] All messages in this batch are duplicates, stopping`);
+                        fetchMore = false;
+                        break;
+                    }
+
+                    allMessages = allMessages.concat(newMessages);
+
+                    console.log(`  ${logPrefix} [FETCH] Batch ${fetchCount}: ${messagesArray.length} messages (${newMessages.length} new)`);
+                    console.log(`  ${logPrefix} [FETCH] Date range: ${newestMessageDateTime.toFormat('yyyy-MM-dd HH:mm:ss')} to ${oldestMessageDateTime.toFormat('yyyy-MM-dd HH:mm:ss')}`);
+                    console.log(`  ${logPrefix} [FETCH] Oldest message ID: ${oldestMessage.id}`);
+
+                    if (oldestMessageDateTime < cutoffDate) {
+                        console.log(`  ${logPrefix} [FETCH] Reached messages older than ${periodText} (${oldestMessageDateTime.toFormat('yyyy-MM-dd')} < ${cutoffDate.toFormat('yyyy-MM-dd')})`);
+                        fetchMore = false;
+                        break;
+                    }
+
+                    if (messagesArray.length < 100) {
+                        console.log(`  ${logPrefix} [FETCH] Retrieved only ${messagesArray.length} messages, channel history exhausted`);
+                        fetchMore = false;
+                        break;
+                    }
+
+                    lastMessageId = oldestMessage.id;
+
+                    console.log(`  ${logPrefix} [FETCH] Total unique messages collected: ${allMessages.length}`);
+                    console.log(`  ${logPrefix} [FETCH] Next fetch will use before: ${lastMessageId}`);
+
+                    await new Promise(resolve => setTimeout(resolve, 100));
+                }
+
+                console.log(`  ${logPrefix} [FETCH] Total fetches for this channel: ${channelFetchCount}`);
+                console.log(`  ${logPrefix} [PROCESS] Filtering messages from the last ${periodText}...`);
+
+                const messagesInPeriod = allMessages.filter(
+                    message => DateTime.fromMillis(message.createdTimestamp) > cutoffDate
+                );
+                console.log(`  ${logPrefix} [PROCESS] Found ${messagesInPeriod.length} messages in the last ${periodText} (out of ${allMessages.length} total fetched)`);
+
+                const userMessageCount = {};
+                const localUserStats = {}; // Collect locally first to avoid race conditions
+
+                messagesInPeriod.forEach(message => {
+                    const userId = message.author.id;
+                    const username = message.author.username;
+                    if (!userMessageCount[userId]) {
+                        userMessageCount[userId] = {
+                            username: username,
+                            count: 0
+                        };
+                    }
+                    userMessageCount[userId].count++;
+
+                    if (!localUserStats[userId]) {
+                        localUserStats[userId] = {
+                            username: username,
+                            totalMessages: 0,
+                            channels: new Set()
+                        };
+                    }
+                    localUserStats[userId].totalMessages++;
+                    localUserStats[userId].channels.add(channel.name);
+                });
+
+                const uniqueUserCount = Object.keys(userMessageCount).length;
+                console.log(`  ${logPrefix} [USERS] Found ${uniqueUserCount} unique users in the last ${periodText}`);
+
+                const sortedUsers = Object.entries(userMessageCount)
+                    .sort((a, b) => b[1].count - a[1].count)
+                    .slice(0, 20)
+                    .map(([userId, data]) => ({
+                        username: data.username,
+                        count: data.count
+                    }));
+
+                if (sortedUsers.length > 0) {
+                    console.log(`  ${logPrefix} [TOP USERS] Top contributors:`);
+                    sortedUsers.forEach((user, index) => {
+                        console.log(`    ${index + 1}. ${user.username}: ${user.count} messages`);
+                    });
+                }
+
+                let averageMessagesPerDay = 0;
+                let lastMessageDate = null;
+
+                if (messagesInPeriod.length > 0) {
+                    const oldestRecentMessage = messagesInPeriod[messagesInPeriod.length - 1];
+                    const newestMessage = messagesInPeriod[0];
+                    const oldestDateTime = DateTime.fromMillis(oldestRecentMessage.createdTimestamp);
+                    const newestDateTime = DateTime.fromMillis(newestMessage.createdTimestamp);
+                    const daySpan = Math.max(1, newestDateTime.diff(oldestDateTime, 'days').days);
+
+                    averageMessagesPerDay = messagesInPeriod.length / daySpan;
+                    lastMessageDate = newestDateTime;
+
+                    console.log(`  ${logPrefix} [METRICS] Message span: ${daySpan.toFixed(1)} days`);
+                    console.log(`  ${logPrefix} [METRICS] Average messages/day: ${averageMessagesPerDay.toFixed(2)}`);
+                    console.log(`  ${logPrefix} [METRICS] Last message: ${lastMessageDate.toFormat('yyyy-MM-dd HH:mm')}`);
+                } else {
+                    console.log(`  ${logPrefix} [METRICS] No messages in the last ${periodText}`);
+                }
 
                 processedChannelCount++;
-                console.log(`\n[CHANNEL ${processedChannelCount}/${eligibleChannelCount}] Processing: #${channel.name} (Category: ${channel.parent.name})`);
+                console.log(`  ${logPrefix} [COMPLETE] Successfully processed #${channel.name} (${processedChannelCount}/${eligibleChannelCount} done)`);
 
-                try {
-                    // Fetch messages to cover 3 months
-                    let allMessages = [];
-                    let lastMessageId = null;
-                    let fetchMore = true;
-                    let fetchCount = 0;
-                    let channelFetchCount = 0;
-                    let consecutiveDuplicates = 0; // Track if we're getting the same batch
-                    let previousOldestId = null;
-
-                    console.log(`  [FETCH] Starting message fetch for #${channel.name}...`);
-
-                    while (fetchMore) {
-                        fetchCount++;
-                        channelFetchCount++;
-                        totalFetchCount++;
-
-                        console.log(`  [FETCH] Fetching batch ${fetchCount}...`);
-
-                        // Fetch one batch at a time
-                        const messages = await fetchMessagesWithOptionalLastId(
-                            client,
-                            channel.id,
-                            100,
-                            lastMessageId ? lastMessageId : undefined
-                        );
-
-                        const messagesArray = Array.from(messages.values());
-
-                        if (messagesArray.length === 0) {
-                            console.log(`  [FETCH] No messages found, stopping fetch`);
-                            fetchMore = false;
-                            break;
-                        }
-
-                        // Transform messages to plain objects before inserting
-                        const messagesToInsert = messagesArray.map(message => ({
-                            // MessageActivity | null
-                            activity: message.activity,
-                            // Snowflake | null
-                            applicationId: message.applicationId,
-                            attachments: message.attachments.map(attachment => transformAttachment(attachment)),
-                            author: transformUser(message.author),
-                            // boolean
-                            bulkDeletable: message.bulkDeletable,
-                            // MessageCall | null
-                            call: message.call,
-                            channel: transformTextChannel(message.channel, true),
-                            // Snowflake
-                            channelId: message.channelId,
-                            // string
-                            cleanContent: message.cleanContent,
-                            // TopLevelComponent[]
-                            components: message.components,
-                            // string
-                            content: message.content,
-                            // Date
-                            createdAt: message.createdAt,
-                            // number
-                            createdTimestamp: message.createdTimestamp,
-                            // boolean
-                            crosspostable: message.crosspostable,
-                            // boolean
-                            deletable: message.deletable,
-                            // boolean
-                            editable: message.editable,
-                            // Date | null
-                            editedAt: message.editedAt,
-                            // number | null
-                            editedTimestamp: message.editedTimestamp,
-                            embeds: transformEmbeds(message.embeds),
-                            // Readonly<MessageFlagsBitField>
-                            flags: message.flags,
-                            // ClientApplication | null
-                            groupActivityApplication: message.groupActivityApplication,
-                            // guild: transformGuild(message.guild, true, true),
-                            // If<InGuild, Snowflake>
-                            guildId: message.guildId,
-                            // boolean
-                            hasThread: message.hasThread,
-                            // Snowflake
-                            id: message.id,
-                            // ! MISSING FROM DOCUMENTATION
-                            interaction: message.interaction,
-                            // MessageInteractionMetadata | null
-                            interactionMetadata: message.interactionMetadata,
-                            // GuildMember | null
-                            member: message.member ? {
-                                avatar: message.member.avatar,
-                                avatarDecorationData: message.member.avatarDecorationData,
-                                bannable: message.member.bannable,
-                                banner: message.member.banner,
-                                communicationDisabledUntil: message.member.communicationDisabledUntil,
-                                communicationDisabledUntilTimestamp: message.member.communicationDisabledUntilTimestamp,
-                                displayColor: message.member.displayColor,
-                                displayHexColor: message.member.displayHexColor,
-                                displayName: message.member.displayName,
-                                flags: message.member.flags,
-                                guild: {
-                                    id: message.member.guild.id,
-                                    name: message.member.guild.name
-                                },
-                                id: message.member.id,
-                                joinedAt: message.member.joinedAt,
-                                joinedTimestamp: message.member.joinedTimestamp,
-                                kickable: message.member.kickable,
-                                manageable: message.member.manageable,
-                                moderatable: message.member.moderatable,
-                                nickname: message.member.nickname,
-                                partial: message.member.partial,
-                                pending: message.member.pending,
-                                permissions: message.member.permissions.toArray(),
-                                premiumSince: message.member.premiumSince,
-                                premiumSinceTimestamp: message.member.premiumSinceTimestamp,
-                                presence: message.member.presence ? {
-                                    activities: message.member.presence.activities.map(activity => ({
-                                        name: activity.name,
-                                        state: activity.state,
-                                        type: activity.type,
-                                        url: activity.url
-                                    })),
-                                    clientStatus: message.member.presence.clientStatus,
-                                    guild: {
-                                        id: message.member.presence.guild.id,
-                                        name: message.member.presence.guild.name
-                                    },
-                                    member: {
-                                        id: message.member.presence.member.id,
-                                        nickname: message.member.presence.member.nickname
-                                    },
-                                    status: message.member.presence.status,
-                                    user: {
-                                        id: message.member.presence.user.id,
-                                        username: message.member.presence.user.username
-                                    },
-                                    userId: message.member.presence.userId,
-                                } : null,
-                                roles: message.member.roles.cache.map(role => ({
-                                    id: role.id,
-                                    name: role.name
-                                })),
-                                user: {
-                                    id: message.member.user.id,
-                                    username: message.member.user.username
-                                },
-                                voice: message.member.voice ? {
-                                    channel: {
-                                        id: message.member.voice.channel.id,
-                                        name: message.member.voice.channel.name
-                                    },
-                                    channelId: message.member.voice.channelId,
-                                    deaf: message.member.voice.deaf,
-                                    guild: {
-                                        id: message.member.voice.guild.id,
-                                        name: message.member.voice.guild.name
-                                    },
-                                    mute: message.member.voice.mute,
-                                    requestToSpeakTimestamp: message.member.voice.requestToSpeakTimestamp,
-                                    selfDeaf: message.member.voice.selfDeaf,
-                                    selfMute: message.member.voice.selfMute,
-                                    selfVideo: message.member.voice.selfVideo,
-                                    serverDeaf: message.member.voice.serverDeaf,
-                                    serverMute: message.member.voice.serverMute,
-                                    sessionId: message.member.voice.sessionId,
-                                    streaming: message.member.voice.streaming,
-                                    suppress: message.member.voice.suppress,
-                                } : null,
-                            } : null,
-                            mentions: transformMessageMentions(message.mentions),
-                            // Collection<Snowflake, MessageSnapshot>
-                            messageSnapshots: message.messageSnapshots?.map(snapshot => ({
-                                id: snapshot.id,
-                                content: snapshot.content,
-                                createdAt: snapshot.createdAt,
-                                editedAt: snapshot.editedAt,
-                            })),
-                            // number | string | null
-                            nonce: message.nonce,
-                            // false
-                            partial: message.partial,
-                            // boolean
-                            pinnable: message.pinnable,
-                            // boolean
-                            pinned: message.pinned,
-                            // Poll | null
-                            poll: message.poll ? {
-                                id: message.poll.id,
-                            } : null,
-                            // number | null
-                            position: message.position,
-                            // ReactionManager
-                            reactions: message.reactions.cache.map(reaction => ({
-                                // burstColors: reaction.burstColors,
-                                // clientId: reaction.clientId,
-                                count: reaction.count,
-                                countDetails: {
-                                    burst: reaction.countDetails.burst,
-                                    normal: reaction.countDetails.normal
-                                },
-                                emoji: {
-                                    animated: reaction.emoji.animated,
-                                    createdAt: reaction.emoji.createdAt,
-                                    createdTimestamp: reaction.emoji.createdTimestamp,
-                                    id: reaction.emoji.id,
-                                    identifier: reaction.emoji.identifier,
-                                    name: reaction.emoji.name,
-                                    // reaction: reaction.emoji.reaction // circular reference
-                                    url: reaction.emoji.url(),
-                                },
-                                // me: reaction.me,
-                                // meBurst: reaction.meBurst,
-                                // message: reaction.message // circular reference
-                                // partial: reaction.partial,
-                                users: reaction.users.cache.map(user => ({
-                                    // accentColor: user.accentColor,
-                                    // avatar: user.avatar,
-                                    // avatarDecoration: user.avatarDecoration,
-                                    // avatarDecorationData: user.avatarDecorationData,
-                                    // banner: user.banner,
-                                    // bot: user.bot,
-                                    // createdAt: user.createdAt,
-                                    // createdTimestamp: user.createdTimestamp,
-                                    // defaultAvatarURL: user.defaultAvatarURL,
-                                    // discriminator: user.discriminator,
-                                    displayName: user.displayName,
-                                    // dmChannel: user.dmChannel,
-                                    // flags: user.flags,
-                                    globalName: user.globalName,
-                                    // hexAccentColor: user.hexAccentColor,
-                                    id: user.id,
-                                    // partial: user.partial,
-                                    // system: user.system,
-                                    tag: user.tag,
-                                    username: user.username,
-                                })),
-                            })),
-                            // MessageReference | null
-                            reference: message.reference,
-                            // CommandInteractionResolvedData | null
-                            resolved: message.resolved,
-                            roleSubscriptionData: message.roleSubscriptionData ? {
-                                id: message.roleSubscriptionData.id,
-                            } : null,
-                            stickers: message.stickers?.map(sticker => ({
-                                id: sticker.id,
-                                name: sticker.name,
-                                url: sticker.url,
-                            })),
-                            system: message.system,
-                            thread: message.thread,
-                            tts: message.tts,
-                            type: message.type,
-                            url: message.url,
-                            webhookId: message.webhookId,
-                        }));
-
-                        try {
-                            await collection.insertMany(messagesToInsert);
-                            console.log(`  [FETCH] Inserted ${messagesToInsert.length} messages into database`);
-                        } catch (insertError) {
-                            // Handle duplicate key errors gracefully (if you have unique indexes)
-                            if (insertError.code === 11000) {
-                                console.log(`  [FETCH] Some messages already exist in database, skipping duplicates`);
-                            } else {
-                                console.error(`  [FETCH] Error inserting messages:`, insertError.message);
-                            }
-                        }
-
-                        // 
-                        console.log(`  [FETCH] Inserted ${messagesArray.length} messages into database`);
-
-                        // Get the oldest message in this batch BEFORE adding to allMessages
-                        const oldestMessage = messagesArray[messagesArray.length - 1];
-                        const oldestMessageDateTime = DateTime.fromMillis(oldestMessage.createdTimestamp);
-                        const newestMessage = messagesArray[0];
-                        const newestMessageDateTime = DateTime.fromMillis(newestMessage.createdTimestamp);
-
-                        // Check if we're getting duplicate batches
-                        if (previousOldestId === oldestMessage.id) {
-                            consecutiveDuplicates++;
-                            console.log(`  [FETCH] WARNING: Got same oldest message ID as previous batch (duplicate #${consecutiveDuplicates})`);
-                            if (consecutiveDuplicates >= 3) {
-                                console.log(`  [FETCH] ERROR: Too many duplicate batches, stopping to prevent infinite loop`);
-                                fetchMore = false;
-                                break;
-                            }
-                        } else {
-                            consecutiveDuplicates = 0;
-                            previousOldestId = oldestMessage.id;
-                        }
-
-                        // Only add messages if they're not duplicates
-                        const newMessages = messagesArray.filter(msg =>
-                            !allMessages.some(existingMsg => existingMsg.id === msg.id)
-                        );
-
-                        if (newMessages.length === 0) {
-                            console.log(`  [FETCH] All messages in this batch are duplicates, stopping`);
-                            fetchMore = false;
-                            break;
-                        }
-
-                        allMessages = allMessages.concat(newMessages);
-
-                        console.log(`  [FETCH] Batch ${fetchCount}: ${messagesArray.length} messages (${newMessages.length} new)`);
-                        console.log(`  [FETCH] Date range: ${newestMessageDateTime.toFormat('yyyy-MM-dd HH:mm:ss')} to ${oldestMessageDateTime.toFormat('yyyy-MM-dd HH:mm:ss')}`);
-                        console.log(`  [FETCH] Oldest message ID: ${oldestMessage.id}`);
-
-                        // Check if we've gone past 3 months
-                        if (oldestMessageDateTime < threeMonthsAgo) {
-                            console.log(`  [FETCH] Reached messages older than 3 months (${oldestMessageDateTime.toFormat('yyyy-MM-dd')} < ${threeMonthsAgo.toFormat('yyyy-MM-dd')})`);
-                            fetchMore = false;
-                            break;
-                        }
-
-                        // Check if we've exhausted the channel
-                        if (messagesArray.length < 100) {
-                            console.log(`  [FETCH] Retrieved only ${messagesArray.length} messages, channel history exhausted`);
-                            fetchMore = false;
-                            break;
-                        }
-
-                        // IMPORTANT: Update lastMessageId for the next fetch
-                        lastMessageId = oldestMessage.id;
-
-                        console.log(`  [FETCH] Total unique messages collected: ${allMessages.length}`);
-                        console.log(`  [FETCH] Next fetch will use before: ${lastMessageId}`);
-
-                        // Add a small delay to avoid rate limiting
-                        await new Promise(resolve => setTimeout(resolve, 100));
-                    }
-
-                    console.log(`  [FETCH] Total fetches for this channel: ${channelFetchCount}`);
-                    console.log(`  [PROCESS] Filtering messages from the last 3 months...`);
-
-                    // Filter messages from the last 3 months
-                    const messagesInLastThreeMonths = allMessages.filter(
-                        message => DateTime.fromMillis(message.createdTimestamp) > threeMonthsAgo
-                    );
-                    console.log(`  [PROCESS] Found ${messagesInLastThreeMonths.length} messages in the last 3 months (out of ${allMessages.length} total fetched)`);
-
-                    // Calculate user statistics
-                    const userMessageCount = {};
-                    messagesInLastThreeMonths.forEach(message => {
-                        const userId = message.author.id;
-                        const username = message.author.username;
-                        if (!userMessageCount[userId]) {
-                            userMessageCount[userId] = {
-                                username: username,
-                                count: 0
-                            };
-                        }
-                        userMessageCount[userId].count++;
-
-                        // Add to global user stats
-                        if (!globalUserStats[userId]) {
-                            globalUserStats[userId] = {
-                                username: username,
-                                totalMessages: 0,
-                                channels: new Set()
-                            };
-                        }
-                        globalUserStats[userId].totalMessages++;
-                        globalUserStats[userId].channels.add(channel.name);
-                    });
-
-                    const uniqueUserCount = Object.keys(userMessageCount).length;
-                    console.log(`  [USERS] Found ${uniqueUserCount} unique users in the last 3 months`);
-
-                    // Get top 3 users
-                    const sortedUsers = Object.entries(userMessageCount)
-                        .sort((a, b) => b[1].count - a[1].count)
-                        .slice(0, 20)
-                        .map(([userId, data]) => ({
-                            username: data.username,
-                            count: data.count
-                        }));
-
-                    if (sortedUsers.length > 0) {
-                        console.log(`  [TOP USERS] Top contributors:`);
-                        sortedUsers.forEach((user, index) => {
-                            console.log(`    ${index + 1}. ${user.username}: ${user.count} messages`);
-                        });
-                    }
-
-                    // Calculate additional metrics
-                    let averageMessagesPerDay = 0;
-                    let lastMessageDate = null;
-
-                    if (messagesInLastThreeMonths.length > 0) {
-                        // Calculate days span for accurate average
-                        const oldestRecentMessage = messagesInLastThreeMonths[messagesInLastThreeMonths.length - 1];
-                        const newestMessage = messagesInLastThreeMonths[0];
-                        const oldestDateTime = DateTime.fromMillis(oldestRecentMessage.createdTimestamp);
-                        const newestDateTime = DateTime.fromMillis(newestMessage.createdTimestamp);
-                        const daySpan = Math.max(1, newestDateTime.diff(oldestDateTime, 'days').days);
-
-                        averageMessagesPerDay = messagesInLastThreeMonths.length / daySpan;
-                        lastMessageDate = newestDateTime;
-
-                        console.log(`  [METRICS] Message span: ${daySpan.toFixed(1)} days`);
-                        console.log(`  [METRICS] Average messages/day: ${averageMessagesPerDay.toFixed(2)}`);
-                        console.log(`  [METRICS] Last message: ${lastMessageDate.toFormat('yyyy-MM-dd HH:mm')}`);
-                    } else {
-                        console.log(`  [METRICS] No messages in the last 3 months`);
-                    }
-
-                    channelStats.push({
+                return {
+                    channelStat: {
                         channel: channel,
-                        messageCount: messagesInLastThreeMonths.length,
+                        messageCount: messagesInPeriod.length,
                         uniqueUsers: uniqueUserCount,
                         topUsers: sortedUsers,
                         averageMessagesPerDay: averageMessagesPerDay,
                         lastMessageDate: lastMessageDate,
                         categoryName: channel.parent ? channel.parent.name : 'No Category'
-                    });
+                    },
+                    localUserStats: localUserStats
+                };
 
-                    console.log(`  [COMPLETE] Successfully processed #${channel.name}`);
+            } catch (error) {
+                console.error(`  ${logPrefix} [ERROR] Failed to fetch messages for channel ${channel.name}:`, error.message);
+                console.error(`  ${logPrefix} [ERROR] Stack trace:`, error.stack);
+                processedChannelCount++;
+                return null;
+            }
+        };
 
-                } catch (error) {
-                    console.error(`  [ERROR] Failed to fetch messages for channel ${channel.name}:`, error.message);
-                    console.error(`  [ERROR] Stack trace:`, error.stack);
+        // Process channels in batches with concurrency limit
+        const results = [];
+        for (let i = 0; i < eligibleChannels.length; i += CONCURRENT_CHANNELS) {
+            const batch = eligibleChannels.slice(i, i + CONCURRENT_CHANNELS);
+            const batchNumber = Math.floor(i / CONCURRENT_CHANNELS) + 1;
+            const totalBatches = Math.ceil(eligibleChannels.length / CONCURRENT_CHANNELS);
+
+            console.log(`\n========================================`);
+            console.log(`[BATCH ${batchNumber}/${totalBatches}] Processing ${batch.length} channels concurrently...`);
+            console.log(`========================================`);
+
+            const batchPromises = batch.map((channel, batchIndex) =>
+                processChannel(channel, i + batchIndex + 1)
+            );
+
+            const batchResults = await Promise.all(batchPromises);
+            results.push(...batchResults);
+
+            console.log(`\n[BATCH ${batchNumber}/${totalBatches}] Completed`);
+        }
+
+        // Merge results
+        for (const result of results) {
+            if (result) {
+                channelStats.push(result.channelStat);
+
+                // Merge local user stats into global
+                for (const [userId, data] of Object.entries(result.localUserStats)) {
+                    if (!globalUserStats[userId]) {
+                        globalUserStats[userId] = {
+                            username: data.username,
+                            totalMessages: 0,
+                            channels: new Set()
+                        };
+                    }
+                    globalUserStats[userId].totalMessages += data.totalMessages;
+                    for (const channelName of data.channels) {
+                        globalUserStats[userId].channels.add(channelName);
+                    }
                 }
             }
         }
 
         console.log('\n----------------------------------------');
         console.log('[SORT] Sorting channels by average messages per day...');
-        // Sort channels by average messages per day (descending)
         channelStats.sort((a, b) => b.averageMessagesPerDay - a.averageMessagesPerDay);
         console.log('[SORT] Sorting complete (by average messages/day)');
 
-        // Display results
-        console.log('\n=== Channel Activity Report (Past 3 Months) ===');
+        console.log(`\n=== Channel Activity Report (Past ${periodText}) ===`);
         console.log('=== Sorted by Average Messages Per Day ===\n');
         console.log('Rank | Avg/Day | Messages | Users | Days Ago | Category            | Channel Name         | Top 3 Users');
         console.log('-----|---------|----------|-------|----------|---------------------|----------------------|-------------');
@@ -1971,10 +1817,10 @@ const DiscordUtilityService = {
             const category = stat.categoryName.substring(0, 20).padEnd(20, ' ');
             const channelName = stat.channel.name.substring(0, 20).padEnd(20, ' ');
 
-            // Format top 3 users
             let topUsersStr = '';
             if (stat.topUsers.length > 0) {
                 topUsersStr = stat.topUsers
+                    .slice(0, 3)
                     .map((user, idx) => `${idx + 1}. ${user.username} (${user.count})`)
                     .join(', ');
             } else {
@@ -1984,16 +1830,13 @@ const DiscordUtilityService = {
             console.log(`${rank} | ${avgPerDay} | ${messageCount} | ${uniqueUsers} | ${daysSinceLastMessage} | ${category} | ${channelName} | ${topUsersStr}`);
         });
 
-        // Summary statistics
         const totalMessages = channelStats.reduce((sum, stat) => sum + stat.messageCount, 0);
         const activeChannels = channelStats.filter(stat => stat.messageCount > 0).length;
         const inactiveChannels = channelStats.filter(stat => stat.messageCount === 0).length;
         const totalUniqueUsers = Object.keys(globalUserStats).length;
 
-        // Find the most active channel by average messages per day
         const mostActiveByAverage = channelStats[0];
 
-        // Get top 10 users across all channels
         const topTenUsers = Object.entries(globalUserStats)
             .sort((a, b) => b[1].totalMessages - a[1].totalMessages)
             .slice(0, 10)
@@ -2008,7 +1851,7 @@ const DiscordUtilityService = {
         const totalTimeMinutes = (totalTimeSeconds / 60).toFixed(2);
 
         console.log('\n=== Summary ===');
-        console.log(`[SUMMARY] Total messages (3 months): ${totalMessages}`);
+        console.log(`[SUMMARY] Total messages (${periodText}): ${totalMessages}`);
         console.log(`[SUMMARY] Active channels: ${activeChannels}`);
         console.log(`[SUMMARY] Inactive channels: ${inactiveChannels}`);
         console.log(`[SUMMARY] Most active channel (by avg/day): ${mostActiveByAverage?.channel.name || 'N/A'} (${mostActiveByAverage?.averageMessagesPerDay.toFixed(2) || 0} messages/day)`);
@@ -2016,11 +1859,11 @@ const DiscordUtilityService = {
         console.log(`[SUMMARY] Total API fetches made: ${totalFetchCount}`);
         console.log(`[SUMMARY] Average fetches per channel: ${(totalFetchCount / processedChannelCount).toFixed(2)}`);
         console.log(`[SUMMARY] Total unique users across all channels: ${totalUniqueUsers}`);
+        console.log(`[SUMMARY] Concurrent channels setting: ${CONCURRENT_CHANNELS}`);
         console.log(`[SUMMARY] Total execution time: ${totalTimeSeconds} seconds (${totalTimeMinutes} minutes)`);
         console.log(`[SUMMARY] Completed at: ${new Date(endTime).toISOString()}`);
 
-        // Display top 10 users
-        console.log('\n=== Top 10 Most Active Users (Past 3 Months) ===');
+        console.log(`\n=== Top 10 Most Active Users (Past ${periodText}) ===`);
         console.log('Rank | Username                | Total Messages | Active Channels');
         console.log('-----|-------------------------|----------------|----------------');
 

@@ -78,6 +78,11 @@ module.exports = {
             }
         }
 
+        // Fetch stats for the initiator (and target if present)
+        const guildId = interaction.guild.id;
+        const initiatorStats = await fetchSinglePlayerStats(guildId, userId);
+        const targetStats = targetUser ? await fetchSinglePlayerStats(guildId, targetUser.id) : null;
+
         // Create buttons - use target's displayName if they exist, otherwise show generic message
         const buttonLabel = targetUser && targetMember
             ? `Accept Deathroll ${targetMember.displayName} (0-${startingNumber})`
@@ -98,10 +103,12 @@ module.exports = {
         const row = new ActionRowBuilder()
             .addComponents(engageButton, declineButton);
 
-        let content = `🎲 <@${interaction.user.id}> has started a deathroll from **${startingNumber}**!\n\n`;
+        const initiatorRecord = formatStatsString(initiatorStats);
+        let content = `🎲 <@${interaction.user.id}>${initiatorRecord} has started a deathroll from **${startingNumber}**!\n\n`;
 
         if (targetUser) {
-            content += `<@${targetUser.id}>, you have been challenged!\n` +
+            const targetRecord = formatStatsString(targetStats);
+            content += `<@${targetUser.id}>${targetRecord}, you have been challenged!\n` +
                 `Click the button below to accept or decline! The loser gets timed out for 15 minutes.`;
         } else {
             content += `Click the button below to engage! The loser gets timed out for 15 minutes.`;
@@ -303,8 +310,10 @@ async function handleEngageButton(buttonInteraction, gameId) {
 
     // Check if they lost immediately
     if (roll === 0) {
+        const winnerId = game.initiator;
+        const stats = await fetchPlayerStats(buttonInteraction.guild.id, winnerId, userId);
         await buttonInteraction.followUp({
-            content: formatGameMessage(game, roll, buttonInteraction.user.username, userId, true),
+            content: formatGameMessage(game, roll, buttonInteraction.user.username, userId, true, stats),
         });
         await handleLoss(buttonInteraction, game, userId, roll);
         activeGames.delete(gameId);
@@ -386,8 +395,9 @@ async function handleRollButton(buttonInteraction, gameId) {
     // Check if they lost
     if (roll === 0) {
         const winnerId = userId === game.initiator ? game.opponent : game.initiator;
+        const stats = await fetchPlayerStats(buttonInteraction.guild.id, winnerId, userId);
         await buttonInteraction.followUp({
-            content: formatGameMessage(game, roll, buttonInteraction.user.username, userId, true),
+            content: formatGameMessage(game, roll, buttonInteraction.user.username, userId, true, stats),
         });
         await handleLoss(buttonInteraction, game, userId, roll);
         activeGames.delete(gameId);
@@ -424,7 +434,7 @@ async function handleRollButton(buttonInteraction, gameId) {
     createRollCollector(newMessage, gameId);
 }
 
-function formatGameMessage(game, lastRoll, lastRoller, lastRollerId, isGameOver) {
+function formatGameMessage(game, lastRoll, lastRoller, lastRollerId, isGameOver, stats) {
     let content = `🎲 **Deathroll Game**\n`;
     content += `<@${game.initiator}> vs <@${game.opponent}>\n`;
     content += `Starting number: **${game.startingNumber}**\n\n`;
@@ -440,8 +450,10 @@ function formatGameMessage(game, lastRoll, lastRoller, lastRollerId, isGameOver)
 
     if (isGameOver) {
         const winnerId = lastRollerId === game.initiator ? game.opponent : game.initiator;
-        content += `💀 <@${lastRollerId}> loses and has been timed out for 15 minutes!\n`;
-        content += `🎉 <@${winnerId}> wins!`;
+        const winnerRecord = stats ? formatStatsString(stats.winner) : '';
+        const loserRecord = stats ? formatStatsString(stats.loser) : '';
+        content += `💀 <@${lastRollerId}>${loserRecord} loses and has been timed out for 15 minutes!\n`;
+        content += `🎉 <@${winnerId}>${winnerRecord} wins!`;
     } else {
         const nextPlayerId = game.currentTurn;
         content += `Current number: **${game.currentNumber}**\n`;
@@ -472,6 +484,49 @@ function createRollCollector(message, gameId) {
             activeCollectors.delete(gameId);
         }
     });
+}
+
+function formatStatsString(stats) {
+    if (!stats) return '';
+    const { wins, losses } = stats;
+    const total = wins + losses;
+    const winrate = total > 0 ? Math.round((wins / total) * 100) : 0;
+    return ` (${wins}W/${losses}L ${winrate}%)`;
+}
+
+async function fetchSinglePlayerStats(guildId, userId) {
+    try {
+        const localMongo = MongoWrapper.getClient('local');
+        const db = localMongo.db('lupos');
+        const deathrollsCollection = db.collection('DeathRollUserStats');
+        const stats = await deathrollsCollection.findOne({ userId, guildId });
+        return { wins: stats?.wins || 0, losses: stats?.losses || 0 };
+    } catch (error) {
+        console.error('Error fetching deathroll stats:', error);
+        return null;
+    }
+}
+
+async function fetchPlayerStats(guildId, winnerId, loserId) {
+    try {
+        const localMongo = MongoWrapper.getClient('local');
+        const db = localMongo.db('lupos');
+        const deathrollsCollection = db.collection('DeathRollUserStats');
+
+        const [winnerStats, loserStats] = await Promise.all([
+            deathrollsCollection.findOne({ userId: winnerId, guildId }),
+            deathrollsCollection.findOne({ userId: loserId, guildId })
+        ]);
+
+        // Pre-compute post-game stats (handleLoss hasn't updated DB yet)
+        return {
+            winner: { wins: (winnerStats?.wins || 0) + 1, losses: winnerStats?.losses || 0 },
+            loser: { wins: loserStats?.wins || 0, losses: (loserStats?.losses || 0) + 1 }
+        };
+    } catch (error) {
+        console.error('Error fetching deathroll stats:', error);
+        return null;
+    }
 }
 
 async function handleLoss(buttonInteraction, game, loserId, roll) {

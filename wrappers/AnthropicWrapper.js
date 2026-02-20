@@ -2,10 +2,8 @@ require('dotenv/config');
 const Anthropic = require('@anthropic-ai/sdk');
 const {
     LANGUAGE_MODEL_TEMPERATURE,
-    LANGUAGE_MODEL_PERFORMANCE,
     LANGUAGE_MODEL_MAX_TOKENS,
     LANGUAGE_MODEL_ANTHROPIC,
-    FAST_LANGUAGE_MODEL_ANTHROPIC,
     ANTHROPIC_KEY
 } = require('../config.json');
 
