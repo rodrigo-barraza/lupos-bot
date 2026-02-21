@@ -8,15 +8,15 @@ const SicknessService = {
         sicknessLevel = level;
     },
     increaseSicknessLevel() {
-        let currentSicknessLevel = SicknessService.getSicknessLevel();
-        currentSicknessLevel = currentSicknessLevel < 100 ? currentSicknessLevel + 10 : 100
+        let currentSicknessLevel = SicknessService.getSicknessLevel() + 10;
+        currentSicknessLevel = currentSicknessLevel > 100 ? 100 : currentSicknessLevel;
         SicknessService.setSicknessLevel(currentSicknessLevel);
         console.log(`Sickness level increased to: ${currentSicknessLevel}`);
         return currentSicknessLevel;
     },
     decreaseSicknessLevel() {
-        let currentSicknessLevel = SicknessService.getSicknessLevel();
-        currentSicknessLevel = currentSicknessLevel > 0 ? currentSicknessLevel - 10 : 0;
+        let currentSicknessLevel = SicknessService.getSicknessLevel() - 10;
+        currentSicknessLevel = currentSicknessLevel < 0 ? 0 : currentSicknessLevel;
         SicknessService.setSicknessLevel(currentSicknessLevel);
         console.log(`Sickness level decreased to: ${currentSicknessLevel}`);
         return currentSicknessLevel;

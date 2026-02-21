@@ -4,7 +4,7 @@
     "description": "",
     "main": "lupos.js",
     "scripts": {
-        "test": "echo \"Error: no test specified\" && exit 1"
+        "test": "jest"
     },
     "keywords": [],
     "author": "",
@@ -47,6 +47,7 @@
     "devDependencies": {
         "@eslint/js": "^9.24.0",
         "eslint": "^9.24.0",
-        "globals": "^16.0.0"
+        "globals": "^16.0.0",
+        "jest": "^30.2.0"
     }
 }
