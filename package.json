@@ -4,6 +4,9 @@
     "description": "",
     "type": "module",
     "main": "lupos.js",
+    "imports": {
+        "#*": "./*"
+    },
     "scripts": {
         "test": "node --experimental-vm-modules node_modules/.bin/jest"
     },

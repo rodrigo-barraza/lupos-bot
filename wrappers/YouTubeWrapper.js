@@ -1,7 +1,7 @@
 import { joinVoiceChannel, createAudioPlayer, createAudioResource, AudioPlayerStatus, StreamType } from '@discordjs/voice';
 import play from 'play-dl';
 import ytdl from '@distube/ytdl-core';
-import DiscordUtilityService from '../services/DiscordUtilityService.js';
+import DiscordUtilityService from '#services/DiscordUtilityService.js';
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, AttachmentBuilder } from 'discord.js';
 
 // new

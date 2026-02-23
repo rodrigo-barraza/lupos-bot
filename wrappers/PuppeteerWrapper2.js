@@ -1,8 +1,8 @@
 import 'dotenv/config';
-import UtilityLibrary from '../libraries/UtilityLibrary.js';
+import UtilityLibrary from '#libraries/UtilityLibrary.js';
 import puppeteer from 'puppeteer-core';
 import xml2js from 'xml2js';
-import AIService from '../services/AIService.js';
+import AIService from '#services/AIService.js';
 
 const PuppeteerWrapper = {
     async scrapeRSS(url) {
@@ -11,12 +11,12 @@ const PuppeteerWrapper = {
         await page.goto(url, { waitUntil: 'networkidle0' });
 
         let xmlContent = await page.evaluate(() => document.body.innerText);
-    
+
         await browser.close();
 
         xmlContent = xmlContent.substring(xmlContent.indexOf('<rss'));
         xmlContent = xmlContent.replace(/&(?!nbsp;)/g, '&amp;');
-    
+
         const parser = new xml2js.Parser({ explicitArray: false, mergeAttrs: true });
         const result = await parser.parseStringPromise(xmlContent);
         const items = result.rss.channel.item;
@@ -27,22 +27,22 @@ const PuppeteerWrapper = {
         const browser = await puppeteer.launch({ headless: true });
         const page = await browser.newPage();
         await page.goto(url, { waitUntil: 'networkidle0' });
-    
+
         // Extract XML content from the page
         let xmlContent = await page.evaluate(() => document.body.innerText);
-    
+
         await browser.close();
 
         xmlContent = xmlContent.substring(xmlContent.indexOf('<rss'));
 
         xmlContent = xmlContent.replace(/&(?!nbsp;)/g, '&amp;');
-    
+
         // Parse XML content to JSON
         const parser = new xml2js.Parser({ explicitArray: false, mergeAttrs: true });
         const result = await parser.parseStringPromise(xmlContent);
-    
+
         let userMessage = "# Latest News\n";
-    
+
         const items = result.rss.channel.item;
         items.forEach((item) => {
             const title = item.title;
@@ -50,7 +50,7 @@ const PuppeteerWrapper = {
             const minutesAgo = UtilityLibrary.getMinutesAgo(item.pubDate);
             const link = item.link;
             const description = item.description || '';
-    
+
             userMessage += `## Title: ${title}\n`;
             userMessage += `- Date: ${pubDate}\n`;
             userMessage += `- Minutes ago: ${minutesAgo}\n`;
@@ -69,8 +69,8 @@ const PuppeteerWrapper = {
 
         const conversation = AIService.rawGenerateConversation(systemMessage, userMessage, message)
 
-        AIService.rawGenerateText({conversation, type: 'OPENAI', performance: 'FAST'})
-    
+        AIService.rawGenerateText({ conversation, type: 'OPENAI', performance: 'FAST' })
+
         return userMessage;
     },
     async scrapeRSSGoogleTrends() {
@@ -78,45 +78,45 @@ const PuppeteerWrapper = {
         const browser = await puppeteer.launch({ headless: true });
         const page = await browser.newPage();
         await page.goto(url, { waitUntil: 'networkidle0' });
-    
+
         // Extract XML content from the page
         let xmlContent = await page.evaluate(() => document.body.innerText);
-    
+
         await browser.close();
 
         xmlContent = xmlContent.substring(xmlContent.indexOf('<rss'));
-    
+
         // Parse XML content to JSON
         const parser = new xml2js.Parser({ explicitArray: false, mergeAttrs: true });
         const result = await parser.parseStringPromise(xmlContent);
-    
+
         let output = "# Currently Trending\n";
-    
+
         const items = result.rss.channel.item;
         items.forEach((item) => {
             const title = item.title;
             const description = item.description || 'No description';
             const pubDate = item.pubDate;
-    
+
             output += `## Title: ${title}\n`;
             output += `- Description: ${description}\n`;
             output += `- Date: ${pubDate}\n`;
             output += `### Recent News\n`;
-    
+
             const newsItems = Array.isArray(item['ht:news_item']) ? item['ht:news_item'] : [item['ht:news_item']];
             newsItems.forEach((newsItem) => {
                 const newsItemTitle = newsItem['ht:news_item_title'];
                 const newsItemSnippet = newsItem['ht:news_item_snippet'];
                 const newsItemUrl = newsItem['ht:news_item_url'];
                 const newsItemSource = newsItem['ht:news_item_source'];
-    
+
                 output += `- Title: ${newsItemTitle}\n`;
                 output += `- Snippet: ${newsItemSnippet}\n`;
                 output += `- URL: ${newsItemUrl}\n`;
                 output += `- Source: ${newsItemSource}\n\n`;
             });
         });
-    
+
         return output;
     },
     async scrapeURL(url) {
@@ -129,29 +129,29 @@ const PuppeteerWrapper = {
             { selector: 'meta[name="description"]', property: 'description' },
             { selector: 'meta[name="keywords"]', property: 'keywords' },
             { selector: 'meta[property="og:image"]', property: 'image' },
-          ];
-          
-          const result = {};
-          
-          await Promise.all(
+        ];
+
+        const result = {};
+
+        await Promise.all(
             selectors.map(async ({ selector, property }) => {
-              try {
-                await page.waitForSelector(selector, { timeout: 5000 });
-          
-                const value = await page.evaluate((s, p) => {
-                  const element = document.querySelector(s);
-                  return element ? element[p] || element.getAttribute('content') : null;
-                }, selector, property);
-          
-                if (value) {
-                  result[property] = value.trim();
+                try {
+                    await page.waitForSelector(selector, { timeout: 5000 });
+
+                    const value = await page.evaluate((s, p) => {
+                        const element = document.querySelector(s);
+                        return element ? element[p] || element.getAttribute('content') : null;
+                    }, selector, property);
+
+                    if (value) {
+                        result[property] = value.trim();
+                    }
+                } catch (error) {
+                    console.error(`Puppeteer Error on ${selector}:\n`, error);
                 }
-              } catch (error) {
-                console.error(`Puppeteer Error on ${selector}:\n`, error);
-              }
             })
-          );
-        
+        );
+
         await browser.close();
         // UtilityLibrary.consoleInfo([[`║ 🌐 Scraping URL: `, { }], [result, { }]]);
         return result;
@@ -166,30 +166,30 @@ const PuppeteerWrapper = {
             { selector: 'meta[itemprop="contentUrl"]', property: 'image' },
             { selector: 'meta[itemprop="keywords"]', property: 'keywords' },
         ];
-          
+
         const result = {};
-          
+
         await Promise.all(
             selectors.map(async ({ selector, property }) => {
-            try {
-                await page.waitForSelector(selector, { timeout: 5000 });
-        
-                const value = await page.evaluate((s, p) => {
-                const element = document.querySelector(s);
-                return element ? element[p] || element.getAttribute('content') : null;
-                }, selector, property);
-        
-                if (value) {
-                result[property] = value.trim();
+                try {
+                    await page.waitForSelector(selector, { timeout: 5000 });
+
+                    const value = await page.evaluate((s, p) => {
+                        const element = document.querySelector(s);
+                        return element ? element[p] || element.getAttribute('content') : null;
+                    }, selector, property);
+
+                    if (value) {
+                        result[property] = value.trim();
+                    }
+                } catch (error) {
+                    console.error(`Puppeteer Error on ${selector}:\n`, error);
                 }
-            } catch (error) {
-                console.error(`Puppeteer Error on ${selector}:\n`, error);
-            }
             })
         );
 
         result.name = url.replace('https://tenor.com/view/', '').replace(/-/g, ' ').replace(/%20/g, ' ');
-        
+
         await browser.close();
         // UtilityLibrary.consoleInfo([[`║ 🌐 Scraping Tenor URL: `, { }], [result, { }]]);
         return result;
@@ -220,11 +220,11 @@ const PuppeteerWrapper = {
                 }
             });
 
-        } catch(error) {
+        } catch (error) {
             console.error('Puppeteer Error:\n', error);
             result = null;
         }
-        
+
         await browser.close();
         // UtilityLibrary.consoleInfo([[`║ 📰 News: `, { }], [result, { }]]);
         return result;

@@ -1,5 +1,5 @@
-import DiscordUtilityService from '../../services/DiscordUtilityService.js';
-import UtilityLibrary from '../../libraries/UtilityLibrary.js';
+import DiscordUtilityService from '#services/DiscordUtilityService.js';
+import UtilityLibrary from '#libraries/UtilityLibrary.js';
 const { consoleLog } = UtilityLibrary;
 
 

@@ -1,12 +1,12 @@
 import WebSocket from 'ws';
 import crypto from 'crypto';
 const clientId = crypto.randomBytes(20).toString('hex');
-import UtilityLibrary from '../libraries/UtilityLibrary.js';
+import UtilityLibrary from '#libraries/UtilityLibrary.js';
 const { consoleLog } = UtilityLibrary;
-import config from '../config.json' with { type: 'json' };
+import config from '#config.json' with { type: 'json' };
 // Formatter
-import LogFormatter from '../formatters/LogFormatter.js';
-import LightWrapper from '../wrappers/LightWrapper.js';
+import LogFormatter from '#formatters/LogFormatter.js';
+import LightWrapper from '#wrappers/LightWrapper.js';
 
 const {
     COMFY_UI_IMAGE_MODEL_API_URL,

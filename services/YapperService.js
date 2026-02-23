@@ -1,10 +1,10 @@
-import AIService from './AIService.js';
-import HungerService from './HungerService.js';
-import ThirstService from './ThirstService.js';
-import BathroomService from './BathroomService.js';
-import MoodService from './MoodService.js';
-import SicknessService from './SicknessService.js';
-import AlcoholService from './AlcoholService.js';
+import AIService from '#services/AIService.js';
+import HungerService from '#services/HungerService.js';
+import ThirstService from '#services/ThirstService.js';
+import BathroomService from '#services/BathroomService.js';
+import MoodService from '#services/MoodService.js';
+import SicknessService from '#services/SicknessService.js';
+import AlcoholService from '#services/AlcoholService.js';
 
 let currentYappers = [];
 
@@ -16,7 +16,7 @@ const YapperService = {
         return currentYappers;
     },
     async yapperMessage(interaction) {
-		MoodService.decreaseMoodLevel();
+        MoodService.decreaseMoodLevel();
         const yappers = YapperService.getYappers();
         let systemContent = `
             You do not ever mention the time, for any reason.

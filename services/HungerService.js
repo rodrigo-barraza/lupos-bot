@@ -1,4 +1,4 @@
-import AIService from './AIService.js';
+import AIService from '#services/AIService.js';
 
 let hungerLevel = 0;
 let hungerChannelId = '1198326193984913470';

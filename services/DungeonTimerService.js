@@ -1,5 +1,5 @@
 import moment from 'moment';
-import DiscordService from '../services/DiscordService.js';
+import DiscordService from '#services/DiscordService.js';
 
 const resetFrequencyInDays = 3;
 const initialBFDResetDate = 1707069600;
@@ -18,7 +18,7 @@ const DungeonTimerService = {
             const nextResetDate = initialBFDResetDate + (periodsSinceInitialReset * resetFrequencyInSeconds);
             secondsUntilNextReset = nextResetDate - now;
         }
-        
+
         return secondsUntilNextReset;
     },
     getNextBFDResetDate() {
@@ -54,7 +54,7 @@ const DungeonTimerService = {
                 Do not mention the time at all, only the date."
             `
             userContent = 'Is it rad reset day today? I cannot wait to throw myself in a raid again. I am so excited!';
-        } else if (hoursUntilReset < 24 ) {
+        } else if (hoursUntilReset < 24) {
             const nextResetDate = DungeonTimerService.getNextBFDResetDate().format('MMMM Do, YYYY');
             systemContent = `
                 You will enclose the day, date and tomorrow or after tomorrow in double **asterisks**.

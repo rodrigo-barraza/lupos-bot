@@ -1,5 +1,5 @@
 import 'dotenv/config';
-import config from '../config.json' with { type: 'json' };
+import config from '#config.json' with { type: 'json' };
 const {
     BARK_VOICE_MODEL_API_URL,
 } = config;

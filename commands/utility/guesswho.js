@@ -1,5 +1,5 @@
 import { SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } from 'discord.js';
-import MongoWrapper from '../../wrappers/MongoWrapper.js';
+import MongoWrapper from '#wrappers/MongoWrapper.js';
 
 export default {
     data: new SlashCommandBuilder()

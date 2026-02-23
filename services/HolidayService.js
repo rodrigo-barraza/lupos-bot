@@ -1,5 +1,5 @@
-import DiscordService from '../services/DiscordService.js';
-import MoodService from '../services/MoodService.js';
+import DiscordService from '#services/DiscordService.js';
+import MoodService from '#services/MoodService.js';
 import moment from 'moment';
 const worldOfWarcraftHolidays = [
     {
@@ -86,9 +86,9 @@ const HolidayService = {
                 toDate: moment(holiday.toDate, "MMMM Do").year(currentDate.year())
             }))
             .sort((a, b) => a.fromDate.diff(b.fromDate));
-    
+
         let nextHoliday = sortedHolidays.find(holiday => holiday.fromDate.isAfter(currentDate));
-    
+
         if (nextHoliday) {
             return {
                 ...nextHoliday,
@@ -107,9 +107,9 @@ const HolidayService = {
                 toDate: moment(holiday.toDate, "MMMM Do").year(currentDate.year())
             }))
             .sort((a, b) => a.fromDate.diff(b.fromDate));
-    
+
         let currentHoliday = sortedHolidays.find(holiday => holiday.fromDate.isBefore(currentDate) && holiday.toDate.isAfter(currentDate));
-    
+
         if (currentHoliday) {
             return {
                 ...currentHoliday,
@@ -134,7 +134,7 @@ const HolidayService = {
 
         let systemContent;
         let userContent;
-        
+
         if (getCurrentHoliday) {
             systemContent = `
                 You will always bold dates and holiday names.

@@ -1,6 +1,6 @@
 import moment from 'moment';
 import { DateTime } from 'luxon';
-import config from '../config.json' with { type: 'json' };
+import config from '#config.json' with { type: 'json' };
 import crypto from 'crypto';
 
 const UtilityLibrary = {
@@ -11,7 +11,7 @@ const UtilityLibrary = {
             const bytes = await response.bytes();
             const buffer = Buffer.from(bytes);
             const fileType = response.headers.get('content-type');
-            
+
             const hash = crypto.createHash('sha256').update(buffer).digest('hex');
             return { hash, fileType };
         } catch (error) {
@@ -35,15 +35,15 @@ const UtilityLibrary = {
     },
     removeMentions(string) {
         return string
-        .replace(/@here/g, '꩜here')
-        .replace(/@everyone/g, '꩜everyone')
-        .replace(/@horde/g, '꩜horde')
-        .replace(/@alliance/g, '꩜alliance')
-        .replace(/@alliance/g, '꩜alliance')
-        .replace(/@Guild Leader - Horde/g, '꩜Guild Leader - Horde')
-        .replace(/@Guild Leader - Alliance/g, '꩜Guild Leader - Alliance')
-        .replace(/@Guild Officer - Horde/g, '꩜Guild Officer - Horde')
-        .replace(/@Guild Officer - Alliance/g, '꩜Guild Officer - Alliance')
+            .replace(/@here/g, '꩜here')
+            .replace(/@everyone/g, '꩜everyone')
+            .replace(/@horde/g, '꩜horde')
+            .replace(/@alliance/g, '꩜alliance')
+            .replace(/@alliance/g, '꩜alliance')
+            .replace(/@Guild Leader - Horde/g, '꩜Guild Leader - Horde')
+            .replace(/@Guild Leader - Alliance/g, '꩜Guild Leader - Alliance')
+            .replace(/@Guild Officer - Horde/g, '꩜Guild Officer - Horde')
+            .replace(/@Guild Officer - Alliance/g, '꩜Guild Officer - Alliance')
     },
     // Fetch utilities
     async isImageUrl(url) {
@@ -70,7 +70,7 @@ const UtilityLibrary = {
             return;
         }
         const resetStyle = "\x1b[0m";
-        
+
         const stack = new Error().stack;
         // console.log(stack);
         const callerLine = stack.split('\n')[2];
@@ -89,18 +89,18 @@ const UtilityLibrary = {
             lineLocation = splitString[1];
         }
 
-        
+
         // finalOutput += `\n\x1b[3m\x1b[37m${funcName} ${lineLocation}\x1b[0m`;
-    
+
         // --- Constants for styling ---
         const colorCodes = {
             'black': 30, 'red': 31, 'green': 32, 'yellow': 33,
             'blue': 34, 'magenta': 35, 'cyan': 36, 'white': 37,
             'orange': 33,
         };
-    
+
         const time = DateTime.now().toFormat('h:mm:ss a');
-    
+
 
         let logText = '';
 
@@ -124,7 +124,7 @@ const UtilityLibrary = {
                 logText += location;
             }
         }
-    
+
         const {
             bold = false,
             faint = false,
@@ -138,7 +138,7 @@ const UtilityLibrary = {
             subscript = false,   // Note: Support varies widely across terminals
             color = null      // Default to no color
         } = styleOptions;
-    
+
         const styleCodeList = [
             bold ? '1' : '',
             faint ? '2' : '',
@@ -151,7 +151,7 @@ const UtilityLibrary = {
             superscript ? '73' : '',
             subscript ? '74' : '',
         ].filter(code => code); // Remove empty strings
-    
+
         // Add color code if specified and valid
         const lowerCaseColor = color ? String(color).toLowerCase() : null;
         if (lowerCaseColor && colorCodes[lowerCaseColor]) {
@@ -181,15 +181,15 @@ const UtilityLibrary = {
                 // No styles applied
                 finalOutput += logText;
             }
-    
+
             if (debugLevel === 3) {
                 if (symbol === '>' || symbol === '=') {
                     finalOutput += ` ${location}`;
                 }
             }
-    
+
             console.info(finalOutput);
-        } 
+        }
     },
     howl() {
         let howl = 'Aw';
@@ -203,18 +203,18 @@ const UtilityLibrary = {
     // Array utilities
     areArraysEqual(array1, array2) {
         return array1.length === array2.length &&
-        array1.every(item1 =>
-            array2.some(item2 =>
-            Object.keys(item1).length === Object.keys(item2).length &&
-            Object.entries(item1).every(([key, val]) => item2.hasOwnProperty(key) && item2[key] === val)
-            )
-        ) &&
-        array2.every(item1 =>
-            array1.some(item2 =>
-            Object.keys(item1).length === Object.keys(item2).length &&
-            Object.entries(item1).every(([key, val]) => item2.hasOwnProperty(key) && item2[key] === val)
-            )
-        );
+            array1.every(item1 =>
+                array2.some(item2 =>
+                    Object.keys(item1).length === Object.keys(item2).length &&
+                    Object.entries(item1).every(([key, val]) => item2.hasOwnProperty(key) && item2[key] === val)
+                )
+            ) &&
+            array2.every(item1 =>
+                array1.some(item2 =>
+                    Object.keys(item1).length === Object.keys(item2).length &&
+                    Object.entries(item1).every(([key, val]) => item2.hasOwnProperty(key) && item2[key] === val)
+                )
+            );
     },
     // Console utilities
     ansiEscapeCodes(isConsoleLog = false) {

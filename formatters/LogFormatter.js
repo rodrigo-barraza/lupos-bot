@@ -1,6 +1,6 @@
-import config from '../config.json' with { type: 'json' };
-import UtilityLibrary from '../libraries/UtilityLibrary.js';
-import LightWrapper from '../wrappers/LightWrapper.js';
+import config from '#config.json' with { type: 'json' };
+import UtilityLibrary from '#libraries/UtilityLibrary.js';
+import LightWrapper from '#wrappers/LightWrapper.js';
 
 const { slowBlink, bold } = UtilityLibrary.ansiEscapeCodes(true);
 
@@ -146,7 +146,7 @@ const LogFormatter = {
         if (message) {
             theMessage = message;
         }
-        
+
 
         const combinedNames = UtilityLibrary.getCombinedNamesFromUserOrMember({ user: theUser, member: theMember }, true);
         const combinedGuildInformation = UtilityLibrary.getCombinedGuildInformationFromGuild(theGuild, true);
@@ -202,7 +202,7 @@ const LogFormatter = {
                     // commands
                     if (guild.commands.cache.size) {
                         log += `\n      - (Commands: ${guild.commands.cache.size})`;
-                    } 
+                    }
                     // bans
                     if (guild.bans.cache.size) {
                         log += `\n      - (Bans: ${guild.bans.cache.size})`;
@@ -225,7 +225,7 @@ const LogFormatter = {
                     // region
                     if (guild.region) {
                         log += `\n      - (Region: ${guild.region})`;
-                    }   
+                    }
                     // locale
                     if (guild.preferredLocale) {
                         log += `\n      - (Locale: ${guild.preferredLocale})`;
@@ -302,7 +302,7 @@ const LogFormatter = {
                 logParts.push(`\n${theMessage.content}`);
                 logParts.push(styles.reset);
             }
-            if (theMessage.guild && theMessage.channel && theMessage.id) { 
+            if (theMessage.guild && theMessage.channel && theMessage.id) {
                 logParts.push(`\n    Message URL: https://discord.com/channels/${theMessage.guild.id}/${theMessage.channel.id}/${theMessage.id}`);
             }
         }
@@ -428,7 +428,7 @@ const LogFormatter = {
         });
     },
     // SCRAPE INFO
-    scrapeSuccess({functionName, url, result}) {
+    scrapeSuccess({ functionName, url, result }) {
         return LogFormatter.globalFormatter({
             functionName,
             logEmoji: '🌐',
@@ -447,7 +447,7 @@ const LogFormatter = {
         });
     },
     // TRANSCRIBE INFO
-    transcribeSuccess({functionName, message, audioUrl, transcription, cached}) {
+    transcribeSuccess({ functionName, message, audioUrl, transcription, cached }) {
         return LogFormatter.globalFormatter({
             functionName,
             logEmoji: '🎤',
@@ -469,7 +469,7 @@ const LogFormatter = {
         });
     },
     // CAPTION INFO
-    captionSuccess({functionName, hash, message, imageUrl, caption, cached}) {
+    captionSuccess({ functionName, hash, message, imageUrl, caption, cached }) {
         return LogFormatter.globalFormatter({
             functionName,
             logEmoji: '🖼️',
@@ -503,7 +503,7 @@ const LogFormatter = {
     },
     // CLIENT
     botReady(client) {
-        return LogFormatter.globalFormatter({ 
+        return LogFormatter.globalFormatter({
             logEmoji: '💡',
             logName: `${styles.yellowBackground}BOT READY${styles.reset}`,
             client,
@@ -588,7 +588,7 @@ const LogFormatter = {
     },
     // ROLES
     roleFailedToAdd(member, role, error) {
-        return LogFormatter.globalFormatter({ 
+        return LogFormatter.globalFormatter({
             logEmoji: '❌',
             logName: `${styles.redBackground}ROLE FAILED TO ADD, MEMBER NOT FOUND${styles.reset}`,
             member,
@@ -726,7 +726,7 @@ const LogFormatter = {
         });
     },
     interactionMemberNotFound(functionName, interaction, roleId) {
-        return LogFormatter.globalFormatter({ 
+        return LogFormatter.globalFormatter({
             logEmoji: '❌',
             functionName,
             logName: `${styles.redBackground}MEMBER NOT FOUND${styles.reset}`,
@@ -736,7 +736,7 @@ const LogFormatter = {
     },
     // LLM
     replyGuildMessageSuccess(message, generatedTextResponse, duration) {
-        return LogFormatter.globalFormatter({ 
+        return LogFormatter.globalFormatter({
             logEmoji: '➕📡💬',
             logName: `${styles.blueBackground}GUILD MESSAGE SENT${styles.reset}`,
             message,

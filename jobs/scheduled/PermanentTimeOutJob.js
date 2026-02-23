@@ -1,8 +1,8 @@
-import config from '../../config.json' with { type: 'json' };
-import DiscordUtilityService from '../../services/DiscordUtilityService.js';
-import LogFormatter from '../../formatters/LogFormatter.js';
+import config from '#config.json' with { type: 'json' };
+import DiscordUtilityService from '#services/DiscordUtilityService.js';
+import LogFormatter from '#formatters/LogFormatter.js';
 
-const timeoutLength = 168 * 60 * 60 * 1000; 
+const timeoutLength = 168 * 60 * 60 * 1000;
 const intervalLength = 167 * 60 * 60 * 1000;
 
 

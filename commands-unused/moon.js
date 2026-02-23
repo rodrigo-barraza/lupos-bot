@@ -1,5 +1,5 @@
 import { SlashCommandBuilder } from 'discord.js';
-import DiscordService from '../../services/DiscordService.js';
+import DiscordService from '#services/DiscordService.js';
 import moment from 'moment';
 
 const fullMoons = [
@@ -24,9 +24,9 @@ function getNextFullMoon() {
 }
 
 export default {
-	data: new SlashCommandBuilder()
-		.setName('moon')
-		.setDescription('Find when the next full moon is.'),
+    data: new SlashCommandBuilder()
+        .setName('moon')
+        .setDescription('Find when the next full moon is.'),
     async execute(interaction) {
         await interaction.deferReply();
         const systemContent = `

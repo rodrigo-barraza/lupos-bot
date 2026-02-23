@@ -1,5 +1,5 @@
 import { SlashCommandBuilder, AttachmentBuilder, EmbedBuilder } from 'discord.js';
-import MongoWrapper from '../../wrappers/MongoWrapper.js';
+import MongoWrapper from '#wrappers/MongoWrapper.js';
 import puppeteer from 'puppeteer';
 
 export default {

@@ -1,5 +1,5 @@
-import DiscordUtilityService from '../../services/DiscordUtilityService.js';
-import config from '../../config.json' with { type: 'json' };
+import DiscordUtilityService from '#services/DiscordUtilityService.js';
+import config from '#config.json' with { type: 'json' };
 
 let queueIsProcessing = false;
 const queue = [];
@@ -33,21 +33,21 @@ async function clearReactors(client, mongo) {
     const guild = DiscordUtilityService.getGuildById(client, config.GUILD_ID_PRIMARY);
     const role = guild.roles.cache.find(role => role.id === config.ROLE_ID_FLAG);
     const membersWithRole = guild.members.cache.filter(member => member.roles.cache.some(r => r.id === role.id));
-    
+
     // Process all members who have the role
     for (const member of membersWithRole.values()) {
         const reactor = reactors.find(r => r.id === member.id);
-        
+
         // Remove role if: member is not in reactors array OR their timestamp is old
         if (!reactor || reactor.timestamp < oneMinuteAgo) {
             await member.roles.remove(role);
         }
     }
-    
+
     // Keep only reactors with recent timestamps
     reactors = reactors.filter(reactor => reactor.timestamp >= oneMinuteAgo);
 }
-    
+
 
 
 const ReactJob = {
@@ -58,11 +58,11 @@ const ReactJob = {
         }, 1000 * 60); // every minute
     },
     async processJob(client, mongo, reaction, user) {
-        queue.push({reaction, user});
+        queue.push({ reaction, user });
         if (queueIsProcessing) return;
         queueIsProcessing = true;
         while (queue.length > 0) {
-            const {reaction: currentReaction, user: currentUser} = queue.shift();
+            const { reaction: currentReaction, user: currentUser } = queue.shift();
             await generateReactors(client, mongo, currentReaction, currentUser);
         }
         queueIsProcessing = false;

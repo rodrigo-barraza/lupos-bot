@@ -1,10 +1,10 @@
-import config from '../../config.json' with { type: 'json' };
-import { consoleInfo, consoleLog } from '../../libraries/UtilityLibrary.js';
-import YapperService from '../../services/YapperService.js';
-import UtilityLibrary from '../../libraries/UtilityLibrary.js';
-import DiscordUtilityService from '../../services/DiscordUtilityService.js';
+import config from '#config.json' with { type: 'json' };
+import { consoleInfo, consoleLog } from '#libraries/UtilityLibrary.js';
+import YapperService from '#services/YapperService.js';
+import UtilityLibrary from '#libraries/UtilityLibrary.js';
+import DiscordUtilityService from '#services/DiscordUtilityService.js';
 import luxon from 'luxon';
-import AIService from '../../services/AIService.js';
+import AIService from '#services/AIService.js';
 
 
 
@@ -36,9 +36,9 @@ async function sendRandomMessageTimeout(client) {
         // const channelId = '762734438375096380';
         const channel = DiscordUtilityService.getChannelById(client, channelId);
         let sendTypingInterval = null;
-    
+
         try {
-    
+
             if (!channel) {
                 consoleLog('=', `Channel ${channelId} not found.`);
             } else {
@@ -54,12 +54,12 @@ async function sendRandomMessageTimeout(client) {
                     consoleLog('=', `Sending reminder message to channel: ${channel.id}...`);
                     sendTypingInterval = await DiscordUtilityService.startTypingInterval(channel);
 
-                    const { 
+                    const {
                         generatedText, imagePrompt, modifiedMessage, systemPrompt, imageUrl
                     } = await AIService.generateNewTextResponse(
-                        client,lastMessage,recentMessages
+                        client, lastMessage, recentMessages
                     );
-    
+
                     const { image, text } = await AIService.generateImageAndResponse(
                         lastMessage,
                         imagePrompt,
@@ -88,12 +88,12 @@ async function sendRandomMessageTimeout(client) {
         }
         consoleLog('>');
     }
-    
+
     const firstDelay = getRandomDelay2();
     consoleLog('=', `First reminder scheduled in ${(firstDelay / (60 * 1000)).toFixed(2)} minutes`);
     consoleLog('>');
     setTimeout(sendRandomMessage, firstDelay);
-    
+
 }
 
 const RandomMessageJob = {

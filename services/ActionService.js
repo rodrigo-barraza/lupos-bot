@@ -1,12 +1,12 @@
-import DiscordService from '../services/DiscordService.js';
-import HungerService from './HungerService.js';
-import ThirstService from './ThirstService.js';
-import BathroomService from './BathroomService.js';
-import MoodService from './MoodService.js';
-import SicknessService from './SicknessService.js';
-import AlcoholService from './AlcoholService.js';
+import DiscordService from '#services/DiscordService.js';
+import HungerService from '#services/HungerService.js';
+import ThirstService from '#services/ThirstService.js';
+import BathroomService from '#services/BathroomService.js';
+import MoodService from '#services/MoodService.js';
+import SicknessService from '#services/SicknessService.js';
+import AlcoholService from '#services/AlcoholService.js';
 
-const foods = [ '🍔', '🍟', '🍕', '🌭', '🥪', '🌮', '🌯', '🥙', '🧆', '🥚', '🍳', '🥘', '🍲', '🥣', '🥗', '🍿', '🧈', '🧂', '🥫', '🍱', '🍘', '🍙', '🍚', '🍛', '🍜', '🍝', '🍠', '🍢', '🍣', '🍤', '🍥', '🥮', '🍡', '🥟', '🥠', '🥡', '🦪', '🍦', '🍧', '🍨', '🍩', '🍪', '🎂', '🍰', '🧁', '🥧', '🍫', '🍬', '🍭', '🍮', '🍯', '🍇', '🍈', '🍉', '🍊', '🍋', '🍌', '🍍', '🥭', '🍎', '🍏', '🍐', '🍑', '🍒', '🍓', '🥝', '🍅', '🥥', '🥑', '🍆', '🥔', '🥕', '🌽', '🌶', '🥒', '🥬', '🥦', '🧄', '🧅', '🍄', '🥜', '🌰', '🍞', '🥐', '🥖', '🥨', '🥯', '🥞', '🧇', '🧀', '🍖', '🍗', '🥩', '🥓', '🍔', '🍟', '🍕', '🌭', '🥪', '🌮', '🌯', '🥙', '🧆', '🍳', '🥘', '🍲', '🥣', '🥗', '🍿', '🧈', '🧂', '🥫', '🍱', '🍘', '🍙', '🍚', '🍛', '🍜', '🍝', '🍠', '🍢', '🍣', '🍤', '🍥', '🥮', '🍡', '🥟', '🥠', '🥡', '🦪', '🍦', '🍧', '🍨', '🍩', '🍪', '🎂', '🍰', '🧁', '🥧', '🍫', '🍬', '🍭', '🍮', '🍯']
+const foods = ['🍔', '🍟', '🍕', '🌭', '🥪', '🌮', '🌯', '🥙', '🧆', '🥚', '🍳', '🥘', '🍲', '🥣', '🥗', '🍿', '🧈', '🧂', '🥫', '🍱', '🍘', '🍙', '🍚', '🍛', '🍜', '🍝', '🍠', '🍢', '🍣', '🍤', '🍥', '🥮', '🍡', '🥟', '🥠', '🥡', '🦪', '🍦', '🍧', '🍨', '🍩', '🍪', '🎂', '🍰', '🧁', '🥧', '🍫', '🍬', '🍭', '🍮', '🍯', '🍇', '🍈', '🍉', '🍊', '🍋', '🍌', '🍍', '🥭', '🍎', '🍏', '🍐', '🍑', '🍒', '🍓', '🥝', '🍅', '🥥', '🥑', '🍆', '🥔', '🥕', '🌽', '🌶', '🥒', '🥬', '🥦', '🧄', '🧅', '🍄', '🥜', '🌰', '🍞', '🥐', '🥖', '🥨', '🥯', '🥞', '🧇', '🧀', '🍖', '🍗', '🥩', '🥓', '🍔', '🍟', '🍕', '🌭', '🥪', '🌮', '🌯', '🥙', '🧆', '🍳', '🥘', '🍲', '🥣', '🥗', '🍿', '🧈', '🧂', '🥫', '🍱', '🍘', '🍙', '🍚', '🍛', '🍜', '🍝', '🍠', '🍢', '🍣', '🍤', '🍥', '🥮', '🍡', '🥟', '🥠', '🥡', '🦪', '🍦', '🍧', '🍨', '🍩', '🍪', '🎂', '🍰', '🧁', '🥧', '🍫', '🍬', '🍭', '🍮', '🍯']
 
 const toxicFoods = ['🍫', '🧄', '☕', '🍇', '🧅', '🥑', '🍭', '🍬', '🥮', '🎂', '🍒']
 
@@ -40,12 +40,12 @@ const ActionService = {
                 You will eat what has been fed to you. You will always accept it, and you will take a nip, eat, chomp, bite down, the delicious food that has been given to you. You have just been fed delicious food. You are now less hungry, at about ${currentHungerLevel}/10, which means that you act like you are ${currentHungerLevel}/10 hungry, but you never make a reference to the level of hunger you are at.
             `;
         }
-        
+
         const userContent = `Here, have some ${getRandomFood}, and include the emoji in your response.`
         return await DiscordService.generateTextFromSystemUserMessages(systemContent, userContent, interaction);
     },
     async alcohol(interaction) {
-		MoodService.increaseMoodLevel();
+        MoodService.increaseMoodLevel();
         currentAlcoholLevel = AlcoholService.increaseAlcoholLevel();
         const systemContent = `
             # List of Alcoholic Drinks
@@ -91,9 +91,9 @@ const ActionService = {
     async drink(interaction) {
         const getRandomDrink = drinks.sort(() => Math.random() - Math.random()).slice(0, 1)[0];
         if (alcoholicDrinks.includes(getRandomDrink)) {
-            
-		MoodService.increaseMoodLevel();
-        currentAlcoholLevel = AlcoholService.increaseAlcoholLevel();
+
+            MoodService.increaseMoodLevel();
+            currentAlcoholLevel = AlcoholService.increaseAlcoholLevel();
             const systemContent = `
                 # List of Alcoholic Drinks
                 Margarita: Tequila, lime juice, triple sec or Cointreau, and simple syrup, served with salt on the rim of the glass.  

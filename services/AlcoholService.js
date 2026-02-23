@@ -1,4 +1,4 @@
-import DiscordService from './DiscordService.js';
+import DiscordService from '#services/DiscordService.js';
 
 let alcoholLevel = 0;
 
