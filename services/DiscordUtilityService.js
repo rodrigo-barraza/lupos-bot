@@ -1,12 +1,12 @@
 import 'dotenv/config';
 import { DateTime } from 'luxon';
-import UtilityLibrary from '#/libraries/UtilityLibrary.js';
+import UtilityLibrary from '#root/libraries/UtilityLibrary.js';
 const { consoleLog } = UtilityLibrary;
-import config from '#/config.json' with { type: 'json' };
+import config from '#root/config.json' with { type: 'json' };
 import { Collection, ChannelType, Events, ActivityType } from 'discord.js';
-import PuppeteerWrapper from '#/wrappers/PuppeteerWrapper.js';
-import LightWrapper from '#/wrappers/LightWrapper.js';
-import LogFormatter from '#/formatters/LogFormatter.js';
+import PuppeteerWrapper from '#root/wrappers/PuppeteerWrapper.js';
+import LightWrapper from '#root/wrappers/LightWrapper.js';
+import LogFormatter from '#root/formatters/LogFormatter.js';
 
 async function fetchMessagesWithOptionalLastId(client, channelId, maxMessages = 10, lastId = null) {
     const channel = client.channels.cache.find(channel => channel.id == channelId);

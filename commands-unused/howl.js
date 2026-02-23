@@ -1,6 +1,6 @@
 import { SlashCommandBuilder } from 'discord.js';
-import UtilityLibrary from '#/libraries/UtilityLibrary.js';
-import MoodService from '#/services/MoodService.js';
+import UtilityLibrary from '#root/libraries/UtilityLibrary.js';
+import MoodService from '#root/services/MoodService.js';
 
 export default {
     data: new SlashCommandBuilder()

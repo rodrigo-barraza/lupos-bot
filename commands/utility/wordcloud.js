@@ -1,5 +1,5 @@
 import { SlashCommandBuilder, AttachmentBuilder } from 'discord.js';
-import MongoWrapper from '#/wrappers/MongoWrapper.js';
+import MongoWrapper from '#root/wrappers/MongoWrapper.js';
 import puppeteer from 'puppeteer';
 
 // Common stop words to filter out

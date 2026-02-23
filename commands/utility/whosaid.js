@@ -1,5 +1,5 @@
 import { SlashCommandBuilder, EmbedBuilder } from 'discord.js';
-import MongoWrapper from '#/wrappers/MongoWrapper.js';
+import MongoWrapper from '#root/wrappers/MongoWrapper.js';
 
 export default {
     data: new SlashCommandBuilder()

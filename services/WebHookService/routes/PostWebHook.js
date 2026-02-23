@@ -1,8 +1,8 @@
 'use strict';
 import { EventEmitter as EventsEventEmitter } from 'events';
-import ResponseClass from '#/classes/ResponseClass.js';
-import RequestClass from '#/classes/RequestClass.js';
-import MessageQueueService from '#/services/MessageQueueService.js';
+import ResponseClass from '#root/classes/ResponseClass.js';
+import RequestClass from '#root/classes/RequestClass.js';
+import MessageQueueService from '#root/services/MessageQueueService.js';
 
 const PostWebHook = () => {
     return (req, res) => {

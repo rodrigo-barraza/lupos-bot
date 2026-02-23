@@ -1,12 +1,12 @@
 import { SlashCommandBuilder, EmbedBuilder } from 'discord.js';
-import HungerService from '#/services/HungerService.js';
-import AlcoholService from '#/services/AlcoholService.js';
-import ThirstService from '#/services/ThirstService.js';
-import EnergyService from '#/services/EnergyService.js';
-import HygieneService from '#/services/HygieneService.js';
-import BathroomService from '#/services/BathroomService.js';
-import MoodService from '#/services/MoodService.js';
-import SicknessService from '#/services/SicknessService.js';
+import HungerService from '#root/services/HungerService.js';
+import AlcoholService from '#root/services/AlcoholService.js';
+import ThirstService from '#root/services/ThirstService.js';
+import EnergyService from '#root/services/EnergyService.js';
+import HygieneService from '#root/services/HygieneService.js';
+import BathroomService from '#root/services/BathroomService.js';
+import MoodService from '#root/services/MoodService.js';
+import SicknessService from '#root/services/SicknessService.js';
 
 export default {
     data: new SlashCommandBuilder()

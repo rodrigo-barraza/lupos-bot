@@ -1,6 +1,6 @@
 import 'dotenv/config';
 import { OpenAI } from 'openai';
-import config from '#/config.json' with { type: 'json' };
+import config from '#root/config.json' with { type: 'json' };
 const {
     LANGUAGE_MODEL_TEMPERATURE,
     LANGUAGE_MODEL_PERFORMANCE,

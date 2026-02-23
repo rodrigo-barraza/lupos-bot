@@ -4,23 +4,23 @@ import path from 'path';
 import BigNumber from 'bignumber.js';
 import { DateTime } from 'luxon';
 // Config
-import config from '#/config.json' with { type: 'json' };
+import config from '#root/config.json' with { type: 'json' };
 // Formatters
-import LogFormatter from '#/formatters/LogFormatter.js';
+import LogFormatter from '#root/formatters/LogFormatter.js';
 // Wrappers
-import ComfyUIWrapper from '#/wrappers/ComfyUIWrapper.js';
-import OpenAIWrapper from '#/wrappers/OpenAIWrapper.js';
-import LocalAIWrapper from '#/wrappers/LocalAIWrapper.js';
-import AnthrophicWrapper from '#/wrappers/AnthropicWrapper.js';
-import GoogleAIWrapper from '#/wrappers/GoogleAIWrapper.js';
-import MongoWrapper from '#/wrappers/MongoWrapper.js';
+import ComfyUIWrapper from '#root/wrappers/ComfyUIWrapper.js';
+import OpenAIWrapper from '#root/wrappers/OpenAIWrapper.js';
+import LocalAIWrapper from '#root/wrappers/LocalAIWrapper.js';
+import AnthrophicWrapper from '#root/wrappers/AnthropicWrapper.js';
+import GoogleAIWrapper from '#root/wrappers/GoogleAIWrapper.js';
+import MongoWrapper from '#root/wrappers/MongoWrapper.js';
 // Libraries
-import UtilityLibrary from '#/libraries/UtilityLibrary.js';
+import UtilityLibrary from '#root/libraries/UtilityLibrary.js';
 // Services
-import CurrentService from '#/services/CurrentService.js';
-import DiscordUtilityService from '#/services/DiscordUtilityService.js';
+import CurrentService from '#root/services/CurrentService.js';
+import DiscordUtilityService from '#root/services/DiscordUtilityService.js';
 // Maps
-import ModelsMap from '#/maps/ModelsMap.js';
+import ModelsMap from '#root/maps/ModelsMap.js';
 
 // Image processing - prefer sharp, fallback to Jimp
 let sharp;

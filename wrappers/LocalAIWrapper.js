@@ -1,5 +1,5 @@
 import 'dotenv/config';
-import config from '#/config.json' with { type: 'json' };
+import config from '#root/config.json' with { type: 'json' };
 const {
     LOCAL_LANGUAGE_MODEL_API_URL,
     LANGUAGE_MODEL_TEMPERATURE,

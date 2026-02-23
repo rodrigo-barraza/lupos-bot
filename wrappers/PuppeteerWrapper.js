@@ -1,5 +1,5 @@
 import 'dotenv/config';
-import UtilityLibrary from '#/libraries/UtilityLibrary.js';
+import UtilityLibrary from '#root/libraries/UtilityLibrary.js';
 const puppeteer = await import(process.platform === "win32" ? "puppeteer" : "puppeteer-core");
 // const puppeteer = require('puppeteer-core');
 import { executablePath } from 'puppeteer-core';

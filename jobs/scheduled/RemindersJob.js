@@ -1,9 +1,9 @@
-import DiscordUtilityService from '#/services/DiscordUtilityService.js';
-import config from '#/config.json' with { type: 'json' };
-import { consoleInfo } from '#/libraries/UtilityLibrary.js';
-import YapperService from '#/services/YapperService.js';
-import UtilityLibrary from '#/libraries/UtilityLibrary.js';
-import AIService from '#/services/AIService.js';
+import DiscordUtilityService from '#root/services/DiscordUtilityService.js';
+import config from '#root/config.json' with { type: 'json' };
+import { consoleInfo } from '#root/libraries/UtilityLibrary.js';
+import YapperService from '#root/services/YapperService.js';
+import UtilityLibrary from '#root/libraries/UtilityLibrary.js';
+import AIService from '#root/services/AIService.js';
 import luxon from 'luxon';
 
 let isProcessingReminders = false;

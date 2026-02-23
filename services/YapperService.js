@@ -1,10 +1,10 @@
-import AIService from '#/services/AIService.js';
-import HungerService from '#/services/HungerService.js';
-import ThirstService from '#/services/ThirstService.js';
-import BathroomService from '#/services/BathroomService.js';
-import MoodService from '#/services/MoodService.js';
-import SicknessService from '#/services/SicknessService.js';
-import AlcoholService from '#/services/AlcoholService.js';
+import AIService from '#root/services/AIService.js';
+import HungerService from '#root/services/HungerService.js';
+import ThirstService from '#root/services/ThirstService.js';
+import BathroomService from '#root/services/BathroomService.js';
+import MoodService from '#root/services/MoodService.js';
+import SicknessService from '#root/services/SicknessService.js';
+import AlcoholService from '#root/services/AlcoholService.js';
 
 let currentYappers = [];
 

@@ -1,14 +1,14 @@
 {
-    "name": "lazybot9000",
+    "name": "lupos",
     "version": "1.0.0",
     "description": "",
     "type": "module",
     "main": "lupos.js",
     "imports": {
-        "#/*": "./*"
+        "#root/*": "./*"
     },
     "scripts": {
-        "dev": "nodemon lupos.js",
+        "dev": "nodemon lupos.js mode=messages",
         "test": "node --experimental-vm-modules node_modules/.bin/jest",
         "lint": "eslint . --quiet",
         "format": "prettier --write ."

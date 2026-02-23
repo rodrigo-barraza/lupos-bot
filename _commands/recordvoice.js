@@ -1,6 +1,6 @@
 // roll from 0 to 100 with the option to specify a range
 import { SlashCommandBuilder } from 'discord.js';
-import DiscordVoiceService from '#/services/DiscordVoiceService.js';
+import DiscordVoiceService from '#root/services/DiscordVoiceService.js';
 
 const minSeconds = 5;
 const maxSeconds = 30;

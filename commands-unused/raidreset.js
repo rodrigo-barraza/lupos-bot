@@ -1,6 +1,6 @@
 import { SlashCommandBuilder } from 'discord.js';
-import DungeonTimerService from '#/services/DungeonTimerService.js';
-import MoodService from '#/services/MoodService.js';
+import DungeonTimerService from '#root/services/DungeonTimerService.js';
+import MoodService from '#root/services/MoodService.js';
 import moment from 'moment';
 
 export default {

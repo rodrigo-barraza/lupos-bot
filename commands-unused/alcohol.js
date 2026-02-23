@@ -1,5 +1,5 @@
 import { SlashCommandBuilder } from 'discord.js';
-import ActionService from '#/services/ActionService.js';
+import ActionService from '#root/services/ActionService.js';
 
 export default {
     data: new SlashCommandBuilder()

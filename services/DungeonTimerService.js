@@ -1,5 +1,5 @@
 import moment from 'moment';
-import DiscordService from '#/services/DiscordService.js';
+import DiscordService from '#root/services/DiscordService.js';
 
 const resetFrequencyInDays = 3;
 const initialBFDResetDate = 1707069600;

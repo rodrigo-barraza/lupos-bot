@@ -1,7 +1,7 @@
 
-import DiscordUtilityService from '#/services/DiscordUtilityService.js';
-import birthdays from '#/arrays/birthdays.js';
-import config from '#/config.json' with { type: 'json' };
+import DiscordUtilityService from '#root/services/DiscordUtilityService.js';
+import birthdays from '#root/arrays/birthdays.js';
+import config from '#root/config.json' with { type: 'json' };
 
 async function getCurrentMonthBirthdays(client) {
     const months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];

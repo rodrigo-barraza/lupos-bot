@@ -1,6 +1,6 @@
 import 'dotenv/config';
 import Anthropic from '@anthropic-ai/sdk';
-import config from '#/config.json' with { type: 'json' };
+import config from '#root/config.json' with { type: 'json' };
 const {
     LANGUAGE_MODEL_TEMPERATURE,
     LANGUAGE_MODEL_MAX_TOKENS,

@@ -1,4 +1,4 @@
-import DiscordService from '#/services/DiscordService.js';
+import DiscordService from '#root/services/DiscordService.js';
 
 let thirstLevel = 0;
 let hungerChannelId = '1198326193984913470';
