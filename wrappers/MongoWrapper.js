@@ -1,5 +1,5 @@
 import { MongoClient } from 'mongodb';
-import LogFormatter from '#formatters/LogFormatter.js';
+import LogFormatter from '#/formatters/LogFormatter.js';
 
 let clients = new Map();
 

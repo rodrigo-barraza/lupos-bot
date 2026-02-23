@@ -1,5 +1,5 @@
 import { SlashCommandBuilder } from 'discord.js';
-import DiscordService from '#services/DiscordService.js';
+import DiscordService from '#/services/DiscordService.js';
 import moment from 'moment';
 
 const fullMoons = [

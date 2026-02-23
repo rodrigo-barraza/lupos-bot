@@ -1,5 +1,5 @@
 import { GoogleGenAI } from '@google/genai';
-import config from '#config.json' with { type: 'json' };
+import config from '#/config.json' with { type: 'json' };
 const {
     GOOGLE_KEY
 } = config;

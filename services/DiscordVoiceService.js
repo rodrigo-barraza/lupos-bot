@@ -5,7 +5,7 @@ import path from 'path';
 import prism from 'prism-media';
 import { joinVoiceChannel } from '@discordjs/voice';
 const recordingStreams = new Map();
-import OpenAIWrapper from '#wrappers/OpenAIWrapper.js';
+import OpenAIWrapper from '#/wrappers/OpenAIWrapper.js';
 
 let isRecording = false;
 let combinedStream = null;

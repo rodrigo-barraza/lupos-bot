@@ -1,10 +1,10 @@
-import DiscordService from '#services/DiscordService.js';
-import HungerService from '#services/HungerService.js';
-import ThirstService from '#services/ThirstService.js';
-import BathroomService from '#services/BathroomService.js';
-import MoodService from '#services/MoodService.js';
-import SicknessService from '#services/SicknessService.js';
-import AlcoholService from '#services/AlcoholService.js';
+import DiscordService from '#/services/DiscordService.js';
+import HungerService from '#/services/HungerService.js';
+import ThirstService from '#/services/ThirstService.js';
+import BathroomService from '#/services/BathroomService.js';
+import MoodService from '#/services/MoodService.js';
+import SicknessService from '#/services/SicknessService.js';
+import AlcoholService from '#/services/AlcoholService.js';
 
 const foods = ['🍔', '🍟', '🍕', '🌭', '🥪', '🌮', '🌯', '🥙', '🧆', '🥚', '🍳', '🥘', '🍲', '🥣', '🥗', '🍿', '🧈', '🧂', '🥫', '🍱', '🍘', '🍙', '🍚', '🍛', '🍜', '🍝', '🍠', '🍢', '🍣', '🍤', '🍥', '🥮', '🍡', '🥟', '🥠', '🥡', '🦪', '🍦', '🍧', '🍨', '🍩', '🍪', '🎂', '🍰', '🧁', '🥧', '🍫', '🍬', '🍭', '🍮', '🍯', '🍇', '🍈', '🍉', '🍊', '🍋', '🍌', '🍍', '🥭', '🍎', '🍏', '🍐', '🍑', '🍒', '🍓', '🥝', '🍅', '🥥', '🥑', '🍆', '🥔', '🥕', '🌽', '🌶', '🥒', '🥬', '🥦', '🧄', '🧅', '🍄', '🥜', '🌰', '🍞', '🥐', '🥖', '🥨', '🥯', '🥞', '🧇', '🧀', '🍖', '🍗', '🥩', '🥓', '🍔', '🍟', '🍕', '🌭', '🥪', '🌮', '🌯', '🥙', '🧆', '🍳', '🥘', '🍲', '🥣', '🥗', '🍿', '🧈', '🧂', '🥫', '🍱', '🍘', '🍙', '🍚', '🍛', '🍜', '🍝', '🍠', '🍢', '🍣', '🍤', '🍥', '🥮', '🍡', '🥟', '🥠', '🥡', '🦪', '🍦', '🍧', '🍨', '🍩', '🍪', '🎂', '🍰', '🧁', '🥧', '🍫', '🍬', '🍭', '🍮', '🍯']
 

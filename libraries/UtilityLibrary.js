@@ -1,6 +1,6 @@
 import moment from 'moment';
 import { DateTime } from 'luxon';
-import config from '#config.json' with { type: 'json' };
+import config from '#/config.json' with { type: 'json' };
 import crypto from 'crypto';
 
 const UtilityLibrary = {

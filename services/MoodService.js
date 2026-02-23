@@ -1,6 +1,6 @@
 import { ActivityType } from 'discord.js';
-import DiscordUtilityService from '#services/DiscordUtilityService.js';
-import DiscordWrapper from '#wrappers/DiscordWrapper.js';
+import DiscordUtilityService from '#/services/DiscordUtilityService.js';
+import DiscordWrapper from '#/wrappers/DiscordWrapper.js';
 
 let moodLevel = 0;
 

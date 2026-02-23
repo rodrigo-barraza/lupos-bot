@@ -1,5 +1,5 @@
 import { SlashCommandBuilder } from 'discord.js';
-import YapperService from '#services/YapperService.js';
+import YapperService from '#/services/YapperService.js';
 
 export default {
     data: new SlashCommandBuilder()

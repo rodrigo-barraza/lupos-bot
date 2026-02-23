@@ -1,5 +1,5 @@
-import DiscordService from '#services/DiscordService.js';
-import MoodService from '#services/MoodService.js';
+import DiscordService from '#/services/DiscordService.js';
+import MoodService from '#/services/MoodService.js';
 import moment from 'moment';
 const worldOfWarcraftHolidays = [
     {

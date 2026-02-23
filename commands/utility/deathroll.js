@@ -1,5 +1,5 @@
 import { SlashCommandBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, PermissionFlagsBits } from 'discord.js';
-import MongoWrapper from '#wrappers/MongoWrapper.js';
+import MongoWrapper from '#/wrappers/MongoWrapper.js';
 
 // Store active games (gameId -> game state)
 const activeGames = new Map();

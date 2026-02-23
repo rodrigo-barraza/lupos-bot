@@ -1,7 +1,7 @@
 import express from 'express';
 const router = new express.Router();
 // const WebHookService = require('./WebHookService/WebHookService');
-import AIService from '#services/AIService.js';
+import AIService from '#/services/AIService.js';
 
 const routes = () => {
     // WebHookService(router);

@@ -15,39 +15,39 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 // CONFIG
-import config from '#config.json' with { type: 'json' };
+import config from '#/config.json' with { type: 'json' };
 // ARRAYS
 import {
     rolesVideogames,
     warcraftClasses,
     warcraftFactions
-} from '#arrays/roles.js';
-import channels from '#arrays/channels.js';
+} from '#/arrays/roles.js';
+import channels from '#/arrays/channels.js';
 // WRAPPERS
-import PuppeteerWrapper from '#wrappers/PuppeteerWrapper.js';
-import DiscordWrapper from '#wrappers/DiscordWrapper.js';
-import YouTubeWrapper from '#wrappers/YouTubeWrapper.js';
-import LightWrapper from '#wrappers/LightWrapper.js';
-import ComfyUIWrapper from '#wrappers/ComfyUIWrapper.js';
-import MongoWrapper from '#wrappers/MongoWrapper.js';
+import PuppeteerWrapper from '#/wrappers/PuppeteerWrapper.js';
+import DiscordWrapper from '#/wrappers/DiscordWrapper.js';
+import YouTubeWrapper from '#/wrappers/YouTubeWrapper.js';
+import LightWrapper from '#/wrappers/LightWrapper.js';
+import ComfyUIWrapper from '#/wrappers/ComfyUIWrapper.js';
+import MongoWrapper from '#/wrappers/MongoWrapper.js';
 // SERVICES
-import DiscordUtilityService from '#services/DiscordUtilityService.js';
-import MessageService from '#services/MessageService.js';
-import AIService from '#services/AIService.js';
-import CurrentService from '#services/CurrentService.js';
+import DiscordUtilityService from '#/services/DiscordUtilityService.js';
+import MessageService from '#/services/MessageService.js';
+import AIService from '#/services/AIService.js';
+import CurrentService from '#/services/CurrentService.js';
 // JOBS
-import BirthdayJob from '#jobs/scheduled/BirthdayJob.js';
-import ActivityRoleAssignmentJob from '#jobs/scheduled/ActivityRoleAssignmentJob.js';
+import BirthdayJob from '#/jobs/scheduled/BirthdayJob.js';
+import ActivityRoleAssignmentJob from '#/jobs/scheduled/ActivityRoleAssignmentJob.js';
 // const RemindersJob = require('../jobs/scheduled/RemindersJob.js');
-import PermanentTimeOutJob from '#jobs/scheduled/PermanentTimeOutJob.js';
-import EventReactJob from '#jobs/event-driven/ReactJob.js';
+import PermanentTimeOutJob from '#/jobs/scheduled/PermanentTimeOutJob.js';
+import EventReactJob from '#/jobs/event-driven/ReactJob.js';
 // LIBRARIES
-import UtilityLibrary from '#libraries/UtilityLibrary.js';
+import UtilityLibrary from '#/libraries/UtilityLibrary.js';
 // FORMATTERS
-import LogFormatter from '#formatters/LogFormatter.js';
+import LogFormatter from '#/formatters/LogFormatter.js';
 // CONSTANTS
-import MessageConstant from '#constants/MessageConstants.js';
-import CensorService from '#services/CensorService.js';
+import MessageConstant from '#/constants/MessageConstants.js';
+import CensorService from '#/services/CensorService.js';
 
 
 // eslint-disable-next-line no-undef

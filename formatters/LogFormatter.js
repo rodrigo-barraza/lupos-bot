@@ -1,6 +1,6 @@
-import config from '#config.json' with { type: 'json' };
-import UtilityLibrary from '#libraries/UtilityLibrary.js';
-import LightWrapper from '#wrappers/LightWrapper.js';
+import config from '#/config.json' with { type: 'json' };
+import UtilityLibrary from '#/libraries/UtilityLibrary.js';
+import LightWrapper from '#/wrappers/LightWrapper.js';
 
 const { slowBlink, bold } = UtilityLibrary.ansiEscapeCodes(true);
 

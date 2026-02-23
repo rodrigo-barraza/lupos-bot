@@ -1,5 +1,5 @@
 import { SlashCommandBuilder } from 'discord.js';
-import AIService from '#services/AIService.js';
+import AIService from '#/services/AIService.js';
 
 export default {
     data: new SlashCommandBuilder()

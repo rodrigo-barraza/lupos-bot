@@ -1,6 +1,6 @@
 import { SlashCommandBuilder } from 'discord.js';
-import HolidayService from '#services/HolidayService.js';
-import MoodService from '#services/MoodService.js';
+import HolidayService from '#/services/HolidayService.js';
+import MoodService from '#/services/MoodService.js';
 
 export default {
     data: new SlashCommandBuilder()

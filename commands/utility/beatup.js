@@ -1,5 +1,5 @@
 import { SlashCommandBuilder, PermissionFlagsBits } from 'discord.js';
-import MongoWrapper from '#wrappers/MongoWrapper.js';
+import MongoWrapper from '#/wrappers/MongoWrapper.js';
 
 // How many votes needed to trigger timeout
 const VOTES_REQUIRED = 3;

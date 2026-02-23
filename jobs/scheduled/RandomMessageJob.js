@@ -1,10 +1,10 @@
-import config from '#config.json' with { type: 'json' };
-import { consoleInfo, consoleLog } from '#libraries/UtilityLibrary.js';
-import YapperService from '#services/YapperService.js';
-import UtilityLibrary from '#libraries/UtilityLibrary.js';
-import DiscordUtilityService from '#services/DiscordUtilityService.js';
+import config from '#/config.json' with { type: 'json' };
+import { consoleInfo, consoleLog } from '#/libraries/UtilityLibrary.js';
+import YapperService from '#/services/YapperService.js';
+import UtilityLibrary from '#/libraries/UtilityLibrary.js';
+import DiscordUtilityService from '#/services/DiscordUtilityService.js';
 import luxon from 'luxon';
-import AIService from '#services/AIService.js';
+import AIService from '#/services/AIService.js';
 
 
 

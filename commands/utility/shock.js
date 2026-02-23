@@ -1,5 +1,5 @@
 import { SlashCommandBuilder, PermissionFlagsBits } from 'discord.js';
-import MongoWrapper from '#wrappers/MongoWrapper.js';
+import MongoWrapper from '#/wrappers/MongoWrapper.js';
 
 // Store cooldowns in memory (userId -> timestamp)
 const cooldowns = new Map();

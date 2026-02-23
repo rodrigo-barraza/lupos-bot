@@ -1,8 +1,8 @@
 import 'dotenv/config';
-import UtilityLibrary from '#libraries/UtilityLibrary.js';
+import UtilityLibrary from '#/libraries/UtilityLibrary.js';
 import puppeteer from 'puppeteer-core';
 import xml2js from 'xml2js';
-import AIService from '#services/AIService.js';
+import AIService from '#/services/AIService.js';
 
 const PuppeteerWrapper = {
     async scrapeRSS(url) {
