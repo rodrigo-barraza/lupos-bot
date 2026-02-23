@@ -1,8 +1,8 @@
-const { SlashCommandBuilder } = require('discord.js');
-const UtilityLibrary = require('../../libraries/UtilityLibrary.js');
-const MoodService = require('../../services/MoodService.js');
+import { SlashCommandBuilder } from 'discord.js';
+import UtilityLibrary from '../../libraries/UtilityLibrary.js';
+import MoodService from '../../services/MoodService.js';
 
-module.exports = {
+export default {
 	data: new SlashCommandBuilder()
 		.setName('howl')
 		.setDescription('Raise your head up high, and call upon the full moon.'),

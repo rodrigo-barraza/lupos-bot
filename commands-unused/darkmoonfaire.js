@@ -1,8 +1,8 @@
-const { SlashCommandBuilder } = require('discord.js');
-const DarkMoonFaireService = require('../../services/DarkmoonFaireService.js');
-const MoodService = require('../../services/MoodService.js');
+import { SlashCommandBuilder } from 'discord.js';
+import DarkMoonFaireService from '../../services/DarkmoonFaireService.js';
+import MoodService from '../../services/MoodService.js';
 
-module.exports = {
+export default {
 	data: new SlashCommandBuilder()
 		.setName('darkmoonfaire')
 		.setDescription('Get the latest details on the Darkmoon Faire.'),

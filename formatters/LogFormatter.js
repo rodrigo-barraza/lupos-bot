@@ -1,6 +1,6 @@
-const config = require('../config');
-const UtilityLibrary = require('../libraries/UtilityLibrary');
-const LightWrapper = require('../wrappers/LightWrapper');
+import config from '../config.json' with { type: 'json' };
+import UtilityLibrary from '../libraries/UtilityLibrary.js';
+import LightWrapper from '../wrappers/LightWrapper.js';
 
 const { slowBlink, bold } = UtilityLibrary.ansiEscapeCodes(true);
 
@@ -856,4 +856,4 @@ const LogFormatter = {
     }
 }
 
-module.exports = LogFormatter;
+export default LogFormatter;

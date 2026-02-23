@@ -1,15 +1,38 @@
-const YapperService = require('../../services/YapperService');
+import { jest, describe, test, it, expect, beforeEach, afterEach, beforeAll, afterAll } from '@jest/globals';
 
-jest.mock('../../services/AIService', () => ({
-    generateTextFromSystemUserMessages: jest.fn().mockResolvedValue('Mocked AI response')
+// Mock all transitive dependencies that pull in heavy native modules
+jest.unstable_mockModule('../../services/DiscordService', () => ({
+    default: {}
+}));
+jest.unstable_mockModule('../../services/AIService', () => ({
+    default: {
+        generateTextFromSystemUserMessages: jest.fn().mockResolvedValue('Mocked AI response')
+    }
+}));
+jest.unstable_mockModule('../../services/MoodService', () => ({
+    default: {
+        decreaseMoodLevel: jest.fn()
+    }
+}));
+jest.unstable_mockModule('../../services/HungerService', () => ({
+    default: {}
+}));
+jest.unstable_mockModule('../../services/ThirstService', () => ({
+    default: {}
+}));
+jest.unstable_mockModule('../../services/BathroomService', () => ({
+    default: {}
+}));
+jest.unstable_mockModule('../../services/SicknessService', () => ({
+    default: {}
+}));
+jest.unstable_mockModule('../../services/AlcoholService', () => ({
+    default: {}
 }));
 
-jest.mock('../../services/MoodService', () => ({
-    decreaseMoodLevel: jest.fn()
-}));
-
-const AIService = require('../../services/AIService');
-const MoodService = require('../../services/MoodService');
+const YapperService = (await import('../../services/YapperService.js')).default;
+const AIService = (await import('../../services/AIService.js')).default;
+const MoodService = (await import('../../services/MoodService.js')).default;
 
 describe('YapperService', () => {
     beforeEach(() => {

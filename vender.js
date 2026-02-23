@@ -1,21 +1,21 @@
 'use strict';
 
 // Environment setup
-require('dotenv/config');
+import 'dotenv/config';
 process.env.NODE_NO_WARNINGS = 'stream/web';
 
 // Dependencies
-// const { MongoClient } = require('mongodb');
-const config = require('./config.json');
+// import { MongoClient } from 'mongodb';
+import config from './config.json' with { type: 'json' };
 // const UtilityLibrary = require('./libraries/UtilityLibrary.js');
-const DiscordService = require('./services/DiscordService.js');
-const LogFormatter = require('./formatters/LogFormatter.js');
+import DiscordService from './services/DiscordService.js';
+import LogFormatter from './formatters/LogFormatter.js';
 // const MongoWrapper = require('./wrappers/MongoWrapper.js');
 
-const express = require('express');
-const bodyParser = require('body-parser');
+import express from 'express';
+import bodyParser from 'body-parser';
 const app = express();
-const services = require('./services/services.js');
+import services from './services/services.js';
 
 // Parse command line arguments
 const args = process.argv.slice(2);

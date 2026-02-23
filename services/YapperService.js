@@ -1,10 +1,10 @@
-const AIService = require('./AIService.js');
-const HungerService = require('./HungerService.js');
-const ThirstService = require('./ThirstService.js');
-const BathroomService = require('./BathroomService.js');
-const MoodService = require('./MoodService.js');
-const SicknessService = require('./SicknessService.js');
-const AlcoholService = require('./AlcoholService.js');
+import AIService from './AIService.js';
+import HungerService from './HungerService.js';
+import ThirstService from './ThirstService.js';
+import BathroomService from './BathroomService.js';
+import MoodService from './MoodService.js';
+import SicknessService from './SicknessService.js';
+import AlcoholService from './AlcoholService.js';
 
 let currentYappers = [];
 
@@ -36,4 +36,4 @@ const YapperService = {
     }
 }
 
-module.exports = YapperService
+export default YapperService;

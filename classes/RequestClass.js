@@ -22,4 +22,4 @@ class RequestClass {
     }
 };
 
-module.exports = RequestClass;
+export default RequestClass;

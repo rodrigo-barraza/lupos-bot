@@ -40,4 +40,4 @@ class ResponseClass {
     };
 };
 
-module.exports = ResponseClass;
+export default ResponseClass;

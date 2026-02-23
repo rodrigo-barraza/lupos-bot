@@ -1,5 +1,5 @@
-const moment = require('moment');
-const DiscordService = require('../services/DiscordService.js');
+import moment from 'moment';
+import DiscordService from '../services/DiscordService.js';
 
 const resetFrequencyInDays = 3;
 const initialBFDResetDate = 1707069600;
@@ -80,4 +80,4 @@ const DungeonTimerService = {
     }
 };
 
-module.exports = DungeonTimerService;
+export default DungeonTimerService;

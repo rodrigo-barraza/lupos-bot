@@ -1,6 +1,7 @@
-const DiscordUtilityService = require('../../services/DiscordUtilityService.js');
-const config = require('../../config.json');
-const { consoleLog } = require('../../libraries/UtilityLibrary.js');
+import DiscordUtilityService from '../../services/DiscordUtilityService.js';
+import config from '../../config.json' with { type: 'json' };
+import UtilityLibrary from '../../libraries/UtilityLibrary.js';
+const { consoleLog } = UtilityLibrary;
 
 let previousOverReactorId;
 
@@ -20,19 +21,19 @@ async function generateReactors(client, mongo) {
 
     const userIds = [];
     let mostCommonOverReactor;
-  
+
     try {
         consoleLog('<')
         const results = await Promise.all(
-            messages.map(message => 
+            messages.map(message =>
                 Promise.all(
-                        Array.from(message.reactions.cache.values()).map(reaction => 
+                    Array.from(message.reactions.cache.values()).map(reaction =>
                         reaction.users.fetch()
                     )
                 )
             )
         );
-    
+
         results.forEach(reactions => {
             reactions.forEach(users => {
                 users.forEach(user => {
@@ -45,26 +46,26 @@ async function generateReactors(client, mongo) {
                 });
             });
         });
-        
+
         mostCommonOverReactor = userIds.reduce((acc, user) => (user.count > acc.count ? user : acc), userIds[0]);
 
         if (mostCommonOverReactor?.count > 4) {
             const overReactorRole = guild.roles.cache.find(role => role.id === overReactorRoleId);
             const currentOverReactor = await guild.members.fetch(mostCommonOverReactor.id);
-    
+
             const membersWithRole = guild.members.cache.filter(member => member.roles.cache.some(role => role.id === overReactorRoleId));
             if (previousOverReactorId !== currentOverReactor.id) {
                 // Remove the role from all current holders simultaneously
                 await Promise.all(
                     membersWithRole.map(async member => {
-                        consoleLog('=',`Removing ${overReactorRole.name} role from member: ${member.user.tag} (ID: ${member.id})`);
+                        consoleLog('=', `Removing ${overReactorRole.name} role from member: ${member.user.tag} (ID: ${member.id})`);
                         return member.roles.remove(overReactorRole);
                     })
                 );
-                
+
                 // Add the role to the new over-reactor
                 await currentOverReactor.roles.add(overReactorRole);
-                
+
                 previousOverReactorId = currentOverReactor.id;
                 // consoleLog('=', `${currentOverReactor.displayName} has been given the role ${overReactorRole.name}`);
             }
@@ -75,7 +76,7 @@ async function generateReactors(client, mongo) {
         }
         consoleLog('>')
     } catch (err) {
-      console.error('Error in processing:', err);
+        console.error('Error in processing:', err);
     }
 }
 
@@ -88,4 +89,4 @@ const ReactJob = {
     }
 };
 
-module.exports = ReactJob;
+export default ReactJob;

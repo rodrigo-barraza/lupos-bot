@@ -1,5 +1,5 @@
-const { SlashCommandBuilder, PermissionFlagsBits } = require('discord.js');
-const MongoWrapper = require('../../wrappers/MongoWrapper.js');
+import { SlashCommandBuilder, PermissionFlagsBits } from 'discord.js';
+import MongoWrapper from '../../wrappers/MongoWrapper.js';
 
 // How many votes needed to trigger timeout
 const VOTES_REQUIRED = 3;
@@ -57,7 +57,7 @@ function getRandomMove() {
     };
 }
 
-module.exports = {
+export default {
     data: new SlashCommandBuilder()
         .setName('beatup')
         .setDescription('Vote to time out a user for 1 minute (requires 3 votes)')

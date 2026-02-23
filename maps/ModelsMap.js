@@ -113,4 +113,4 @@ modelsMap.set('ANTHROPIC', anthropicModelsMap);
 modelsMap.set('OPENAI', openAIModelsMap);
 modelsMap.set('GOOGLE', googleModelsMap);
 
-module.exports = modelsMap;
+export default modelsMap;

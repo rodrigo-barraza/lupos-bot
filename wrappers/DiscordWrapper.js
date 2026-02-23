@@ -1,5 +1,5 @@
-require('dotenv/config');
-const { Client, GatewayIntentBits, Partials } = require('discord.js');
+import 'dotenv/config';
+import { Client, GatewayIntentBits, Partials } from 'discord.js';
 
 let clients = [];
 
@@ -44,4 +44,4 @@ const DiscordWrapper = {
   },
 };
 
-module.exports = DiscordWrapper;
+export default DiscordWrapper;

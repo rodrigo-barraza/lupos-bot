@@ -1,4 +1,4 @@
-const DiscordService = require('../services/DiscordService.js');
+import DiscordService from '../services/DiscordService.js';
 
 let hygieneLevel = 100;
 let hygieneChannelId = '1198326193984913470';
@@ -49,4 +49,4 @@ const HygieneService = {
     }
 }
 
-module.exports = HygieneService
+export default HygieneService;

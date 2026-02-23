@@ -1,6 +1,6 @@
-const { SlashCommandBuilder, AttachmentBuilder } = require('discord.js');
-const MongoWrapper = require('../../wrappers/MongoWrapper.js');
-const puppeteer = require('puppeteer');
+import { SlashCommandBuilder, AttachmentBuilder } from 'discord.js';
+import MongoWrapper from '../../wrappers/MongoWrapper.js';
+import puppeteer from 'puppeteer';
 
 // Common stop words to filter out
 const STOP_WORDS = new Set([
@@ -16,7 +16,7 @@ const STOP_WORDS = new Set([
     'are', 'been', 'has', 'had', 'were', 'did', 'am', 'im', 'youre', 'dont'
 ]);
 
-module.exports = {
+export default {
     data: new SlashCommandBuilder()
         .setName('wordcloud')
         .setDescription('Generate a word cloud of most common words for a member')

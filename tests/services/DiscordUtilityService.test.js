@@ -1,4 +1,6 @@
-const DiscordUtilityService = require('../../services/DiscordUtilityService');
+import { jest, describe, test, it, expect, beforeEach, afterEach, beforeAll, afterAll } from '@jest/globals';
+
+const DiscordUtilityService = (await import('../../services/DiscordUtilityService.js')).default;
 
 describe('DiscordUtilityService - Pure Functions', () => {
     describe('getUsernameNoSpaces', () => {

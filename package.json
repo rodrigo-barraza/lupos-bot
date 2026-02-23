@@ -2,9 +2,10 @@
     "name": "lazybot9000",
     "version": "1.0.0",
     "description": "",
+    "type": "module",
     "main": "lupos.js",
     "scripts": {
-        "test": "jest"
+        "test": "node --experimental-vm-modules node_modules/.bin/jest"
     },
     "keywords": [],
     "author": "",

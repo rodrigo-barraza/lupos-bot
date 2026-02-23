@@ -1,8 +1,8 @@
 'use strict';
-const EventsEventEmitter = require('events').EventEmitter;
-const ResponseClass = require.main.require('./classes/ResponseClass');
-const RequestClass = require.main.require('./classes/RequestClass');
-const MessageQueueService = require.main.require('./services/MessageQueueService');
+import { EventEmitter as EventsEventEmitter } from 'events';
+import ResponseClass from '../../classes/ResponseClass.js';
+import RequestClass from '../../classes/RequestClass.js';
+import MessageQueueService from '../../services/MessageQueueService.js';
 
 const PostWebHook = () => {
     return (req, res) => {
@@ -10,11 +10,6 @@ const PostWebHook = () => {
         const EventEmitter = new EventsEventEmitter();
         const response = new ResponseClass(res);
         const request = new RequestClass(req);
-        // const headers = {
-        //     ip: request.headers('x-forwarded-for') || request.connection('remoteAddress'),
-        //     session: request.headers('session'),
-        //     local: request.headers('local'),
-        // };
 
         const body = {
             text: request.body('text'),
@@ -40,4 +35,4 @@ const PostWebHook = () => {
     }
 };
 
-module.exports = PostWebHook;
+export default PostWebHook;

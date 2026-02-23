@@ -1,4 +1,4 @@
-const DiscordService = require('./DiscordService.js');
+import DiscordService from './DiscordService.js';
 
 let alcoholLevel = 0;
 
@@ -65,4 +65,4 @@ const AlcoholService = {
     }
 }
 
-module.exports = AlcoholService
+export default AlcoholService;

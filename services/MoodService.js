@@ -1,6 +1,6 @@
-const { ActivityType } = require('discord.js');
-const DiscordUtilityService = require('./DiscordUtilityService.js');
-const DiscordWrapper = require('../wrappers/DiscordWrapper.js');
+import { ActivityType } from 'discord.js';
+import DiscordUtilityService from './DiscordUtilityService.js';
+import DiscordWrapper from '../wrappers/DiscordWrapper.js';
 
 let moodLevel = 0;
 
@@ -214,4 +214,4 @@ const MoodService = {
     },
 }
 
-module.exports = MoodService
+export default MoodService;

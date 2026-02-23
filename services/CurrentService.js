@@ -1,4 +1,4 @@
-const BigNumber = require('bignumber.js');
+import BigNumber from 'bignumber.js';
 
 let user = null;
 let message = null;
@@ -121,4 +121,4 @@ const CurrentService = {
     },
 }
 
-module.exports = CurrentService
+export default CurrentService;

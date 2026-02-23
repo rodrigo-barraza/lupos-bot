@@ -1,10 +1,11 @@
-const { GoogleGenAI } = require('@google/genai');
+import { GoogleGenAI } from '@google/genai';
+import config from '../config.json' with { type: 'json' };
 const {
     GOOGLE_KEY
-} = require('../config.json');
+} = config;
 
 const googleGenAI = new GoogleGenAI({
-  apiKey: GOOGLE_KEY,
+    apiKey: GOOGLE_KEY,
 });
 
 const GoogleAIWrapper = {
@@ -54,10 +55,10 @@ const GoogleAIWrapper = {
                 const countTokensResponse = await googleGenAI.models.countTokens({
                     model: 'gemini-3-pro-image-preview',
                     contents: [
-                        { 
+                        {
                             role: 'user',
                             parts: [
-                                { 
+                                {
                                     text: combinedChunkText
                                 }
                             ]
@@ -83,4 +84,4 @@ const GoogleAIWrapper = {
     }
 };
 
-module.exports = GoogleAIWrapper;
+export default GoogleAIWrapper;

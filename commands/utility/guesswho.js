@@ -1,7 +1,7 @@
-const { SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
-const MongoWrapper = require('../../wrappers/MongoWrapper.js');
+import { SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } from 'discord.js';
+import MongoWrapper from '../../wrappers/MongoWrapper.js';
 
-module.exports = {
+export default {
     data: new SlashCommandBuilder()
         .setName('guesswho')
         .setDescription('Guess the user from an anonymous message quote')

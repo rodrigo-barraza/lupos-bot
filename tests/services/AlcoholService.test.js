@@ -1,8 +1,9 @@
-const AlcoholService = require('../../services/AlcoholService');
-
-jest.mock('../../services/DiscordService', () => ({
+import { jest, describe, test, it, expect, beforeEach, afterEach, beforeAll, afterAll } from '@jest/globals';
+jest.unstable_mockModule('../../services/DiscordService', () => ({ default: {
     generateInCharacterResponse2Special: jest.fn()
-}));
+} }));
+
+const AlcoholService = (await import('../../services/AlcoholService.js')).default;
 
 describe('AlcoholService', () => {
     beforeEach(() => {

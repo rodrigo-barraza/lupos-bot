@@ -1,5 +1,5 @@
-const DiscordUtilityService = require('../../services/DiscordUtilityService.js');
-const config = require('../../config.json');
+import DiscordUtilityService from '../../services/DiscordUtilityService.js';
+import config from '../../config.json' with { type: 'json' };
 
 let queueIsProcessing = false;
 const queue = [];
@@ -70,4 +70,4 @@ const ReactJob = {
     }
 };
 
-module.exports = ReactJob;
+export default ReactJob;

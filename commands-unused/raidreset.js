@@ -1,9 +1,9 @@
-const { SlashCommandBuilder } = require('discord.js');
-const DungeonTimerService = require('../../services/DungeonTimerService.js');
-const MoodService = require('../../services/MoodService.js');
-const moment = require('moment');
+import { SlashCommandBuilder } from 'discord.js';
+import DungeonTimerService from '../../services/DungeonTimerService.js';
+import MoodService from '../../services/MoodService.js';
+import moment from 'moment';
 
-module.exports = {
+export default {
 	data: new SlashCommandBuilder()
 		.setName('raidreset')
 		.setDescription('Find out when the next raid reset timer date is.'),

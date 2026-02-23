@@ -1,7 +1,7 @@
-const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
-const MongoWrapper = require('../../wrappers/MongoWrapper.js');
+import { SlashCommandBuilder, EmbedBuilder } from 'discord.js';
+import MongoWrapper from '../../wrappers/MongoWrapper.js';
 
-module.exports = {
+export default {
     data: new SlashCommandBuilder()
         .setName('leaderboard')
         .setDescription('Shows message leaderboard for a specified time period')

@@ -1,4 +1,4 @@
-const DiscordService = require('./DiscordService.js');
+import DiscordService from './DiscordService.js';
 
 let bathroomLevel = 0;
 let hungerChannelId = '1198326193984913470';
@@ -59,4 +59,4 @@ const BathroomService = {
     }
 }
 
-module.exports = BathroomService
+export default BathroomService;

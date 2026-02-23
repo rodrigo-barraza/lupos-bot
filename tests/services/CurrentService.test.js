@@ -1,5 +1,7 @@
-const BigNumber = require('bignumber.js');
-const CurrentService = require('../../services/CurrentService');
+import { jest, describe, test, it, expect, beforeEach, afterEach, beforeAll, afterAll } from '@jest/globals';
+
+const BigNumber = (await import('bignumber.js')).default;
+const CurrentService = (await import('../../services/CurrentService.js')).default;
 
 describe('CurrentService', () => {
     beforeEach(() => {

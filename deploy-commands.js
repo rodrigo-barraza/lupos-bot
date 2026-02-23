@@ -1,20 +1,23 @@
-const { REST, Routes, Client, GatewayIntentBits } = require('discord.js');
-const { CLIENT_ID, LUPOS_TOKEN } = require('./config.json');
-const fs = require('node:fs');
-const path = require('node:path');
-require('dotenv/config');
+import { REST, Routes, Client, GatewayIntentBits } from 'discord.js';
+import config from './config.json' with { type: 'json' };
+import fs from 'node:fs';
+import path from 'node:path';
+import { pathToFileURL } from 'node:url';
+import 'dotenv/config';
+
+const { CLIENT_ID, LUPOS_TOKEN } = config;
 
 const commands = [];
-const foldersPath = path.join(__dirname, 'commands');
+const foldersPath = path.join(import.meta.dirname, 'commands');
 const commandFolders = fs.readdirSync(foldersPath);
 
 for (const folder of commandFolders) {
     const commandsPath = path.join(foldersPath, folder);
     const commandFiles = fs.readdirSync(commandsPath).filter(file => file.endsWith('.js'));
-    
+
     for (const file of commandFiles) {
         const filePath = path.join(commandsPath, file);
-        const command = require(filePath);
+        const command = (await import(pathToFileURL(filePath))).default;
         if ('data' in command && 'execute' in command) {
             commands.push(command.data.toJSON());
         } else {
@@ -29,9 +32,9 @@ const client = new Client({ intents: [GatewayIntentBits.Guilds] });
 (async () => {
     try {
         await client.login(LUPOS_TOKEN);
-        
+
         console.log(`Started refreshing ${commands.length} application (/) commands.`);
-        
+
         // Option 1: Deploy to ALL guilds (recommended for multi-server bots)
         let successCount = 0;
         for (const guild of client.guilds.cache.values()) {
@@ -47,7 +50,7 @@ const client = new Client({ intents: [GatewayIntentBits.Guilds] });
                 console.error(`Failed to deploy commands to ${guild.name}:`, error);
             }
         }
-        
+
         // Option 2: Deploy globally (takes up to 1 hour to propagate)
         // Uncomment this if you want global commands instead
         /*
@@ -57,7 +60,7 @@ const client = new Client({ intents: [GatewayIntentBits.Guilds] });
         );
         console.log(`Successfully deployed ${data.length} global commands.`);
         */
-        
+
         console.log(`Successfully deployed commands to ${successCount} guilds.`);
         client.destroy();
     } catch (error) {

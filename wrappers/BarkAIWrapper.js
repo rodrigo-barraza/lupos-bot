@@ -1,8 +1,8 @@
-require('dotenv/config');
-
+import 'dotenv/config';
+import config from '../config.json' with { type: 'json' };
 const {
     BARK_VOICE_MODEL_API_URL,
-} = require('../config.json');
+} = config;
 
 const BarkAIWrapper = {
     async generateVoice(text) {
@@ -15,7 +15,7 @@ const BarkAIWrapper = {
                 })
             });
             if (!response.ok) {
-                console.log('Error:', response.status); 
+                console.log('Error:', response.status);
                 return null;
             }
             return await response.json();
@@ -26,4 +26,4 @@ const BarkAIWrapper = {
     }
 };
 
-module.exports = BarkAIWrapper;
+export default BarkAIWrapper;

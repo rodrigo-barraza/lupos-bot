@@ -1,7 +1,6 @@
-const DiscordService = require('../services/DiscordService.js');
-const MoodService = require('../services/MoodService.js');
-const moment = require('moment')
-
+import DiscordService from '../services/DiscordService.js';
+import MoodService from '../services/MoodService.js';
+import moment from 'moment';
 const worldOfWarcraftHolidays = [
     {
         name: "Hallow's End",
@@ -158,4 +157,4 @@ const HolidayService = {
     }
 }
 
-module.exports = HolidayService
+export default HolidayService;

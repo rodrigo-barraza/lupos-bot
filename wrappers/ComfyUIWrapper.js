@@ -1,34 +1,35 @@
-const WebSocket = require('ws');
-const crypto = require('crypto');
+import WebSocket from 'ws';
+import crypto from 'crypto';
 const clientId = crypto.randomBytes(20).toString('hex');
-const { consoleLog } = require('../libraries/UtilityLibrary.js');
-const config = require('../config.json');
+import UtilityLibrary from '../libraries/UtilityLibrary.js';
+const { consoleLog } = UtilityLibrary;
+import config from '../config.json' with { type: 'json' };
 // Formatter
-const LogFormatter = require('../formatters/LogFormatter.js');
-const LightWrapper = require('../wrappers/LightWrapper.js');
+import LogFormatter from '../formatters/LogFormatter.js';
+import LightWrapper from '../wrappers/LightWrapper.js';
 
 const {
     COMFY_UI_IMAGE_MODEL_API_URL,
     COMFY_UI_IMAGE_MODEL_WEBSOCKET_URL,
-} = require('../config.json');
+} = config;
 
-const fs = require('fs');
-const path = require('path');
-const { pipeline } = require('stream/promises');
+import fs from 'fs';
+import path from 'path';
+import { pipeline } from 'stream/promises';
 
 async function downloadImage(url, imagePath) {
-  const res = await fetch(url);
-  if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
-  await pipeline(res.body, fs.createWriteStream(imagePath));
-  const windowsImagePath = imagePath.replace(/^\/develop/, 'Y:').replace(/\//g, '\\');
-  return windowsImagePath;
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+    await pipeline(res.body, fs.createWriteStream(imagePath));
+    const windowsImagePath = imagePath.replace(/^\/develop/, 'Y:').replace(/\//g, '\\');
+    return windowsImagePath;
 }
 
 const debugging = false
 
 const loadingSymbols = [
-  ['♥', '♡'], ['★', '☆'], ['♦', '♢'], ['♣', '♧'], ['♠', '♤'],
-  ['█', '░'], ['■', '□'], ['●', '○'], ['◆', '◇'], ['◼', '◻'],
+    ['♥', '♡'], ['★', '☆'], ['♦', '♢'], ['♣', '♧'], ['♠', '♤'],
+    ['█', '░'], ['■', '□'], ['●', '○'], ['◆', '◇'], ['◼', '◻'],
 ]
 
 function generateProgressBar(percentage) {
@@ -66,13 +67,13 @@ async function getHistory(promptId) {
 }
 
 function calculatePeriodsIncreaseOverTime(periods = '') {
-  // start with 1 period, then two, then three, and go back to one
-  let periodsIncreaseOverTime = periods + '.';
-  if (periodsIncreaseOverTime.length > 3) {
-    periodsIncreaseOverTime = '.';
-  }
-  return periodsIncreaseOverTime;
-  
+    // start with 1 period, then two, then three, and go back to one
+    let periodsIncreaseOverTime = periods + '.';
+    if (periodsIncreaseOverTime.length > 3) {
+        periodsIncreaseOverTime = '.';
+    }
+    return periodsIncreaseOverTime;
+
 }
 
 async function generateImageWithTracking(prompt, client) {
@@ -84,7 +85,7 @@ async function generateImageWithTracking(prompt, client) {
             let executionStarted = false;
             let currentNode = null;
             let progressDots = '';
-            
+
             const timeout = setTimeout(() => {
                 if (!isResolved) {
                     isResolved = true;
@@ -93,45 +94,45 @@ async function generateImageWithTracking(prompt, client) {
                     reject(new Error('Image generation timeout'));
                 }
             }, 60000);
-            
+
             const cleanup = () => {
                 clearTimeout(timeout);
                 if (websocket.readyState === WebSocket.OPEN) {
                     websocket.close();
                 }
             };
-            
+
             websocket.onopen = async () => {
                 try {
                     console.log('🔌 WebSocket connected, submitting prompt...');
                     const response = await postPrompt(prompt);
                     promptId = response.prompt_id;
-                    
+
                     if (!promptId) {
                         cleanup();
                         reject(new Error('No prompt ID received'));
                         return;
                     }
-                    
+
                     console.log(`📝 Prompt submitted with ID: ${promptId}`);
                 } catch (innerError) {
                     cleanup();
                     reject(innerError);
                 }
             };
-            
+
             websocket.onmessage = async (event) => {
                 if (isResolved) return;
-                
+
                 try {
                     const message = JSON.parse(event.data);
-                    
+
                     // Track execution start
                     if (message.type === 'execution_start' && message.data.nodes[13].prompt_id === promptId) {
                         executionStarted = true;
                         console.log(`\n🚀 Execution started for prompt ${promptId}`);
                     }
-                    
+
                     // Track cached nodes
                     if (message.type === 'execution_cached' && message.data.nodes[13].prompt_id === promptId) {
                         const cachedNodes = message.data.nodes || [];
@@ -147,23 +148,23 @@ async function generateImageWithTracking(prompt, client) {
                                 console.log(`\n📦 Executing node: ${currentNode}`);
                             }
                         }
-                        
+
                         // Check for completion (must match exact conditions from original)
                         if (message.data.node === null && message.data.prompt_id === promptId) {
                             console.log(`\n✅ Execution completed for prompt ${promptId}`);
                             isResolved = true;
                             cleanup();
-                            
+
                             const history = await getHistory(promptId);
                             const historyPromptId = history[promptId];
-                            
+
                             if (!historyPromptId || !historyPromptId.outputs) {
                                 reject(new Error('No outputs in history'));
                                 return;
                             }
-                            
+
                             const outputImages = {};
-                            
+
                             for (const node_id in historyPromptId.outputs) {
                                 const nodeOutput = historyPromptId.outputs[node_id];
                                 if ('images' in nodeOutput) {
@@ -176,7 +177,7 @@ async function generateImageWithTracking(prompt, client) {
                                     outputImages[node_id] = imagesOutput;
                                 }
                             }
-                            
+
                             resolve(outputImages);
                         }
                     }
@@ -187,7 +188,7 @@ async function generateImageWithTracking(prompt, client) {
                         progressDots = calculatePeriodsIncreaseOverTime(progressDots);
 
                         LightWrapper.cycleColor(config.PRIMARY_LIGHT_ID, 'rainbow');
-                        
+
                         // Clear the line and show progress
                         // console.log('\x1b[2K'); // Clear the entire line
                         console.log(`   Progress: [${generateProgressBar(percentage)}] ${percentage}% (${value}/${max}) ${progressDots}`);
@@ -201,19 +202,19 @@ async function generateImageWithTracking(prompt, client) {
                             client.user.setActivity(`${clockEmojis[clockIndex]}🖼️: ${generateProgressBar(percentage)} ${percentage}%`, { type: 4 });
                         }
                         // process.stdout.write(`\r   Progress: [${generateProgressBar(percentage)}] ${percentage}% (${value}/${max}) ${progressDots}`);
-                        
+
                         if (value === max) {
                             console.log(''); // New line after completion
                         }
                     }
-                    
+
                     // Track completed nodes
                     if (message.type === 'executed' && message.data.nodes[13].prompt_id === promptId) {
                         if (message.data.nodes[13].node_id) {
                             console.log(`   ✔️  Node ${message.data.nodes[13].node_id} completed`);
                         }
                     }
-                    
+
                     // Track status updates
                     if (message.type === 'status') {
                         const { exec_info } = message.data.nodes[13].status || {};
@@ -223,14 +224,14 @@ async function generateImageWithTracking(prompt, client) {
                             }
                         }
                     }
-                    
+
                 } catch (error) {
                     if (debugging) {
                         console.error('Error processing message:', error);
                     }
                 }
             };
-            
+
             websocket.onerror = (error) => {
                 if (!isResolved) {
                     isResolved = true;
@@ -239,7 +240,7 @@ async function generateImageWithTracking(prompt, client) {
                     reject(new Error('WebSocket error'));
                 }
             };
-            
+
             websocket.onclose = () => {
                 if (!isResolved) {
                     isResolved = true;
@@ -261,7 +262,7 @@ async function generateImage(prompt) {
             const websocket = new WebSocket(`${COMFY_UI_IMAGE_MODEL_WEBSOCKET_URL}/ws?clientId=${clientId}`);
             let promptId = null;
             let isResolved = false;
-            
+
             // Add timeout for the entire operation
             const timeout = setTimeout(() => {
                 if (!isResolved) {
@@ -273,7 +274,7 @@ async function generateImage(prompt) {
                     reject(new Error('Image generation timeout'));
                 }
             }, 60000); // 60 second timeout
-            
+
             // Cleanup function
             const cleanup = () => {
                 clearTimeout(timeout);
@@ -281,12 +282,12 @@ async function generateImage(prompt) {
                     websocket.close();
                 }
             };
-            
+
             websocket.onopen = async () => {
                 try {
                     const response = await postPrompt(prompt);
                     promptId = response.prompt_id;
-                    
+
                     if (!promptId) {
                         cleanup();
                         reject(new Error('No prompt ID received'));
@@ -297,32 +298,32 @@ async function generateImage(prompt) {
                     reject(innerError);
                 }
             };
-            
+
             websocket.onmessage = async (event) => {
                 if (isResolved) return;
-                
+
                 try {
                     const message = JSON.parse(event.data);
-                    
+
                     // Log progress messages if debugging
                     if (debugging && message.type === 'progress') {
                         console.log(`Progress: ${message.data.value}/${message.data.max}`);
                     }
-                    
+
                     if (message.type === 'executing' && message.data.node === null && message.data.prompt_id === promptId) {
                         isResolved = true;
                         cleanup();
-                        
+
                         const history = await getHistory(promptId);
                         const historyPromptId = history[promptId];
-                        
+
                         if (!historyPromptId || !historyPromptId.outputs) {
                             reject(new Error('No outputs in history'));
                             return;
                         }
-                        
+
                         const outputImages = {};
-                        
+
                         for (const node_id in historyPromptId.outputs) {
                             const nodeOutput = historyPromptId.outputs[node_id];
                             if ('images' in nodeOutput) {
@@ -335,7 +336,7 @@ async function generateImage(prompt) {
                                 outputImages[node_id] = imagesOutput;
                             }
                         }
-                        
+
                         resolve(outputImages);
                     }
                 } catch (error) {
@@ -344,7 +345,7 @@ async function generateImage(prompt) {
                     }
                 }
             };
-            
+
             websocket.onerror = (error) => {
                 if (!isResolved) {
                     isResolved = true;
@@ -355,7 +356,7 @@ async function generateImage(prompt) {
                     reject(new Error('WebSocket error'));
                 }
             };
-            
+
             websocket.onclose = () => {
                 if (!isResolved) {
                     isResolved = true;
@@ -382,578 +383,578 @@ async function checkWebsocketStatus2() {
             };
             websocket.onerror = (error) => {
                 if (debugging) {
-                  console.error('⚠️ ComfyUI Is Down: Cannot Generate Image', error);
+                    console.error('⚠️ ComfyUI Is Down: Cannot Generate Image', error);
                 }
                 reject();
             };
         })
     } catch (error) {
         if (debugging) {
-          console.error('⚠️ ComfyUI Is Down: Cannot Generate Image', error);
+            console.error('⚠️ ComfyUI Is Down: Cannot Generate Image', error);
         }
         throw error;
     }
 }
 
 const sd3Prompt = {
-  "6": {
-    "inputs": {
-      "text": "donald trump transforming into a car, transformers",
-      "clip": [
-        "11",
-        0
-      ]
+    "6": {
+        "inputs": {
+            "text": "donald trump transforming into a car, transformers",
+            "clip": [
+                "11",
+                0
+            ]
+        },
+        "class_type": "CLIPTextEncode",
+        "_meta": {
+            "title": "CLIP Text Encode (Prompt)"
+        }
     },
-    "class_type": "CLIPTextEncode",
-    "_meta": {
-      "title": "CLIP Text Encode (Prompt)"
-    }
-  },
-  "11": {
-    "inputs": {
-      "clip_name1": "clip_g.safetensors",
-      "clip_name2": "clip_l.safetensors",
-      "clip_name3": "t5xxl_fp8_e4m3fn.safetensors"
+    "11": {
+        "inputs": {
+            "clip_name1": "clip_g.safetensors",
+            "clip_name2": "clip_l.safetensors",
+            "clip_name3": "t5xxl_fp8_e4m3fn.safetensors"
+        },
+        "class_type": "TripleCLIPLoader",
+        "_meta": {
+            "title": "TripleCLIPLoader"
+        }
     },
-    "class_type": "TripleCLIPLoader",
-    "_meta": {
-      "title": "TripleCLIPLoader"
-    }
-  },
-  "13": {
-    "inputs": {
-      "shift": 3,
-      "model": [
-        "252",
-        0
-      ]
+    "13": {
+        "inputs": {
+            "shift": 3,
+            "model": [
+                "252",
+                0
+            ]
+        },
+        "class_type": "ModelSamplingSD3",
+        "_meta": {
+            "title": "ModelSamplingSD3"
+        }
     },
-    "class_type": "ModelSamplingSD3",
-    "_meta": {
-      "title": "ModelSamplingSD3"
-    }
-  },
-  "67": {
-    "inputs": {
-      "conditioning": [
-        "71",
-        0
-      ]
+    "67": {
+        "inputs": {
+            "conditioning": [
+                "71",
+                0
+            ]
+        },
+        "class_type": "ConditioningZeroOut",
+        "_meta": {
+            "title": "ConditioningZeroOut"
+        }
     },
-    "class_type": "ConditioningZeroOut",
-    "_meta": {
-      "title": "ConditioningZeroOut"
-    }
-  },
-  "68": {
-    "inputs": {
-      "start": 0.1,
-      "end": 1,
-      "conditioning": [
-        "67",
-        0
-      ]
+    "68": {
+        "inputs": {
+            "start": 0.1,
+            "end": 1,
+            "conditioning": [
+                "67",
+                0
+            ]
+        },
+        "class_type": "ConditioningSetTimestepRange",
+        "_meta": {
+            "title": "ConditioningSetTimestepRange"
+        }
     },
-    "class_type": "ConditioningSetTimestepRange",
-    "_meta": {
-      "title": "ConditioningSetTimestepRange"
-    }
-  },
-  "69": {
-    "inputs": {
-      "conditioning_1": [
-        "68",
-        0
-      ],
-      "conditioning_2": [
-        "70",
-        0
-      ]
+    "69": {
+        "inputs": {
+            "conditioning_1": [
+                "68",
+                0
+            ],
+            "conditioning_2": [
+                "70",
+                0
+            ]
+        },
+        "class_type": "ConditioningCombine",
+        "_meta": {
+            "title": "Conditioning (Combine)"
+        }
     },
-    "class_type": "ConditioningCombine",
-    "_meta": {
-      "title": "Conditioning (Combine)"
-    }
-  },
-  "70": {
-    "inputs": {
-      "start": 0,
-      "end": 0.1,
-      "conditioning": [
-        "71",
-        0
-      ]
+    "70": {
+        "inputs": {
+            "start": 0,
+            "end": 0.1,
+            "conditioning": [
+                "71",
+                0
+            ]
+        },
+        "class_type": "ConditioningSetTimestepRange",
+        "_meta": {
+            "title": "ConditioningSetTimestepRange"
+        }
     },
-    "class_type": "ConditioningSetTimestepRange",
-    "_meta": {
-      "title": "ConditioningSetTimestepRange"
-    }
-  },
-  "71": {
-    "inputs": {
-      "text": "bad quality, poor quality, doll, disfigured, jpg, toy, bad anatomy, missing limbs, missing fingers, child, kid, anime",
-      "clip": [
-        "11",
-        0
-      ]
+    "71": {
+        "inputs": {
+            "text": "bad quality, poor quality, doll, disfigured, jpg, toy, bad anatomy, missing limbs, missing fingers, child, kid, anime",
+            "clip": [
+                "11",
+                0
+            ]
+        },
+        "class_type": "CLIPTextEncode",
+        "_meta": {
+            "title": "CLIP Text Encode (Negative Prompt)"
+        }
     },
-    "class_type": "CLIPTextEncode",
-    "_meta": {
-      "title": "CLIP Text Encode (Negative Prompt)"
-    }
-  },
-  "135": {
-    "inputs": {
-      "width": 1080,
-      "height": 1080,
-      "batch_size": 1
+    "135": {
+        "inputs": {
+            "width": 1080,
+            "height": 1080,
+            "batch_size": 1
+        },
+        "class_type": "EmptySD3LatentImage",
+        "_meta": {
+            "title": "EmptySD3LatentImage"
+        }
     },
-    "class_type": "EmptySD3LatentImage",
-    "_meta": {
-      "title": "EmptySD3LatentImage"
-    }
-  },
-  "231": {
-    "inputs": {
-      "samples": [
-        "271",
-        0
-      ],
-      "vae": [
-        "252",
-        2
-      ]
+    "231": {
+        "inputs": {
+            "samples": [
+                "271",
+                0
+            ],
+            "vae": [
+                "252",
+                2
+            ]
+        },
+        "class_type": "VAEDecode",
+        "_meta": {
+            "title": "VAE Decode"
+        }
     },
-    "class_type": "VAEDecode",
-    "_meta": {
-      "title": "VAE Decode"
-    }
-  },
-  "233": {
-    "inputs": {
-      "images": [
-        "231",
-        0
-      ]
+    "233": {
+        "inputs": {
+            "images": [
+                "231",
+                0
+            ]
+        },
+        "class_type": "PreviewImage",
+        "_meta": {
+            "title": "Preview Image"
+        }
     },
-    "class_type": "PreviewImage",
-    "_meta": {
-      "title": "Preview Image"
-    }
-  },
-  "252": {
-    "inputs": {
-      "ckpt_name": "sd3_medium.safetensors"
+    "252": {
+        "inputs": {
+            "ckpt_name": "sd3_medium.safetensors"
+        },
+        "class_type": "CheckpointLoaderSimple",
+        "_meta": {
+            "title": "Load Checkpoint"
+        }
     },
-    "class_type": "CheckpointLoaderSimple",
-    "_meta": {
-      "title": "Load Checkpoint"
-    }
-  },
-  "271": {
-    "inputs": {
-      "seed": 893434258339097,
-      "steps": 40,
-      "cfg": 4.5,
-      "sampler_name": "dpmpp_2m",
-      "scheduler": "sgm_uniform",
-      "denoise": 1,
-      "model": [
-        "13",
-        0
-      ],
-      "positive": [
-        "6",
-        0
-      ],
-      "negative": [
-        "69",
-        0
-      ],
-      "latent_image": [
-        "135",
-        0
-      ]
+    "271": {
+        "inputs": {
+            "seed": 893434258339097,
+            "steps": 40,
+            "cfg": 4.5,
+            "sampler_name": "dpmpp_2m",
+            "scheduler": "sgm_uniform",
+            "denoise": 1,
+            "model": [
+                "13",
+                0
+            ],
+            "positive": [
+                "6",
+                0
+            ],
+            "negative": [
+                "69",
+                0
+            ],
+            "latent_image": [
+                "135",
+                0
+            ]
+        },
+        "class_type": "KSampler",
+        "_meta": {
+            "title": "KSampler"
+        }
     },
-    "class_type": "KSampler",
-    "_meta": {
-      "title": "KSampler"
+    "273": {
+        "inputs": {
+            "filename_prefix": "ComfyUI",
+            "mode": "lossy",
+            "compression": 90,
+            "images": [
+                "231",
+                0
+            ]
+        },
+        "class_type": "Save_as_webp",
+        "_meta": {
+            "title": "Save_as_webp"
+        }
     }
-  },
-  "273": {
-    "inputs": {
-      "filename_prefix": "ComfyUI",
-      "mode": "lossy",
-      "compression": 90,
-      "images": [
-        "231",
-        0
-      ]
-    },
-    "class_type": "Save_as_webp",
-    "_meta": {
-      "title": "Save_as_webp"
-    }
-  }
 }
 
 const fluxPrompt = {
-  "5": {
-    "inputs": {
-      // "width": 1024,
-      // "height": 728,
-      "width": 1024,
-      "height": 1024,
-      // "width": 512,
-      // "height": 512,
-      "batch_size": 1
+    "5": {
+        "inputs": {
+            // "width": 1024,
+            // "height": 728,
+            "width": 1024,
+            "height": 1024,
+            // "width": 512,
+            // "height": 512,
+            "batch_size": 1
+        },
+        "class_type": "EmptyLatentImage",
+        "_meta": {
+            "title": "Empty Latent Image"
+        }
     },
-    "class_type": "EmptyLatentImage",
-    "_meta": {
-      "title": "Empty Latent Image"
-    }
-  },
-  "6": {
-    "inputs": {
-      "text": "goku and vegeta kissing, making out, hugging, embrace",
-      "clip": [
-        "11",
-        0
-      ]
+    "6": {
+        "inputs": {
+            "text": "goku and vegeta kissing, making out, hugging, embrace",
+            "clip": [
+                "11",
+                0
+            ]
+        },
+        "class_type": "CLIPTextEncode",
+        "_meta": {
+            "title": "CLIP Text Encode (Prompt)"
+        }
     },
-    "class_type": "CLIPTextEncode",
-    "_meta": {
-      "title": "CLIP Text Encode (Prompt)"
-    }
-  },
-  "8": {
-    "inputs": {
-      "samples": [
-        "13",
-        0
-      ],
-      "vae": [
-        "10",
-        0
-      ]
+    "8": {
+        "inputs": {
+            "samples": [
+                "13",
+                0
+            ],
+            "vae": [
+                "10",
+                0
+            ]
+        },
+        "class_type": "VAEDecode",
+        "_meta": {
+            "title": "VAE Decode"
+        }
     },
-    "class_type": "VAEDecode",
-    "_meta": {
-      "title": "VAE Decode"
-    }
-  },
-  "9": {
-    "inputs": {
-      "filename_prefix": "ComfyUI",
-      "images": [
-        "8",
-        0
-      ]
+    "9": {
+        "inputs": {
+            "filename_prefix": "ComfyUI",
+            "images": [
+                "8",
+                0
+            ]
+        },
+        "class_type": "SaveImage",
+        "_meta": {
+            "title": "Save Image"
+        }
     },
-    "class_type": "SaveImage",
-    "_meta": {
-      "title": "Save Image"
-    }
-  },
-  "10": {
-    "inputs": {
-      "vae_name": "ae.sft"
+    "10": {
+        "inputs": {
+            "vae_name": "ae.sft"
+        },
+        "class_type": "VAELoader",
+        "_meta": {
+            "title": "Load VAE"
+        }
     },
-    "class_type": "VAELoader",
-    "_meta": {
-      "title": "Load VAE"
-    }
-  },
-  "11": {
-    "inputs": {
-      "clip_name1": "t5xxl_fp16.safetensors",
-      "clip_name2": "clip_l.safetensors",
-      "type": "flux"
+    "11": {
+        "inputs": {
+            "clip_name1": "t5xxl_fp16.safetensors",
+            "clip_name2": "clip_l.safetensors",
+            "type": "flux"
+        },
+        "class_type": "DualCLIPLoader",
+        "_meta": {
+            "title": "DualCLIPLoader"
+        }
     },
-    "class_type": "DualCLIPLoader",
-    "_meta": {
-      "title": "DualCLIPLoader"
-    }
-  },
-  "12": {
-    "inputs": {
-      "unet_name": "flux1-dev.sft",
-      "weight_dtype": "fp8_e4m3fn"
+    "12": {
+        "inputs": {
+            "unet_name": "flux1-dev.sft",
+            "weight_dtype": "fp8_e4m3fn"
+        },
+        "class_type": "UNETLoader",
+        "_meta": {
+            "title": "Load Diffusion Model"
+        }
     },
-    "class_type": "UNETLoader",
-    "_meta": {
-      "title": "Load Diffusion Model"
-    }
-  },
-  "13": {
-    "inputs": {
-      "noise": [
-        "25",
-        0
-      ],
-      "guider": [
-        "22",
-        0
-      ],
-      "sampler": [
-        "16",
-        0
-      ],
-      "sigmas": [
-        "17",
-        0
-      ],
-      "latent_image": [
-        "5",
-        0
-      ]
+    "13": {
+        "inputs": {
+            "noise": [
+                "25",
+                0
+            ],
+            "guider": [
+                "22",
+                0
+            ],
+            "sampler": [
+                "16",
+                0
+            ],
+            "sigmas": [
+                "17",
+                0
+            ],
+            "latent_image": [
+                "5",
+                0
+            ]
+        },
+        "class_type": "SamplerCustomAdvanced",
+        "_meta": {
+            "title": "SamplerCustomAdvanced"
+        }
     },
-    "class_type": "SamplerCustomAdvanced",
-    "_meta": {
-      "title": "SamplerCustomAdvanced"
-    }
-  },
-  "16": {
-    "inputs": {
-      "sampler_name": "euler"
+    "16": {
+        "inputs": {
+            "sampler_name": "euler"
+        },
+        "class_type": "KSamplerSelect",
+        "_meta": {
+            "title": "KSamplerSelect"
+        }
     },
-    "class_type": "KSamplerSelect",
-    "_meta": {
-      "title": "KSamplerSelect"
-    }
-  },
-  "17": {
-    "inputs": {
-      "scheduler": "simple",
-      "steps": 30,
-      "denoise": 1,
-      "model": [
-        "12",
-        0
-      ]
+    "17": {
+        "inputs": {
+            "scheduler": "simple",
+            "steps": 30,
+            "denoise": 1,
+            "model": [
+                "12",
+                0
+            ]
+        },
+        "class_type": "BasicScheduler",
+        "_meta": {
+            "title": "BasicScheduler"
+        }
     },
-    "class_type": "BasicScheduler",
-    "_meta": {
-      "title": "BasicScheduler"
-    }
-  },
-  "22": {
-    "inputs": {
-      "model": [
-        "12",
-        0
-      ],
-      "conditioning": [
-        "6",
-        0
-      ]
+    "22": {
+        "inputs": {
+            "model": [
+                "12",
+                0
+            ],
+            "conditioning": [
+                "6",
+                0
+            ]
+        },
+        "class_type": "BasicGuider",
+        "_meta": {
+            "title": "BasicGuider"
+        }
     },
-    "class_type": "BasicGuider",
-    "_meta": {
-      "title": "BasicGuider"
+    "25": {
+        "inputs": {
+            "noise_seed": 375947136610401
+        },
+        "class_type": "RandomNoise",
+        "_meta": {
+            "title": "RandomNoise"
+        }
     }
-  },
-  "25": {
-    "inputs": {
-      "noise_seed": 375947136610401
-    },
-    "class_type": "RandomNoise",
-    "_meta": {
-      "title": "RandomNoise"
-    }
-  }
 }
 
 const fluxPromptImageToImage = {
-  "6": {
-    "inputs": {
-      "text": "a crying man looking directly at the camera, in the style renaissance oil painting, 17th century traditional art, oil painting strokes, medieval knight wearing combat armour, battle scars and flaming eyes, depressed, sad, tears, water",
-      "clip": [
-        "11",
-        0
-      ]
+    "6": {
+        "inputs": {
+            "text": "a crying man looking directly at the camera, in the style renaissance oil painting, 17th century traditional art, oil painting strokes, medieval knight wearing combat armour, battle scars and flaming eyes, depressed, sad, tears, water",
+            "clip": [
+                "11",
+                0
+            ]
+        },
+        "class_type": "CLIPTextEncode",
+        "_meta": {
+            "title": "CLIP Text Encode (Prompt)"
+        }
     },
-    "class_type": "CLIPTextEncode",
-    "_meta": {
-      "title": "CLIP Text Encode (Prompt)"
-    }
-  },
-  "8": {
-    "inputs": {
-      "samples": [
-        "13",
-        0
-      ],
-      "vae": [
-        "10",
-        0
-      ]
+    "8": {
+        "inputs": {
+            "samples": [
+                "13",
+                0
+            ],
+            "vae": [
+                "10",
+                0
+            ]
+        },
+        "class_type": "VAEDecode",
+        "_meta": {
+            "title": "VAE Decode"
+        }
     },
-    "class_type": "VAEDecode",
-    "_meta": {
-      "title": "VAE Decode"
-    }
-  },
-  "9": {
-    "inputs": {
-      "filename_prefix": "ComfyUI",
-      "images": [
-        "8",
-        0
-      ]
+    "9": {
+        "inputs": {
+            "filename_prefix": "ComfyUI",
+            "images": [
+                "8",
+                0
+            ]
+        },
+        "class_type": "SaveImage",
+        "_meta": {
+            "title": "Save Image"
+        }
     },
-    "class_type": "SaveImage",
-    "_meta": {
-      "title": "Save Image"
-    }
-  },
-  "10": {
-    "inputs": {
-      "vae_name": "ae.sft"
+    "10": {
+        "inputs": {
+            "vae_name": "ae.sft"
+        },
+        "class_type": "VAELoader",
+        "_meta": {
+            "title": "Load VAE"
+        }
     },
-    "class_type": "VAELoader",
-    "_meta": {
-      "title": "Load VAE"
-    }
-  },
-  "11": {
-    "inputs": {
-      "clip_name1": "t5xxl_fp16.safetensors",
-      "clip_name2": "clip_l.safetensors",
-      "type": "flux"
+    "11": {
+        "inputs": {
+            "clip_name1": "t5xxl_fp16.safetensors",
+            "clip_name2": "clip_l.safetensors",
+            "type": "flux"
+        },
+        "class_type": "DualCLIPLoader",
+        "_meta": {
+            "title": "DualCLIPLoader"
+        }
     },
-    "class_type": "DualCLIPLoader",
-    "_meta": {
-      "title": "DualCLIPLoader"
-    }
-  },
-  "12": {
-    "inputs": {
-      "unet_name": "flux1-dev.sft",
-      "weight_dtype": "fp8_e4m3fn"
+    "12": {
+        "inputs": {
+            "unet_name": "flux1-dev.sft",
+            "weight_dtype": "fp8_e4m3fn"
+        },
+        "class_type": "UNETLoader",
+        "_meta": {
+            "title": "Load Diffusion Model"
+        }
     },
-    "class_type": "UNETLoader",
-    "_meta": {
-      "title": "Load Diffusion Model"
-    }
-  },
-  "13": {
-    "inputs": {
-      "noise": [
-        "25",
-        0
-      ],
-      "guider": [
-        "22",
-        0
-      ],
-      "sampler": [
-        "16",
-        0
-      ],
-      "sigmas": [
-        "17",
-        0
-      ],
-      "latent_image": [
-        "30",
-        0
-      ]
+    "13": {
+        "inputs": {
+            "noise": [
+                "25",
+                0
+            ],
+            "guider": [
+                "22",
+                0
+            ],
+            "sampler": [
+                "16",
+                0
+            ],
+            "sigmas": [
+                "17",
+                0
+            ],
+            "latent_image": [
+                "30",
+                0
+            ]
+        },
+        "class_type": "SamplerCustomAdvanced",
+        "_meta": {
+            "title": "SamplerCustomAdvanced"
+        }
     },
-    "class_type": "SamplerCustomAdvanced",
-    "_meta": {
-      "title": "SamplerCustomAdvanced"
-    }
-  },
-  "16": {
-    "inputs": {
-      "sampler_name": "euler"
+    "16": {
+        "inputs": {
+            "sampler_name": "euler"
+        },
+        "class_type": "KSamplerSelect",
+        "_meta": {
+            "title": "KSamplerSelect"
+        }
     },
-    "class_type": "KSamplerSelect",
-    "_meta": {
-      "title": "KSamplerSelect"
-    }
-  },
-  "17": {
-    "inputs": {
-      "scheduler": "simple",
-      "steps": 28,
-      "denoise": 0.8,
-      "model": [
-        "12",
-        0
-      ]
+    "17": {
+        "inputs": {
+            "scheduler": "simple",
+            "steps": 28,
+            "denoise": 0.8,
+            "model": [
+                "12",
+                0
+            ]
+        },
+        "class_type": "BasicScheduler",
+        "_meta": {
+            "title": "BasicScheduler"
+        }
     },
-    "class_type": "BasicScheduler",
-    "_meta": {
-      "title": "BasicScheduler"
-    }
-  },
-  "22": {
-    "inputs": {
-      "model": [
-        "12",
-        0
-      ],
-      "conditioning": [
-        "6",
-        0
-      ]
+    "22": {
+        "inputs": {
+            "model": [
+                "12",
+                0
+            ],
+            "conditioning": [
+                "6",
+                0
+            ]
+        },
+        "class_type": "BasicGuider",
+        "_meta": {
+            "title": "BasicGuider"
+        }
     },
-    "class_type": "BasicGuider",
-    "_meta": {
-      "title": "BasicGuider"
-    }
-  },
-  "25": {
-    "inputs": {
-      "noise_seed": 686420379242754
+    "25": {
+        "inputs": {
+            "noise_seed": 686420379242754
+        },
+        "class_type": "RandomNoise",
+        "_meta": {
+            "title": "RandomNoise"
+        }
     },
-    "class_type": "RandomNoise",
-    "_meta": {
-      "title": "RandomNoise"
-    }
-  },
-  "26": {
-    "inputs": {
-      "image": "ReviewDexter.jpg",
-      "upload": "image"
+    "26": {
+        "inputs": {
+            "image": "ReviewDexter.jpg",
+            "upload": "image"
+        },
+        "class_type": "LoadImage",
+        "_meta": {
+            "title": "Load Image"
+        }
     },
-    "class_type": "LoadImage",
-    "_meta": {
-      "title": "Load Image"
-    }
-  },
-  "29": {
-    "inputs": {
-      "upscale_method": "lanczos",
-      "megapixels": 1.05,
-      "image": [
-        "26",
-        0
-      ]
+    "29": {
+        "inputs": {
+            "upscale_method": "lanczos",
+            "megapixels": 1.05,
+            "image": [
+                "26",
+                0
+            ]
+        },
+        "class_type": "ImageScaleToTotalPixels",
+        "_meta": {
+            "title": "ImageScaleToTotalPixels"
+        }
     },
-    "class_type": "ImageScaleToTotalPixels",
-    "_meta": {
-      "title": "ImageScaleToTotalPixels"
+    "30": {
+        "inputs": {
+            "pixels": [
+                "29",
+                0
+            ],
+            "vae": [
+                "10",
+                0
+            ]
+        },
+        "class_type": "VAEEncode",
+        "_meta": {
+            "title": "VAE Encode"
+        }
     }
-  },
-  "30": {
-    "inputs": {
-      "pixels": [
-        "29",
-        0
-      ],
-      "vae": [
-        "10",
-        0
-      ]
-    },
-    "class_type": "VAEEncode",
-    "_meta": {
-      "title": "VAE Encode"
-    }
-  }
 }
 
 // const prompt = {
@@ -1158,19 +1159,19 @@ function generateRandomRange(min, max) {
     const random = Math.random() * (max - min) + min;
     // Multiply by 100, round, then divide by 100
     return Math.round(random * 100) / 100;
-  }
-  
+}
+
 
 function generateTextToImagePrompt(text) {
-  const fullPrompt = fluxPrompt
-  if (text) {
-      // fullPrompt["3"]["inputs"]["seed"] = Math.floor(Math.random() * 1000000000000000);
-      // fullPrompt["33"]["inputs"]["seed"] = Math.floor(Math.random() * 1000000000000000);
-      // fullPrompt["271"]["inputs"]["seed"] = Math.floor(Math.random() * 1000000000000000);
-      fullPrompt["25"]["inputs"]["noise_seed"] = Math.floor(Math.random() * 1000000000000000);
-      fullPrompt["6"]["inputs"]["text"] = text;
-  }
-  return fullPrompt
+    const fullPrompt = fluxPrompt
+    if (text) {
+        // fullPrompt["3"]["inputs"]["seed"] = Math.floor(Math.random() * 1000000000000000);
+        // fullPrompt["33"]["inputs"]["seed"] = Math.floor(Math.random() * 1000000000000000);
+        // fullPrompt["271"]["inputs"]["seed"] = Math.floor(Math.random() * 1000000000000000);
+        fullPrompt["25"]["inputs"]["noise_seed"] = Math.floor(Math.random() * 1000000000000000);
+        fullPrompt["6"]["inputs"]["text"] = text;
+    }
+    return fullPrompt
 }
 function generateImageToImagePrompt(text, imagePath, denoisingStrength) {
     consoleLog('<');
@@ -1196,14 +1197,14 @@ const ComfyUIWrapper = {
         try {
             // Check if ComfyUI is available before attempting generation
             await ComfyUIWrapper.checkComfyUIWebsocketStatus();
-            
+
             const prompt = generateTextToImagePrompt(text);
             const images = await generateImageWithTracking(prompt, client);
-            
+
             if (!images || !images[9] || !images[9][0]) {
                 throw new Error('No image generated');
             }
-            
+
             return images[9][0];
         } catch (error) {
             console.error('⚠️ ComfyUI Workflow Error: Cannot Return Image', error.message);
@@ -1214,15 +1215,15 @@ const ComfyUIWrapper = {
         try {
             // Check if ComfyUI is available before attempting generation
             await ComfyUIWrapper.checkComfyUIWebsocketStatus();
-            
-            const imagePath = await downloadImage(imageUrl, path.join(__dirname, 'downloadedImage.jpg'));
+
+            const imagePath = await downloadImage(imageUrl, path.join(import.meta.dirname, 'downloadedImage.jpg'));
             const prompt = generateImageToImagePrompt(text, imagePath, denoisingStrength);
             const images = await generateImage(prompt);
-            
+
             if (!images || !images[9] || !images[9][0]) {
                 throw new Error('No image generated');
             }
-            
+
             return images[9][0];
         } catch (error) {
             console.error('⚠️ ComfyUI Workflow Error: Cannot Return Image', error.message);
@@ -1233,7 +1234,7 @@ const ComfyUIWrapper = {
         const functionName = 'checkComfyUIWebsocketStatus';
         return new Promise((resolve, reject) => {
             const websocket = new WebSocket(`${COMFY_UI_IMAGE_MODEL_WEBSOCKET_URL}/ws?clientId=${clientId}`);
-            
+
             // Add timeout
             const timeout = setTimeout(() => {
                 websocket.close();
@@ -1247,7 +1248,7 @@ const ComfyUIWrapper = {
                 console.log(...LogFormatter.comfyUIUp(functionName));
                 resolve();
             };
-            
+
             websocket.onerror = (error) => {
                 clearTimeout(timeout);
                 console.warn(...LogFormatter.comfyUIDown(functionName));
@@ -1257,4 +1258,4 @@ const ComfyUIWrapper = {
     }
 };
 
-module.exports = ComfyUIWrapper;
+export default ComfyUIWrapper;

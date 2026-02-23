@@ -1,12 +1,12 @@
-const DiscordWrapper = require('../../wrappers/DiscordWrapper');
-const { Client } = require('discord.js');
+import { jest, describe, test, it, expect, beforeEach, afterEach, beforeAll, afterAll } from '@jest/globals';
 
-jest.mock('discord.js', () => {
+jest.unstable_mockModule('discord.js', () => {
     const mClient = {
         login: jest.fn(),
         options: {}
     };
     return {
+        default: {},
         Client: jest.fn(() => mClient),
         GatewayIntentBits: {
             Guilds: 1,
@@ -28,6 +28,9 @@ jest.mock('discord.js', () => {
         }
     };
 });
+
+const DiscordWrapper = (await import('../../wrappers/DiscordWrapper.js')).default;
+const { Client } = await import('discord.js');
 
 describe('DiscordWrapper', () => {
     beforeEach(() => {

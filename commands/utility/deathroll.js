@@ -1,12 +1,12 @@
-const { SlashCommandBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, PermissionFlagsBits } = require('discord.js');
-const MongoWrapper = require('../../wrappers/MongoWrapper.js');
+import { SlashCommandBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, PermissionFlagsBits } from 'discord.js';
+import MongoWrapper from '../../wrappers/MongoWrapper.js';
 
 // Store active games (gameId -> game state)
 const activeGames = new Map();
 // Store active collectors
 const activeCollectors = new Map();
 
-module.exports = {
+export default {
     data: new SlashCommandBuilder()
         .setName('deathroll')
         .setDescription('Start a deathroll game - roll until someone hits 0! The loser gets timed out for 15 minutes.')

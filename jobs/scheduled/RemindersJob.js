@@ -1,10 +1,10 @@
-const DiscordUtilityService = require('../../services/DiscordUtilityService.js');
-const config = require('../../config.json');
-const { consoleInfo } = require('../../libraries/UtilityLibrary.js');
-const YapperService = require('../../services/YapperService.js');
-const UtilityLibrary = require('../../libraries/UtilityLibrary.js');
-const AIService = require('../../services/AIService.js');
-const luxon = require('luxon');
+import DiscordUtilityService from '../../services/DiscordUtilityService.js';
+import config from '../../config.json' with { type: 'json' };
+import { consoleInfo } from '../../libraries/UtilityLibrary.js';
+import YapperService from '../../services/YapperService.js';
+import UtilityLibrary from '../../libraries/UtilityLibrary.js';
+import AIService from '../../services/AIService.js';
+import luxon from 'luxon';
 
 let isProcessingReminders = false;
 
@@ -96,4 +96,4 @@ const RemindersJob = {
     }
 };
 
-module.exports = RemindersJob;
+export default RemindersJob;

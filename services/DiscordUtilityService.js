@@ -1,12 +1,12 @@
-require('dotenv/config');
-const { DateTime } = require('luxon');
-const { consoleLog } = require('../libraries/UtilityLibrary.js');
-const config = require('../config.json');
-const { Collection, ChannelType, Events, ActivityType } = require('discord.js');
-const UtilityLibrary = require('../libraries/UtilityLibrary.js');
-const PuppeteerWrapper = require('../wrappers/PuppeteerWrapper.js');
-const LightWrapper = require('../wrappers/LightWrapper.js');
-const LogFormatter = require('../formatters/LogFormatter.js');
+import 'dotenv/config';
+import { DateTime } from 'luxon';
+import UtilityLibrary from '../libraries/UtilityLibrary.js';
+const { consoleLog } = UtilityLibrary;
+import config from '../config.json' with { type: 'json' };
+import { Collection, ChannelType, Events, ActivityType } from 'discord.js';
+import PuppeteerWrapper from '../wrappers/PuppeteerWrapper.js';
+import LightWrapper from '../wrappers/LightWrapper.js';
+import LogFormatter from '../formatters/LogFormatter.js';
 
 async function fetchMessagesWithOptionalLastId(client, channelId, maxMessages = 10, lastId = null) {
     const channel = client.channels.cache.find(channel => channel.id == channelId);
@@ -1959,4 +1959,4 @@ const DiscordUtilityService = {
     },
 };
 
-module.exports = DiscordUtilityService;
+export default DiscordUtilityService;

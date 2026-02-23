@@ -1,7 +1,7 @@
-const { SlashCommandBuilder } = require('discord.js');
-const AIService = require('../../services/AIService.js');
+import { SlashCommandBuilder } from 'discord.js';
+import AIService from '../../services/AIService.js';
 
-module.exports = {
+export default {
 	data: new SlashCommandBuilder()
 		.setName('vision')
 		.setDescription('Open your eyes.')

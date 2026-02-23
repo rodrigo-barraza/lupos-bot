@@ -1,11 +1,11 @@
 // roll from 0 to 100 with the option to specify a range
-const { SlashCommandBuilder } = require('discord.js');
-const DiscordVoiceService = require('../../services/DiscordVoiceService.js');
+import { SlashCommandBuilder } from 'discord.js';
+import DiscordVoiceService from '../../services/DiscordVoiceService.js';
 
 const minSeconds = 5;
 const maxSeconds = 30;
 
-module.exports = {
+export default {
 	data: new SlashCommandBuilder()
 		.setName('recordvoice')
 		.setDescription('Records voice from a user')

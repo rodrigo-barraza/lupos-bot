@@ -1,7 +1,7 @@
-const { SlashCommandBuilder } = require('discord.js');
-const ActionService = require('../../services/ActionService.js');
+import { SlashCommandBuilder } from 'discord.js';
+import ActionService from '../../services/ActionService.js';
 
-module.exports = {
+export default {
     data: new SlashCommandBuilder()
         .setName('alcohol')
         .setDescription('Make Lupos take a swig from a random alcoholic beverage.'),

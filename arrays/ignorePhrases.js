@@ -102,4 +102,4 @@ const ignorePhrases = [
     "Did my snake's heat lamp just click or was that someone talking?"
 ];
 
-module.exports = ignorePhrases;
+export default ignorePhrases;

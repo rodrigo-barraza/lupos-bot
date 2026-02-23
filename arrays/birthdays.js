@@ -126,4 +126,4 @@ const birthdays = [
     }
 ]
 
-module.exports = birthdays;
+export default birthdays;

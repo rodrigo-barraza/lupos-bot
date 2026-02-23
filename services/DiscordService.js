@@ -1,6 +1,6 @@
-const { DateTime, Duration } = require('luxon');
-const crypto = require('crypto');
-const {
+import { DateTime, Duration } from 'luxon';
+import crypto from 'crypto';
+import {
     Collection,
     ChannelType,
     EmbedBuilder,
@@ -8,45 +8,46 @@ const {
     ButtonBuilder,
     ButtonStyle,
     MessageFlags
-} = require('discord.js');
-const { GetColorName } = require('hex-color-to-color-name');
-const moment = require('moment');
-const fs = require('node:fs');
-const path = require('node:path');
+} from 'discord.js';
+import { GetColorName } from 'hex-color-to-color-name';
+import moment from 'moment';
+import fs from 'node:fs';
+import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 // CONFIG
-const config = require('../config.json');
+import config from '../config.json' with { type: 'json' };
 // ARRAYS
-const {
+import {
     rolesVideogames,
     warcraftClasses,
     warcraftFactions
-} = require('../arrays/roles.js');
-const channels = require('../arrays/channels.js');
+} from '../arrays/roles.js';
+import channels from '../arrays/channels.js';
 // WRAPPERS
-const PuppeteerWrapper = require('../wrappers/PuppeteerWrapper.js');
-const DiscordWrapper = require('../wrappers/DiscordWrapper.js');
-const YouTubeWrapper = require('../wrappers/YouTubeWrapper.js');
-const LightWrapper = require('../wrappers/LightWrapper.js');
-const ComfyUIWrapper = require('../wrappers/ComfyUIWrapper.js');
-const MongoWrapper = require('../wrappers/MongoWrapper.js');
+import PuppeteerWrapper from '../wrappers/PuppeteerWrapper.js';
+import DiscordWrapper from '../wrappers/DiscordWrapper.js';
+import YouTubeWrapper from '../wrappers/YouTubeWrapper.js';
+import LightWrapper from '../wrappers/LightWrapper.js';
+import ComfyUIWrapper from '../wrappers/ComfyUIWrapper.js';
+import MongoWrapper from '../wrappers/MongoWrapper.js';
 // SERVICES
-const DiscordUtilityService = require('./DiscordUtilityService.js');
-const MessageService = require('./MessageService.js');
-const AIService = require('./AIService.js');
-const CurrentService = require('./CurrentService.js');
+import DiscordUtilityService from './DiscordUtilityService.js';
+import MessageService from './MessageService.js';
+import AIService from './AIService.js';
+import CurrentService from './CurrentService.js';
 // JOBS
-const BirthdayJob = require('../jobs/scheduled/BirthdayJob.js');
-const ActivityRoleAssignmentJob = require('../jobs/scheduled/ActivityRoleAssignmentJob.js');
+import BirthdayJob from '../jobs/scheduled/BirthdayJob.js';
+import ActivityRoleAssignmentJob from '../jobs/scheduled/ActivityRoleAssignmentJob.js';
 // const RemindersJob = require('../jobs/scheduled/RemindersJob.js');
-const PermanentTimeOutJob = require('../jobs/scheduled/PermanentTimeOutJob.js');
-const EventReactJob = require('../jobs/event-driven/ReactJob.js');
+import PermanentTimeOutJob from '../jobs/scheduled/PermanentTimeOutJob.js';
+import EventReactJob from '../jobs/event-driven/ReactJob.js';
 // LIBRARIES
-const UtilityLibrary = require('../libraries/UtilityLibrary.js');
+import UtilityLibrary from '../libraries/UtilityLibrary.js';
 // FORMATTERS
-const LogFormatter = require('../formatters/LogFormatter.js');
+import LogFormatter from '../formatters/LogFormatter.js';
 // CONSTANTS
-const MessageConstant = require('../constants/MessageConstants.js');
-const CensorService = require('./CensorService.js');
+import MessageConstant from '../constants/MessageConstants.js';
+import CensorService from './CensorService.js';
 
 
 // eslint-disable-next-line no-undef
@@ -3239,7 +3240,7 @@ const DiscordService = {
         luposClient.commands = new Collection();
 
         // Load all commands from the commands directory
-        const foldersPath = path.join(__dirname, '..', 'commands');
+        const foldersPath = path.join(import.meta.dirname, '..', 'commands');
         const commandFolders = fs.readdirSync(foldersPath);
 
         for (const folder of commandFolders) {
@@ -3248,7 +3249,7 @@ const DiscordService = {
 
             for (const file of commandFiles) {
                 const filePath = path.join(commandsPath, file);
-                const command = require(filePath);
+                const command = (await import(pathToFileURL(filePath).href)).default;
 
                 if ('data' in command && 'execute' in command) {
                     luposClient.commands.set(command.data.name, command);
@@ -3278,4 +3279,4 @@ const DiscordService = {
     },
 };
 
-module.exports = DiscordService;
+export default DiscordService;

@@ -1,17 +1,23 @@
-const routes = require('../../services/services');
-const AIService = require('../../services/AIService');
+import { jest, describe, test, it, expect, beforeEach, afterEach, beforeAll, afterAll } from '@jest/globals';
 
-jest.mock('express', () => {
+jest.unstable_mockModule('express', () => {
     return {
-        Router: jest.fn(() => ({
-            get: jest.fn()
-        }))
+        default: {
+            Router: jest.fn(() => ({
+                get: jest.fn()
+            }))
+        }
     };
 });
 
-jest.mock('../../services/AIService', () => ({
-    transcribeSpeech: jest.fn()
+jest.unstable_mockModule('../../services/AIService', () => ({
+    default: {
+        transcribeSpeech: jest.fn()
+    }
 }));
+
+const routes = (await import('../../services/services.js')).default;
+const AIService = (await import('../../services/AIService.js')).default;
 
 describe('services.js (Express Routes)', () => {
     let mockRouter;

@@ -1,5 +1,5 @@
-const { SlashCommandBuilder, PermissionFlagsBits } = require('discord.js');
-const MongoWrapper = require('../../wrappers/MongoWrapper.js');
+import { SlashCommandBuilder, PermissionFlagsBits } from 'discord.js';
+import MongoWrapper from '../../wrappers/MongoWrapper.js';
 
 // Store cooldowns in memory (userId -> timestamp)
 const cooldowns = new Map();
@@ -74,7 +74,7 @@ function isCriticalHit() {
     return Math.random() < 0.0625; // 6.25% chance
 }
 
-module.exports = {
+export default {
     data: new SlashCommandBuilder()
         .setName('shock')
         .setDescription('Paralyzes a random person from the recent conversation'),

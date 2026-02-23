@@ -336,4 +336,4 @@ const MessagesConstants = {
 - CRITICAL: Just produce the output. No "I'm activated" or explanations.`,
 }
 
-module.exports = MessagesConstants
+export default MessagesConstants

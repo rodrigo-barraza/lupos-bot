@@ -1,9 +1,10 @@
-const AIService = require('../../services/AIService');
-const DiscordUtilityService = require('../../services/DiscordUtilityService');
-
-jest.mock('../../services/DiscordUtilityService', () => ({
+import { jest, describe, test, it, expect, beforeEach, afterEach, beforeAll, afterAll } from '@jest/globals';
+jest.unstable_mockModule('../../services/DiscordUtilityService', () => ({ default: {
     getUsernameNoSpaces: jest.fn().mockReturnValue('TestUser')
-}));
+} }));
+
+const AIService = (await import('../../services/AIService.js')).default;
+const DiscordUtilityService = (await import('../../services/DiscordUtilityService.js')).default;
 
 describe('AIService', () => {
     afterEach(() => {

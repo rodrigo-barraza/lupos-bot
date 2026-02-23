@@ -1,19 +1,18 @@
-const MoodService = require('../../services/MoodService');
-
-jest.mock('../../wrappers/DiscordWrapper', () => ({
+import { jest, describe, test, it, expect, beforeEach, afterEach, beforeAll, afterAll } from '@jest/globals';
+jest.unstable_mockModule('../../wrappers/DiscordWrapper', () => ({ default: {
     getClient: jest.fn().mockReturnValue({
         user: {
             setActivity: jest.fn()
         }
     })
-}));
-
-jest.mock('../../services/DiscordUtilityService', () => ({
+} }));
+jest.unstable_mockModule('../../services/DiscordUtilityService', () => ({ default: {
     generateMoodTemperature: jest.fn().mockResolvedValue(0)
-}));
+} }));
 
-const DiscordWrapper = require('../../wrappers/DiscordWrapper');
-const DiscordUtilityService = require('../../services/DiscordUtilityService');
+const MoodService = (await import('../../services/MoodService.js')).default;
+const DiscordWrapper = (await import('../../wrappers/DiscordWrapper.js')).default;
+const DiscordUtilityService = (await import('../../services/DiscordUtilityService.js')).default;
 
 describe('MoodService', () => {
     beforeEach(() => {

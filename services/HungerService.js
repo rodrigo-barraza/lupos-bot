@@ -1,4 +1,4 @@
-const AIService = require('./AIService.js');
+import AIService from './AIService.js';
 
 let hungerLevel = 0;
 let hungerChannelId = '1198326193984913470';
@@ -49,4 +49,4 @@ const HungerService = {
     }
 }
 
-module.exports = HungerService
+export default HungerService;

@@ -1,25 +1,30 @@
-// Mock the dependencies before importing MessageService
-jest.mock('../../config.json', () => ({
-    ASSISTANT_MESSAGE: null
+import { jest, describe, test, it, expect, beforeEach, afterEach, beforeAll, afterAll } from '@jest/globals';
+jest.unstable_mockModule('../../config.json', () => ({
+    default: {
+        ASSISTANT_MESSAGE: null
+    }
 }), { virtual: true });
 
-jest.mock('../../constants/MessageConstants.js', () => ({
-    clockCrewCorePersonality: 'CLOCK_CREW_PERSONALITY',
-    aiInformation: 'AI_INFO',
-    responseGuidelines: 'RESPONSE_GUIDELINES',
-    interactionRules: 'INTERACTION_RULES',
-    discordSpecificRules: 'DISCORD_RULES',
-    sleeperAgentMode: 'SLEEPER_AGENT',
-    corePersonality: 'CORE_PERSONALITY',
-    politicalBeliefs: 'POLITICAL_BELIEFS'
+jest.unstable_mockModule('../../constants/MessageConstants.js', () => ({
+    default: {
+        clockCrewCorePersonality: 'CLOCK_CREW_PERSONALITY',
+        aiInformation: 'AI_INFO',
+        responseGuidelines: 'RESPONSE_GUIDELINES',
+        interactionRules: 'INTERACTION_RULES',
+        discordSpecificRules: 'DISCORD_RULES',
+        sleeperAgentMode: 'SLEEPER_AGENT',
+        corePersonality: 'CORE_PERSONALITY',
+        politicalBeliefs: 'POLITICAL_BELIEFS'
+    }
+}));
+jest.unstable_mockModule('../../constants/ClockCrewConstants.js', () => ({
+    default: {
+        clocks_without_profiles: [{ name: 'TestClock1' }],
+        clocks_with_profiles: [{ name: 'TestClock2', url: 'http://test', description: 'desc' }]
+    }
 }));
 
-jest.mock('../../constants/ClockCrewConstants.js', () => ({
-    clocks_without_profiles: [{ name: 'TestClock1' }],
-    clocks_with_profiles: [{ name: 'TestClock2', url: 'http://test', description: 'desc' }]
-}));
-
-const MessageService = require('../../services/MessageService');
+const MessageService = (await import('../../services/MessageService.js')).default;
 
 describe('MessageService', () => {
     test('assembleAssistantMessage should include image generation string if canGenerateImage is true', () => {

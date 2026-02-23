@@ -1,10 +1,10 @@
-const config = require('../../config.json');
-const { consoleInfo, consoleLog } = require('../../libraries/UtilityLibrary.js');
-const YapperService = require('../../services/YapperService.js');
-const UtilityLibrary = require('../../libraries/UtilityLibrary.js');
-const DiscordUtilityService = require('../../services/DiscordUtilityService.js');
-const luxon = require('luxon');
-const AIService = require('../../services/AIService.js');
+import config from '../../config.json' with { type: 'json' };
+import { consoleInfo, consoleLog } from '../../libraries/UtilityLibrary.js';
+import YapperService from '../../services/YapperService.js';
+import UtilityLibrary from '../../libraries/UtilityLibrary.js';
+import DiscordUtilityService from '../../services/DiscordUtilityService.js';
+import luxon from 'luxon';
+import AIService from '../../services/AIService.js';
 
 
 
@@ -102,4 +102,4 @@ const RandomMessageJob = {
     }
 };
 
-module.exports = RandomMessageJob;
+export default RandomMessageJob;

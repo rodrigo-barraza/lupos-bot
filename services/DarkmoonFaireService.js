@@ -1,7 +1,6 @@
-const { ActivityType } = require('discord.js');
-const DiscordService = require('../services/DiscordService.js');
-const moment = require('moment')
-
+import { ActivityType } from 'discord.js';
+import DiscordService from '../services/DiscordService.js';
+import moment from 'moment';
 const DarkmoonFaireService = {
     getNextFaire() {
         const now = moment();
@@ -77,4 +76,4 @@ const DarkmoonFaireService = {
     },
 }
 
-module.exports = DarkmoonFaireService
+export default DarkmoonFaireService;

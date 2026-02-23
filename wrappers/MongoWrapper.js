@@ -1,5 +1,5 @@
-const { MongoClient } = require('mongodb');
-const LogFormatter = require('../formatters/LogFormatter.js');
+import { MongoClient } from 'mongodb';
+import LogFormatter from '../formatters/LogFormatter.js';
 
 let clients = new Map();
 
@@ -28,4 +28,4 @@ const MongoWrapper = {
   },
 };
 
-module.exports = MongoWrapper;
+export default MongoWrapper;

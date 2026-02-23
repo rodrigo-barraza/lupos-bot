@@ -1,6 +1,7 @@
-const DiscordUtilityService = require('../../services/DiscordUtilityService.js');
-const { consoleLog } = require('../../libraries/UtilityLibrary.js');
-const UtilityLibrary = require('../../libraries/UtilityLibrary.js');
+import DiscordUtilityService from '../../services/DiscordUtilityService.js';
+import UtilityLibrary from '../../libraries/UtilityLibrary.js';
+const { consoleLog } = UtilityLibrary;
+
 
 let previousTopAuthorId;
 let previousTopReactorId;
@@ -219,4 +220,4 @@ const ActivityRoleAssignmentJob = {
     }
 };
 
-module.exports = ActivityRoleAssignmentJob;
+export default ActivityRoleAssignmentJob;

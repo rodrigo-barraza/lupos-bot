@@ -1,18 +1,18 @@
-require('dotenv/config');
-
+import 'dotenv/config';
+import config from '../config.json' with { type: 'json' };
 const {
     LOCAL_LANGUAGE_MODEL_API_URL,
     LANGUAGE_MODEL_TEMPERATURE,
     LANGUAGE_MODEL_MAX_TOKENS,
     LANGUAGE_MODEL_LOCAL
-} = require('../config.json');
+} = config;
 
 const LocalAIWrapper = {
     async generateLocalAITextResponse(
         conversation,
-        model=LANGUAGE_MODEL_LOCAL,
-        tokens=LANGUAGE_MODEL_MAX_TOKENS,
-        temperature=LANGUAGE_MODEL_TEMPERATURE
+        model = LANGUAGE_MODEL_LOCAL,
+        tokens = LANGUAGE_MODEL_MAX_TOKENS,
+        temperature = LANGUAGE_MODEL_TEMPERATURE
     ) {
         let text;
 
@@ -28,25 +28,25 @@ const LocalAIWrapper = {
             if (value.role === 'system') {
                 accumulator.push(value);
             } else if (["user", "assistant"].includes(value.role)) {
-              if (accumulator.length && accumulator[accumulator.length - 1].role === value.role) {
-                if (value.role === "user" && index === array.length - 1) {
-                  accumulator[accumulator.length - 1].content = `${value.content}`;
+                if (accumulator.length && accumulator[accumulator.length - 1].role === value.role) {
+                    if (value.role === "user" && index === array.length - 1) {
+                        accumulator[accumulator.length - 1].content = `${value.content}`;
+                    } else {
+                        if (index < array.length - 1 && accumulator[accumulator.length - 1].role !== array[index + 1].role) {
+                            accumulator[accumulator.length - 1].content += `\n\n${value.content}`;
+                        } else {
+                            accumulator[accumulator.length - 1].content += `\n\n${value.content}`;
+                        }
+                    }
                 } else {
-                  if(index < array.length - 1 && accumulator[accumulator.length - 1].role !== array[index + 1].role){
-                    accumulator[accumulator.length - 1].content += `\n\n${value.content}`;
-                  } else {
-                    accumulator[accumulator.length - 1].content += `\n\n${value.content}`;
-                  } 
+                    accumulator.push(value);
                 }
-              } else {
-                accumulator.push(value);
-              }
             }
             return accumulator;
-          }, []);
+        }, []);
 
         if (mergedData[1].role === "assistant") {
-          // remove assistant message
+            // remove assistant message
             mergedData.splice(1, 1);
         }
 
@@ -79,4 +79,4 @@ const LocalAIWrapper = {
     },
 };
 
-module.exports = LocalAIWrapper;
+export default LocalAIWrapper;

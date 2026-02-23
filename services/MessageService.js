@@ -1,6 +1,7 @@
-const MessageConstant = require('../constants/MessageConstants.js');
-const ClockCrewConstants = require('../constants/ClockCrewConstants.js');
-const { ASSISTANT_MESSAGE } = require('../config.json');
+import MessageConstant from '../constants/MessageConstants.js';
+import ClockCrewConstants from '../constants/ClockCrewConstants.js';
+import config from '../config.json' with { type: 'json' };
+const { ASSISTANT_MESSAGE } = config;
 
 const MessageService = {
     assembleAssistantMessage(canGenerateImage, guildId) {
@@ -51,8 +52,8 @@ const MessageService = {
                     }
                 }
 
-                assistantMessage += 
-`${MessageConstant.clockCrewCorePersonality}
+                assistantMessage +=
+                    `${MessageConstant.clockCrewCorePersonality}
 ${MessageConstant.aiInformation}
 ${MessageConstant.responseGuidelines}
 ${MessageConstant.interactionRules}
@@ -60,7 +61,7 @@ ${MessageConstant.discordSpecificRules}
 ${MessageConstant.sleeperAgentMode}`
             } else {
                 assistantMessage +=
-`${MessageConstant.corePersonality}
+                    `${MessageConstant.corePersonality}
 ${MessageConstant.aiInformation}
 ${MessageConstant.responseGuidelines}
 ${MessageConstant.interactionRules}
@@ -73,11 +74,11 @@ ${MessageConstant.sleeperAgentMode}`;
     },
     assembleAssistantMessageForImagePromptGeneration() {
         let assistantMessage = '';
-        assistantMessage = 
-`${MessageConstant.corePersonality}
+        assistantMessage =
+            `${MessageConstant.corePersonality}
 ${MessageConstant.politicalBeliefs}`;
         return assistantMessage;
     },
 };
 
-module.exports = MessageService;
+export default MessageService;

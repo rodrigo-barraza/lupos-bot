@@ -404,4 +404,4 @@ const LightWrapper = {
     }
 };
 
-module.exports = LightWrapper;
+export default LightWrapper;

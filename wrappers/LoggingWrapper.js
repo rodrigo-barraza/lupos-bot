@@ -6,4 +6,4 @@ const LoggingWrapper = {
 };
 
 
-module.exports = LoggingWrapper;
+export default LoggingWrapper;

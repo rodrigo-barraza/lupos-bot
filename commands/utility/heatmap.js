@@ -1,8 +1,8 @@
-const { SlashCommandBuilder, AttachmentBuilder, EmbedBuilder } = require('discord.js');
-const MongoWrapper = require('../../wrappers/MongoWrapper.js');
-const puppeteer = require('puppeteer');
+import { SlashCommandBuilder, AttachmentBuilder, EmbedBuilder } from 'discord.js';
+import MongoWrapper from '../../wrappers/MongoWrapper.js';
+import puppeteer from 'puppeteer';
 
-module.exports = {
+export default {
     data: new SlashCommandBuilder()
         .setName('heatmap')
         .setDescription('Shows activity heatmap by day/hour for a user')

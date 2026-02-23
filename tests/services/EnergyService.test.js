@@ -1,9 +1,9 @@
-const EnergyService = require('../../services/EnergyService');
-
-// Mock out DiscordService to ensure tests isolate EnergyService behavior
-jest.mock('../../services/DiscordService', () => ({
+import { jest, describe, test, it, expect, beforeEach, afterEach, beforeAll, afterAll } from '@jest/globals';
+jest.unstable_mockModule('../../services/DiscordService', () => ({ default: {
     generateInCharacterResponse2Special: jest.fn()
-}));
+} }));
+
+const EnergyService = (await import('../../services/EnergyService.js')).default;
 
 describe('EnergyService', () => {
     beforeEach(() => {

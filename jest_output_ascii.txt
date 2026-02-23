@@ -1,0 +1,509 @@
+node : FAIL 
+tests/services/MessageService.test.js
+At line:1 char:48
++ ... m-modules"; node 
+"node_modules/jest/bin/jest.js" --no-coverage 
+2>&1 > ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (F  
+  AIL tests/serv...Service.test.js:String) [    
+], RemoteException
+    + FullyQualifiedErrorId : NativeCommandErr  
+  or
+ 
+  ??? Test suite failed to run
+
+    ReferenceError: jest is not defined
+
+    [0m [90m 1 |[39m [90m// Mock the 
+dependencies before importing 
+MessageService[39m
+    [31m[1m>[22m[39m[90m 2 |[39m jest[33m
+.[39munstable_mockModule([32m'../../config.jso
+n'[39m[33m,[39m () [33m=>[39m ({
+     [90m   |[39m [31m[1m^[22m[39m
+     [90m 3 |[39m     
+[33mASSISTANT_MESSAGE[39m[33m:[39m 
+[36mnull[39m
+     [90m 4 |[39m })[33m,[39m { 
+virtual[33m:[39m [36mtrue[39m })[33m;[39m
+     [90m 5 |[39m[0m
+
+      at 
+tests/services/MessageService.test.js:2:1
+
+(node:109520) ExperimentalWarning: VM Modules 
+is an experimental feature and might change at 
+any time
+(Use `node --trace-warnings ...` to show where 
+the warning was created)
+(node:65364) ExperimentalWarning: VM Modules is 
+an experimental feature and might change at any 
+time
+(Use `node --trace-warnings ...` to show where 
+the warning was created)
+PASS tests/services/CurrentService.test.js
+(node:105496) ExperimentalWarning: VM Modules 
+is an experimental feature and might change at 
+any time
+(Use `node --trace-warnings ...` to show where 
+the warning was created)
+PASS tests/services/SicknessService.test.js
+  ??? Console
+
+    console.log
+      Sickness level increased to: 30
+
+      at Object.increaseSicknessLevel 
+(services/SicknessService.js:14:17)
+
+    console.log
+      Sickness level increased to: 100
+
+      at Object.increaseSicknessLevel 
+(services/SicknessService.js:14:17)
+
+    console.log
+      Sickness level decreased to: 40
+
+      at Object.decreaseSicknessLevel 
+(services/SicknessService.js:21:17)
+
+    console.log
+      Sickness level decreased to: 0
+
+      at Object.decreaseSicknessLevel 
+(services/SicknessService.js:21:17)
+
+FAIL tests/wrappers/DiscordWrapper.test.js
+  ??? Test suite failed to run
+
+    ReferenceError: jest is not defined
+
+    [0m [90m 1 |[39m [36mconst[39m 
+[33mDiscordWrapper[39m [33m=[39m 
+([36mawait[39m [36mimport[39m([32m'../../wr
+appers/DiscordWrapper'[39m))[33m.[39m[36mdef
+ault[39m[33m;[39m
+     [90m 2 |[39m [36mconst[39m { 
+[33mClient[39m } [33m=[39m [36mawait[39m 
+[36mimport[39m([32m'discord.js'[39m)[33m;[3
+9m
+    [31m[1m>[22m[39m[90m 3 |[39m jest[33m
+.[39munstable_mockModule([32m'discord.js'[39m
+[33m,[39m () [33m=>[39m {
+     [90m   |[39m [31m[1m^[22m[39m
+     [90m 4 |[39m     [36mconst[39m mClient 
+[33m=[39m {
+     [90m 5 |[39m         login[33m:[39m 
+jest[33m.[39mfn()[33m,[39m
+     [90m 6 |[39m         options[33m:[39m 
+{}[0m
+
+      at 
+tests/wrappers/DiscordWrapper.test.js:3:1
+
+(node:37636) ExperimentalWarning: VM Modules is 
+an experimental feature and might change at any 
+time
+(Use `node --trace-warnings ...` to show where 
+the warning was created)
+FAIL 
+tests/services/DiscordUtilityService.test.js
+  ??? Test suite failed to run
+
+    SyntaxError: The requested module 
+'../libraries/UtilityLibrary.js' does not 
+provide an export named 'consoleLog'
+
+    [0m[31m[1m>[22m[39m[90m 1 |[39m 
+[36mconst[39m [33mDiscordUtilityService[39m 
+[33m=[39m ([36mawait[39m [36mimport[39m([
+32m'../../services/DiscordUtilityService'[39m))
+[33m.[39m[36mdefault[39m[33m;[39m
+     [90m   |[39m                             
+   [31m[1m^[22m[39m
+     [90m 2 |[39m 
+describe([32m'DiscordUtilityService - Pure 
+Functions'[39m[33m,[39m () [33m=>[39m {
+     [90m 3 |[39m     describe([32m'getUserna
+meNoSpaces'[39m[33m,[39m () [33m=>[39m {
+     [90m 4 |[39m         test([32m'should 
+return the username if 
+available'[39m[33m,[39m () [33m=>[39m {[0m
+
+      at Runtime.linkAndEvaluateModule 
+(node_modules/jest-runtime/build/index.js:684:5)
+      at tests/services/DiscordUtilityService.te
+st.js:1:32
+
+(node:112848) ExperimentalWarning: VM Modules 
+is an experimental feature and might change at 
+any time
+(Use `node --trace-warnings ...` to show where 
+the warning was created)
+FAIL tests/services/MoodService.test.js
+  ??? Test suite failed to run
+
+    SyntaxError: The requested module 
+'../libraries/UtilityLibrary.js' does not 
+provide an export named 'consoleLog'
+
+    [0m[31m[1m>[22m[39m[90m 1 |[39m 
+[36mconst[39m [33mMoodService[39m 
+[33m=[39m ([36mawait[39m [36mimport[39m([
+32m'../../services/MoodService'[39m))[33m.[39
+m[36mdefault[39m[33m;[39m
+     [90m   |[39m                      
+[31m[1m^[22m[39m
+     [90m 2 |[39m jest[33m.[39munstable_mock
+Module([32m'../../wrappers/DiscordWrapper'[39m
+[33m,[39m () [33m=>[39m ({
+     [90m 3 |[39m     getClient[33m:[39m 
+jest[33m.[39mfn()[33m.[39mmockReturnValue({
+     [90m 4 |[39m         user[33m:[39m 
+{[0m
+
+      at Runtime.linkAndEvaluateModule 
+(node_modules/jest-runtime/build/index.js:684:5)
+      at tests/services/MoodService.test.js:1:22
+
+(node:69168) ExperimentalWarning: VM Modules is 
+an experimental feature and might change at any 
+time
+(Use `node --trace-warnings ...` to show where 
+the warning was created)
+FAIL tests/services/services.test.js
+  ??? Test suite failed to run
+
+    SyntaxError: The requested module 
+'../config.json' does not provide an export 
+named 'COMFY_UI_IMAGE_MODEL_API_URL'
+
+    [0m[31m[1m>[22m[39m[90m 1 |[39m 
+[36mconst[39m routes [33m=[39m 
+([36mawait[39m [36mimport[39m([32m'../../se
+rvices/services'[39m))[33m.[39m[36mdefault[
+39m[33m;[39m
+     [90m   |[39m                 
+[31m[1m^[22m[39m
+     [90m 2 |[39m [36mconst[39m 
+[33mAIService[39m [33m=[39m 
+([36mawait[39m [36mimport[39m([32m'../../se
+rvices/AIService'[39m))[33m.[39m[36mdefault
+[39m[33m;[39m
+     [90m 3 |[39m jest[33m.[39munstable_mock
+Module([32m'express'[39m[33m,[39m () 
+[33m=>[39m {
+     [90m 4 |[39m     [36mreturn[39m {[0m
+
+      at Runtime.linkAndEvaluateModule 
+(node_modules/jest-runtime/build/index.js:684:5)
+      at tests/services/services.test.js:1:17
+
+(node:45664) ExperimentalWarning: VM Modules is 
+an experimental feature and might change at any 
+time
+(Use `node --trace-warnings ...` to show where 
+the warning was created)
+(node:45664) [DEP0040] DeprecationWarning: The 
+`punycode` module is deprecated. Please use a 
+userland alternative instead.
+FAIL tests/services/HungerService.test.js
+  ??? Test suite failed to run
+
+    SyntaxError: The requested module 
+'../config.json' does not provide an export 
+named 'COMFY_UI_IMAGE_MODEL_API_URL'
+
+    [0m[31m[1m>[22m[39m[90m 1 |[39m 
+[36mconst[39m [33mHungerService[39m 
+[33m=[39m ([36mawait[39m [36mimport[39m([
+32m'../../services/HungerService'[39m))[33m.[
+39m[36mdefault[39m[33m;[39m
+     [90m   |[39m                        
+[31m[1m^[22m[39m
+     [90m 2 |[39m jest[33m.[39munstable_mock
+Module([32m'../../services/AIService'[39m[33m
+,[39m () [33m=>[39m ({
+     [90m 3 |[39m     
+generateInCharacterResponse2Special[33m:[39m j
+est[33m.[39mfn()[33m.[39mmockResolvedValue(
+[32m'Mocked response'[39m)
+     [90m 4 |[39m }))[33m;[39m[0m
+
+      at Runtime.linkAndEvaluateModule 
+(node_modules/jest-runtime/build/index.js:684:5)
+      at 
+tests/services/HungerService.test.js:1:24
+
+(node:26036) ExperimentalWarning: VM Modules is 
+an experimental feature and might change at any 
+time
+(Use `node --trace-warnings ...` to show where 
+the warning was created)
+(node:26036) [DEP0040] DeprecationWarning: The 
+`punycode` module is deprecated. Please use a 
+userland alternative instead.
+FAIL tests/services/AIService.test.js
+  ??? Test suite failed to run
+
+    SyntaxError: The requested module 
+'../config.json' does not provide an export 
+named 'COMFY_UI_IMAGE_MODEL_API_URL'
+
+    [0m[31m[1m>[22m[39m[90m 1 |[39m 
+[36mconst[39m [33mAIService[39m [33m=[39m 
+([36mawait[39m [36mimport[39m([32m'../../se
+rvices/AIService'[39m))[33m.[39m[36mdefault
+[39m[33m;[39m
+     [90m   |[39m                    
+[31m[1m^[22m[39m
+     [90m 2 |[39m [36mconst[39m 
+[33mDiscordUtilityService[39m [33m=[39m 
+([36mawait[39m [36mimport[39m([32m'../../se
+rvices/DiscordUtilityService'[39m))[33m.[39m
+[36mdefault[39m[33m;[39m
+     [90m 3 |[39m jest[33m.[39munstable_mock
+Module([32m'../../services/DiscordUtilityServic
+e'[39m[33m,[39m () [33m=>[39m ({
+     [90m 4 |[39m     
+getUsernameNoSpaces[33m:[39m jest[33m.[39mfn
+()[33m.[39mmockReturnValue([32m'TestUser'[39
+m)[0m
+
+      at Runtime.linkAndEvaluateModule 
+(node_modules/jest-runtime/build/index.js:684:5)
+      at tests/services/AIService.test.js:1:20
+
+(node:96440) ExperimentalWarning: VM Modules is 
+an experimental feature and might change at any 
+time
+(Use `node --trace-warnings ...` to show where 
+the warning was created)
+(node:96440) [DEP0040] DeprecationWarning: The 
+`punycode` module is deprecated. Please use a 
+userland alternative instead.
+FAIL tests/services/YapperService.test.js
+  ??? Test suite failed to run
+
+    SyntaxError: The requested module 
+'../config.json' does not provide an export 
+named 'COMFY_UI_IMAGE_MODEL_API_URL'
+
+    [0m[31m[1m>[22m[39m[90m 1 |[39m 
+[36mconst[39m [33mYapperService[39m 
+[33m=[39m ([36mawait[39m [36mimport[39m([
+32m'../../services/YapperService'[39m))[33m.[
+39m[36mdefault[39m[33m;[39m
+     [90m   |[39m                        
+[31m[1m^[22m[39m
+     [90m 2 |[39m jest[33m.[39munstable_mock
+Module([32m'../../services/AIService'[39m[33m
+,[39m () [33m=>[39m ({
+     [90m 3 |[39m     
+generateTextFromSystemUserMessages[33m:[39m je
+st[33m.[39mfn()[33m.[39mmockResolvedValue([
+32m'Mocked AI response'[39m)
+     [90m 4 |[39m }))[33m;[39m[0m
+
+      at Runtime.linkAndEvaluateModule 
+(node_modules/jest-runtime/build/index.js:684:5)
+      at 
+tests/services/YapperService.test.js:1:24
+
+(node:111424) ExperimentalWarning: VM Modules 
+is an experimental feature and might change at 
+any time
+(Use `node --trace-warnings ...` to show where 
+the warning was created)
+(node:111424) [DEP0040] DeprecationWarning: The 
+`punycode` module is deprecated. Please use a 
+userland alternative instead.
+FAIL tests/services/AlcoholService.test.js
+  ??? Test suite failed to run
+
+    SyntaxError: The requested module 
+'../libraries/UtilityLibrary.js' does not 
+provide an export named 'consoleLog'
+
+    [0m[31m[1m>[22m[39m[90m 1 |[39m 
+[36mconst[39m [33mAlcoholService[39m 
+[33m=[39m ([36mawait[39m [36mimport[39m([
+32m'../../services/AlcoholService'[39m))[33m.
+[39m[36mdefault[39m[33m;[39m
+     [90m   |[39m                         
+[31m[1m^[22m[39m
+     [90m 2 |[39m jest[33m.[39munstable_mock
+Module([32m'../../services/DiscordService'[39m
+[33m,[39m () [33m=>[39m ({
+     [90m 3 |[39m     
+generateInCharacterResponse2Special[33m:[39m 
+jest[33m.[39mfn()
+     [90m 4 |[39m }))[33m;[39m[0m
+
+      at Runtime.linkAndEvaluateModule 
+(node_modules/jest-runtime/build/index.js:684:5)
+      at 
+tests/services/AlcoholService.test.js:1:25
+
+(node:71960) ExperimentalWarning: VM Modules is 
+an experimental feature and might change at any 
+time
+(Use `node --trace-warnings ...` to show where 
+the warning was created)
+(node:71960) [DEP0040] DeprecationWarning: The 
+`punycode` module is deprecated. Please use a 
+userland alternative instead.
+FAIL tests/services/EnergyService.test.js
+  ??? Test suite failed to run
+
+    SyntaxError: The requested module 
+'../libraries/UtilityLibrary.js' does not 
+provide an export named 'consoleLog'
+
+    [0m[31m[1m>[22m[39m[90m 1 |[39m 
+[36mconst[39m [33mEnergyService[39m 
+[33m=[39m ([36mawait[39m [36mimport[39m([
+32m'../../services/EnergyService'[39m))[33m.[
+39m[36mdefault[39m[33m;[39m
+     [90m   |[39m                        
+[31m[1m^[22m[39m
+     [90m 2 |[39m [90m// Mock out 
+DiscordService to ensure tests isolate 
+EnergyService behavior[39m
+     [90m 3 |[39m jest[33m.[39munstable_mock
+Module([32m'../../services/DiscordService'[39m
+[33m,[39m () [33m=>[39m ({
+     [90m 4 |[39m     
+generateInCharacterResponse2Special[33m:[39m 
+jest[33m.[39mfn()[0m
+
+      at Runtime.linkAndEvaluateModule 
+(node_modules/jest-runtime/build/index.js:684:5)
+      at 
+tests/services/EnergyService.test.js:1:24
+
+(node:79500) ExperimentalWarning: VM Modules is 
+an experimental feature and might change at any 
+time
+(Use `node --trace-warnings ...` to show where 
+the warning was created)
+(node:79500) [DEP0040] DeprecationWarning: The 
+`punycode` module is deprecated. Please use a 
+userland alternative instead.
+FAIL tests/services/ThirstService.test.js
+  ??? Test suite failed to run
+
+    SyntaxError: The requested module 
+'../libraries/UtilityLibrary.js' does not 
+provide an export named 'consoleLog'
+
+    [0m[31m[1m>[22m[39m[90m 1 |[39m 
+[36mconst[39m [33mThirstService[39m 
+[33m=[39m ([36mawait[39m [36mimport[39m([
+32m'../../services/ThirstService'[39m))[33m.[
+39m[36mdefault[39m[33m;[39m
+     [90m   |[39m                        
+[31m[1m^[22m[39m
+     [90m 2 |[39m jest[33m.[39munstable_mock
+Module([32m'../../services/DiscordService'[39m
+[33m,[39m () [33m=>[39m ({
+     [90m 3 |[39m     
+generateTextFromSystemUserMessages[33m:[39m je
+st[33m.[39mfn()[33m.[39mmockResolvedValue([
+32m'Mocked response'[39m)
+     [90m 4 |[39m }))[33m;[39m[0m
+
+      at Runtime.linkAndEvaluateModule 
+(node_modules/jest-runtime/build/index.js:684:5)
+      at 
+tests/services/ThirstService.test.js:1:24
+
+(node:59856) ExperimentalWarning: VM Modules is 
+an experimental feature and might change at any 
+time
+(Use `node --trace-warnings ...` to show where 
+the warning was created)
+(node:59856) [DEP0040] DeprecationWarning: The 
+`punycode` module is deprecated. Please use a 
+userland alternative instead.
+FAIL tests/services/DiscordService.test.js
+  ??? Test suite failed to run
+
+    SyntaxError: The requested module 
+'../libraries/UtilityLibrary.js' does not 
+provide an export named 'consoleLog'
+
+    [0m[31m[1m>[22m[39m[90m 1 |[39m 
+[36mconst[39m [33mDiscordService[39m 
+[33m=[39m ([36mawait[39m [36mimport[39m([
+32m'../../services/DiscordService'[39m))[33m.
+[39m[36mdefault[39m[33m;[39m
+     [90m   |[39m                         
+[31m[1m^[22m[39m
+     [90m 2 |[39m 
+describe([32m'DiscordService'[39m[33m,[39m 
+() [33m=>[39m {
+     [90m 3 |[39m     it([32m'should be 
+defined'[39m[33m,[39m () [33m=>[39m {
+     [90m 4 |[39m         expect([33mDiscordS
+ervice[39m)[33m.[39mtoBeDefined()[33m;[39m
+[0m
+
+      at Runtime.linkAndEvaluateModule 
+(node_modules/jest-runtime/build/index.js:684:5)
+      at 
+tests/services/DiscordService.test.js:1:25
+
+(node:111088) ExperimentalWarning: VM Modules 
+is an experimental feature and might change at 
+any time
+(Use `node --trace-warnings ...` to show where 
+the warning was created)
+(node:111088) [DEP0040] DeprecationWarning: The 
+`punycode` module is deprecated. Please use a 
+userland alternative instead.
+FAIL tests/services/BathroomService.test.js
+  ??? Test suite failed to run
+
+    SyntaxError: The requested module 
+'../libraries/UtilityLibrary.js' does not 
+provide an export named 'consoleLog'
+
+    [0m[31m[1m>[22m[39m[90m 1 |[39m 
+[36mconst[39m [33mBathroomService[39m 
+[33m=[39m ([36mawait[39m [36mimport[39m([
+32m'../../services/BathroomService'[39m))[33m.
+[39m[36mdefault[39m[33m;[39m
+     [90m   |[39m                          
+[31m[1m^[22m[39m
+     [90m 2 |[39m jest[33m.[39munstable_mock
+Module([32m'../../services/DiscordService'[39m
+[33m,[39m () [33m=>[39m ({
+     [90m 3 |[39m     
+generateTextFromSystemUserMessages[33m:[39m je
+st[33m.[39mfn()[33m.[39mmockResolvedValue([
+32m'Mocked response'[39m)
+     [90m 4 |[39m }))[33m;[39m[0m
+
+      at Runtime.linkAndEvaluateModule 
+(node_modules/jest-runtime/build/index.js:684:5)
+      at 
+tests/services/BathroomService.test.js:1:26
+
+(node:87308) ExperimentalWarning: VM Modules is 
+an experimental feature and might change at any 
+time
+(Use `node --trace-warnings ...` to show where 
+the warning was created)
+(node:87308) [DEP0040] DeprecationWarning: The 
+`punycode` module is deprecated. Please use a 
+userland alternative instead.
+Test Suites: 13 failed, 2 passed, 15 total
+Tests:       11 passed, 11 total
+Snapshots:   0 total
+Time:        24.969 s
+Ran all test suites.
+

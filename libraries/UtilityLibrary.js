@@ -1,7 +1,7 @@
-const moment = require('moment');
-const { DateTime } = require('luxon');
-const config = require('../config.json');
-const crypto = require('crypto');
+import moment from 'moment';
+import { DateTime } from 'luxon';
+import config from '../config.json' with { type: 'json' };
+import crypto from 'crypto';
 
 const UtilityLibrary = {
     // Crypto utilities
@@ -311,4 +311,4 @@ const UtilityLibrary = {
     },
 };
 
-module.exports = UtilityLibrary;
+export default UtilityLibrary;

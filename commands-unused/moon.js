@@ -1,6 +1,6 @@
-const { SlashCommandBuilder } = require('discord.js');
-const DiscordService = require('../../services/DiscordService.js');
-const moment = require('moment');
+import { SlashCommandBuilder } from 'discord.js';
+import DiscordService from '../../services/DiscordService.js';
+import moment from 'moment';
 
 const fullMoons = [
     { date: '2024-01-25', name: 'Wolf Moon' },
@@ -23,7 +23,7 @@ function getNextFullMoon() {
     return nextFullMoon;
 }
 
-module.exports = {
+export default {
 	data: new SlashCommandBuilder()
 		.setName('moon')
 		.setDescription('Find when the next full moon is.'),

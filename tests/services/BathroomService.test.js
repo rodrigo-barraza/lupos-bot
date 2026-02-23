@@ -1,8 +1,9 @@
-const BathroomService = require('../../services/BathroomService');
-
-jest.mock('../../services/DiscordService', () => ({
+import { jest, describe, test, it, expect, beforeEach, afterEach, beforeAll, afterAll } from '@jest/globals';
+jest.unstable_mockModule('../../services/DiscordService', () => ({ default: {
     generateTextFromSystemUserMessages: jest.fn().mockResolvedValue('Mocked response')
-}));
+} }));
+
+const BathroomService = (await import('../../services/BathroomService.js')).default;
 
 describe('BathroomService', () => {
     beforeEach(() => {

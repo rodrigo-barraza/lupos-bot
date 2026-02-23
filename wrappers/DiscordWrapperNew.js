@@ -1,5 +1,5 @@
-require('dotenv/config');
-const { Client, Collection, Events, GatewayIntentBits, Partials, ChannelType, Message } = require('discord.js');
+import 'dotenv/config';
+import { Client, Collection, Events, GatewayIntentBits, Partials, ChannelType, Message } from 'discord.js';
 
 const client = new Client({
   intents: [
@@ -19,4 +19,4 @@ const client = new Client({
   ]
 });
 
-module.exports = client;
+export default client;

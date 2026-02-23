@@ -1,36 +1,36 @@
 // Packages
-const fs = require('fs');
-const path = require('path');
-const BigNumber = require('bignumber.js');
-const { DateTime } = require('luxon');
+import fs from 'fs';
+import path from 'path';
+import BigNumber from 'bignumber.js';
+import { DateTime } from 'luxon';
 // Config
-const config = require('../config.json');
+import config from '../config.json' with { type: 'json' };
 // Formatters
-const LogFormatter = require('../formatters/LogFormatter.js');
+import LogFormatter from '../formatters/LogFormatter.js';
 // Wrappers
-const ComfyUIWrapper = require('../wrappers/ComfyUIWrapper.js');
-const OpenAIWrapper = require('../wrappers/OpenAIWrapper.js');
-const LocalAIWrapper = require('../wrappers/LocalAIWrapper.js');
-const AnthrophicWrapper = require('../wrappers/AnthropicWrapper.js');
-const GoogleAIWrapper = require('../wrappers/GoogleAIWrapper.js');
-const MongoWrapper = require('../wrappers/MongoWrapper.js');
+import ComfyUIWrapper from '../wrappers/ComfyUIWrapper.js';
+import OpenAIWrapper from '../wrappers/OpenAIWrapper.js';
+import LocalAIWrapper from '../wrappers/LocalAIWrapper.js';
+import AnthrophicWrapper from '../wrappers/AnthropicWrapper.js';
+import GoogleAIWrapper from '../wrappers/GoogleAIWrapper.js';
+import MongoWrapper from '../wrappers/MongoWrapper.js';
 // Libraries
-const UtilityLibrary = require('../libraries/UtilityLibrary.js');
+import UtilityLibrary from '../libraries/UtilityLibrary.js';
 // Services
-const CurrentService = require('./CurrentService.js');
-const DiscordUtilityService = require('./DiscordUtilityService.js');
+import CurrentService from './CurrentService.js';
+import DiscordUtilityService from './DiscordUtilityService.js';
 // Maps
-const ModelsMap = require('../maps/ModelsMap.js');
+import ModelsMap from '../maps/ModelsMap.js';
 
 // Image processing - prefer sharp, fallback to Jimp
 let sharp;
 let Jimp;
 
 try {
-    sharp = require('sharp');
+    sharp = (await import('sharp')).default;
     console.log('Using sharp for image processing');
 } catch (error) {
-    const jimp = require('jimp');
+    const jimp = await import('jimp');
     Jimp = jimp.Jimp;
     console.log('sharp unavailable, using Jimp for image processing');
 }
@@ -93,7 +93,7 @@ function saveFile(encodedImageDataBase64, usedModel, username = null) {
     const buffer = Buffer.from(encodedImageDataBase64, 'base64');
 
     // Create the images directory structure
-    const imagesDir = path.join(__dirname, '../images');
+    const imagesDir = path.join(import.meta.dirname, '../images');
     let fullPath;
 
     if (username) {
@@ -539,7 +539,7 @@ const AIService = {
         // Parse the URL to get just the filename without query parameters
         const url = new URL(audioUrl);
         const filename = path.basename(url.pathname);
-        const voicesDir = path.join(__dirname, '../voices');
+        const voicesDir = path.join(import.meta.dirname, '../voices');
         // Create the voices directory if it doesn't exist
         if (!fs.existsSync(voicesDir)) {
             fs.mkdirSync(voicesDir, { recursive: true });
@@ -1207,4 +1207,4 @@ ${systemPrompt}`;
 
 };
 
-module.exports = AIService;
+export default AIService;

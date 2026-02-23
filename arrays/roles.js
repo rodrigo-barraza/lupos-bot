@@ -607,4 +607,4 @@ const warcraftFactions = [
 
 
 
-module.exports = { rolesVideogames, warcraftClasses, warcraftFactions };
+export { rolesVideogames, warcraftClasses, warcraftFactions };

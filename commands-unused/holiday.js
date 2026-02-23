@@ -1,8 +1,8 @@
-const { SlashCommandBuilder } = require('discord.js');
-const HolidayService = require('../../services/HolidayService.js');
-const MoodService = require('../../services/MoodService.js');
+import { SlashCommandBuilder } from 'discord.js';
+import HolidayService from '../../services/HolidayService.js';
+import MoodService from '../../services/MoodService.js';
 
-module.exports = {
+export default {
 	data: new SlashCommandBuilder()
 		.setName('holiday')
 		.setDescription('Inquire about the next upcoming Azerothian holiday.'),

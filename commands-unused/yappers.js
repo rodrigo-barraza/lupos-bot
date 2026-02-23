@@ -1,7 +1,7 @@
-const { SlashCommandBuilder } = require('discord.js');
-const YapperService = require('../../services/YapperService.js');
+import { SlashCommandBuilder } from 'discord.js';
+import YapperService from '../../services/YapperService.js';
 
-module.exports = {
+export default {
 	data: new SlashCommandBuilder()
 		.setName('yappers')
 		.setDescription('Have a quick look as to who has been blabber-mouthing in the past short while.'),

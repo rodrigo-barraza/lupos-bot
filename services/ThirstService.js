@@ -1,4 +1,4 @@
-const DiscordService = require('./DiscordService.js');
+import DiscordService from './DiscordService.js';
 
 let thirstLevel = 0;
 let hungerChannelId = '1198326193984913470';
@@ -59,4 +59,4 @@ const ThirstService = {
     }
 }
 
-module.exports = ThirstService
+export default ThirstService;

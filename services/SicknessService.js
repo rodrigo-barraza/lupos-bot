@@ -23,4 +23,4 @@ const SicknessService = {
     }
 }
 
-module.exports = SicknessService
+export default SicknessService;

@@ -1,7 +1,7 @@
-const express = require('express');
+import express from 'express';
 const router = new express.Router();
 // const WebHookService = require('./WebHookService/WebHookService');
-const AIService = require('./AIService.js');
+import AIService from './AIService.js';
 
 const routes = () => {
     // WebHookService(router);
@@ -37,4 +37,4 @@ const routes = () => {
     return router;
 };
 
-module.exports = routes;
+export default routes;

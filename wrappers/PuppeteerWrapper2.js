@@ -1,8 +1,8 @@
-require('dotenv/config');
-const UtilityLibrary = require('../libraries/UtilityLibrary.js');
-const puppeteer = require('puppeteer-core');
-const xml2js = require('xml2js');
-const AIService = require('../services/AIService.js');
+import 'dotenv/config';
+import UtilityLibrary from '../libraries/UtilityLibrary.js';
+import puppeteer from 'puppeteer-core';
+import xml2js from 'xml2js';
+import AIService from '../services/AIService.js';
 
 const PuppeteerWrapper = {
     async scrapeRSS(url) {
@@ -231,4 +231,4 @@ const PuppeteerWrapper = {
     },
 };
 
-module.exports = PuppeteerWrapper;
+export default PuppeteerWrapper;

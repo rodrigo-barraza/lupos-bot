@@ -1,4 +1,6 @@
-const SicknessService = require('../../services/SicknessService');
+import { jest, describe, test, it, expect, beforeEach, afterEach, beforeAll, afterAll } from '@jest/globals';
+
+const SicknessService = (await import('../../services/SicknessService.js')).default;
 
 describe('SicknessService', () => {
     beforeEach(() => {

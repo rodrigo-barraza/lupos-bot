@@ -1,20 +1,21 @@
-require('dotenv/config');
-const Anthropic = require('@anthropic-ai/sdk');
+import 'dotenv/config';
+import Anthropic from '@anthropic-ai/sdk';
+import config from '../config.json' with { type: 'json' };
 const {
     LANGUAGE_MODEL_TEMPERATURE,
     LANGUAGE_MODEL_MAX_TOKENS,
     LANGUAGE_MODEL_ANTHROPIC,
     ANTHROPIC_KEY
-} = require('../config.json');
+} = config;
 
-const client = new Anthropic({apiKey: ANTHROPIC_KEY})
+const client = new Anthropic({ apiKey: ANTHROPIC_KEY })
 
 const AnthrophicWrapper = {
     async generateAnthropicTextResponse(
-      conversation,
-      model=LANGUAGE_MODEL_ANTHROPIC,
-      tokens=LANGUAGE_MODEL_MAX_TOKENS,
-      temperature=LANGUAGE_MODEL_TEMPERATURE
+        conversation,
+        model = LANGUAGE_MODEL_ANTHROPIC,
+        tokens = LANGUAGE_MODEL_MAX_TOKENS,
+        temperature = LANGUAGE_MODEL_TEMPERATURE
     ) {
         let text;
         let systemMessage;
@@ -30,21 +31,21 @@ const AnthrophicWrapper = {
         });
 
         const mergedData = conversation.reduce((acc, cur, index, array) => {
-          if (cur.role === "user" || cur.role === "assistant") {
-            if (acc.length && acc[acc.length - 1].role === cur.role) {
-              // Merge consecutive messages from the same role
-              if (cur.role === "user" && (index === array.length - 1 || array[index + 1].role !== "user")) {
-                // Special handling for the last user message in a sequence
-                acc[acc.length - 1].content += `\n\n${cur.content}`;
-              } else {
-                acc[acc.length - 1].content += `\n\n${cur.content}`;
-              }
-            } else {
-              // Push a COPY of the message, not the reference
-              acc.push({ ...cur });
+            if (cur.role === "user" || cur.role === "assistant") {
+                if (acc.length && acc[acc.length - 1].role === cur.role) {
+                    // Merge consecutive messages from the same role
+                    if (cur.role === "user" && (index === array.length - 1 || array[index + 1].role !== "user")) {
+                        // Special handling for the last user message in a sequence
+                        acc[acc.length - 1].content += `\n\n${cur.content}`;
+                    } else {
+                        acc[acc.length - 1].content += `\n\n${cur.content}`;
+                    }
+                } else {
+                    // Push a COPY of the message, not the reference
+                    acc.push({ ...cur });
+                }
             }
-          }
-          return acc;
+            return acc;
         }, []);
 
         if (mergedData[0].role === "assistant") {
@@ -72,8 +73,8 @@ const AnthrophicWrapper = {
         return { text, error: null };
     },
     async countTokens(
-      conversation,
-      model
+        conversation,
+        model
     ) {
         let tokens;
         let system;
@@ -99,4 +100,4 @@ const AnthrophicWrapper = {
     },
 };
 
-module.exports = AnthrophicWrapper;
+export default AnthrophicWrapper;

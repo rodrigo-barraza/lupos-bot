@@ -1,8 +1,9 @@
-const HungerService = require('../../services/HungerService');
-
-jest.mock('../../services/AIService', () => ({
+import { jest, describe, test, it, expect, beforeEach, afterEach, beforeAll, afterAll } from '@jest/globals';
+jest.unstable_mockModule('../../services/AIService', () => ({ default: {
     generateInCharacterResponse2Special: jest.fn().mockResolvedValue('Mocked response')
-}));
+} }));
+
+const HungerService = (await import('../../services/HungerService.js')).default;
 
 describe('HungerService', () => {
     beforeEach(() => {

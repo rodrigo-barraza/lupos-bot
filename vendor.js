@@ -1,19 +1,20 @@
 process.env.NODE_NO_WARNINGS = 'stream/web';
-require('dotenv/config');
+import 'dotenv/config';
+import config from './config.json' with { type: 'json' };
 const {
     VENDOR_TOKEN, WHITEMANE_OVERREACTOR_ROLE_ID, WHITEMANE_POLITICS_CHANNEL_ID, GUILD_ID_WHITEMANE,
     GENERATE_VOICE, BLABBERMOUTH, DETECT_AND_REACT, BARK_VOICE_FOLDER, GENERATE_IMAGE,
     CHANNEL_ID_WHITEMANE_HIGHLIGHTS, CHANNEL_ID_THE_CLAM_HIGHLIGHTS, CHANNEL_ID_WHITEMANE_BOOTY_BAE,
     PRIMARY_LIGHT_ID
-} = require('./config.json');
-const fs = require('node:fs');
-const { Collection, Events, ChannelType, EmbedBuilder } = require('discord.js');
-const UtilityLibrary = require('./libraries/UtilityLibrary.js');
-const MoodService = require('./services/MoodService.js');
-const DiscordService = require('./services/DiscordService.js');
-const luxon = require('luxon');
-const PuppeteerWrapper = require('./wrappers/PuppeteerWrapper.js');
-const LightWrapper = require('./wrappers/LightWrapper.js');
+} = config;
+import fs from 'node:fs';
+import { Collection, Events, ChannelType, EmbedBuilder } from 'discord.js';
+import UtilityLibrary from './libraries/UtilityLibrary.js';
+import MoodService from './services/MoodService.js';
+import DiscordService from './services/DiscordService.js';
+import luxon from 'luxon';
+import PuppeteerWrapper from './wrappers/PuppeteerWrapper.js';
+import LightWrapper from './wrappers/LightWrapper.js';
 const app = express();
 
 
@@ -50,7 +51,7 @@ const client = DiscordService.client;
 
 function displayAllGuilds() {
     const guilds = DiscordService.getAllGuilds();
-    let connectedGuildsText = `🌎 Connected Guilds (Servers): ${guilds.length }`
+    let connectedGuildsText = `🌎 Connected Guilds (Servers): ${guilds.length}`
     UtilityLibrary.consoleInfo([[connectedGuildsText, {}]]);
 }
 
@@ -78,7 +79,7 @@ async function onReady() {
             // channel.parent.name !== 'Info' &&
             // channel.parent.name !== 'Welcome'
             (channel.parent.name === 'Classic WoW' ||
-            channel.parent.name === 'Classic Cataclysm')
+                channel.parent.name === 'Classic Cataclysm')
         ) {
             const messages = await DiscordService.fetchMessages(channel.id, 1);
             const lastMessageSentOn = luxon.DateTime.fromMillis(messages[0].createdTimestamp);
@@ -104,7 +105,7 @@ async function replyMessage(client, queuedMessage) {
     const discordUserTag = UtilityLibrary.discordUserTag(queuedMessage);
     let timer = 0;
     const timerInterval = setInterval(() => { timer++ }, 1000);
-    
+
     UtilityLibrary.consoleInfo([[`═══════════════░▒▓ +MESSAGE+ ▓▒░════════════════════════════════════`, { color: 'yellow' }, 'start']]);
 
     if (queuedMessage.guild) {
@@ -122,12 +123,12 @@ async function replyMessage(client, queuedMessage) {
     console.log('Summary:', summary);
     DiscordService.setUserActivity(summary);
     LightWrapper.setState({ color: 'red' }, PRIMARY_LIGHT_ID);
-    
-    const { 
-        generatedText, 
-        imagePrompt, 
-        modifiedMessage, 
-        systemPrompt 
+
+    const {
+        generatedText,
+        imagePrompt,
+        modifiedMessage,
+        systemPrompt
     } = await DiscordService.generateNewTextResponse(
         client,
         queuedMessage,
@@ -146,12 +147,12 @@ async function replyMessage(client, queuedMessage) {
                 generatedText,
                 imageToGenerate
             );
-            
+
             LightWrapper.setState({ color: 'purple' }, PRIMARY_LIGHT_ID);
-    
+
             if (newImagePrompt) {
                 generatedImage = await DiscordService.generateImage(newImagePrompt);
-                
+
                 LightWrapper.setState({ color: 'yellow' }, PRIMARY_LIGHT_ID);
                 if (generatedImage) {
                     const {
@@ -187,7 +188,7 @@ async function replyMessage(client, queuedMessage) {
     //     return UtilityLibrary.findUserById(client, id);
     // }).substring(0, 220);
 
-    
+
     let generatedAudioFile, generatedAudioBuffer;
 
     // if (GENERATE_VOICE) { 
@@ -211,17 +212,17 @@ async function replyMessage(client, queuedMessage) {
         if (generatedImage && (i + messageChunkSizeLimit >= generatedTextResponse.length)) {
             files.push({ attachment: Buffer.from(generatedImage, 'base64'), name: 'lupos.png' });
         }
-        messageReplyOptions = { ...messageReplyOptions, files: files};
+        messageReplyOptions = { ...messageReplyOptions, files: files };
         await queuedMessage.reply(messageReplyOptions);
     }
 
     lastMessageSentTime = luxon.DateTime.now().toISO();
-    
+
     clearInterval(sendTypingInterval);
     LightWrapper.setState({ color: 'white' }, PRIMARY_LIGHT_ID);
     UtilityLibrary.consoleInfo([[`⏱️ Duration: ${timer} seconds`, { color: 'cyan' }, 'middle']]);
     timerInterval.unref();
-    
+
     if (queuedMessage.guild) {
         console.log('channel id:', queuedMessage.channel.id);
         UtilityLibrary.consoleInfo([[`💬 Replied to: ${discordUserTag} in ${queuedMessage.guild.name} #${queuedMessage.channel.name}`, { color: 'cyan' }, 'middle']]);
@@ -251,11 +252,11 @@ async function onWebhookMessageCreateQueue(client, message) {
         }
         isProcessingWebhookMessageQueue = false;
         return
-    } 
+    }
 }
 
 
-setInterval(() => {     
+setInterval(() => {
     let currentTime = luxon.DateTime.now();
     let lastMessageSentTimeObject = luxon.DateTime.fromISO(lastMessageSentTime);
     let difference = currentTime.diff(lastMessageSentTimeObject, ['seconds']).toObject();

@@ -1,8 +1,9 @@
-const WebHookService = (router) => {
+const WebHookService = async (router) => {
     const resourceName = 'webhook-service';
-    const postWebHook = require('./routes/PostWebHook')();
+    const { default: PostWebHook } = await import('./routes/PostWebHook.js');
+    const postWebHook = PostWebHook();
 
     router.post(`/${resourceName}/webhook`, postWebHook);
 };
 
-module.exports = WebHookService;
+export default WebHookService;

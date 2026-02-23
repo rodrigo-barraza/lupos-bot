@@ -62,4 +62,4 @@ const channels = [
 
 ];
 
-module.exports = channels;
+export default channels;

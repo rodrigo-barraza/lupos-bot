@@ -1,10 +1,10 @@
-const DiscordService = require('../services/DiscordService.js');
-const HungerService = require('./HungerService.js');
-const ThirstService = require('./ThirstService.js');
-const BathroomService = require('./BathroomService.js');
-const MoodService = require('./MoodService.js');
-const SicknessService = require('./SicknessService.js');
-const AlcoholService = require('./AlcoholService.js');
+import DiscordService from '../services/DiscordService.js';
+import HungerService from './HungerService.js';
+import ThirstService from './ThirstService.js';
+import BathroomService from './BathroomService.js';
+import MoodService from './MoodService.js';
+import SicknessService from './SicknessService.js';
+import AlcoholService from './AlcoholService.js';
 
 const foods = [ '🍔', '🍟', '🍕', '🌭', '🥪', '🌮', '🌯', '🥙', '🧆', '🥚', '🍳', '🥘', '🍲', '🥣', '🥗', '🍿', '🧈', '🧂', '🥫', '🍱', '🍘', '🍙', '🍚', '🍛', '🍜', '🍝', '🍠', '🍢', '🍣', '🍤', '🍥', '🥮', '🍡', '🥟', '🥠', '🥡', '🦪', '🍦', '🍧', '🍨', '🍩', '🍪', '🎂', '🍰', '🧁', '🥧', '🍫', '🍬', '🍭', '🍮', '🍯', '🍇', '🍈', '🍉', '🍊', '🍋', '🍌', '🍍', '🥭', '🍎', '🍏', '🍐', '🍑', '🍒', '🍓', '🥝', '🍅', '🥥', '🥑', '🍆', '🥔', '🥕', '🌽', '🌶', '🥒', '🥬', '🥦', '🧄', '🧅', '🍄', '🥜', '🌰', '🍞', '🥐', '🥖', '🥨', '🥯', '🥞', '🧇', '🧀', '🍖', '🍗', '🥩', '🥓', '🍔', '🍟', '🍕', '🌭', '🥪', '🌮', '🌯', '🥙', '🧆', '🍳', '🥘', '🍲', '🥣', '🥗', '🍿', '🧈', '🧂', '🥫', '🍱', '🍘', '🍙', '🍚', '🍛', '🍜', '🍝', '🍠', '🍢', '🍣', '🍤', '🍥', '🥮', '🍡', '🥟', '🥠', '🥡', '🦪', '🍦', '🍧', '🍨', '🍩', '🍪', '🎂', '🍰', '🧁', '🥧', '🍫', '🍬', '🍭', '🍮', '🍯']
 
@@ -151,4 +151,4 @@ const ActionService = {
     }
 }
 
-module.exports = ActionService
+export default ActionService;

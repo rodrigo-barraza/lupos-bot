@@ -1,15 +1,15 @@
-const { joinVoiceChannel, createAudioPlayer, createAudioResource, AudioPlayerStatus, StreamType } = require('@discordjs/voice');
-const play = require('play-dl');
-const ytdl = require("@distube/ytdl-core");
-const DiscordUtilityService = require('../services/DiscordUtilityService');
-const { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, AttachmentBuilder } = require('discord.js');
+import { joinVoiceChannel, createAudioPlayer, createAudioResource, AudioPlayerStatus, StreamType } from '@discordjs/voice';
+import play from 'play-dl';
+import ytdl from '@distube/ytdl-core';
+import DiscordUtilityService from '../services/DiscordUtilityService.js';
+import { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, AttachmentBuilder } from 'discord.js';
 
 // new
-const prism = require('prism-media');
-const fs = require('fs');
-const path = require('path');
-const { pipeline } = require('stream');
-const lame = require('node-lame').Lame;
+import prism from 'prism-media';
+import fs from 'fs';
+import path from 'path';
+import { pipeline } from 'stream';
+const { Lame: lame } = await import('node-lame');
 
 let connection;
 let player;
@@ -43,14 +43,14 @@ class AudioMixer {
             stream,
             buffer: Buffer.alloc(0)
         });
-        
+
         stream.on('data', (chunk) => {
             const source = this.sources.get(id);
             if (source) {
                 source.buffer = Buffer.concat([source.buffer, chunk]);
             }
         });
-        
+
         stream.on('end', () => {
             this.sources.delete(id);
             if (this.sources.size === 0) {
@@ -62,16 +62,16 @@ class AudioMixer {
     startMixing() {
         this.mixInterval = setInterval(() => {
             if (this.sources.size === 0) return;
-            
+
             const mixed = Buffer.alloc(this.bufferSize);
             let activeStreams = 0;
-            
+
             for (const [id, source] of this.sources) {
                 if (source.buffer.length >= this.bufferSize) {
                     activeStreams++;
                     const chunk = source.buffer.slice(0, this.bufferSize);
                     source.buffer = source.buffer.slice(this.bufferSize);
-                    
+
                     // Mix audio by averaging samples
                     for (let i = 0; i < this.bufferSize; i += 2) {
                         const sample = chunk.readInt16LE(i);
@@ -80,7 +80,7 @@ class AudioMixer {
                     }
                 }
             }
-            
+
             // Normalize mixed audio
             if (activeStreams > 0) {
                 for (let i = 0; i < this.bufferSize; i += 2) {
@@ -114,10 +114,10 @@ function createEmbed(video, queueMessage) {
     const videoViews = video.views;
     const channelName = video.channel.name;
     const videoThumbnail = video.thumbnails[1] ? video.thumbnails[1].url : video.thumbnails[0].url;
-    
+
 
     // message.reply(`Now playing: **${video.title}** (${video.durationRaw}), requested by ${video.author}`);
-    
+
     const username = DiscordUtilityService.getNameFromItem(queueMessage);
     const userProfilePicture = queueMessage.author.displayAvatarURL();
 
@@ -184,7 +184,7 @@ const YouTubeWrapper = {
             isQueueProcessing = false;
             return;
         }
-        const {video, message: queueMessage} = queue.shift();
+        const { video, message: queueMessage } = queue.shift();
         currentVideo = video;
         currentMessage = queueMessage;
         try {
@@ -196,7 +196,7 @@ const YouTubeWrapper = {
                     adapterCreator: message.guild.voiceAdapterCreator,
                 });
             }
-            
+
             // Create player if not exists
             if (!player) {
                 player = createAudioPlayer();
@@ -217,7 +217,7 @@ const YouTubeWrapper = {
             const highestAudioBitrate = Math.max(...audioFormats.map(format => format.audioBitrate));
             const selectedFormat = audioFormats.find(format => format.audioBitrate === highestAudioBitrate);
 
-            
+
             const stream = ytdl(video.url, {
                 filter: 'audio',
                 quality: selectedFormat.itag,
@@ -235,18 +235,18 @@ const YouTubeWrapper = {
                     family: 4, // Force IPv4, or 6 for IPv6
                 },
             });
-            
+
             const resource = createAudioResource(stream, {
                 inputType: StreamType.Arbitrary,
                 inlineVolume: true,
                 metadata: video,
             });
-            
+
             resource.volume.setVolume(volumeLevel / 100);
-            
+
             // Remove all previous listeners to avoid duplicates
             player.removeAllListeners();
-            
+
             // Add error handler
             player.on('error', async error => {
                 console.error('Player error:', error);
@@ -254,12 +254,12 @@ const YouTubeWrapper = {
                 this.stopUpdateInterval();
                 await this.processQueue(client, message);
             });
-            
+
             player.on(AudioPlayerStatus.Idle, async () => {
                 this.stopUpdateInterval();
                 await this.processQueue(client, message);
             });
-            
+
             player.play(resource);
 
             const embed = createEmbed(video, queueMessage);
@@ -302,7 +302,7 @@ const YouTubeWrapper = {
                 if (searchResults.length === 0) {
                     return message.reply('No results found!');
                 }
-    
+
                 video = searchResults[0];
             }
 
@@ -311,7 +311,7 @@ const YouTubeWrapper = {
                 message,
             }
             queue.push(queueObject);
-            
+
             // Add message when song is added to queue
             if (isQueueProcessing) {
                 const milliseconds = player.state.resource.playbackDuration;
@@ -336,7 +336,7 @@ const YouTubeWrapper = {
                     image: existingEmbed.image,
                 };
 
-                
+
                 if (queue.length > 0) {
                     const nextSongs = queue.map((item, index) => `${index + 1}. ${item.video.title} (${item.video.durationRaw})`).join('\n');
                     updatedEmbed.fields.push({
@@ -358,7 +358,7 @@ const YouTubeWrapper = {
                 // start a new update interval
                 this.startUpdateInterval();
             }
-            
+
             if (!isQueueProcessing) {
                 isQueueProcessing = true;
                 await this.processQueue(client, message);
@@ -373,7 +373,7 @@ const YouTubeWrapper = {
         if (!message.member.voice.channel) {
             return message.reply('You need to be in a voice channel!');
         }
-        
+
         if (!connection || connection.state.status === 'disconnected') {
             connection = joinVoiceChannel({
                 channelId: message.member.voice.channel.id,
@@ -397,9 +397,9 @@ const YouTubeWrapper = {
         });
 
         const receiver = connection.receiver;
-        
+
         // Create recordings directory if it doesn't exist
-        const recordingsDir = path.join(__dirname, '../recordings');
+        const recordingsDir = path.join(import.meta.dirname, '../recordings');
         if (!fs.existsSync(recordingsDir)) {
             fs.mkdirSync(recordingsDir, { recursive: true });
         }
@@ -429,12 +429,12 @@ const YouTubeWrapper = {
         });
 
         const replyMessage = await message.reply('🔴 Recording started for the next **5 seconds**!');
-        
+
         setTimeout(() => {
             if (isRecording) {
                 isRecording = false;
                 // message.reply('🟥 Recording stopped! Check the recordings folder for your MP3 files.');
-                
+
                 // Stop all active recordings
                 for (const [userId, streams] of recordingStreams) {
                     if (streams.opusStream && !streams.opusStream.destroyed) {
@@ -448,12 +448,12 @@ const YouTubeWrapper = {
                     }
                 }
                 recordingStreams.clear();
-                
+
                 // Stop the audio mixer and convert combined file
                 if (audioMixer) {
                     audioMixer.destroy();
                     audioMixer = null;
-                    
+
                     // Wait a bit for the stream to finish writing
                     setTimeout(async () => {
                         const stats = fs.statSync(combinedPcmPath);
@@ -461,7 +461,7 @@ const YouTubeWrapper = {
                             try {
                                 await this.convertToMp3(combinedPcmPath, combinedMp3Path);
 
-                                
+
                                 let userTags = voiceChannel.members.map(member => `<@${member.user.id}>`).join(', ').replace(`<@${client.user.id}>`, '');
                                 // if there is only two users, remove the comma
                                 if (userTags.endsWith(', ')) {
@@ -474,8 +474,8 @@ const YouTubeWrapper = {
                                     .setDescription(`Requested by <@${message.author.id}> in <#${voiceChannel.id}>`)
                                     .addFields({ name: 'Users Recorded', value: userTags || 'No users recorded' })
                                     .setColor('#00FF00')
-                                    // .setTimestamp()
-                                    // .setFooter({ text: 'Recording Bot' });
+                                // .setTimestamp()
+                                // .setFooter({ text: 'Recording Bot' });
 
                                 await replyMessage.edit({ content: '', embeds: [embed], files: [attachment] });
 
@@ -562,7 +562,7 @@ const YouTubeWrapper = {
                         duration: 100,
                     },
                 });
-                
+
                 if (mixerStream) {
                     mixerStream.pipe(mixerDecoder);
                     audioMixer.addSource(userId, mixerDecoder);
@@ -591,10 +591,10 @@ const YouTubeWrapper = {
     },
     // And here's a simpler convertToMp3 function using fluent-ffmpeg:
     async convertToMp3(pcmPath, mp3Path) {
-        const ffmpeg = require('fluent-ffmpeg');
-        
+        const { default: ffmpeg } = await import('fluent-ffmpeg');
+
         console.log(`Converting PCM to MP3: ${pcmPath} -> ${mp3Path}`);
-        
+
         return new Promise((resolve, reject) => {
             ffmpeg()
                 .input(pcmPath)
@@ -623,7 +623,7 @@ const YouTubeWrapper = {
             clearInterval(updateInterval);
             updateInterval = null;
         }
-        
+
         updateInterval = setInterval(() => {
             // if (!player || player.state.status !== AudioPlayerStatus.Playing || !nowPlayingMessage) {
             //     this.stopUpdateInterval();
@@ -639,7 +639,7 @@ const YouTubeWrapper = {
             const progress = player.state.resource.playbackDuration / (currentVideo.durationInSec * 1000);
             const filledLength = Math.floor(progress * progressBar.length);
             progressBar = progressBar.substring(0, filledLength).replace(/░/g, '█') + progressBar.substring(filledLength);
-            
+
             const milliseconds = player.state.resource.playbackDuration;
             const totalSeconds = Math.floor(milliseconds / 1000);
             const minutes = Math.floor(totalSeconds / 60);
@@ -660,7 +660,7 @@ ${formatted} ${dividingLine} ${currentVideo.durationRaw}
             const vol = `\`\`\`
 🔊 ${volumeBar} ${volumeLevel}%
 \`\`\``;
-            
+
             // Create a completely new embed object
             const existingEmbed = nowPlayingMessage.embeds[0];
             const updatedEmbed = {
@@ -712,7 +712,7 @@ ${formatted} ${dividingLine} ${currentVideo.durationRaw}
                 });
             }
 
-            
+
 
             let actionRow = new ActionRowBuilder()
             // if is paused change button to resume
@@ -725,28 +725,28 @@ ${formatted} ${dividingLine} ${currentVideo.durationRaw}
                     .setLabel('⠀⠀⠀⠀⠀⠀')
                     .setStyle(ButtonStyle.Secondary)
                     .setDisabled(true)
-                );
+            );
             actionRow.addComponents(
                 new ButtonBuilder()
                     .setCustomId('back')
                     .setLabel('⏮️')
                     .setStyle(ButtonStyle.Primary)
                     .setDisabled(true)
-                );
+            );
             if (player.state.status === AudioPlayerStatus.Playing || player.state.status === AudioPlayerStatus.Buffering) {
                 actionRow.addComponents(
                     new ButtonBuilder()
                         .setCustomId('pause')
                         .setLabel('⏸️')
                         .setStyle(ButtonStyle.Primary),
-                    );
+                );
             } else {
                 actionRow.addComponents(
                     new ButtonBuilder()
                         .setCustomId('resume')
                         .setLabel('▶️')
                         .setStyle(ButtonStyle.Primary)
-                    );
+                );
             }
             actionRow.addComponents(
                 new ButtonBuilder()
@@ -754,14 +754,14 @@ ${formatted} ${dividingLine} ${currentVideo.durationRaw}
                     .setLabel('⏭️')
                     .setStyle(ButtonStyle.Primary)
                     .setDisabled(!isThereANextSong)
-                );
+            );
             actionRow.addComponents(
                 new ButtonBuilder()
                     .setCustomId('empty2')
                     .setLabel('⠀⠀⠀⠀⠀⠀')
                     .setStyle(ButtonStyle.Secondary)
                     .setDisabled(true)
-                );
+            );
             const volumeRow = new ActionRowBuilder()
                 .addComponents(
                     new ButtonBuilder()
@@ -795,14 +795,14 @@ ${formatted} ${dividingLine} ${currentVideo.durationRaw}
                 );
 
 
-            
+
             nowPlayingMessage.edit({ embeds: [updatedEmbed], components: [actionRow, volumeRow] }).catch(err => {
                 console.error('Failed to update embed:', err);
                 this.stopUpdateInterval();
             });
         }, 1000);
     },
-    
+
     stopUpdateInterval() {
         if (updateInterval) {
             clearInterval(updateInterval);
@@ -812,7 +812,7 @@ ${formatted} ${dividingLine} ${currentVideo.durationRaw}
     },
     async stop(client, message) {
         if (!message.content.startsWith('!stop')) return;
-        
+
         if (player) {
             player.stop();
         }
@@ -824,33 +824,33 @@ ${formatted} ${dividingLine} ${currentVideo.durationRaw}
         player = null;
         queue = [];
         isQueueProcessing = false;
-        
+
         await message.reply('Stopped playing!');
     },
-    
+
     async next(client, message) {
         if (!message.content.startsWith('!skip') && !message.content.startsWith('!next')) return;
 
         if (!player || queue.length === 0) {
             return message.reply('No song is currently playing or the queue is empty!');
         }
-        
+
         // Stop current song and move to next
         player.stop();
     },
-    
+
     async pause(client, message) {
         if (!message.content.startsWith('!pause')) return;
         if (!player) return message.reply('No song is currently playing!');
-        
+
         player.pause();
         await message.reply('Paused!');
     },
-    
+
     async resume(client, message) {
         if (!message.content.startsWith('!resume')) return;
         if (!player) return message.reply('No song is currently playing!');
-        
+
         player.unpause();
         message.reply('Resumed!');
     },
@@ -862,9 +862,9 @@ ${formatted} ${dividingLine} ${currentVideo.durationRaw}
         if (args.length !== 2 || isNaN(args[1]) || args[1] < 0 || args[1] > 100) {
             return message.reply('Please provide a valid volume between 0 and 100.');
         }
-        
+
         volumeLevel = parseInt(args[1], 10);
-        
+
         // Get the current resource from the player
         if (player.state.status === AudioPlayerStatus.Playing && player.state.resource.volume) {
             player.state.resource.volume.setVolume(volumeLevel / 100);
@@ -891,7 +891,7 @@ ${formatted} ${dividingLine} ${currentVideo.durationRaw}
                 image: existingEmbed.image,
                 footer: existingEmbed.footer,
             };
-                
+
             if (queue.length > 0) {
                 const nextSongs = queue.map((item, index) => `${index + 1}. ${item.video.title} (${item.video.durationRaw})`).join('\n');
                 updatedEmbed.fields.push({
@@ -917,7 +917,7 @@ ${formatted} ${dividingLine} ${currentVideo.durationRaw}
 
             // start a new update interval
             this.startUpdateInterval();
-            
+
         } else {
             message.reply('Cannot adjust volume at this time.');
         }
@@ -945,7 +945,7 @@ ${formatted} ${dividingLine} ${currentVideo.durationRaw}
         if (!player || queue.length === 0) {
             return;
         }
-        
+
         // Stop current song and move to next
         player.stop();
     },
@@ -961,7 +961,7 @@ ${formatted} ${dividingLine} ${currentVideo.durationRaw}
         if (!player || queue.length === 0) {
             return;
         }
-        
+
         // if player is paused, resume it
         if (player.state.status === AudioPlayerStatus.Paused) {
             player.unpause();
@@ -972,12 +972,12 @@ ${formatted} ${dividingLine} ${currentVideo.durationRaw}
     async getCurrentTimePlayed(client, message) {
         if (!message.content.startsWith('!time')) return;
         if (!player) return message.reply('No song is currently playing!');
-        
+
         const currentTime = player.state.resource.playbackDuration;
         const totalDuration = player.state.resource.metadata.duration;
-        
+
         message.reply(`Current time: ${formatTime(currentTime)} / ${formatTime(totalDuration)}`);
     },
 };
 
-module.exports = YouTubeWrapper;
+export default YouTubeWrapper;

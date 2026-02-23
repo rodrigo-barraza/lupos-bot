@@ -1,8 +1,9 @@
-const ThirstService = require('../../services/ThirstService');
-
-jest.mock('../../services/DiscordService', () => ({
+import { jest, describe, test, it, expect, beforeEach, afterEach, beforeAll, afterAll } from '@jest/globals';
+jest.unstable_mockModule('../../services/DiscordService', () => ({ default: {
     generateTextFromSystemUserMessages: jest.fn().mockResolvedValue('Mocked response')
-}));
+} }));
+
+const ThirstService = (await import('../../services/ThirstService.js')).default;
 
 describe('ThirstService', () => {
     beforeEach(() => {

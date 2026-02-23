@@ -168,4 +168,4 @@ const CensorService = {
     containsFlaggedWords
 };
 
-module.exports = CensorService;
+export default CensorService;

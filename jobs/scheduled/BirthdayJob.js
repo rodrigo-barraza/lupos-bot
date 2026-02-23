@@ -1,7 +1,7 @@
 
-const DiscordUtilityService = require('../../services/DiscordUtilityService.js');
-const birthdays = require('../../arrays/birthdays.js');
-const config = require('../../config.json');
+import DiscordUtilityService from '../../services/DiscordUtilityService.js';
+import birthdays from '../../arrays/birthdays.js';
+import config from '../../config.json' with { type: 'json' };
 
 async function getCurrentMonthBirthdays(client) {
     const months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
@@ -50,4 +50,4 @@ const BirthdayJob = {
     }
 };
 
-module.exports = BirthdayJob;
+export default BirthdayJob;
