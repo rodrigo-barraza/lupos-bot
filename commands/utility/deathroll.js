@@ -517,7 +517,7 @@ function formatGameMessage(game, lastRoll, lastRoller, lastRollerId, isGameOver,
 
 function buildRematchRow(game, winnerId, loserId) {
     const nextMultiplier = (game.timeoutMultiplier || 1) * 2;
-    const nextTimeout = nextMultiplier * 15;
+    const nextTimeout = nextMultiplier * 10;
 
     const rematchButton = new ButtonBuilder()
         .setCustomId(`deathroll_rematch_${winnerId}_${loserId}_${game.startingNumber}_${nextMultiplier}`)
