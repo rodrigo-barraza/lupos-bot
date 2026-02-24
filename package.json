@@ -8,7 +8,7 @@
         "#root/*": "./*"
     },
     "scripts": {
-        "dev": "nodemon lupos.js mode=messages",
+        "dev": "node lupos.js mode=messages",
         "test": "node --experimental-vm-modules node_modules/.bin/jest",
         "lint": "eslint . --quiet",
         "format": "prettier --write ."

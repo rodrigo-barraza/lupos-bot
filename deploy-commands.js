@@ -18,6 +18,10 @@ for (const folder of commandFolders) {
     for (const file of commandFiles) {
         const filePath = path.join(commandsPath, file);
         const command = (await import(pathToFileURL(filePath))).default;
+        if (!command) {
+            console.log(`[WARNING] Skipping ${file} — no default export found.`);
+            continue;
+        }
         if ('data' in command && 'execute' in command) {
             commands.push(command.data.toJSON());
         } else {

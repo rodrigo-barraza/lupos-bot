@@ -3251,6 +3251,11 @@ const DiscordService = {
                 const filePath = path.join(commandsPath, file);
                 const command = (await import(pathToFileURL(filePath).href)).default;
 
+                if (!command) {
+                    console.log(`[WARNING] Skipping ${file} — no default export found.`);
+                    continue;
+                }
+
                 if ('data' in command && 'execute' in command) {
                     luposClient.commands.set(command.data.name, command);
                     console.log(...LogFormatter.commandLoaded(command.data.name));
