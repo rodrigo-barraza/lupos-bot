@@ -2105,6 +2105,42 @@ async function luposOnReadyDeleteDuplicateMessages(client, { localMongo }) {
     await DiscordUtilityService.deleteDuplicateMessagesByID(localMongo);
 }
 
+async function luposOnReadyDeleteNewAccounts(client) {
+    const functionName = 'luposOnReadyDeleteNewAccounts';
+    const guild = client.guilds.cache.get(config.GUILD_ID_PRIMARY);
+    if (!guild) {
+        console.error(`[${functionName}] Primary guild not found`);
+        return;
+    }
+
+    console.log(`[${functionName}] Fetching all members...`);
+    const members = await guild.members.fetch();
+    const oneWeek = 7 * 24 * 60 * 60 * 1000;
+    const now = Date.now();
+    let kickedCount = 0;
+    let skippedCount = 0;
+
+    for (const [id, member] of members) {
+        if (member.user.bot) continue;
+        const accountAge = now - member.user.createdAt.getTime();
+        const isWhitelisted = config.USER_IDS_NEW_ACCOUNT_WHITELIST?.includes(id);
+        if (accountAge < oneWeek && !isWhitelisted) {
+            const ageDays = Math.floor(accountAge / (24 * 60 * 60 * 1000));
+            console.log(`[${functionName}] Kicking: ${member.user.username} (${id}), account age: ${ageDays} days`);
+            try {
+                await member.kick(`Account too new (${ageDays} days old)`);
+                kickedCount++;
+            } catch (error) {
+                console.error(`[${functionName}] Failed to kick ${member.user.username}:`, error);
+            }
+        } else if (accountAge < oneWeek && isWhitelisted) {
+            skippedCount++;
+        }
+    }
+
+    console.log(`[${functionName}] Done. Kicked: ${kickedCount}, Skipped (whitelisted): ${skippedCount}`);
+}
+
 async function processMessage(client, { mongo, localMongo }, message, actionType) {
 
     const { slowBlink, bold, faint } = UtilityLibrary.ansiEscapeCodes(true);
@@ -2711,6 +2747,21 @@ async function luposOnGuildMemberAdd(client, mongo, member) {
     if (member.guild.id !== config.GUILD_ID_PRIMARY) return;
     console.log(...LogFormatter.memberJoinedGuild(functionName, member));
 
+    // Kick accounts less than 1 week old (unless whitelisted)
+    const accountAge = Date.now() - member.user.createdAt.getTime();
+    const oneWeek = 7 * 24 * 60 * 60 * 1000;
+    const isWhitelisted = config.USER_IDS_NEW_ACCOUNT_WHITELIST?.includes(member.id);
+    if (accountAge < oneWeek && !isWhitelisted) {
+        const ageDays = Math.floor(accountAge / (24 * 60 * 60 * 1000));
+        console.log(`[${functionName}] Kicking new account: ${member.user.username} (${member.id}), account age: ${ageDays} days`);
+        try {
+            await member.kick(`Account too new (${ageDays} days old)`);
+        } catch (error) {
+            console.error(`[${functionName}] Failed to kick new account ${member.user.username}:`, error);
+        }
+        return;
+    }
+
     // Assign politics mute role if user is in the muted list
     if (config.USER_IDS_POLITICS_MUTED?.includes(member.id)) {
         await DiscordUtilityService.addRoleToMember(member, config.ROLE_ID_POLITICS_MUTE);
@@ -3276,6 +3327,10 @@ const DiscordService = {
         await MongoWrapper.createClient('local', config.LOCAL_DATABASE_URL);
         const localMongo = MongoWrapper.getClient('local');
         DiscordUtilityService.onEventClientReady(luposClient, { localMongo }, luposOnReadyDeleteDuplicateMessages);
+    },
+    async deleteNewAccounts() {
+        const luposClient = DiscordWrapper.createClient("lupos", config.LUPOS_TOKEN);
+        DiscordUtilityService.onEventClientReady(luposClient, {}, luposOnReadyDeleteNewAccounts);
     },
     initializeBotLuposReports() {
         const mongo = MongoWrapper.getClient('local');

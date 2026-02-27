@@ -354,7 +354,7 @@ async function handleEngageButton(buttonInteraction, gameId) {
     game.currentMessageId = newMessage.id;
 
     // Create collector for the new message
-    createRollCollector(newMessage, gameId);
+    createRollCollector(newMessage, gameId, buttonInteraction.guild);
 }
 
 async function handleRollButton(buttonInteraction, gameId) {
@@ -446,7 +446,7 @@ async function handleRollButton(buttonInteraction, gameId) {
     game.currentMessageId = newMessage.id;
 
     // Create collector for the new message
-    createRollCollector(newMessage, gameId);
+    createRollCollector(newMessage, gameId, buttonInteraction.guild);
 }
 
 // ─── Message Formatting ───────────────────────────────────────────────
@@ -636,7 +636,7 @@ function createRematchCollector(message, winnerId, loserId, startingNumber, time
         });
 
         game.currentMessageId = newMessage.id;
-        createRollCollector(newMessage, gameId);
+        createRollCollector(newMessage, gameId, guild);
     });
 
     collector.on('end', (collected, reason) => {
@@ -648,7 +648,7 @@ function createRematchCollector(message, winnerId, loserId, startingNumber, time
 
 // ─── Collectors ───────────────────────────────────────────────────────
 
-function createRollCollector(message, gameId) {
+function createRollCollector(message, gameId, guild) {
     const collector = message.createMessageComponentCollector({
         idle: 5 * 60 * 1000
     });
@@ -659,12 +659,37 @@ function createRollCollector(message, gameId) {
         await handleRollButton(buttonInteraction, gameId);
     });
 
-    collector.on('end', (collected, reason) => {
+    collector.on('end', async (collected, reason) => {
         if (reason !== 'manually stopped' && activeGames.has(gameId)) {
-            message.edit({
-                content: message.content + '\n\n⏱️ Game timed out due to inactivity.',
-                components: []
-            }).catch(() => { });
+            const game = activeGames.get(gameId);
+
+            // Both players engaged — give a loss to whoever's turn it was
+            if (game.opponent && game.currentTurn) {
+                const loserId = game.currentTurn;
+                const winnerId = loserId === game.initiator ? game.opponent : game.initiator;
+
+                try {
+                    await handleTimeoutLoss(guild, game, winnerId, loserId);
+                    const timeoutMinutes = (game.timeoutMultiplier || 1) * 15;
+                    await message.edit({
+                        content: message.content + `\n\n⏱️ Game timed out! <@${loserId}> took too long to roll.\n💀 <@${loserId}> loses and has been timed out for ${timeoutMinutes} minutes!\n🎉 <@${winnerId}> wins!`,
+                        components: []
+                    }).catch(() => { });
+                } catch (error) {
+                    console.error('Error handling timeout loss:', error);
+                    await message.edit({
+                        content: message.content + '\n\n⏱️ Game timed out due to inactivity.',
+                        components: []
+                    }).catch(() => { });
+                }
+            } else {
+                // No opponent engaged, just expire
+                await message.edit({
+                    content: message.content + '\n\n⏱️ Game timed out due to inactivity.',
+                    components: []
+                }).catch(() => { });
+            }
+
             activeGames.delete(gameId);
             activeCollectors.delete(gameId);
         }
@@ -931,4 +956,96 @@ async function handleLoss(buttonInteraction, game, loserId, roll) {
     } catch (error) {
         console.error('Error saving deathroll to MongoDB:', error);
     }
+}
+
+async function handleTimeoutLoss(guild, game, winnerId, loserId) {
+    const loser = await guild.members.fetch(loserId);
+    const winnerMember = await guild.members.fetch(winnerId);
+
+    const timeoutDuration = BASE_TIMEOUT * (game.timeoutMultiplier || 1);
+
+    try {
+        const timeoutMinutes = timeoutDuration / 60000;
+        await loser.timeout(timeoutDuration, `Lost a deathroll game on timeout (${timeoutMinutes}min)`);
+    } catch (error) {
+        console.error('Error timing out user on timeout:', error);
+    }
+
+    // Save game to MongoDB
+    const localMongo = MongoWrapper.getClient('local');
+    const db = localMongo.db('lupos');
+    const deathrollsCollection = db.collection('DeathRollUserStats');
+    const gamesCollection = db.collection('DeathRollGameHistory');
+
+    const now = Date.now();
+
+    const [currentLoserStats, currentWinnerStats] = await Promise.all([
+        deathrollsCollection.findOne({ userId: loserId, guildId: guild.id }),
+        deathrollsCollection.findOne({ userId: winnerId, guildId: guild.id })
+    ]);
+
+    const loserNewStreak = Math.min(0, currentLoserStats?.currentStreak || 0) - 1;
+    const winnerNewStreak = Math.max(0, currentWinnerStats?.currentStreak || 0) + 1;
+    const winnerBestStreak = Math.max(winnerNewStreak, currentWinnerStats?.bestStreak || 0);
+
+    await deathrollsCollection.findOneAndUpdate(
+        { userId: loserId, guildId: guild.id },
+        {
+            $inc: { totalGames: 1, losses: 1 },
+            $set: {
+                username: loser.user.username,
+                displayName: loser.displayName,
+                lastPlayedAt: now,
+                lastOpponentId: winnerId,
+                lastOpponentName: winnerMember.user.username,
+                lastGameResult: 'loss',
+                lastStartingNumber: game.startingNumber,
+                currentStreak: loserNewStreak
+            },
+            $setOnInsert: { createdAt: now, wins: 0, bestStreak: 0 }
+        },
+        { upsert: true, returnDocument: 'after' }
+    );
+
+    await deathrollsCollection.findOneAndUpdate(
+        { userId: winnerId, guildId: guild.id },
+        {
+            $inc: { totalGames: 1, wins: 1 },
+            $set: {
+                username: winnerMember.user.username,
+                displayName: winnerMember.displayName,
+                lastPlayedAt: now,
+                lastOpponentId: loserId,
+                lastOpponentName: loser.user.username,
+                lastGameResult: 'win',
+                lastStartingNumber: game.startingNumber,
+                currentStreak: winnerNewStreak,
+                bestStreak: winnerBestStreak
+            },
+            $setOnInsert: { createdAt: now, losses: 0 }
+        },
+        { upsert: true, returnDocument: 'after' }
+    );
+
+    await gamesCollection.insertOne({
+        gameId: `${guild.id}_${game.messageId}`,
+        guildId: guild.id,
+        channelId: game.channelId,
+        initiatorId: game.initiator,
+        initiatorName: game.initiatorName,
+        opponentId: game.opponent,
+        opponentName: game.opponentName,
+        startingNumber: game.startingNumber,
+        winnerId: winnerId,
+        winnerName: winnerMember.user.username,
+        loserId: loserId,
+        loserName: loser.user.username,
+        rolls: game.rolls,
+        totalRolls: game.rolls.length,
+        startedAt: game.startedAt,
+        endedAt: now,
+        duration: now - game.startedAt,
+        timeoutMultiplier: game.timeoutMultiplier || 1,
+        endReason: 'timeout'
+    });
 }

@@ -28,6 +28,8 @@ function main() {
             DiscordService.cloneMessages();
         } else if (mode === 'delete:duplicates') {
             DiscordService.deleteDuplicateMessages();
+        } else if (mode === 'delete:newAccounts') {
+            DiscordService.deleteNewAccounts();
         } else if (mode === 'reports') {
             DiscordService.initializeBotLuposReports();
         } else {
