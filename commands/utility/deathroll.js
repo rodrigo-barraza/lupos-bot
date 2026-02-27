@@ -319,11 +319,11 @@ async function handleEngageButton(buttonInteraction, gameId) {
     if (roll === 0) {
         const winnerId = game.initiator;
         const endGameData = await buildEndGameData(buttonInteraction, game, winnerId, userId);
-        await buttonInteraction.followUp({
+        const gameOverMsg = await buttonInteraction.followUp({
             content: formatGameMessage(game, roll, buttonInteraction.user.username, userId, true, endGameData),
-            components: buildRematchRow(game, winnerId, userId)
+            components: buildDoubleOrNothingRow(game, winnerId, userId)
         });
-        await handleLoss(buttonInteraction, game, userId, roll);
+        await handleLoss(buttonInteraction, game, userId, roll, gameOverMsg);
         activeGames.delete(gameId);
         return;
     }
@@ -407,11 +407,11 @@ async function handleRollButton(buttonInteraction, gameId) {
     if (roll === 0) {
         const winnerId = userId === game.initiator ? game.opponent : game.initiator;
         const endGameData = await buildEndGameData(buttonInteraction, game, winnerId, userId);
-        await buttonInteraction.followUp({
+        const gameOverMsg = await buttonInteraction.followUp({
             content: formatGameMessage(game, roll, buttonInteraction.user.username, userId, true, endGameData),
-            components: buildRematchRow(game, winnerId, userId)
+            components: buildDoubleOrNothingRow(game, winnerId, userId)
         });
-        await handleLoss(buttonInteraction, game, userId, roll);
+        await handleLoss(buttonInteraction, game, userId, roll, gameOverMsg);
         activeGames.delete(gameId);
         activeCollectors.delete(gameId);
         return;
@@ -452,8 +452,8 @@ async function handleRollButton(buttonInteraction, gameId) {
 // ─── Message Formatting ───────────────────────────────────────────────
 
 function formatGameMessage(game, lastRoll, lastRoller, lastRollerId, isGameOver, stats) {
-    const timeoutMinutes = (game.timeoutMultiplier || 1) * 15;
-    let content = `🎲 **Deathroll Game**${game.timeoutMultiplier > 1 ? ` ⚔️ **REMATCH (${timeoutMinutes}min timeout)**` : ''}\n`;
+    const timeoutMinutes = (game.timeoutMultiplier || 1) * 10;
+    let content = `🎲 **Deathroll Game**${game.timeoutMultiplier > 1 ? ` 🎰 **DOUBLE OR NOTHING (${timeoutMinutes}min timeout)**` : ''}\n`;
 
     // Show player names with stats and H2H
     if (stats && !isGameOver) {
@@ -513,137 +513,247 @@ function formatGameMessage(game, lastRoll, lastRoller, lastRollerId, isGameOver,
     return content;
 }
 
-// ─── Rematch ──────────────────────────────────────────────────────────
+// ─── Double or Nothing ────────────────────────────────────────────────
 
-function buildRematchRow(game, winnerId, loserId) {
+function buildDoubleOrNothingRow(game, winnerId, loserId) {
     const nextMultiplier = (game.timeoutMultiplier || 1) * 2;
     const nextTimeout = nextMultiplier * 10;
 
-    const rematchButton = new ButtonBuilder()
-        .setCustomId(`deathroll_rematch_${winnerId}_${loserId}_${game.startingNumber}_${nextMultiplier}`)
-        .setLabel(`Rematch (${nextTimeout}min timeout)`)
+    const donButton = new ButtonBuilder()
+        .setCustomId(`deathroll_don_propose_${winnerId}_${loserId}_${game.startingNumber}_${nextMultiplier}`)
+        .setLabel(`Double or Nothing (${nextTimeout}min timeout)`)
         .setStyle(ButtonStyle.Danger)
-        .setEmoji('⚔️');
+        .setEmoji('🎰');
 
-    const row = new ActionRowBuilder().addComponents(rematchButton);
+    const row = new ActionRowBuilder().addComponents(donButton);
     return [row];
 }
 
-function createRematchCollector(message, winnerId, loserId, startingNumber, timeoutMultiplier) {
+function createDoubleOrNothingCollector(message, guild, winnerId, loserId, startingNumber, timeoutMultiplier, pendingTimeoutData) {
     const collector = message.createMessageComponentCollector({
-        idle: 60 * 1000 // 60 seconds to accept rematch
+        idle: 60 * 1000 // 60 seconds for the loser to propose
     });
 
     collector.on('collect', async (buttonInteraction) => {
-        if (!buttonInteraction.customId.startsWith('deathroll_rematch_')) return;
-
         const userId = buttonInteraction.user.id;
 
-        // Only the loser or winner can rematch
-        if (userId !== winnerId && userId !== loserId) {
-            return buttonInteraction.reply({
-                content: '🎲 Only the players from this game can rematch!',
-                ephemeral: true
-            });
-        }
+        // ── Step 1: Loser proposes Double or Nothing ──
+        if (buttonInteraction.customId.startsWith('deathroll_don_propose_')) {
+            // Only the loser can propose
+            if (userId !== loserId) {
+                return buttonInteraction.reply({
+                    content: '🎲 Only the loser can propose Double or Nothing!',
+                    ephemeral: true
+                });
+            }
 
-        collector.stop('manually stopped');
+            collector.stop('manually stopped');
 
-        const challengerId = userId;
-        const opponentId = userId === winnerId ? loserId : winnerId;
+            const nextMultiplier = (timeoutMultiplier || 1) * 2;
+            const nextTimeout = nextMultiplier * 10;
 
-        // Check permissions
-        const guild = buttonInteraction.guild;
-        const challengerMember = await guild.members.fetch(challengerId).catch(() => null);
-        const opponentMember = await guild.members.fetch(opponentId).catch(() => null);
+            // Build accept/decline buttons for the winner
+            const acceptButton = new ButtonBuilder()
+                .setCustomId(`deathroll_don_accept_${winnerId}_${loserId}_${startingNumber}_${nextMultiplier}`)
+                .setLabel(`Accept Double or Nothing (${nextTimeout}min timeout)`)
+                .setStyle(ButtonStyle.Success)
+                .setEmoji('✅');
 
-        if (!challengerMember?.moderatable || !opponentMember?.moderatable) {
+            const declineButton = new ButtonBuilder()
+                .setCustomId(`deathroll_don_decline_${winnerId}_${loserId}`)
+                .setLabel('Decline')
+                .setStyle(ButtonStyle.Secondary)
+                .setEmoji('❌');
+
+            const row = new ActionRowBuilder().addComponents(acceptButton, declineButton);
+
+            const currentTimeout = (timeoutMultiplier || 1) * 10;
+
             await buttonInteraction.update({
+                content: message.content + `\n\n� <@${loserId}> proposes **Double or Nothing**! The ${currentTimeout}min timeout will be cancelled — but if they lose again, it's **${nextTimeout} minutes**.\n<@${winnerId}>, do you accept this high-risk challenge?`,
+                components: [row]
+            });
+
+            // Create a new collector for the winner's accept/decline decision
+            createAcceptDeclineCollector(buttonInteraction.message, guild, winnerId, loserId, startingNumber, nextMultiplier, pendingTimeoutData);
+            return;
+        }
+    });
+
+    collector.on('end', async (collected, reason) => {
+        if (reason !== 'manually stopped') {
+            // Time expired — loser didn't propose. Apply the pending timeout.
+            await message.edit({ components: [] }).catch(() => { });
+            await applyPendingTimeout(guild, pendingTimeoutData);
+        }
+    });
+}
+
+function createAcceptDeclineCollector(message, guild, winnerId, loserId, startingNumber, timeoutMultiplier, pendingTimeoutData) {
+    const collector = message.createMessageComponentCollector({
+        idle: 60 * 1000 // 60 seconds for the winner to decide
+    });
+
+    collector.on('collect', async (buttonInteraction) => {
+        const userId = buttonInteraction.user.id;
+
+        // ── Winner declines ──
+        if (buttonInteraction.customId.startsWith('deathroll_don_decline_')) {
+            if (userId !== winnerId) {
+                return buttonInteraction.reply({
+                    content: '🎲 Only the winner can accept or decline!',
+                    ephemeral: true
+                });
+            }
+
+            collector.stop('manually stopped');
+
+            await buttonInteraction.update({
+                content: message.content + `\n\n❌ <@${winnerId}> declined the Double or Nothing.`,
                 components: []
             });
-            return buttonInteraction.followUp({
-                content: '🎲 One of the players can\'t be timed out anymore!',
-                ephemeral: true
-            });
-        }
 
-        // Fetch H2H for the rematch
-        const h2h = await fetchHeadToHead(guild.id, challengerId, opponentId);
-
-        // Create the rematch game
-        const gameId = `${buttonInteraction.channelId}_${buttonInteraction.id}`;
-        const now = Date.now();
-
-        activeGames.set(gameId, {
-            initiator: challengerId,
-            initiatorName: buttonInteraction.user.username,
-            opponent: opponentId,
-            opponentName: opponentMember.user.username,
-            targetUserId: opponentId,
-            currentNumber: startingNumber,
-            currentTurn: opponentId,
-            messageId: buttonInteraction.message.id,
-            channelId: buttonInteraction.channelId,
-            startingNumber: startingNumber,
-            rolls: [],
-            startedAt: now,
-            currentMessageId: null,
-            timeoutMultiplier: timeoutMultiplier,
-            h2h: h2h
-        });
-
-        // Opponent rolls first
-        const roll = Math.floor(Math.random() * (startingNumber + 1));
-        activeGames.get(gameId).rolls.push({
-            userId: opponentId,
-            username: opponentMember.user.username,
-            roll,
-            maxNumber: startingNumber
-        });
-
-        // Remove rematch button from old message
-        await buttonInteraction.update({ components: [] });
-
-        if (roll === 0) {
-            const game = activeGames.get(gameId);
-            const endGameData = await buildEndGameData(buttonInteraction, game, challengerId, opponentId);
-            await buttonInteraction.followUp({
-                content: formatGameMessage(game, roll, opponentMember.user.username, opponentId, true, endGameData),
-                components: buildRematchRow(game, challengerId, opponentId)
-            });
-            await handleLoss(buttonInteraction, game, opponentId, roll);
-            activeGames.delete(gameId);
+            // Apply the original timeout
+            await applyPendingTimeout(guild, pendingTimeoutData);
             return;
         }
 
-        const game = activeGames.get(gameId);
-        game.currentNumber = roll;
-        game.currentTurn = challengerId;
+        // ── Winner accepts ──
+        if (buttonInteraction.customId.startsWith('deathroll_don_accept_')) {
+            if (userId !== winnerId) {
+                return buttonInteraction.reply({
+                    content: '🎲 Only the winner can accept or decline!',
+                    ephemeral: true
+                });
+            }
 
-        const rollButton = new ButtonBuilder()
-            .setCustomId(`deathroll_roll_${gameId}`)
-            .setLabel(`Roll (0-${roll})`)
-            .setStyle(ButtonStyle.Primary)
-            .setEmoji('🎲');
+            collector.stop('manually stopped');
 
-        const row = new ActionRowBuilder().addComponents(rollButton);
+            // Check permissions
+            const challengerMember = await guild.members.fetch(loserId).catch(() => null);
+            const opponentMember = await guild.members.fetch(winnerId).catch(() => null);
 
-        const midGameStats = await fetchMidGameStats(guild.id, challengerId, opponentId);
+            if (!challengerMember?.moderatable || !opponentMember?.moderatable) {
+                await buttonInteraction.update({ components: [] });
+                return buttonInteraction.followUp({
+                    content: '🎲 One of the players can\'t be timed out anymore!',
+                    ephemeral: true
+                });
+            }
 
-        const newMessage = await buttonInteraction.followUp({
-            content: formatGameMessage(game, roll, opponentMember.user.username, opponentId, false, midGameStats),
-            components: [row]
-        });
+            // Remove the loser's pending timeout since they got a reprieve
+            await removePendingTimeout(guild, loserId);
 
-        game.currentMessageId = newMessage.id;
-        createRollCollector(newMessage, gameId, guild);
-    });
+            // Fetch H2H for the rematch
+            const h2h = await fetchHeadToHead(guild.id, loserId, winnerId);
 
-    collector.on('end', (collected, reason) => {
-        if (reason !== 'manually stopped') {
-            message.edit({ components: [] }).catch(() => { });
+            // Create the Double or Nothing game — loser is the initiator (challenger)
+            const gameId = `${buttonInteraction.channelId}_${buttonInteraction.id}`;
+            const now = Date.now();
+
+            activeGames.set(gameId, {
+                initiator: loserId,
+                initiatorName: challengerMember.user.username,
+                opponent: winnerId,
+                opponentName: opponentMember.user.username,
+                targetUserId: winnerId,
+                currentNumber: startingNumber,
+                currentTurn: winnerId,
+                messageId: buttonInteraction.message.id,
+                channelId: buttonInteraction.channelId,
+                startingNumber: startingNumber,
+                rolls: [],
+                startedAt: now,
+                currentMessageId: null,
+                timeoutMultiplier: timeoutMultiplier,
+                h2h: h2h
+            });
+
+            // Winner (previous round's winner) rolls first
+            const roll = Math.floor(Math.random() * (startingNumber + 1));
+            activeGames.get(gameId).rolls.push({
+                userId: winnerId,
+                username: opponentMember.user.username,
+                roll,
+                maxNumber: startingNumber
+            });
+
+            // Remove accept/decline buttons from old message
+            await buttonInteraction.update({
+                content: message.content + `\n\n✅ <@${winnerId}> accepted the **Double or Nothing**! 🎰`,
+                components: []
+            });
+
+            if (roll === 0) {
+                const game = activeGames.get(gameId);
+                const endGameData = await buildEndGameData(buttonInteraction, game, loserId, winnerId);
+                const gameOverMsg = await buttonInteraction.followUp({
+                    content: formatGameMessage(game, roll, opponentMember.user.username, winnerId, true, endGameData),
+                    components: buildDoubleOrNothingRow(game, loserId, winnerId)
+                });
+                await handleLoss(buttonInteraction, game, winnerId, roll, gameOverMsg);
+                activeGames.delete(gameId);
+                return;
+            }
+
+            const game = activeGames.get(gameId);
+            game.currentNumber = roll;
+            game.currentTurn = loserId;
+
+            const rollButton = new ButtonBuilder()
+                .setCustomId(`deathroll_roll_${gameId}`)
+                .setLabel(`Roll (0-${roll})`)
+                .setStyle(ButtonStyle.Primary)
+                .setEmoji('🎲');
+
+            const row = new ActionRowBuilder().addComponents(rollButton);
+
+            const midGameStats = await fetchMidGameStats(guild.id, loserId, winnerId);
+
+            const newMessage = await buttonInteraction.followUp({
+                content: formatGameMessage(game, roll, opponentMember.user.username, winnerId, false, midGameStats),
+                components: [row]
+            });
+
+            game.currentMessageId = newMessage.id;
+            createRollCollector(newMessage, gameId, guild);
         }
     });
+
+    collector.on('end', async (collected, reason) => {
+        if (reason !== 'manually stopped') {
+            // Winner didn't respond in time — apply the timeout
+            await message.edit({ components: [] }).catch(() => { });
+            await applyPendingTimeout(guild, pendingTimeoutData);
+        }
+    });
+}
+
+// Apply a deferred timeout to the loser
+async function applyPendingTimeout(guild, pendingTimeoutData) {
+    if (!pendingTimeoutData) return;
+    const { loserId, timeoutDuration } = pendingTimeoutData;
+    try {
+        const loser = await guild.members.fetch(loserId).catch(() => null);
+        if (loser && loser.moderatable) {
+            const timeoutMinutes = timeoutDuration / 60000;
+            await loser.timeout(timeoutDuration, `Lost a deathroll game (${timeoutMinutes}min) — Double or Nothing expired`);
+        }
+    } catch (error) {
+        console.error('Error applying pending timeout:', error);
+    }
+}
+
+// Remove an existing timeout if the loser gets a reprieve via Double or Nothing
+async function removePendingTimeout(guild, userId) {
+    try {
+        const member = await guild.members.fetch(userId).catch(() => null);
+        if (member && member.communicationDisabledUntil) {
+            await member.timeout(null, 'Double or Nothing accepted — timeout cancelled');
+        }
+    } catch (error) {
+        console.error('Error removing pending timeout:', error);
+    }
 }
 
 // ─── Collectors ───────────────────────────────────────────────────────
@@ -819,7 +929,7 @@ async function fetchHeadToHead(guildId, player1Id, player2Id) {
 
 // ─── Game End Handler ─────────────────────────────────────────────────
 
-async function handleLoss(buttonInteraction, game, loserId, roll) {
+async function handleLoss(buttonInteraction, game, loserId, roll, gameOverMessage) {
     const guild = buttonInteraction.guild;
     const loser = await guild.members.fetch(loserId);
 
@@ -827,13 +937,6 @@ async function handleLoss(buttonInteraction, game, loserId, roll) {
 
     const winnerId = loserId === game.initiator ? game.opponent : game.initiator;
     const winnerMember = await guild.members.fetch(winnerId);
-
-    try {
-        const timeoutMinutes = timeoutDuration / 60000;
-        await loser.timeout(timeoutDuration, `Lost a deathroll game (${timeoutMinutes}min)`);
-    } catch (error) {
-        console.error('Error timing out user:', error);
-    }
 
     // Save game to MongoDB
     try {
@@ -942,14 +1045,22 @@ async function handleLoss(buttonInteraction, game, loserId, roll) {
             timeoutMultiplier: game.timeoutMultiplier || 1
         });
 
-        // Set up rematch collector on the game-over message
-        // Find the last message sent (the game over message with rematch button)
-        const channel = await guild.channels.fetch(game.channelId).catch(() => null);
-        if (channel) {
-            const messages = await channel.messages.fetch({ limit: 1 });
-            const lastMessage = messages.first();
-            if (lastMessage) {
-                createRematchCollector(lastMessage, winnerId, loserId, game.startingNumber, game.timeoutMultiplier || 1);
+        // Set up Double or Nothing collector on the game-over message
+        // Timeout is deferred — loser has 1 minute to propose, winner has 1 minute to accept
+        if (gameOverMessage) {
+            const pendingTimeoutData = { loserId, timeoutDuration };
+            createDoubleOrNothingCollector(
+                gameOverMessage, guild, winnerId, loserId,
+                game.startingNumber, game.timeoutMultiplier || 1,
+                pendingTimeoutData
+            );
+        } else {
+            // Fallback: no message reference, apply timeout immediately
+            try {
+                const timeoutMinutes = timeoutDuration / 60000;
+                await loser.timeout(timeoutDuration, `Lost a deathroll game (${timeoutMinutes}min)`);
+            } catch (error) {
+                console.error('Error timing out user:', error);
             }
         }
 
