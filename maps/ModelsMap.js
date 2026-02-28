@@ -109,6 +109,15 @@ googleModelsMap.set('gemini-3-pro-image-preview', {
     imagePricing: { input: 2, output: 120 }, // image pricing
 });
 
+
+googleModelsMap.set('gemini-3.1-flash-image-preview', {
+    type: 'GOOGLE',
+    name: 'gemini-3.1-flash-image-preview',
+    intelligenceRank: 1,
+    pricing: { input: 2, output: 12 }, // text pricing
+    imagePricing: { input: 2, output: 120 }, // image pricing
+});
+
 modelsMap.set('ANTHROPIC', anthropicModelsMap);
 modelsMap.set('OPENAI', openAIModelsMap);
 modelsMap.set('GOOGLE', googleModelsMap);

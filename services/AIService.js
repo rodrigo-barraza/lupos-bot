@@ -442,7 +442,7 @@ const AIService = {
                         images.push({ data: imageAsBase64, type: imageType });
                     }
                 }
-                usedModel = 'gemini-3-pro-image-preview';
+                usedModel = 'gemini-3.1-flash-image-preview';
                 const { response, error } = await GoogleAIWrapper.generateGoogleAIImage(prompt, images);
 
                 if (error) {
@@ -452,7 +452,7 @@ const AIService = {
                     generatedImage = generatedImageResponseLocal;
                 } else {
                     const modelTypeMap = ModelsMap.get('GOOGLE');
-                    const modelDetails = modelTypeMap?.get('gemini-3-pro-image-preview');
+                    const modelDetails = modelTypeMap?.get('gemini-3.1-flash-image-preview');
                     let rawAllPricingInput = new BigNumber(modelDetails.pricing.input);
                     rawAllPricingInput = rawAllPricingInput.dividedBy(1000000).multipliedBy(response.allInputTokenCount);
                     let rawTextPricingOutput = new BigNumber(modelDetails.pricing.output);

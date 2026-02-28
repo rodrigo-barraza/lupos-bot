@@ -11,7 +11,7 @@ const googleGenAI = new GoogleGenAI({
 const GoogleAIWrapper = {
     async generateGoogleAIImage(prompt, images = []) {
         const settings = {
-            model: 'gemini-3-pro-image-preview',
+            model: 'gemini-3.1-flash-image-preview',
             contents: [
                 {
                     role: 'user',
@@ -53,7 +53,7 @@ const GoogleAIWrapper = {
                 const inlineData = chunk.candidates[0].content.parts[0].inlineData;
                 // Count combinedChunkText tokens
                 const countTokensResponse = await googleGenAI.models.countTokens({
-                    model: 'gemini-3-pro-image-preview',
+                    model: 'gemini-3.1-flash-image-preview',
                     contents: [
                         {
                             role: 'user',
