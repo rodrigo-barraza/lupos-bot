@@ -1617,3 +1617,27 @@ export async function executeDeathrollLeaderboard(interaction) {
 }
 
 
+// ─── Exported Pure Functions (for testing) ────────────────────────────
+export const _testHelpers = {
+    calculateKFactor,
+    calculateConfidence,
+    applyTimeDecayRD,
+    mmrMultiplier,
+    getSeasonMMR,
+    computePlayerProfile,
+    getRankTitle,
+    formatStreak,
+    formatStatsString,
+    getBiggestDrop,
+    getMedal,
+    getMultiplierName,
+    RANK_TIERS,
+    MULTIPLIER_NAMES,
+    BASE_MMR,
+    MIN_MMR,
+    MAX_RD,
+    MIN_RD,
+    BASE_K,
+    RD_DECAY_PER_DAY,
+    RD_DECREASE_PER_GAME,
+};
