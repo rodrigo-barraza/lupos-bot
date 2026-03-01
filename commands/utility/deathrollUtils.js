@@ -31,8 +31,9 @@ const MIN_RD = 30;    // Rating Deviation: min uncertainty (veterans)
 const BASE_K = 47;    // Base K-factor for MMR changes
 const RD_DECAY_PER_DAY = 1;     // RD increases by this per day inactive
 const RD_DECREASE_PER_GAME = 5; // RD decreases by this per game played
-const GRAVITY_STRENGTH = 0.7;   // How strongly MMR is pulled toward BASE_MMR
+const GRAVITY_STRENGTH = 0.7;   // How strongly MMR is pulled toward GRAVITY_CENTER
 const GRAVITY_RANGE = 425;      // MMR distance at which gravity reaches full effect
+const GRAVITY_CENTER = 1045;    // Center of gravity pull (above BASE_MMR to offset floor asymmetry)
 
 const MULTIPLIER_NAMES = {
     2: 'Double (2x)',
@@ -69,22 +70,23 @@ function calculateKFactor(rd) {
 }
 
 /**
- * Gravity gain scale: players above BASE_MMR gain less, below gain more.
- * Creates a "rubber band" pulling everyone toward BASE_MMR.
- * At BASE_MMR: returns 1.0 (no effect).
- * At BASE_MMR + GRAVITY_RANGE: returns 1 - GRAVITY_STRENGTH (reduced gains).
- * At BASE_MMR - GRAVITY_RANGE: returns 1 + GRAVITY_STRENGTH (boosted gains).
+ * Gravity gain scale: players above GRAVITY_CENTER gain less, below gain more.
+ * Creates a "rubber band" pulling everyone toward GRAVITY_CENTER.
+ * Center is set above BASE_MMR to offset the MMR floor asymmetry.
+ * At GRAVITY_CENTER: returns 1.0 (no effect).
+ * Above: returns < 1.0 (reduced gains).
+ * Below: returns > 1.0 (boosted gains).
  */
 function gravityGainScale(mmr) {
-    return Math.max(0.15, 1 - ((mmr - BASE_MMR) / GRAVITY_RANGE) * GRAVITY_STRENGTH);
+    return Math.max(0.15, 1 - ((mmr - GRAVITY_CENTER) / GRAVITY_RANGE) * GRAVITY_STRENGTH);
 }
 
 /**
- * Gravity loss scale: players above BASE_MMR lose more, below lose less.
+ * Gravity loss scale: players above GRAVITY_CENTER lose more, below lose less.
  * Mirror of gravityGainScale for losses.
  */
 function gravityLossScale(mmr) {
-    return Math.max(0.15, 1 + ((mmr - BASE_MMR) / GRAVITY_RANGE) * GRAVITY_STRENGTH);
+    return Math.max(0.15, 1 + ((mmr - GRAVITY_CENTER) / GRAVITY_RANGE) * GRAVITY_STRENGTH);
 }
 
 /**
@@ -1665,4 +1667,5 @@ export const _testHelpers = {
     RD_DECREASE_PER_GAME,
     GRAVITY_STRENGTH,
     GRAVITY_RANGE,
+    GRAVITY_CENTER,
 };
