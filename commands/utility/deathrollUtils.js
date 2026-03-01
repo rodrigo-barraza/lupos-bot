@@ -621,9 +621,9 @@ function formatGameMessage(game, lastRoll, lastRoller, lastRollerId, isGameOver,
     if (stats && !isGameOver) {
         const initiatorRecord = stats.initiator ? formatStatsString(stats.initiator) : '';
         const opponentRecord = stats.opponent ? formatStatsString(stats.opponent) : '';
-        content += `<@${game.initiator}>${initiatorRecord} vs <@${game.opponent}>${opponentRecord}\n`;
+        content += `<@${game.initiator}>${initiatorRecord}\nvs\n<@${game.opponent}>${opponentRecord}\n`;
     } else {
-        content += `<@${game.initiator}> vs <@${game.opponent}>\n`;
+        content += `<@${game.initiator}>\nvs\n<@${game.opponent}>\n`;
     }
 
     if (game.h2h && (game.h2h.player1Wins > 0 || game.h2h.player2Wins > 0)) {
@@ -644,9 +644,8 @@ function formatGameMessage(game, lastRoll, lastRoller, lastRollerId, isGameOver,
         const winnerId = lastRollerId === game.initiator ? game.opponent : game.initiator;
 
         if (stats) {
-            const biggestDrop = getBiggestDrop(game.rolls);
             content += `📊 **Game Stats**\n`;
-            content += `-# Total rolls: ${game.rolls.length} · Biggest drop: ${biggestDrop.drop} (${biggestDrop.from} → ${biggestDrop.to})\n\n`;
+            content += `-# Total rolls: ${game.rolls.length}\n\n`;
 
             const winnerRank = stats.winnerRank || '';
             const loserRank = stats.loserRank || '';
@@ -1542,7 +1541,8 @@ export async function executeDeathrollStats(interaction) {
 
         const mostPlayed = await fetchTopRivals(guildId, targetUser.id, 3);
 
-        let description = `## ${profile.rank.emoji} ${profile.rank.title}\n`;
+        let description = `<@${targetUser.id}>\n`;
+        description += `## ${profile.rank.emoji} ${profile.rank.title}\n`;
         description += `**${profile.mmr}** MMR\n\n`;
         description += `**Record:** ${profile.wins}W / ${profile.losses}L (${profile.winRate}%)\n`;
         description += `**Games Played:** ${profile.totalGames}\n`;
