@@ -11,14 +11,13 @@ import config from '#root/config.json' with { type: 'json' };
 // ─── Constants ────────────────────────────────────────────────────────
 
 const RANK_TIERS = [
-    { min: 1400, title: 'Deathroll King', emoji: '🔱' },
-    { min: 1300, title: 'Diamond', emoji: '💎' },
-    { min: 1200, title: 'Champion', emoji: '👑' },
-    { min: 1100, title: 'Veteran', emoji: '🛡️' },
-    { min: 1000, title: 'Duelist', emoji: '⚔️' },
-    { min: 900, title: 'Roller', emoji: '🎲' },
-    { min: 800, title: 'Grave', emoji: '🪦' },
-    { min: -Infinity, title: 'Cursed', emoji: '💀' },
+    { min: 1300, title: 'Grandmaster', emoji: '👑' },
+    { min: 1200, title: 'Master', emoji: '⚔️' },
+    { min: 1100, title: 'Diamond', emoji: '💎' },
+    { min: 1000, title: 'Platinum', emoji: '🛡️' },
+    { min: 900, title: 'Gold', emoji: '🏅' },
+    { min: 800, title: 'Silver', emoji: '🥈' },
+    { min: -Infinity, title: 'Bronze', emoji: '🥉' },
 ];
 
 const BASE_TIMEOUT = 10 * 60 * 1000; // 10 minutes
@@ -33,7 +32,7 @@ const RD_DECAY_PER_DAY = 1;     // RD increases by this per day inactive
 const RD_DECREASE_PER_GAME = 5; // RD decreases by this per game played
 const GRAVITY_STRENGTH = 0.7;   // How strongly MMR is pulled toward GRAVITY_CENTER
 const GRAVITY_RANGE = 425;      // MMR distance at which gravity reaches full effect
-const GRAVITY_CENTER = 1045;    // Center of gravity pull (above BASE_MMR to offset floor asymmetry)
+const GRAVITY_CENTER = 1050;    // Center of gravity pull (above BASE_MMR to offset floor asymmetry)
 
 const MULTIPLIER_NAMES = {
     2: 'Double (2x)',

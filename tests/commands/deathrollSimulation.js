@@ -147,10 +147,10 @@ console.log(`  MMR Range:         ${avgMin} – ${avgMax}`);
 console.log(`  MMR Spread:        ${avgMax - avgMin}`);
 
 // Check targets
-const duelistIsPeak = avgTierDist["Duelist"] >= avgTierDist["Roller"];
-const hasKing = avgTierDist["Deathroll King"] > 0;
-console.log(`  Duelist is peak:   ${duelistIsPeak ? "✓ YES" : "✗ NO"}`);
-console.log(`  King reachable:    ${hasKing ? "✓ YES" : "✗ NO"}`);
+const platinumIsPeak = avgTierDist["Platinum"] >= avgTierDist["Gold"];
+const hasGrandmaster = avgTierDist["Grandmaster"] > 0;
+console.log(`  Platinum is peak:  ${platinumIsPeak ? "\u2713 YES" : "\u2717 NO"}`);
+console.log(`  GM reachable:      ${hasGrandmaster ? "\u2713 YES" : "\u2717 NO"}`);
 
 console.log(`\n  🏆 Rank Distribution`);
 console.log(`  ${"─".repeat(60)}`);
@@ -167,17 +167,17 @@ for (const tier of RANK_TIERS) {
 }
 
 // Mirror symmetry check
-console.log(`\n  🪞 Symmetry Check (mirror pairs around Duelist)`);
-console.log(`  ${"─".repeat(40)}`);
+console.log(`\n  \ud83e\ude9e Symmetry Check (mirror pairs around Platinum)`);
+console.log(`  ${"\u2500".repeat(40)}`);
 const pairs = [
-    ["Veteran", "Roller"],
-    ["Champion", "Grave"],
-    ["Diamond + King", "Cursed"],
+    ["Diamond", "Gold"],
+    ["Master", "Silver"],
+    ["Grandmaster", "Bronze"],
 ];
 const pairValues = [
-    [avgTierDist["Veteran"], avgTierDist["Roller"]],
-    [avgTierDist["Champion"], avgTierDist["Grave"]],
-    [avgTierDist["Diamond"] + avgTierDist["Deathroll King"], avgTierDist["Cursed"]],
+    [avgTierDist["Diamond"], avgTierDist["Gold"]],
+    [avgTierDist["Master"], avgTierDist["Silver"]],
+    [avgTierDist["Grandmaster"], avgTierDist["Bronze"]],
 ];
 for (let i = 0; i < pairs.length; i++) {
     const [a, b] = pairValues[i];

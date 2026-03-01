@@ -214,29 +214,29 @@ describe('getSeasonMMR', () => {
 // getRankTitle
 // ═══════════════════════════════════════════════════════════════════════
 describe('getRankTitle', () => {
-    test('returns Deathroll King at 1400+', () => {
-        expect(h.getRankTitle(1400).title).toBe('Deathroll King');
-        expect(h.getRankTitle(2000).title).toBe('Deathroll King');
+    test('returns Grandmaster at 1300+', () => {
+        expect(h.getRankTitle(1300).title).toBe('Grandmaster');
+        expect(h.getRankTitle(2000).title).toBe('Grandmaster');
     });
 
-    test('returns Diamond at 1300-1399', () => {
-        expect(h.getRankTitle(1300).title).toBe('Diamond');
-        expect(h.getRankTitle(1399).title).toBe('Diamond');
+    test('returns Master at 1200-1299', () => {
+        expect(h.getRankTitle(1200).title).toBe('Master');
+        expect(h.getRankTitle(1299).title).toBe('Master');
     });
 
-    test('returns Duelist at 1000-1049', () => {
-        expect(h.getRankTitle(1000).title).toBe('Duelist');
+    test('returns Platinum at 1000-1099', () => {
+        expect(h.getRankTitle(1000).title).toBe('Platinum');
     });
 
-    test('returns Cursed at very low MMR', () => {
-        expect(h.getRankTitle(1).title).toBe('Cursed');
-        expect(h.getRankTitle(100).title).toBe('Cursed');
-        expect(h.getRankTitle(799).title).toBe('Cursed');
+    test('returns Bronze at very low MMR', () => {
+        expect(h.getRankTitle(1).title).toBe('Bronze');
+        expect(h.getRankTitle(100).title).toBe('Bronze');
+        expect(h.getRankTitle(799).title).toBe('Bronze');
     });
 
-    test('returns Grave at 800-899', () => {
-        expect(h.getRankTitle(800).title).toBe('Grave');
-        expect(h.getRankTitle(899).title).toBe('Grave');
+    test('returns Silver at 800-899', () => {
+        expect(h.getRankTitle(800).title).toBe('Silver');
+        expect(h.getRankTitle(899).title).toBe('Silver');
     });
 
     test('each tier has an emoji', () => {
@@ -275,10 +275,10 @@ describe('computePlayerProfile', () => {
 
     test('assigns correct rank based on MMR', () => {
         const highPlayer = h.computePlayerProfile({ mmr: 1500, rd: 50 });
-        expect(highPlayer.rank.title).toBe('Deathroll King');
+        expect(highPlayer.rank.title).toBe('Grandmaster');
 
         const lowPlayer = h.computePlayerProfile({ mmr: 500, rd: 50 });
-        expect(lowPlayer.rank.title).toBe('Cursed');
+        expect(lowPlayer.rank.title).toBe('Bronze');
     });
 
     test('calculates confidence from RD', () => {
@@ -340,9 +340,9 @@ describe('formatStatsString', () => {
     test('formats stats with rank info when rank and mmr are present', () => {
         const result = h.formatStatsString({
             wins: 10, losses: 5, mmr: 1200,
-            rank: { emoji: '👑', title: 'Champion' }
+            rank: { emoji: '⚔️', title: 'Master' }
         });
-        expect(result).toBe(' [👑 Champion (1200 MMR) | 10W/5L 67%]');
+        expect(result).toBe(' [⚔️ Master (1200 MMR) | 10W/5L 67%]');
     });
 
     test('formats stats without rank info when rank is missing', () => {
@@ -353,7 +353,7 @@ describe('formatStatsString', () => {
     test('formats stats without rank info when mmr is undefined', () => {
         const result = h.formatStatsString({
             wins: 5, losses: 5,
-            rank: { emoji: '⚔️', title: 'Duelist' }
+            rank: { emoji: '🛡️', title: 'Platinum' }
         });
         expect(result).toBe(' [5W/5L 50%]');
     });
@@ -364,8 +364,8 @@ describe('formatStatsString', () => {
     });
 
     test('shows 100% winrate for all wins', () => {
-        const result = h.formatStatsString({ wins: 20, losses: 0, mmr: 1500, rank: { emoji: '🔱', title: 'Deathroll King' } });
-        expect(result).toBe(' [🔱 Deathroll King (1500 MMR) | 20W/0L 100%]');
+        const result = h.formatStatsString({ wins: 20, losses: 0, mmr: 1500, rank: { emoji: '👑', title: 'Grandmaster' } });
+        expect(result).toBe(' [👑 Grandmaster (1500 MMR) | 20W/0L 100%]');
     });
 });
 
@@ -469,20 +469,20 @@ describe('computePlayerProfile — edge cases', () => {
     test('player with only wins (no losses)', () => {
         const profile = h.computePlayerProfile({ wins: 15, losses: 0, totalGames: 15, mmr: 1300, rd: 50 });
         expect(profile.winRate).toBe(100);
-        expect(profile.rank.title).toBe('Diamond');
+        expect(profile.rank.title).toBe('Grandmaster');
     });
 
     test('player with only losses (no wins)', () => {
         const profile = h.computePlayerProfile({ wins: 0, losses: 20, totalGames: 20, mmr: 600, rd: 100 });
         expect(profile.winRate).toBe(0);
-        expect(profile.rank.title).toBe('Cursed');
+        expect(profile.rank.title).toBe('Bronze');
     });
 
     test('derives totalGames from wins + losses when not provided', () => {
         const profile = h.computePlayerProfile({ wins: 3, losses: 7, mmr: 950, rd: 100 });
         expect(profile.totalGames).toBe(10);
         expect(profile.winRate).toBe(30);
-        expect(profile.rank.title).toBe('Roller');
+        expect(profile.rank.title).toBe('Gold');
     });
 
     test('preserves lastPlayedAt and createdAt timestamps', () => {
@@ -499,24 +499,22 @@ describe('computePlayerProfile — edge cases', () => {
 // ═══════════════════════════════════════════════════════════════════════
 describe('getRankTitle — tier boundaries', () => {
     test('exact tier boundaries assign the correct rank', () => {
-        expect(h.getRankTitle(1400).title).toBe('Deathroll King');
-        expect(h.getRankTitle(1399).title).toBe('Diamond');
-        expect(h.getRankTitle(1300).title).toBe('Diamond');
-        expect(h.getRankTitle(1299).title).toBe('Champion');
-        expect(h.getRankTitle(1200).title).toBe('Champion');
-        expect(h.getRankTitle(1199).title).toBe('Veteran');
-        expect(h.getRankTitle(1100).title).toBe('Veteran');
-        expect(h.getRankTitle(1099).title).toBe('Duelist');
-        expect(h.getRankTitle(1000).title).toBe('Duelist');
-        expect(h.getRankTitle(999).title).toBe('Roller');
-        expect(h.getRankTitle(900).title).toBe('Roller');
-        expect(h.getRankTitle(899).title).toBe('Grave');
-        expect(h.getRankTitle(800).title).toBe('Grave');
-        expect(h.getRankTitle(799).title).toBe('Cursed');
+        expect(h.getRankTitle(1300).title).toBe('Grandmaster');
+        expect(h.getRankTitle(1299).title).toBe('Master');
+        expect(h.getRankTitle(1200).title).toBe('Master');
+        expect(h.getRankTitle(1199).title).toBe('Diamond');
+        expect(h.getRankTitle(1100).title).toBe('Diamond');
+        expect(h.getRankTitle(1099).title).toBe('Platinum');
+        expect(h.getRankTitle(1000).title).toBe('Platinum');
+        expect(h.getRankTitle(999).title).toBe('Gold');
+        expect(h.getRankTitle(900).title).toBe('Gold');
+        expect(h.getRankTitle(899).title).toBe('Silver');
+        expect(h.getRankTitle(800).title).toBe('Silver');
+        expect(h.getRankTitle(799).title).toBe('Bronze');
     });
 
     test('handles negative MMR', () => {
-        expect(h.getRankTitle(-500).title).toBe('Cursed');
+        expect(h.getRankTitle(-500).title).toBe('Bronze');
     });
 });
 
