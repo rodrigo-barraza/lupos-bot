@@ -113,7 +113,7 @@ function runSimulation() {
 console.log("═".repeat(90));
 console.log(
     `  DEATHROLL MMR SIMULATION — ${PLAYER_COUNT} players, ${TOTAL_GAMES} games, ` +
-    `50% DoN (avg of ${TRIALS} trials)`
+    `${Math.round(DON_PROBABILITY * 100)}% DoN (avg of ${TRIALS} trials)`
 );
 console.log(
     `  Config: BASE_K=${BASE_K}, GRAVITY_STRENGTH=${GRAVITY_STRENGTH}, ` +

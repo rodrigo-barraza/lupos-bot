@@ -190,20 +190,6 @@ function computePlayerProfile(playerStats) {
 }
 
 /**
- * Finds the biggest single-roll drop in a game.
- */
-function getBiggestDrop(rolls) {
-    let biggest = { drop: 0, from: 0, to: 0 };
-    for (const roll of rolls) {
-        const drop = roll.maxNumber - roll.roll;
-        if (drop > biggest.drop) {
-            biggest = { drop, from: roll.maxNumber, to: roll.roll };
-        }
-    }
-    return biggest;
-}
-
-/**
  * Returns a medal emoji for leaderboard position.
  */
 function getMedal(index) {
@@ -686,7 +672,7 @@ function buildDoubleOrNothingRow(game, winnerId, loserId) {
     return [row];
 }
 
-function createDoubleOrNothingCollector(message, guild, winnerId, loserId, startingNumber, timeoutMultiplier, pendingTimeoutData) {
+function createDoubleOrNothingCollector(message, guild, winnerId, loserId, startingNumber, timeoutMultiplier, pendingTimeoutData, pendingGameData) {
     const collector = message.createMessageComponentCollector({
         idle: 10 * 1000
     });
@@ -740,7 +726,7 @@ function createDoubleOrNothingCollector(message, guild, winnerId, loserId, start
                     components: [row]
                 });
 
-                createAcceptDeclineCollector(buttonInteraction.message, guild, winnerId, loserId, startingNumber, nextMultiplier, pendingTimeoutData);
+                createAcceptDeclineCollector(buttonInteraction.message, guild, winnerId, loserId, startingNumber, nextMultiplier, pendingTimeoutData, pendingGameData);
                 return;
             }
         } catch (error) {
@@ -759,7 +745,7 @@ function createDoubleOrNothingCollector(message, guild, winnerId, loserId, start
                     content: `⚠️ Something went wrong! <@${loserId}>, click below to propose ${recoveryMultiplierName} or Nothing again.`,
                     components: [row]
                 });
-                createDoubleOrNothingCollector(recoveryMsg, guild, winnerId, loserId, startingNumber, timeoutMultiplier, pendingTimeoutData);
+                createDoubleOrNothingCollector(recoveryMsg, guild, winnerId, loserId, startingNumber, timeoutMultiplier, pendingTimeoutData, pendingGameData);
             } catch (recoveryError) {
                 console.error('Failed to recover from DoN propose error:', recoveryError);
             }
@@ -775,11 +761,18 @@ function createDoubleOrNothingCollector(message, guild, winnerId, loserId, start
                 components: []
             }).catch(() => { });
             await applyPendingTimeout(guild, pendingTimeoutData);
+            // DoN not proposed — save the final game result now
+            if (pendingGameData) {
+                await saveGameResult(
+                    guild.id, pendingGameData.game, pendingGameData.winnerId, pendingGameData.loserId,
+                    pendingGameData.winnerInfo, pendingGameData.loserInfo
+                );
+            }
         }
     });
 }
 
-function createAcceptDeclineCollector(message, guild, winnerId, loserId, startingNumber, timeoutMultiplier, pendingTimeoutData) {
+function createAcceptDeclineCollector(message, guild, winnerId, loserId, startingNumber, timeoutMultiplier, pendingTimeoutData, pendingGameData) {
     const collector = message.createMessageComponentCollector({
         idle: 10 * 1000
     });
@@ -813,6 +806,13 @@ function createAcceptDeclineCollector(message, guild, winnerId, loserId, startin
                     components: []
                 });
                 await applyPendingTimeout(guild, pendingTimeoutData);
+                // DoN declined — save the final game result now
+                if (pendingGameData) {
+                    await saveGameResult(
+                        guild.id, pendingGameData.game, pendingGameData.winnerId, pendingGameData.loserId,
+                        pendingGameData.winnerInfo, pendingGameData.loserInfo
+                    );
+                }
                 return;
             }
 
@@ -919,7 +919,7 @@ function createAcceptDeclineCollector(message, guild, winnerId, loserId, startin
                     content: `⚠️ Something went wrong! <@${winnerId}>, click below to accept or decline ${recoveryMultiplierName} or Nothing.`,
                     components: [row]
                 });
-                createAcceptDeclineCollector(recoveryMsg, guild, winnerId, loserId, startingNumber, timeoutMultiplier, pendingTimeoutData);
+                createAcceptDeclineCollector(recoveryMsg, guild, winnerId, loserId, startingNumber, timeoutMultiplier, pendingTimeoutData, pendingGameData);
             } catch (recoveryError) {
                 console.error('Failed to recover from DoN accept/decline error:', recoveryError);
             }
@@ -935,6 +935,13 @@ function createAcceptDeclineCollector(message, guild, winnerId, loserId, startin
                 components: []
             }).catch(() => { });
             await applyPendingTimeout(guild, pendingTimeoutData);
+            // DoN accept/decline timed out — save the final game result now
+            if (pendingGameData) {
+                await saveGameResult(
+                    guild.id, pendingGameData.game, pendingGameData.winnerId, pendingGameData.loserId,
+                    pendingGameData.winnerInfo, pendingGameData.loserInfo
+                );
+            }
         }
     });
 }
@@ -1265,19 +1272,27 @@ async function handleLoss(buttonInteraction, game, loserId, roll, gameOverMessag
     const winnerMember = await guild.members.fetch(winnerId);
 
     try {
-        await saveGameResult(
-            guild.id, game, winnerId, loserId,
-            { username: winnerMember.user.username, displayName: winnerMember.displayName },
-            { username: loser.user.username, displayName: loser.displayName }
-        );
+        // Build pending game data — save is deferred until DoN chain resolves
+        const pendingGameData = {
+            game,
+            winnerId,
+            loserId,
+            winnerInfo: { username: winnerMember.user.username, displayName: winnerMember.displayName },
+            loserInfo: { username: loser.user.username, displayName: loser.displayName }
+        };
 
         if (gameOverMessage) {
             const pendingTimeoutData = { loserId, timeoutDuration };
             createDoubleOrNothingCollector(
                 gameOverMessage, guild, winnerId, loserId,
-                game.startingNumber, game.timeoutMultiplier || 1, pendingTimeoutData
+                game.startingNumber, game.timeoutMultiplier || 1, pendingTimeoutData, pendingGameData
             );
         } else {
+            // No DoN button (e.g. can't timeout) — save immediately
+            await saveGameResult(
+                guild.id, game, winnerId, loserId,
+                pendingGameData.winnerInfo, pendingGameData.loserInfo
+            );
             try {
                 const timeoutMinutes = timeoutDuration / 60000;
                 await loser.timeout(timeoutDuration, `Lost a deathroll game (${timeoutMinutes}min)`);
@@ -1286,7 +1301,7 @@ async function handleLoss(buttonInteraction, game, loserId, roll, gameOverMessag
             }
         }
     } catch (error) {
-        console.error('Error saving deathroll to MongoDB:', error);
+        console.error('Error in handleLoss:', error);
     }
 }
 
@@ -1652,7 +1667,6 @@ export const _testHelpers = {
     getRankTitle,
     formatStreak,
     formatStatsString,
-    getBiggestDrop,
     getMedal,
     getMultiplierName,
     RANK_TIERS,

@@ -369,54 +369,7 @@ describe('formatStatsString', () => {
     });
 });
 
-// ═══════════════════════════════════════════════════════════════════════
-// getBiggestDrop
-// ═══════════════════════════════════════════════════════════════════════
-describe('getBiggestDrop', () => {
-    test('finds the biggest drop in rolls', () => {
-        const rolls = [
-            { maxNumber: 100, roll: 50 },  // drop 50
-            { maxNumber: 50, roll: 2 },    // drop 48
-            { maxNumber: 2, roll: 0 },     // drop 2
-        ];
-        const result = h.getBiggestDrop(rolls);
-        expect(result.drop).toBe(50);
-        expect(result.from).toBe(100);
-        expect(result.to).toBe(50);
-    });
-
-    test('handles single roll', () => {
-        const rolls = [{ maxNumber: 100, roll: 0 }];
-        const result = h.getBiggestDrop(rolls);
-        expect(result.drop).toBe(100);
-    });
-
-    test('returns zero drop for empty rolls array', () => {
-        const result = h.getBiggestDrop([]);
-        expect(result.drop).toBe(0);
-        expect(result.from).toBe(0);
-        expect(result.to).toBe(0);
-    });
-
-    test('handles equal consecutive rolls (drop = 0)', () => {
-        // Impossible in practice (roll is 0-maxNumber), but validates the logic
-        const rolls = [{ maxNumber: 5, roll: 5 }];
-        const result = h.getBiggestDrop(rolls);
-        expect(result.drop).toBe(0);
-    });
-
-    test('picks the first biggest drop when ties exist', () => {
-        const rolls = [
-            { maxNumber: 100, roll: 50 },  // drop 50
-            { maxNumber: 80, roll: 30 },   // drop 50 (tie)
-        ];
-        const result = h.getBiggestDrop(rolls);
-        // First drop of 50 should be kept (> not >=)
-        expect(result.from).toBe(100);
-        expect(result.to).toBe(50);
-    });
-});
-
+//
 // ═══════════════════════════════════════════════════════════════════════
 // getMedal
 // ═══════════════════════════════════════════════════════════════════════
