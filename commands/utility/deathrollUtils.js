@@ -23,6 +23,15 @@ const RANK_TIERS = [
 
 const BASE_TIMEOUT = 10 * 60 * 1000; // 10 minutes
 
+// Glicko-2 inspired MMR constants
+const BASE_MMR = 1000;
+const MIN_MMR = 1;
+const MAX_RD = 200;   // Rating Deviation: max uncertainty (new/returning players)
+const MIN_RD = 30;    // Rating Deviation: min uncertainty (veterans)
+const BASE_K = 25;    // Base K-factor for MMR changes
+const RD_DECAY_PER_DAY = 1;     // RD increases by this per day inactive
+const RD_DECREASE_PER_GAME = 5; // RD decreases by this per game played
+
 const MULTIPLIER_NAMES = {
     2: 'Double (2x)',
     4: 'Quadruple (4x)',
@@ -48,21 +57,56 @@ const activeCollectors = new Map();
 // ─── Pure Computation Helpers ─────────────────────────────────────────
 
 /**
- * Elo-style MMR: base 1000.
- * Uses a "K-factor" confidence system standard in competitive games:
- * New players (under 10 games) get larger swings (up to 50 base per win/loss) 
- * to quickly place them, settling down to 25 per game after 10 games.
+ * Glicko-2 inspired K-factor: scales with Rating Deviation.
+ * High RD (uncertain) = larger swings (up to 50).
+ * Low RD (confident) = stable swings (25).
  */
-function calculateMMR(player) {
-    const mmrWins = player.mmrWins || player.wins || 0;
-    const mmrLosses = player.mmrLosses || player.losses || 0;
-    const total = player.totalGames || ((player.wins || 0) + (player.losses || 0));
+function calculateKFactor(rd) {
+    const clampedRD = Math.max(MIN_RD, Math.min(MAX_RD, rd));
+    return BASE_K + BASE_K * (clampedRD - MIN_RD) / (MAX_RD - MIN_RD);
+}
 
-    // Scale K-factor from 50 down to 25 over the first 10 games
-    const kFactorBonus = 25 * Math.max(0, (10 - total) / 10);
-    const kFactor = 25 + kFactorBonus;
+/**
+ * Compresses the game timeout multiplier for MMR purposes.
+ * Each Double or Nothing adds +0.25 to the MMR effect instead of doubling.
+ * 1x→1, 2x→1.25, 4x→1.5, 16x→2, 1024x→3.5
+ */
+function mmrMultiplier(timeoutMultiplier) {
+    if (timeoutMultiplier <= 1) return 1;
+    return Math.log2(timeoutMultiplier) * 0.25 + 1;
+}
 
-    return Math.round(1000 + (mmrWins - mmrLosses) * kFactor);
+/**
+ * Rank Confidence: 0% (totally uncertain) to 100% (fully confident).
+ * Derived from Rating Deviation.
+ */
+function calculateConfidence(rd) {
+    const clampedRD = Math.max(MIN_RD, Math.min(MAX_RD, rd));
+    return Math.round((1 - (clampedRD - MIN_RD) / (MAX_RD - MIN_RD)) * 100);
+}
+
+/**
+ * Time-decay for Rating Deviation: RD grows by RD_DECAY_PER_DAY for each
+ * day of inactivity, capped at MAX_RD. Returning players become volatile.
+ */
+function applyTimeDecayRD(rd, lastPlayedAt) {
+    if (!lastPlayedAt) return MAX_RD;
+    const daysSince = (Date.now() - lastPlayedAt) / (24 * 60 * 60 * 1000);
+    return Math.min(MAX_RD, rd + daysSince * RD_DECAY_PER_DAY);
+}
+
+/**
+ * Returns the current-season MMR/RD for a player from their UserStats doc.
+ * If mmrSeason doesn't match the current season, returns defaults.
+ */
+function getSeasonMMR(userStats) {
+    if (!userStats || userStats.mmrSeason !== config.DEATHROLL_SEASON) {
+        return { mmr: BASE_MMR, rd: MAX_RD };
+    }
+    return {
+        mmr: userStats.mmr ?? BASE_MMR,
+        rd: userStats.rd ?? MAX_RD
+    };
 }
 
 /**
@@ -95,17 +139,18 @@ function formatStreak(currentStreak) {
 }
 
 /**
- * Computes a full player profile from a raw DeathRollUserStats document.
+ * Computes a full player profile.
+ * MMR and RD are stored state (passed in), not derived.
  */
 function computePlayerProfile(playerStats) {
     const wins = playerStats?.wins || 0;
     const losses = playerStats?.losses || 0;
     const totalGames = playerStats?.totalGames || (wins + losses);
     const winRate = totalGames > 0 ? Math.round((wins / totalGames) * 100) : 0;
-    const mmrWins = playerStats?.mmrWins || wins;
-    const mmrLosses = playerStats?.mmrLosses || losses;
-    const mmr = calculateMMR({ wins, losses, totalGames, mmrWins, mmrLosses });
+    const mmr = playerStats?.mmr ?? BASE_MMR;
+    const rd = playerStats?.rd ?? MAX_RD;
     const rank = getRankTitle(mmr);
+    const confidence = calculateConfidence(rd);
     const currentStreak = playerStats?.currentStreak || 0;
     const bestStreak = playerStats?.bestStreak || 0;
     const multiplierGames = playerStats?.multiplierGames || 0;
@@ -115,8 +160,8 @@ function computePlayerProfile(playerStats) {
     const createdAt = playerStats?.createdAt || null;
 
     return {
-        wins, losses, totalGames, winRate, mmr, rank,
-        currentStreak, bestStreak, mmrWins, mmrLosses,
+        wins, losses, totalGames, winRate, mmr, rd, confidence, rank,
+        currentStreak, bestStreak,
         multiplierGames, multiplierWins, multiplierLosses,
         lastPlayedAt, createdAt
     };
@@ -263,8 +308,12 @@ async function fetchSinglePlayerStats(guildId, userId) {
 
         if (!historyStats) return computePlayerProfile(null);
 
+        const { mmr, rd } = getSeasonMMR(userStats);
+        const decayedRD = applyTimeDecayRD(rd, userStats?.lastPlayedAt);
+
         return computePlayerProfile({
             ...historyStats,
+            mmr, rd: decayedRD,
             currentStreak: userStats?.currentStreak || 0,
             bestStreak: userStats?.bestStreak || 0
         });
@@ -283,14 +332,22 @@ async function fetchMidGameStats(guildId, initiatorId, opponentId) {
             statsCollection.findOne({ userId: initiatorId, guildId }),
             statsCollection.findOne({ userId: opponentId, guildId })
         ]);
+
+        const initiatorMMR = getSeasonMMR(initiatorUserStats);
+        const opponentMMR = getSeasonMMR(opponentUserStats);
+
         return {
             initiator: computePlayerProfile({
                 ...(initiatorHistory || {}),
+                mmr: initiatorMMR.mmr,
+                rd: applyTimeDecayRD(initiatorMMR.rd, initiatorUserStats?.lastPlayedAt),
                 currentStreak: initiatorUserStats?.currentStreak || 0,
                 bestStreak: initiatorUserStats?.bestStreak || 0
             }),
             opponent: computePlayerProfile({
                 ...(opponentHistory || {}),
+                mmr: opponentMMR.mmr,
+                rd: applyTimeDecayRD(opponentMMR.rd, opponentUserStats?.lastPlayedAt),
                 currentStreak: opponentUserStats?.currentStreak || 0,
                 bestStreak: opponentUserStats?.bestStreak || 0
             })
@@ -328,29 +385,45 @@ async function buildEndGameData(guildId, game, winnerId, loserId) {
 
         const multiplier = game.timeoutMultiplier || 1;
 
+        // Get stored MMR/RD (season-aware) and apply time decay
+        const winnerSeason = getSeasonMMR(winnerUserStats);
+        const loserSeason = getSeasonMMR(loserUserStats);
+        const winnerRD = applyTimeDecayRD(winnerSeason.rd, winnerUserStats?.lastPlayedAt);
+        const loserRD = applyTimeDecayRD(loserSeason.rd, loserUserStats?.lastPlayedAt);
+
         const winnerPre = computePlayerProfile({
             ...(winnerHistory || {}),
+            mmr: winnerSeason.mmr, rd: winnerRD,
             currentStreak: winnerUserStats?.currentStreak || 0,
             bestStreak: winnerUserStats?.bestStreak || 0
         });
         const loserPre = computePlayerProfile({
             ...(loserHistory || {}),
+            mmr: loserSeason.mmr, rd: loserRD,
             currentStreak: loserUserStats?.currentStreak || 0,
             bestStreak: loserUserStats?.bestStreak || 0
         });
 
-        // Predict post-game stats (this game hasn't been saved yet)
+        // Predict post-game MMR (this game hasn't been saved yet)
+        const winnerK = calculateKFactor(winnerRD);
+        const loserK = calculateKFactor(loserRD);
+        const mmrMult = mmrMultiplier(multiplier);
+        const winnerPostMmr = Math.round(winnerSeason.mmr + winnerK * mmrMult);
+        const loserPostMmr = Math.max(MIN_MMR, Math.round(loserSeason.mmr - loserK * mmrMult));
+        const winnerPostRD = Math.max(MIN_RD, winnerRD - RD_DECREASE_PER_GAME);
+        const loserPostRD = Math.max(MIN_RD, loserRD - RD_DECREASE_PER_GAME);
+
         const winnerPost = computePlayerProfile({
             ...(winnerHistory || {}),
             wins: (winnerHistory?.wins || 0) + 1,
             totalGames: (winnerHistory?.totalGames || 0) + 1,
-            mmrWins: (winnerHistory?.mmrWins || 0) + multiplier
+            mmr: winnerPostMmr, rd: winnerPostRD
         });
         const loserPost = computePlayerProfile({
             ...(loserHistory || {}),
             losses: (loserHistory?.losses || 0) + 1,
             totalGames: (loserHistory?.totalGames || 0) + 1,
-            mmrLosses: (loserHistory?.mmrLosses || 0) + multiplier
+            mmr: loserPostMmr, rd: loserPostRD
         });
 
         const winnerCurrentStreak = Math.max(0, winnerPre.currentStreak) + 1;
@@ -376,17 +449,33 @@ async function buildEndGameData(guildId, game, winnerId, loserId) {
 }
 
 /**
- * Saves game result. DeathRollUserStats only stores streaks & metadata.
- * All game counts (wins/losses/MMR) are derived from DeathRollGameHistory.
+ * Saves game result. Updates MMR, RD, streaks & metadata in DeathRollUserStats.
+ * MMR uses Glicko-2 inspired system with K-factor scaled by Rating Deviation.
  */
 async function saveGameResult(guildId, game, winnerId, loserId, winnerInfo, loserInfo, endReason) {
     const { statsCollection, gamesCollection } = getDeathrollCollections();
     const now = Date.now();
+    const multiplier = game.timeoutMultiplier || 1;
 
     const [currentLoserStats, currentWinnerStats] = await Promise.all([
         statsCollection.findOne({ userId: loserId, guildId }),
         statsCollection.findOne({ userId: winnerId, guildId })
     ]);
+
+    // Get season-aware MMR/RD, apply time decay
+    const loserSeason = getSeasonMMR(currentLoserStats);
+    const winnerSeason = getSeasonMMR(currentWinnerStats);
+    const loserRD = applyTimeDecayRD(loserSeason.rd, currentLoserStats?.lastPlayedAt);
+    const winnerRD = applyTimeDecayRD(winnerSeason.rd, currentWinnerStats?.lastPlayedAt);
+
+    // Calculate MMR changes
+    const loserK = calculateKFactor(loserRD);
+    const winnerK = calculateKFactor(winnerRD);
+    const mmrMult = mmrMultiplier(multiplier);
+    const loserNewMmr = Math.max(MIN_MMR, Math.round(loserSeason.mmr - loserK * mmrMult));
+    const winnerNewMmr = Math.round(winnerSeason.mmr + winnerK * mmrMult);
+    const loserNewRD = Math.max(MIN_RD, loserRD - RD_DECREASE_PER_GAME);
+    const winnerNewRD = Math.max(MIN_RD, winnerRD - RD_DECREASE_PER_GAME);
 
     const loserNewStreak = Math.min(0, currentLoserStats?.currentStreak || 0) - 1;
     const winnerNewStreak = Math.max(0, currentWinnerStats?.currentStreak || 0) + 1;
@@ -398,7 +487,8 @@ async function saveGameResult(guildId, game, winnerId, loserId, winnerInfo, lose
             $set: {
                 username: loserInfo.username, displayName: loserInfo.displayName,
                 lastPlayedAt: now, lastOpponentId: winnerId, lastOpponentName: winnerInfo.username,
-                lastGameResult: 'loss', lastStartingNumber: game.startingNumber, currentStreak: loserNewStreak
+                lastGameResult: 'loss', lastStartingNumber: game.startingNumber, currentStreak: loserNewStreak,
+                mmr: loserNewMmr, rd: loserNewRD, mmrSeason: config.DEATHROLL_SEASON
             },
             $setOnInsert: { createdAt: now, bestStreak: 0 }
         },
@@ -412,7 +502,8 @@ async function saveGameResult(guildId, game, winnerId, loserId, winnerInfo, lose
                 username: winnerInfo.username, displayName: winnerInfo.displayName,
                 lastPlayedAt: now, lastOpponentId: loserId, lastOpponentName: loserInfo.username,
                 lastGameResult: 'win', lastStartingNumber: game.startingNumber,
-                currentStreak: winnerNewStreak, bestStreak: winnerBestStreak
+                currentStreak: winnerNewStreak, bestStreak: winnerBestStreak,
+                mmr: winnerNewMmr, rd: winnerNewRD, mmrSeason: config.DEATHROLL_SEASON
             },
             $setOnInsert: { createdAt: now }
         },
@@ -473,10 +564,12 @@ async function fetchLeaderboard(guildId, limit = 20) {
         let ranked = historyStats
             .map(hs => {
                 const us = userStatsMap.get(hs.userId) || {};
+                const { mmr, rd } = getSeasonMMR(us);
                 return {
                     userId: hs.userId,
                     profile: computePlayerProfile({
                         ...hs,
+                        mmr, rd: applyTimeDecayRD(rd, us.lastPlayedAt),
                         currentStreak: us.currentStreak || 0,
                         bestStreak: us.bestStreak || 0
                     })
@@ -1433,6 +1526,7 @@ export async function executeDeathrollStats(interaction) {
         description += `**Games Played:** ${profile.totalGames}\n`;
 
         const streakStr = formatStreak(profile.currentStreak);
+        description += `**Rank Confidence:** ${profile.confidence}%\n`;
         description += `**Current Streak:** ${streakStr || 'None'}\n`;
         description += `**Best Win Streak:** ${profile.bestStreak > 0 ? `🔥×${profile.bestStreak}` : 'None'}\n`;
 
@@ -1497,7 +1591,7 @@ export async function executeDeathrollLeaderboard(interaction) {
                 : 'Never';
             const don = p.multiplierGames > 0 ? ` · 🎰 ${p.multiplierWins}W/${p.multiplierLosses}L` : '';
 
-            return `${medal} **${index + 1}.** <@${player.userId}> — ${p.rank.emoji} **${p.mmr}** MMR\n-# ${p.wins}W / ${p.losses}L (${p.winRate}%) · ${p.totalGames} games${streak ? ' · ' + streak : ''}${don} · ${lastPlayed}`;
+            return `${medal} **${index + 1}.** <@${player.userId}> — ${p.rank.emoji} **${p.mmr}** MMR (${p.confidence}%)\n-# ${p.wins}W / ${p.losses}L (${p.winRate}%) · ${p.totalGames} games${streak ? ' · ' + streak : ''}${don} · ${lastPlayed}`;
         };
 
         const topLines = topPlayers.map(formatPlayerLine);
