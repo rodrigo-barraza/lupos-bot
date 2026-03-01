@@ -6,6 +6,7 @@
 
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, PermissionFlagsBits, EmbedBuilder } from 'discord.js';
 import MongoWrapper from '#root/wrappers/MongoWrapper.js';
+import config from '#root/config.json' with { type: 'json' };
 
 // ─── Constants ────────────────────────────────────────────────────────
 
@@ -53,15 +54,15 @@ const activeCollectors = new Map();
  * to quickly place them, settling down to 25 per game after 10 games.
  */
 function calculateMMR(player) {
-    const wins = player.wins || 0;
-    const losses = player.losses || 0;
-    const total = player.totalGames || (wins + losses);
+    const mmrWins = player.mmrWins || player.wins || 0;
+    const mmrLosses = player.mmrLosses || player.losses || 0;
+    const total = player.totalGames || ((player.wins || 0) + (player.losses || 0));
 
     // Scale K-factor from 50 down to 25 over the first 10 games
     const kFactorBonus = 25 * Math.max(0, (10 - total) / 10);
     const kFactor = 25 + kFactorBonus;
 
-    return Math.round(1000 + (wins - losses) * kFactor);
+    return Math.round(1000 + (mmrWins - mmrLosses) * kFactor);
 }
 
 /**
@@ -73,14 +74,15 @@ function getRankTitle(mmr) {
 }
 
 /**
- * Formats a compact stats string like " (5W/3L 63%)"
+ * Formats a compact stats string including rank and MMR.
  */
 function formatStatsString(stats) {
     if (!stats) return '';
-    const { wins, losses } = stats;
+    const { wins, losses, mmr, rank } = stats;
     const total = wins + losses;
     const winrate = total > 0 ? Math.round((wins / total) * 100) : 0;
-    return ` (${wins}W/${losses}L ${winrate}%)`;
+    const rankInfo = rank && mmr !== undefined ? `${rank.emoji} ${rank.title} (${mmr} MMR) | ` : '';
+    return ` [${rankInfo}${wins}W/${losses}L ${winrate}%]`;
 }
 
 /**
@@ -100,7 +102,9 @@ function computePlayerProfile(playerStats) {
     const losses = playerStats?.losses || 0;
     const totalGames = playerStats?.totalGames || (wins + losses);
     const winRate = totalGames > 0 ? Math.round((wins / totalGames) * 100) : 0;
-    const mmr = calculateMMR(playerStats || { wins: 0, losses: 0, totalGames: 0 });
+    const mmrWins = playerStats?.mmrWins || wins;
+    const mmrLosses = playerStats?.mmrLosses || losses;
+    const mmr = calculateMMR({ wins, losses, totalGames, mmrWins, mmrLosses });
     const rank = getRankTitle(mmr);
     const currentStreak = playerStats?.currentStreak || 0;
     const bestStreak = playerStats?.bestStreak || 0;
@@ -112,7 +116,7 @@ function computePlayerProfile(playerStats) {
 
     return {
         wins, losses, totalGames, winRate, mmr, rank,
-        currentStreak, bestStreak,
+        currentStreak, bestStreak, mmrWins, mmrLosses,
         multiplierGames, multiplierWins, multiplierLosses,
         lastPlayedAt, createdAt
     };
@@ -155,13 +159,115 @@ function getDeathrollCollections() {
     };
 }
 
+// ─── Game History Aggregation ─────────────────────────────────────────
+
+/**
+ * Aggregates a single player's stats from DeathRollGameHistory.
+ * Returns wins, losses, totalGames, mmrWins, mmrLosses, multiplier stats,
+ * lastPlayedAt, and createdAt — all derived from game records.
+ */
+async function aggregatePlayerStats(guildId, userId) {
+    const { gamesCollection } = getDeathrollCollections();
+    const season = config.DEATHROLL_SEASON;
+    const results = await gamesCollection.aggregate([
+        { $match: { guildId, season, $or: [{ winnerId: userId }, { loserId: userId }] } },
+        {
+            $group: {
+                _id: null,
+                wins: { $sum: { $cond: [{ $eq: ['$winnerId', userId] }, 1, 0] } },
+                losses: { $sum: { $cond: [{ $eq: ['$loserId', userId] }, 1, 0] } },
+                mmrWins: { $sum: { $cond: [{ $eq: ['$winnerId', userId] }, { $ifNull: ['$timeoutMultiplier', 1] }, 0] } },
+                mmrLosses: { $sum: { $cond: [{ $eq: ['$loserId', userId] }, { $ifNull: ['$timeoutMultiplier', 1] }, 0] } },
+                multiplierWins: { $sum: { $cond: [{ $and: [{ $eq: ['$winnerId', userId] }, { $gt: ['$timeoutMultiplier', 1] }] }, 1, 0] } },
+                multiplierLosses: { $sum: { $cond: [{ $and: [{ $eq: ['$loserId', userId] }, { $gt: ['$timeoutMultiplier', 1] }] }, 1, 0] } },
+                lastPlayedAt: { $max: '$endedAt' },
+                createdAt: { $min: '$startedAt' }
+            }
+        }
+    ]).toArray();
+
+    const r = results[0];
+    if (!r) return null;
+
+    return {
+        wins: r.wins,
+        losses: r.losses,
+        totalGames: r.wins + r.losses,
+        mmrWins: r.mmrWins,
+        mmrLosses: r.mmrLosses,
+        multiplierWins: r.multiplierWins,
+        multiplierLosses: r.multiplierLosses,
+        multiplierGames: r.multiplierWins + r.multiplierLosses,
+        lastPlayedAt: r.lastPlayedAt,
+        createdAt: r.createdAt
+    };
+}
+
+/**
+ * Aggregates all players' stats from DeathRollGameHistory for leaderboard.
+ * Each game doc is split into a winner and loser record, then grouped per player.
+ */
+async function aggregateAllPlayerStats(guildId) {
+    const { gamesCollection } = getDeathrollCollections();
+    const season = config.DEATHROLL_SEASON;
+    const results = await gamesCollection.aggregate([
+        { $match: { guildId, season } },
+        {
+            $project: {
+                players: [
+                    { userId: '$winnerId', username: '$winnerName', result: 'win', multiplier: { $ifNull: ['$timeoutMultiplier', 1] }, endedAt: '$endedAt', startedAt: '$startedAt' },
+                    { userId: '$loserId', username: '$loserName', result: 'loss', multiplier: { $ifNull: ['$timeoutMultiplier', 1] }, endedAt: '$endedAt', startedAt: '$startedAt' }
+                ]
+            }
+        },
+        { $unwind: '$players' },
+        {
+            $group: {
+                _id: '$players.userId',
+                wins: { $sum: { $cond: [{ $eq: ['$players.result', 'win'] }, 1, 0] } },
+                losses: { $sum: { $cond: [{ $eq: ['$players.result', 'loss'] }, 1, 0] } },
+                mmrWins: { $sum: { $cond: [{ $eq: ['$players.result', 'win'] }, '$players.multiplier', 0] } },
+                mmrLosses: { $sum: { $cond: [{ $eq: ['$players.result', 'loss'] }, '$players.multiplier', 0] } },
+                multiplierWins: { $sum: { $cond: [{ $and: [{ $eq: ['$players.result', 'win'] }, { $gt: ['$players.multiplier', 1] }] }, 1, 0] } },
+                multiplierLosses: { $sum: { $cond: [{ $and: [{ $eq: ['$players.result', 'loss'] }, { $gt: ['$players.multiplier', 1] }] }, 1, 0] } },
+                lastPlayedAt: { $max: '$players.endedAt' },
+                createdAt: { $min: '$players.startedAt' }
+            }
+        }
+    ]).toArray();
+
+    return results.map(r => ({
+        userId: r._id,
+        wins: r.wins,
+        losses: r.losses,
+        totalGames: r.wins + r.losses,
+        mmrWins: r.mmrWins,
+        mmrLosses: r.mmrLosses,
+        multiplierWins: r.multiplierWins,
+        multiplierLosses: r.multiplierLosses,
+        multiplierGames: r.multiplierWins + r.multiplierLosses,
+        lastPlayedAt: r.lastPlayedAt,
+        createdAt: r.createdAt
+    }));
+}
+
 // ─── Data Access Functions ────────────────────────────────────────────
 
 async function fetchSinglePlayerStats(guildId, userId) {
     try {
         const { statsCollection } = getDeathrollCollections();
-        const stats = await statsCollection.findOne({ userId, guildId });
-        return computePlayerProfile(stats);
+        const [historyStats, userStats] = await Promise.all([
+            aggregatePlayerStats(guildId, userId),
+            statsCollection.findOne({ userId, guildId })
+        ]);
+
+        if (!historyStats) return computePlayerProfile(null);
+
+        return computePlayerProfile({
+            ...historyStats,
+            currentStreak: userStats?.currentStreak || 0,
+            bestStreak: userStats?.bestStreak || 0
+        });
     } catch (error) {
         console.error('Error fetching deathroll stats:', error);
         return null;
@@ -171,13 +277,23 @@ async function fetchSinglePlayerStats(guildId, userId) {
 async function fetchMidGameStats(guildId, initiatorId, opponentId) {
     try {
         const { statsCollection } = getDeathrollCollections();
-        const [initiatorStats, opponentStats] = await Promise.all([
+        const [initiatorHistory, opponentHistory, initiatorUserStats, opponentUserStats] = await Promise.all([
+            aggregatePlayerStats(guildId, initiatorId),
+            aggregatePlayerStats(guildId, opponentId),
             statsCollection.findOne({ userId: initiatorId, guildId }),
             statsCollection.findOne({ userId: opponentId, guildId })
         ]);
         return {
-            initiator: computePlayerProfile(initiatorStats),
-            opponent: computePlayerProfile(opponentStats)
+            initiator: computePlayerProfile({
+                ...(initiatorHistory || {}),
+                currentStreak: initiatorUserStats?.currentStreak || 0,
+                bestStreak: initiatorUserStats?.bestStreak || 0
+            }),
+            opponent: computePlayerProfile({
+                ...(opponentHistory || {}),
+                currentStreak: opponentUserStats?.currentStreak || 0,
+                bestStreak: opponentUserStats?.bestStreak || 0
+            })
         };
     } catch (error) {
         console.error('Error fetching mid-game deathroll stats:', error);
@@ -188,9 +304,10 @@ async function fetchMidGameStats(guildId, initiatorId, opponentId) {
 async function fetchHeadToHead(guildId, player1Id, player2Id) {
     try {
         const { gamesCollection } = getDeathrollCollections();
+        const season = config.DEATHROLL_SEASON;
         const [p1Wins, p2Wins] = await Promise.all([
-            gamesCollection.countDocuments({ guildId, winnerId: player1Id, loserId: player2Id }),
-            gamesCollection.countDocuments({ guildId, winnerId: player2Id, loserId: player1Id })
+            gamesCollection.countDocuments({ guildId, season, winnerId: player1Id, loserId: player2Id }),
+            gamesCollection.countDocuments({ guildId, season, winnerId: player2Id, loserId: player1Id })
         ]);
         return { player1Wins: p1Wins, player2Wins: p2Wins };
     } catch (error) {
@@ -202,20 +319,38 @@ async function fetchHeadToHead(guildId, player1Id, player2Id) {
 async function buildEndGameData(guildId, game, winnerId, loserId) {
     try {
         const { statsCollection } = getDeathrollCollections();
-        const [winnerStats, loserStats] = await Promise.all([
+        const [winnerHistory, loserHistory, winnerUserStats, loserUserStats] = await Promise.all([
+            aggregatePlayerStats(guildId, winnerId),
+            aggregatePlayerStats(guildId, loserId),
             statsCollection.findOne({ userId: winnerId, guildId }),
             statsCollection.findOne({ userId: loserId, guildId })
         ]);
 
         const multiplier = game.timeoutMultiplier || 1;
-        const winnerPre = computePlayerProfile(winnerStats);
-        const loserPre = computePlayerProfile(loserStats);
 
+        const winnerPre = computePlayerProfile({
+            ...(winnerHistory || {}),
+            currentStreak: winnerUserStats?.currentStreak || 0,
+            bestStreak: winnerUserStats?.bestStreak || 0
+        });
+        const loserPre = computePlayerProfile({
+            ...(loserHistory || {}),
+            currentStreak: loserUserStats?.currentStreak || 0,
+            bestStreak: loserUserStats?.bestStreak || 0
+        });
+
+        // Predict post-game stats (this game hasn't been saved yet)
         const winnerPost = computePlayerProfile({
-            ...winnerStats, wins: winnerPre.wins + multiplier, totalGames: winnerPre.totalGames + multiplier
+            ...(winnerHistory || {}),
+            wins: (winnerHistory?.wins || 0) + 1,
+            totalGames: (winnerHistory?.totalGames || 0) + 1,
+            mmrWins: (winnerHistory?.mmrWins || 0) + multiplier
         });
         const loserPost = computePlayerProfile({
-            ...loserStats, losses: loserPre.losses + multiplier, totalGames: loserPre.totalGames + multiplier
+            ...(loserHistory || {}),
+            losses: (loserHistory?.losses || 0) + 1,
+            totalGames: (loserHistory?.totalGames || 0) + 1,
+            mmrLosses: (loserHistory?.mmrLosses || 0) + multiplier
         });
 
         const winnerCurrentStreak = Math.max(0, winnerPre.currentStreak) + 1;
@@ -240,6 +375,10 @@ async function buildEndGameData(guildId, game, winnerId, loserId) {
     }
 }
 
+/**
+ * Saves game result. DeathRollUserStats only stores streaks & metadata.
+ * All game counts (wins/losses/MMR) are derived from DeathRollGameHistory.
+ */
 async function saveGameResult(guildId, game, winnerId, loserId, winnerInfo, loserInfo, endReason) {
     const { statsCollection, gamesCollection } = getDeathrollCollections();
     const now = Date.now();
@@ -253,42 +392,31 @@ async function saveGameResult(guildId, game, winnerId, loserId, winnerInfo, lose
     const winnerNewStreak = Math.max(0, currentWinnerStats?.currentStreak || 0) + 1;
     const winnerBestStreak = Math.max(winnerNewStreak, currentWinnerStats?.bestStreak || 0);
 
-    const multiplier = game.timeoutMultiplier || 1;
-    const isMultiplierGame = multiplier > 1;
-
-    const loserInc = { totalGames: multiplier, losses: multiplier };
-    if (isMultiplierGame) { loserInc.multiplierGames = 1; loserInc.multiplierLosses = 1; }
-
     await statsCollection.findOneAndUpdate(
         { userId: loserId, guildId },
         {
-            $inc: loserInc,
             $set: {
                 username: loserInfo.username, displayName: loserInfo.displayName,
                 lastPlayedAt: now, lastOpponentId: winnerId, lastOpponentName: winnerInfo.username,
                 lastGameResult: 'loss', lastStartingNumber: game.startingNumber, currentStreak: loserNewStreak
             },
-            $setOnInsert: { createdAt: now, wins: 0, bestStreak: 0, ...(isMultiplierGame ? {} : { multiplierGames: 0, multiplierWins: 0, multiplierLosses: 0 }) }
+            $setOnInsert: { createdAt: now, bestStreak: 0 }
         },
-        { upsert: true, returnDocument: 'after' }
+        { upsert: true }
     );
-
-    const winnerInc = { totalGames: multiplier, wins: multiplier };
-    if (isMultiplierGame) { winnerInc.multiplierGames = 1; winnerInc.multiplierWins = 1; }
 
     await statsCollection.findOneAndUpdate(
         { userId: winnerId, guildId },
         {
-            $inc: winnerInc,
             $set: {
                 username: winnerInfo.username, displayName: winnerInfo.displayName,
                 lastPlayedAt: now, lastOpponentId: loserId, lastOpponentName: loserInfo.username,
                 lastGameResult: 'win', lastStartingNumber: game.startingNumber,
                 currentStreak: winnerNewStreak, bestStreak: winnerBestStreak
             },
-            $setOnInsert: { createdAt: now, losses: 0, ...(isMultiplierGame ? {} : { multiplierGames: 0, multiplierWins: 0, multiplierLosses: 0 }) }
+            $setOnInsert: { createdAt: now }
         },
-        { upsert: true, returnDocument: 'after' }
+        { upsert: true }
     );
 
     const gameRecord = {
@@ -298,7 +426,8 @@ async function saveGameResult(guildId, game, winnerId, loserId, winnerInfo, lose
         startingNumber: game.startingNumber, winnerId, winnerName: winnerInfo.username,
         loserId, loserName: loserInfo.username, rolls: game.rolls, totalRolls: game.rolls.length,
         startedAt: game.startedAt, endedAt: now, duration: now - game.startedAt,
-        timeoutMultiplier: game.timeoutMultiplier || 1
+        timeoutMultiplier: game.timeoutMultiplier || 1,
+        season: config.DEATHROLL_SEASON
     };
     if (endReason) { gameRecord.endReason = endReason; }
     await gamesCollection.insertOne(gameRecord);
@@ -307,8 +436,9 @@ async function saveGameResult(guildId, game, winnerId, loserId, winnerInfo, lose
 async function fetchTopRivals(guildId, userId, limit = 3) {
     try {
         const { gamesCollection } = getDeathrollCollections();
+        const season = config.DEATHROLL_SEASON;
         return await gamesCollection.aggregate([
-            { $match: { guildId, $or: [{ winnerId: userId }, { loserId: userId }] } },
+            { $match: { guildId, season, $or: [{ winnerId: userId }, { loserId: userId }] } },
             {
                 $project: {
                     opponentId: { $cond: { if: { $eq: ['$winnerId', userId] }, then: '$loserId', else: '$winnerId' } },
@@ -329,22 +459,38 @@ async function fetchTopRivals(guildId, userId, limit = 3) {
 async function fetchLeaderboard(guildId, limit = 20) {
     try {
         const { statsCollection } = getDeathrollCollections();
-        const allPlayers = await statsCollection.find({ guildId }).toArray();
+        const [historyStats, userStatsList] = await Promise.all([
+            aggregateAllPlayerStats(guildId),
+            statsCollection.find({ guildId }).toArray()
+        ]);
 
-        if (allPlayers.length === 0) {
+        if (historyStats.length === 0) {
             return { players: [], ranked: [], totalGamesPlayed: 0 };
         }
 
-        let ranked = allPlayers
-            .map(p => ({ ...p, profile: computePlayerProfile(p) }))
+        const userStatsMap = new Map(userStatsList.map(s => [s.userId, s]));
+
+        let ranked = historyStats
+            .map(hs => {
+                const us = userStatsMap.get(hs.userId) || {};
+                return {
+                    userId: hs.userId,
+                    profile: computePlayerProfile({
+                        ...hs,
+                        currentStreak: us.currentStreak || 0,
+                        bestStreak: us.bestStreak || 0
+                    })
+                };
+            })
             .sort((a, b) => b.profile.mmr - a.profile.mmr);
 
         if (limit && limit > 0) {
             ranked = ranked.slice(0, limit);
         }
 
-        const totalGamesPlayed = allPlayers.reduce((sum, p) => sum + (p.totalGames || 0), 0);
-        return { players: allPlayers, ranked, totalGamesPlayed };
+        // Each game has exactly one winner, so sum of wins = total games
+        const totalGamesPlayed = historyStats.reduce((sum, p) => sum + p.wins, 0);
+        return { players: historyStats, ranked, totalGamesPlayed };
     } catch (error) {
         console.error('Error fetching leaderboard:', error);
         return { players: [], ranked: [], totalGamesPlayed: 0 };
@@ -394,10 +540,10 @@ function formatGameMessage(game, lastRoll, lastRoller, lastRollerId, isGameOver,
             const winnerStreakStr = stats.winnerStreak ? ' · ' + formatStreak(stats.winnerStreak) : '';
             const loserStreakStr = stats.loserStreak ? ' · ' + formatStreak(stats.loserStreak) : '';
 
-            content += `💀 <@${lastRollerId}> ${loserRank}${loserMmrChange} loses and has been timed out for ${timeoutMinutes} minutes!${loserStreakStr}\n`;
+            content += `💀 <@${lastRollerId}> ${loserRank}${loserMmrChange} loses!${loserStreakStr}\n`;
             content += `🎉 <@${winnerId}> ${winnerRank}${winnerMmrChange} wins!${winnerStreakStr}`;
         } else {
-            content += `💀 <@${lastRollerId}> loses and has been timed out for ${timeoutMinutes} minutes!\n`;
+            content += `💀 <@${lastRollerId}> loses!\n`;
             content += `🎉 <@${winnerId}> wins!`;
         }
     } else {
@@ -1269,7 +1415,7 @@ export async function executeDeathrollStats(interaction) {
         const profile = await fetchSinglePlayerStats(guildId, targetUser.id);
 
         const embed = new EmbedBuilder()
-            .setTitle(`🎲 Deathroll Stats`)
+            .setTitle(`🎲 Deathroll Stats · Season ${config.DEATHROLL_SEASON}`)
             .setColor(0xE74C3C)
             .setThumbnail(targetUser.displayAvatarURL({ size: 128 }))
             .setTimestamp();
@@ -1329,7 +1475,7 @@ export async function executeDeathrollLeaderboard(interaction) {
         const { ranked, totalGamesPlayed } = await fetchLeaderboard(interaction.guildId, 0);
 
         const embed = new EmbedBuilder()
-            .setTitle('🎲 Deathroll Leaderboard')
+            .setTitle(`🎲 Deathroll Leaderboard · Season ${config.DEATHROLL_SEASON}`)
             .setColor(0xE74C3C)
             .setTimestamp();
 
@@ -1357,7 +1503,7 @@ export async function executeDeathrollLeaderboard(interaction) {
         const topLines = topPlayers.map(formatPlayerLine);
         const bottomLines = bottomPlayers.map(formatPlayerLine);
 
-        let finalDescription = `**Players:** ${ranked.length} · **Total Games Played:** ${Math.floor(totalGamesPlayed / 2)}\nRanked by MMR.\n\n`;
+        let finalDescription = `**Players:** ${ranked.length} · **Total Games Played:** ${totalGamesPlayed}\nRanked by MMR.\n\n`;
         finalDescription += `**🏆 Top 10**\n` + topLines.join('\n');
 
         if (bottomLines.length > 0) {
@@ -1375,3 +1521,5 @@ export async function executeDeathrollLeaderboard(interaction) {
         await interaction.editReply({ content: 'An error occurred while fetching the deathroll leaderboard. Please try again later.' });
     }
 }
+
+
