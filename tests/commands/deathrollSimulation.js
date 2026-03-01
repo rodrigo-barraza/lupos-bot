@@ -33,7 +33,7 @@ function getArg(name, defaultVal) {
 const PLAYER_COUNT = getArg("players", 1000);
 const TOTAL_GAMES = getArg("games", 50000);
 const TRIALS = getArg("trials", 5);
-const DON_PROBABILITY = 0.5; // 50% chance to propose Double or Nothing
+const DON_PROBABILITY = 0.1; // 10% chance to propose Double or Nothing
 
 // ─── Simulation Engine ───────────────────────────────────────────────
 
