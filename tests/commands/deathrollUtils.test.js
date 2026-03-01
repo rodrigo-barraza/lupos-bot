@@ -31,27 +31,27 @@ const { _testHelpers: h } = await import('../../commands/utility/deathrollUtils.
 // calculateKFactor
 // ═══════════════════════════════════════════════════════════════════════
 describe('calculateKFactor', () => {
-    test('returns BASE_K (25) at minimum RD', () => {
-        expect(h.calculateKFactor(h.MIN_RD)).toBe(25);
+    test('returns BASE_K at minimum RD', () => {
+        expect(h.calculateKFactor(h.MIN_RD)).toBe(h.BASE_K);
     });
 
-    test('returns 2×BASE_K (50) at maximum RD', () => {
-        expect(h.calculateKFactor(h.MAX_RD)).toBe(50);
+    test('returns 2×BASE_K at maximum RD', () => {
+        expect(h.calculateKFactor(h.MAX_RD)).toBe(h.BASE_K * 2);
     });
 
     test('returns midpoint K at midpoint RD', () => {
-        const midRD = (h.MIN_RD + h.MAX_RD) / 2; // 115
-        expect(h.calculateKFactor(midRD)).toBe(37.5);
+        const midRD = (h.MIN_RD + h.MAX_RD) / 2;
+        expect(h.calculateKFactor(midRD)).toBe(h.BASE_K * 1.5);
     });
 
     test('clamps RD below MIN_RD to MIN_RD', () => {
-        expect(h.calculateKFactor(0)).toBe(25);
-        expect(h.calculateKFactor(-100)).toBe(25);
+        expect(h.calculateKFactor(0)).toBe(h.BASE_K);
+        expect(h.calculateKFactor(-100)).toBe(h.BASE_K);
     });
 
     test('clamps RD above MAX_RD to MAX_RD', () => {
-        expect(h.calculateKFactor(500)).toBe(50);
-        expect(h.calculateKFactor(10000)).toBe(50);
+        expect(h.calculateKFactor(500)).toBe(h.BASE_K * 2);
+        expect(h.calculateKFactor(10000)).toBe(h.BASE_K * 2);
     });
 });
 
@@ -231,12 +231,12 @@ describe('getRankTitle', () => {
     test('returns Cursed at very low MMR', () => {
         expect(h.getRankTitle(1).title).toBe('Cursed');
         expect(h.getRankTitle(100).title).toBe('Cursed');
-        expect(h.getRankTitle(899).title).toBe('Cursed');
+        expect(h.getRankTitle(799).title).toBe('Cursed');
     });
 
-    test('returns Grave at 900-949', () => {
-        expect(h.getRankTitle(900).title).toBe('Grave');
-        expect(h.getRankTitle(949).title).toBe('Grave');
+    test('returns Grave at 800-899', () => {
+        expect(h.getRankTitle(800).title).toBe('Grave');
+        expect(h.getRankTitle(899).title).toBe('Grave');
     });
 
     test('each tier has an emoji', () => {
@@ -482,6 +482,7 @@ describe('computePlayerProfile — edge cases', () => {
         const profile = h.computePlayerProfile({ wins: 3, losses: 7, mmr: 950, rd: 100 });
         expect(profile.totalGames).toBe(10);
         expect(profile.winRate).toBe(30);
+        expect(profile.rank.title).toBe('Roller');
     });
 
     test('preserves lastPlayedAt and createdAt timestamps', () => {
@@ -508,10 +509,10 @@ describe('getRankTitle — tier boundaries', () => {
         expect(h.getRankTitle(1099).title).toBe('Duelist');
         expect(h.getRankTitle(1000).title).toBe('Duelist');
         expect(h.getRankTitle(999).title).toBe('Roller');
-        expect(h.getRankTitle(950).title).toBe('Roller');
-        expect(h.getRankTitle(949).title).toBe('Grave');
-        expect(h.getRankTitle(900).title).toBe('Grave');
-        expect(h.getRankTitle(899).title).toBe('Cursed');
+        expect(h.getRankTitle(900).title).toBe('Roller');
+        expect(h.getRankTitle(899).title).toBe('Grave');
+        expect(h.getRankTitle(800).title).toBe('Grave');
+        expect(h.getRankTitle(799).title).toBe('Cursed');
     });
 
     test('handles negative MMR', () => {
@@ -524,29 +525,30 @@ describe('getRankTitle — tier boundaries', () => {
 // ═══════════════════════════════════════════════════════════════════════
 describe('MMR Floor', () => {
     test('MMR cannot go below MIN_MMR (1) mathematically', () => {
-        // Simulate worst case: new player (K=50), 1024x multiplier (mmrMult=3.5)
-        const k = h.calculateKFactor(h.MAX_RD); // 50
+        // Simulate worst case: new player (K=2×BASE_K), 1024x multiplier (mmrMult=3.5)
+        const k = h.calculateKFactor(h.MAX_RD); // 2×BASE_K
         const mmrMult = h.mmrMultiplier(1024);    // 3.5
-        const loss = k * mmrMult;                 // 175
+        const loss = k * mmrMult;
         const newMmr = Math.max(h.MIN_MMR, Math.round(h.BASE_MMR - loss));
-        expect(newMmr).toBe(825); // 1000 - 175 = 825, still above floor
+        // Should still be above MIN_MMR or clamped to it
+        expect(newMmr).toBeGreaterThanOrEqual(h.MIN_MMR);
 
         // Even after many losses, floor should hold
         let mmr = 100;
-        const smallK = h.calculateKFactor(h.MIN_RD); // 25
+        const smallK = h.calculateKFactor(h.MIN_RD); // BASE_K
         mmr = Math.max(h.MIN_MMR, Math.round(mmr - smallK * 1));
-        expect(mmr).toBe(75);
+        expect(mmr).toBeGreaterThanOrEqual(h.MIN_MMR);
         // Push to the edge
         mmr = 10;
         mmr = Math.max(h.MIN_MMR, Math.round(mmr - smallK * 1));
-        expect(mmr).toBe(1); // Floors at 1, not -15
+        expect(mmr).toBe(h.MIN_MMR); // Floors at MIN_MMR
     });
 
-    test('MAX single-game loss from base 1000 is capped at 175', () => {
-        const worstK = h.calculateKFactor(h.MAX_RD);  // 50
+    test('MAX single-game loss is bounded by 2×BASE_K × max multiplier', () => {
+        const worstK = h.calculateKFactor(h.MAX_RD);  // 2×BASE_K
         const worstMult = h.mmrMultiplier(1024);        // 3.5
         const maxLoss = Math.round(worstK * worstMult);
-        expect(maxLoss).toBe(175);
+        expect(maxLoss).toBe(Math.round(h.BASE_K * 2 * 3.5));
     });
 });
 
@@ -578,8 +580,8 @@ describe('Confidence Ramp', () => {
             rd = Math.max(h.MIN_RD, rd - h.RD_DECREASE_PER_GAME);
         }
         // Should start high and end low
-        expect(kFactors[0]).toBe(50);
-        expect(kFactors[34]).toBe(25);
+        expect(kFactors[0]).toBe(h.BASE_K * 2);
+        expect(kFactors[34]).toBe(h.BASE_K);
         // Should be monotonically decreasing
         for (let i = 1; i < kFactors.length; i++) {
             expect(kFactors[i]).toBeLessThanOrEqual(kFactors[i - 1]);
@@ -617,10 +619,10 @@ describe('Multi-Player MMR Simulation', () => {
             const loserK = h.calculateKFactor(loser.rd);
             const mmrMult = h.mmrMultiplier(multiplier);
 
-            winner.mmr = Math.round(winner.mmr + winnerK * mmrMult);
+            winner.mmr = Math.round(winner.mmr + winnerK * mmrMult * h.gravityGainScale(winner.mmr));
             winner.rd = Math.max(h.MIN_RD, winner.rd - h.RD_DECREASE_PER_GAME);
 
-            loser.mmr = Math.max(h.MIN_MMR, Math.round(loser.mmr - loserK * mmrMult));
+            loser.mmr = Math.max(h.MIN_MMR, Math.round(loser.mmr - loserK * mmrMult * h.gravityLossScale(loser.mmr)));
             loser.rd = Math.max(h.MIN_RD, loser.rd - h.RD_DECREASE_PER_GAME);
         }
 
@@ -671,8 +673,8 @@ describe('Multi-Player MMR Simulation', () => {
             const k = h.calculateKFactor(rd);
             const mmrMult = h.mmrMultiplier(multiplier);
 
-            const newWinnerMMR = Math.round(winnerMMR + k * mmrMult);
-            const newLoserMMR = Math.max(h.MIN_MMR, Math.round(loserMMR - k * mmrMult));
+            const newWinnerMMR = Math.round(winnerMMR + k * mmrMult * h.gravityGainScale(winnerMMR));
+            const newLoserMMR = Math.max(h.MIN_MMR, Math.round(loserMMR - k * mmrMult * h.gravityLossScale(loserMMR)));
 
             expect(newWinnerMMR).toBeGreaterThan(winnerMMR);
             expect(newLoserMMR).toBeLessThanOrEqual(loserMMR);

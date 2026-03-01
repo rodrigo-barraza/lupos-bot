@@ -16,8 +16,8 @@ const RANK_TIERS = [
     { min: 1200, title: 'Champion', emoji: '👑' },
     { min: 1100, title: 'Veteran', emoji: '🛡️' },
     { min: 1000, title: 'Duelist', emoji: '⚔️' },
-    { min: 950, title: 'Roller', emoji: '🎲' },
-    { min: 900, title: 'Grave', emoji: '🪦' },
+    { min: 900, title: 'Roller', emoji: '🎲' },
+    { min: 800, title: 'Grave', emoji: '🪦' },
     { min: -Infinity, title: 'Cursed', emoji: '💀' },
 ];
 
@@ -28,9 +28,11 @@ const BASE_MMR = 1000;
 const MIN_MMR = 1;
 const MAX_RD = 200;   // Rating Deviation: max uncertainty (new/returning players)
 const MIN_RD = 30;    // Rating Deviation: min uncertainty (veterans)
-const BASE_K = 25;    // Base K-factor for MMR changes
+const BASE_K = 47;    // Base K-factor for MMR changes
 const RD_DECAY_PER_DAY = 1;     // RD increases by this per day inactive
 const RD_DECREASE_PER_GAME = 5; // RD decreases by this per game played
+const GRAVITY_STRENGTH = 0.7;   // How strongly MMR is pulled toward BASE_MMR
+const GRAVITY_RANGE = 425;      // MMR distance at which gravity reaches full effect
 
 const MULTIPLIER_NAMES = {
     2: 'Double (2x)',
@@ -64,6 +66,25 @@ const activeCollectors = new Map();
 function calculateKFactor(rd) {
     const clampedRD = Math.max(MIN_RD, Math.min(MAX_RD, rd));
     return BASE_K + BASE_K * (clampedRD - MIN_RD) / (MAX_RD - MIN_RD);
+}
+
+/**
+ * Gravity gain scale: players above BASE_MMR gain less, below gain more.
+ * Creates a "rubber band" pulling everyone toward BASE_MMR.
+ * At BASE_MMR: returns 1.0 (no effect).
+ * At BASE_MMR + GRAVITY_RANGE: returns 1 - GRAVITY_STRENGTH (reduced gains).
+ * At BASE_MMR - GRAVITY_RANGE: returns 1 + GRAVITY_STRENGTH (boosted gains).
+ */
+function gravityGainScale(mmr) {
+    return Math.max(0.15, 1 - ((mmr - BASE_MMR) / GRAVITY_RANGE) * GRAVITY_STRENGTH);
+}
+
+/**
+ * Gravity loss scale: players above BASE_MMR lose more, below lose less.
+ * Mirror of gravityGainScale for losses.
+ */
+function gravityLossScale(mmr) {
+    return Math.max(0.15, 1 + ((mmr - BASE_MMR) / GRAVITY_RANGE) * GRAVITY_STRENGTH);
 }
 
 /**
@@ -408,8 +429,8 @@ async function buildEndGameData(guildId, game, winnerId, loserId) {
         const winnerK = calculateKFactor(winnerRD);
         const loserK = calculateKFactor(loserRD);
         const mmrMult = mmrMultiplier(multiplier);
-        const winnerPostMmr = Math.round(winnerSeason.mmr + winnerK * mmrMult);
-        const loserPostMmr = Math.max(MIN_MMR, Math.round(loserSeason.mmr - loserK * mmrMult));
+        const winnerPostMmr = Math.round(winnerSeason.mmr + winnerK * mmrMult * gravityGainScale(winnerSeason.mmr));
+        const loserPostMmr = Math.max(MIN_MMR, Math.round(loserSeason.mmr - loserK * mmrMult * gravityLossScale(loserSeason.mmr)));
         const winnerPostRD = Math.max(MIN_RD, winnerRD - RD_DECREASE_PER_GAME);
         const loserPostRD = Math.max(MIN_RD, loserRD - RD_DECREASE_PER_GAME);
 
@@ -468,12 +489,12 @@ async function saveGameResult(guildId, game, winnerId, loserId, winnerInfo, lose
     const loserRD = applyTimeDecayRD(loserSeason.rd, currentLoserStats?.lastPlayedAt);
     const winnerRD = applyTimeDecayRD(winnerSeason.rd, currentWinnerStats?.lastPlayedAt);
 
-    // Calculate MMR changes
+    // Calculate MMR changes (gravity-based mean-reversion)
     const loserK = calculateKFactor(loserRD);
     const winnerK = calculateKFactor(winnerRD);
     const mmrMult = mmrMultiplier(multiplier);
-    const loserNewMmr = Math.max(MIN_MMR, Math.round(loserSeason.mmr - loserK * mmrMult));
-    const winnerNewMmr = Math.round(winnerSeason.mmr + winnerK * mmrMult);
+    const loserNewMmr = Math.max(MIN_MMR, Math.round(loserSeason.mmr - loserK * mmrMult * gravityLossScale(loserSeason.mmr)));
+    const winnerNewMmr = Math.round(winnerSeason.mmr + winnerK * mmrMult * gravityGainScale(winnerSeason.mmr));
     const loserNewRD = Math.max(MIN_RD, loserRD - RD_DECREASE_PER_GAME);
     const winnerNewRD = Math.max(MIN_RD, winnerRD - RD_DECREASE_PER_GAME);
 
@@ -1623,6 +1644,8 @@ export const _testHelpers = {
     calculateConfidence,
     applyTimeDecayRD,
     mmrMultiplier,
+    gravityGainScale,
+    gravityLossScale,
     getSeasonMMR,
     computePlayerProfile,
     getRankTitle,
@@ -1640,4 +1663,6 @@ export const _testHelpers = {
     BASE_K,
     RD_DECAY_PER_DAY,
     RD_DECREASE_PER_GAME,
+    GRAVITY_STRENGTH,
+    GRAVITY_RANGE,
 };
