@@ -147,10 +147,10 @@ console.log(`  MMR Range:         ${avgMin} – ${avgMax}`);
 console.log(`  MMR Spread:        ${avgMax - avgMin}`);
 
 // Check targets
-const platinumIsPeak = avgTierDist["Platinum"] >= avgTierDist["Gold"];
-const hasGrandmaster = avgTierDist["Grandmaster"] > 0;
-console.log(`  Platinum is peak:  ${platinumIsPeak ? "\u2713 YES" : "\u2717 NO"}`);
-console.log(`  GM reachable:      ${hasGrandmaster ? "\u2713 YES" : "\u2717 NO"}`);
+const ritualistIsPeak = avgTierDist["Ritualist"] >= avgTierDist["Arcanist"];
+const hasEternus = avgTierDist["Eternus"] > 0;
+console.log(`  Ritualist is peak: ${ritualistIsPeak ? "\u2713 YES" : "\u2717 NO"}`);
+console.log(`  Eternus reachable: ${hasEternus ? "\u2713 YES" : "\u2717 NO"}`);
 
 console.log(`\n  🏆 Rank Distribution`);
 console.log(`  ${"─".repeat(60)}`);
@@ -167,17 +167,23 @@ for (const tier of RANK_TIERS) {
 }
 
 // Mirror symmetry check
-console.log(`\n  \ud83e\ude9e Symmetry Check (mirror pairs around Platinum)`);
+console.log(`\n  \ud83e\ude9e Symmetry Check (mirror pairs around Ritualist/Emissary)`);
 console.log(`  ${"\u2500".repeat(40)}`);
 const pairs = [
-    ["Diamond", "Gold"],
-    ["Master", "Silver"],
-    ["Grandmaster", "Bronze"],
+    ["Emissary", "Arcanist"],
+    ["Archon", "Alchemist"],
+    ["Oracle", "Seeker"],
+    ["Phantom", "Initiate"],
+    ["Ascendant", "Initiate"],
+    ["Eternus", "Initiate"],
 ];
 const pairValues = [
-    [avgTierDist["Diamond"], avgTierDist["Gold"]],
-    [avgTierDist["Master"], avgTierDist["Silver"]],
-    [avgTierDist["Grandmaster"], avgTierDist["Bronze"]],
+    [avgTierDist["Emissary"], avgTierDist["Arcanist"]],
+    [avgTierDist["Archon"], avgTierDist["Alchemist"]],
+    [avgTierDist["Oracle"], avgTierDist["Seeker"]],
+    [avgTierDist["Phantom"], avgTierDist["Initiate"]],
+    [avgTierDist["Ascendant"], avgTierDist["Initiate"]],
+    [avgTierDist["Eternus"], avgTierDist["Initiate"]],
 ];
 for (let i = 0; i < pairs.length; i++) {
     const [a, b] = pairValues[i];
@@ -185,8 +191,9 @@ for (let i = 0; i < pairs.length; i++) {
         ? (Math.min(a, b) / Math.max(a, b) * 100).toFixed(0)
         : "0";
     console.log(
-        `    ${pairs[i][0].padEnd(14)} (${a}) vs ${pairs[i][1].padEnd(8)} (${b})  → ${ratio}% symmetric`
+        `    ${pairs[i][0].padEnd(14)} (${a}) vs ${pairs[i][1].padEnd(10)} (${b})  → ${ratio}% symmetric`
     );
 }
 
 console.log("\n" + "═".repeat(90));
+

@@ -22,6 +22,7 @@ const birthdays = [
             'dbl',
             'pepetequila',
             'z1gst3r',
+            'slursmkenzie',
         ],
     },
     {

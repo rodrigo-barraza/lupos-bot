@@ -11,13 +11,17 @@ import config from '#root/config.json' with { type: 'json' };
 // ─── Constants ────────────────────────────────────────────────────────
 
 const RANK_TIERS = [
-    { min: 1300, title: 'Grandmaster', emoji: '👑' },
-    { min: 1200, title: 'Master', emoji: '⚔️' },
-    { min: 1100, title: 'Diamond', emoji: '💎' },
-    { min: 1000, title: 'Platinum', emoji: '🛡️' },
-    { min: 900, title: 'Gold', emoji: '🏅' },
-    { min: 800, title: 'Silver', emoji: '🥈' },
-    { min: -Infinity, title: 'Bronze', emoji: '🥉' },
+    { min: 1325, title: 'Eternus', emoji: '👁️' },
+    { min: 1275, title: 'Ascendant', emoji: '🌟' },
+    { min: 1225, title: 'Phantom', emoji: '👻' },
+    { min: 1175, title: 'Oracle', emoji: '🔮' },
+    { min: 1125, title: 'Archon', emoji: '⚜️' },
+    { min: 1075, title: 'Emissary', emoji: '🏛️' },
+    { min: 1025, title: 'Ritualist', emoji: '🕯️' },
+    { min: 975, title: 'Arcanist', emoji: '✨' },
+    { min: 925, title: 'Alchemist', emoji: '⚗️' },
+    { min: 875, title: 'Seeker', emoji: '🔍' },
+    { min: -Infinity, title: 'Initiate', emoji: '🌱' },
 ];
 
 const BASE_TIMEOUT = 10 * 60 * 1000; // 10 minutes

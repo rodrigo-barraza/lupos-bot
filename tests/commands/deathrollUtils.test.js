@@ -214,29 +214,29 @@ describe('getSeasonMMR', () => {
 // getRankTitle
 // ═══════════════════════════════════════════════════════════════════════
 describe('getRankTitle', () => {
-    test('returns Grandmaster at 1300+', () => {
-        expect(h.getRankTitle(1300).title).toBe('Grandmaster');
-        expect(h.getRankTitle(2000).title).toBe('Grandmaster');
+    test('returns Eternus at 1325+', () => {
+        expect(h.getRankTitle(1325).title).toBe('Eternus');
+        expect(h.getRankTitle(2000).title).toBe('Eternus');
     });
 
-    test('returns Master at 1200-1299', () => {
-        expect(h.getRankTitle(1200).title).toBe('Master');
-        expect(h.getRankTitle(1299).title).toBe('Master');
+    test('returns Ascendant at 1275-1324', () => {
+        expect(h.getRankTitle(1275).title).toBe('Ascendant');
+        expect(h.getRankTitle(1324).title).toBe('Ascendant');
     });
 
-    test('returns Platinum at 1000-1099', () => {
-        expect(h.getRankTitle(1000).title).toBe('Platinum');
+    test('returns Ritualist at 1025-1074', () => {
+        expect(h.getRankTitle(1025).title).toBe('Ritualist');
     });
 
-    test('returns Bronze at very low MMR', () => {
-        expect(h.getRankTitle(1).title).toBe('Bronze');
-        expect(h.getRankTitle(100).title).toBe('Bronze');
-        expect(h.getRankTitle(799).title).toBe('Bronze');
+    test('returns Initiate at very low MMR', () => {
+        expect(h.getRankTitle(1).title).toBe('Initiate');
+        expect(h.getRankTitle(100).title).toBe('Initiate');
+        expect(h.getRankTitle(874).title).toBe('Initiate');
     });
 
-    test('returns Silver at 800-899', () => {
-        expect(h.getRankTitle(800).title).toBe('Silver');
-        expect(h.getRankTitle(899).title).toBe('Silver');
+    test('returns Seeker at 875-924', () => {
+        expect(h.getRankTitle(875).title).toBe('Seeker');
+        expect(h.getRankTitle(924).title).toBe('Seeker');
     });
 
     test('each tier has an emoji', () => {
@@ -275,10 +275,10 @@ describe('computePlayerProfile', () => {
 
     test('assigns correct rank based on MMR', () => {
         const highPlayer = h.computePlayerProfile({ mmr: 1500, rd: 50 });
-        expect(highPlayer.rank.title).toBe('Grandmaster');
+        expect(highPlayer.rank.title).toBe('Eternus');
 
         const lowPlayer = h.computePlayerProfile({ mmr: 500, rd: 50 });
-        expect(lowPlayer.rank.title).toBe('Bronze');
+        expect(lowPlayer.rank.title).toBe('Initiate');
     });
 
     test('calculates confidence from RD', () => {
@@ -340,9 +340,9 @@ describe('formatStatsString', () => {
     test('formats stats with rank info when rank and mmr are present', () => {
         const result = h.formatStatsString({
             wins: 10, losses: 5, mmr: 1200,
-            rank: { emoji: '⚔️', title: 'Master' }
+            rank: { emoji: '🔮', title: 'Oracle' }
         });
-        expect(result).toBe(' [⚔️ Master (1200 MMR) | 10W/5L 67%]');
+        expect(result).toBe(' [🔮 Oracle (1200 MMR) | 10W/5L 67%]');
     });
 
     test('formats stats without rank info when rank is missing', () => {
@@ -353,7 +353,7 @@ describe('formatStatsString', () => {
     test('formats stats without rank info when mmr is undefined', () => {
         const result = h.formatStatsString({
             wins: 5, losses: 5,
-            rank: { emoji: '🛡️', title: 'Platinum' }
+            rank: { emoji: '🕯️', title: 'Ritualist' }
         });
         expect(result).toBe(' [5W/5L 50%]');
     });
@@ -364,8 +364,8 @@ describe('formatStatsString', () => {
     });
 
     test('shows 100% winrate for all wins', () => {
-        const result = h.formatStatsString({ wins: 20, losses: 0, mmr: 1500, rank: { emoji: '👑', title: 'Grandmaster' } });
-        expect(result).toBe(' [👑 Grandmaster (1500 MMR) | 20W/0L 100%]');
+        const result = h.formatStatsString({ wins: 20, losses: 0, mmr: 1500, rank: { emoji: '👁️', title: 'Eternus' } });
+        expect(result).toBe(' [👁️ Eternus (1500 MMR) | 20W/0L 100%]');
     });
 });
 
@@ -420,22 +420,22 @@ describe('getMultiplierName', () => {
 // ═══════════════════════════════════════════════════════════════════════
 describe('computePlayerProfile — edge cases', () => {
     test('player with only wins (no losses)', () => {
-        const profile = h.computePlayerProfile({ wins: 15, losses: 0, totalGames: 15, mmr: 1300, rd: 50 });
+        const profile = h.computePlayerProfile({ wins: 15, losses: 0, totalGames: 15, mmr: 1325, rd: 50 });
         expect(profile.winRate).toBe(100);
-        expect(profile.rank.title).toBe('Grandmaster');
+        expect(profile.rank.title).toBe('Eternus');
     });
 
     test('player with only losses (no wins)', () => {
         const profile = h.computePlayerProfile({ wins: 0, losses: 20, totalGames: 20, mmr: 600, rd: 100 });
         expect(profile.winRate).toBe(0);
-        expect(profile.rank.title).toBe('Bronze');
+        expect(profile.rank.title).toBe('Initiate');
     });
 
     test('derives totalGames from wins + losses when not provided', () => {
         const profile = h.computePlayerProfile({ wins: 3, losses: 7, mmr: 950, rd: 100 });
         expect(profile.totalGames).toBe(10);
         expect(profile.winRate).toBe(30);
-        expect(profile.rank.title).toBe('Gold');
+        expect(profile.rank.title).toBe('Alchemist');
     });
 
     test('preserves lastPlayedAt and createdAt timestamps', () => {
@@ -452,22 +452,30 @@ describe('computePlayerProfile — edge cases', () => {
 // ═══════════════════════════════════════════════════════════════════════
 describe('getRankTitle — tier boundaries', () => {
     test('exact tier boundaries assign the correct rank', () => {
-        expect(h.getRankTitle(1300).title).toBe('Grandmaster');
-        expect(h.getRankTitle(1299).title).toBe('Master');
-        expect(h.getRankTitle(1200).title).toBe('Master');
-        expect(h.getRankTitle(1199).title).toBe('Diamond');
-        expect(h.getRankTitle(1100).title).toBe('Diamond');
-        expect(h.getRankTitle(1099).title).toBe('Platinum');
-        expect(h.getRankTitle(1000).title).toBe('Platinum');
-        expect(h.getRankTitle(999).title).toBe('Gold');
-        expect(h.getRankTitle(900).title).toBe('Gold');
-        expect(h.getRankTitle(899).title).toBe('Silver');
-        expect(h.getRankTitle(800).title).toBe('Silver');
-        expect(h.getRankTitle(799).title).toBe('Bronze');
+        expect(h.getRankTitle(1325).title).toBe('Eternus');
+        expect(h.getRankTitle(1324).title).toBe('Ascendant');
+        expect(h.getRankTitle(1275).title).toBe('Ascendant');
+        expect(h.getRankTitle(1274).title).toBe('Phantom');
+        expect(h.getRankTitle(1225).title).toBe('Phantom');
+        expect(h.getRankTitle(1224).title).toBe('Oracle');
+        expect(h.getRankTitle(1175).title).toBe('Oracle');
+        expect(h.getRankTitle(1174).title).toBe('Archon');
+        expect(h.getRankTitle(1125).title).toBe('Archon');
+        expect(h.getRankTitle(1124).title).toBe('Emissary');
+        expect(h.getRankTitle(1075).title).toBe('Emissary');
+        expect(h.getRankTitle(1074).title).toBe('Ritualist');
+        expect(h.getRankTitle(1025).title).toBe('Ritualist');
+        expect(h.getRankTitle(1024).title).toBe('Arcanist');
+        expect(h.getRankTitle(975).title).toBe('Arcanist');
+        expect(h.getRankTitle(974).title).toBe('Alchemist');
+        expect(h.getRankTitle(925).title).toBe('Alchemist');
+        expect(h.getRankTitle(924).title).toBe('Seeker');
+        expect(h.getRankTitle(875).title).toBe('Seeker');
+        expect(h.getRankTitle(874).title).toBe('Initiate');
     });
 
     test('handles negative MMR', () => {
-        expect(h.getRankTitle(-500).title).toBe('Bronze');
+        expect(h.getRankTitle(-500).title).toBe('Initiate');
     });
 });
 
