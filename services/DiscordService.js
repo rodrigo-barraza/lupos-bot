@@ -964,18 +964,39 @@ async function replyMessage(queuedDatum, localMongo) {
             const models = CurrentService.getModels();
             const modelTypes = CurrentService.getModelTypes();
             const totalCost = CurrentService.getTextTotalCost();
+            const inputTokens = CurrentService.getTextTotalInputTokens();
+            const outputTokens = CurrentService.getTextTotalOutputTokens();
             const lastModel = models.length > 0 ? models[models.length - 1] : null;
             const lastModelType = modelTypes.length > 0 ? modelTypes[modelTypes.length - 1] : null;
+
+            const totalTime = (performance.now() - start) / 1000;
 
             // Build full conversation with enriched assistant response
             const assistantMsg = {
                 role: 'assistant',
                 content: generatedTextResponse,
+                timestamp: new Date().toISOString(),
             };
             if (lastModel) assistantMsg.model = lastModel;
+            if (lastModelType) assistantMsg.provider = lastModelType;
             if (totalCost) {
                 const costNum = typeof totalCost === 'object' ? parseFloat(totalCost.toString()) : parseFloat(totalCost);
                 if (!isNaN(costNum)) assistantMsg.estimatedCost = costNum;
+            }
+            if (inputTokens || outputTokens) {
+                assistantMsg.usage = { inputTokens, outputTokens };
+            }
+            assistantMsg.totalTime = totalTime;
+
+            // Include the generated image as a data URL in the images array
+            // Prism's conversations route will extract it to MinIO automatically
+            if (generatedImage) {
+                const mimeType = 'image/png';
+                const dataUrl = `data:${mimeType};base64,${generatedImage}`;
+                assistantMsg.images = [dataUrl];
+                if (generatedImagePrompt) {
+                    assistantMsg.imagePrompt = generatedImagePrompt;
+                }
             }
 
             const fullConversation = [

@@ -2,7 +2,7 @@
 import fs from 'fs';
 import path from 'path';
 import BigNumber from 'bignumber.js';
-import { DateTime } from 'luxon';
+// import { DateTime } from 'luxon';
 // Config
 import config from '#root/config.json' with { type: 'json' };
 // Formatters
@@ -72,44 +72,39 @@ function calculateImageTokens(width, height) {
     return totalTiles * 258;
 }
 
-function saveBinaryFile(fileName, content) {
-    fs.writeFile(fileName, content, (err) => {
-        if (err) {
-            console.error(`Error writing file ${fileName}:`, err);
-            return;
-        }
-        console.log(`File ${fileName} saved to file system.`);
-    });
-}
+/**
+ * Save a mini-brain utility conversation to Prism for admin visibility.
+ * These are lightweight sub-calls like image detection, prompt generation, etc.
+ */
+function saveMiniConversation(title, conversation, response, model, type) {
+    try {
+        const discordMessage = CurrentService.getMessage();
+        const channelId = discordMessage?.channel?.id || 'unknown';
+        const username = discordMessage?.author?.username || 'lupos';
+        const timestamp = Date.now();
+        const id = `${channelId}-mini-${timestamp}`;
 
-function saveFile(encodedImageDataBase64, usedModel, username = null) {
-    const timestamp = DateTime.now().toFormat('yyyy-MM-dd--HH-mm-ss');
-    const modelName = usedModel || 'unknown-model';
-    const fileName = `${timestamp}-${modelName}`;
-    const fileExtension = 'png';
-    const buffer = Buffer.from(encodedImageDataBase64, 'base64');
+        const messages = [
+            ...conversation,
+            { role: 'assistant', content: typeof response === 'string' ? response : JSON.stringify(response) },
+        ];
 
-    // Create the images directory structure
-    const imagesDir = path.join(import.meta.dirname, '../images');
-    let fullPath;
+        const systemMsg = conversation.find(m => m.role === 'system');
+        const systemPrompt = systemMsg?.content || '';
+        // Remove system message from messages array since it's stored separately
+        const nonSystemMessages = messages.filter(m => m.role !== 'system');
 
-    if (username) {
-        const userDir = path.join(imagesDir, username);
-        // Create user directory if it doesn't exist
-        if (!fs.existsSync(userDir)) {
-            fs.mkdirSync(userDir, { recursive: true });
-        }
-        fullPath = path.join(userDir, `${fileName}.${fileExtension}`);
-    } else {
-        // Create images directory if it doesn't exist
-        if (!fs.existsSync(imagesDir)) {
-            fs.mkdirSync(imagesDir, { recursive: true });
-        }
-        fullPath = path.join(imagesDir, `${fileName}.${fileExtension}`);
+        PrismWrapper.saveConversation(
+            id,
+            `🧠 ${title}`,
+            nonSystemMessages,
+            systemPrompt,
+            { model, provider: type },
+            username,
+        ).catch(err => console.error(`Failed to save mini conversation '${title}':`, err.message));
+    } catch (error) {
+        console.error(`Error preparing mini conversation save '${title}':`, error.message);
     }
-
-    saveBinaryFile(fullPath, buffer);
-    console.log(`Image saved to: ${fullPath}`);
 }
 
 
@@ -456,7 +451,7 @@ const AIService = {
             });
         }
 
-        saveFile(generatedImage, usedModel, username);
+        // Image is now stored in MinIO via Prism's text-to-image route
 
         const end = performance.now();
         const duration = end - start;
@@ -701,6 +696,7 @@ const AIService = {
         });
         // trim generatedText to 128 characters
         summary = generatedText.substring(0, 128);
+        saveMiniConversation('Summary', conversation, summary, config.LANGUAGE_MODEL_TYPE, config.LANGUAGE_MODEL_TYPE);
         return summary;
     },
     async generateTextCustomEmojiReactFromMessage(message, localMongo) {
@@ -849,6 +845,7 @@ Only output the number, nothing else. No explanations. No punctuation. No extra 
 
         // Validate and return
         if (isValidFetchCount(fetchCount)) {
+            saveMiniConversation('Message Fetch Count', conversation, String(fetchCount), config.ANTHROPIC_LANGUAGE_MODEL_CLAUDE_SONNET_4, 'ANTHROPIC');
             return fetchCount;
         }
 
@@ -911,6 +908,8 @@ Implicit editing (common in replies):
         if (!response) return false;
 
         response = response.trim().toLowerCase();
+
+        saveMiniConversation('Image Detection', conversation, response, config.OPENAI_LANGUAGE_MODEL_GPT5_NANO, 'OPENAI');
 
         if (response === 'yes') return true;
         if (response === 'no') return false;
@@ -1167,6 +1166,8 @@ ${systemPrompt}`;
             tokens: config.LANGUAGE_MODEL_MAX_TOKENS,
             temperature: config.LANGUAGE_MODEL_TEMPERATURE
         });
+
+        saveMiniConversation('Image Prompt', conversation, generatedText, config.LANGUAGE_MODEL_TYPE, config.LANGUAGE_MODEL_TYPE);
 
         return generatedText;
     },
