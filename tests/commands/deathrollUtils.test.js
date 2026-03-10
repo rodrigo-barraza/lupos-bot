@@ -251,7 +251,7 @@ describe('getRankTitle', () => {
 // computePlayerProfile
 // ═══════════════════════════════════════════════════════════════════════
 describe('computePlayerProfile', () => {
-    test('returns defaults for null/empty input', () => {
+    test('returns defaults for null/empty input (placement — Initiate)', () => {
         const profile = h.computePlayerProfile(null);
         expect(profile.wins).toBe(0);
         expect(profile.losses).toBe(0);
@@ -260,6 +260,8 @@ describe('computePlayerProfile', () => {
         expect(profile.rd).toBe(h.MAX_RD);
         expect(profile.confidence).toBe(0);
         expect(profile.winRate).toBe(0);
+        expect(profile.isPlacement).toBe(true);
+        expect(profile.rank.title).toBe('Initiate');
     });
 
     test('computes winRate correctly', () => {
@@ -273,12 +275,26 @@ describe('computePlayerProfile', () => {
         expect(profile.rd).toBe(80);
     });
 
-    test('assigns correct rank based on MMR', () => {
-        const highPlayer = h.computePlayerProfile({ mmr: 1500, rd: 50 });
+    test('assigns correct rank based on MMR (after placement)', () => {
+        const highPlayer = h.computePlayerProfile({ mmr: 1500, rd: 50, totalGames: 10 });
         expect(highPlayer.rank.title).toBe('Eternus');
+        expect(highPlayer.isPlacement).toBe(false);
 
-        const lowPlayer = h.computePlayerProfile({ mmr: 500, rd: 50 });
+        const lowPlayer = h.computePlayerProfile({ mmr: 500, rd: 50, totalGames: 10 });
         expect(lowPlayer.rank.title).toBe('Initiate');
+        expect(lowPlayer.isPlacement).toBe(false);
+    });
+
+    test('shows Initiate during placement regardless of MMR', () => {
+        const placingPlayer = h.computePlayerProfile({ mmr: 1500, rd: 50, totalGames: 3 });
+        expect(placingPlayer.rank.title).toBe('Initiate');
+        expect(placingPlayer.isPlacement).toBe(true);
+    });
+
+    test('reveals real rank at exactly PLACEMENT_GAMES', () => {
+        const justPlaced = h.computePlayerProfile({ mmr: 1200, rd: 50, totalGames: h.PLACEMENT_GAMES });
+        expect(justPlaced.rank.title).toBe('Oracle');
+        expect(justPlaced.isPlacement).toBe(false);
     });
 
     test('calculates confidence from RD', () => {
@@ -297,7 +313,7 @@ describe('computePlayerProfile', () => {
 
     test('includes multiplier stats', () => {
         const profile = h.computePlayerProfile({
-            mmr: 1000, rd: 100,
+            mmr: 1000, rd: 100, totalGames: 10,
             multiplierGames: 10, multiplierWins: 6, multiplierLosses: 4
         });
         expect(profile.multiplierGames).toBe(10);
@@ -441,7 +457,7 @@ describe('computePlayerProfile — edge cases', () => {
     test('preserves lastPlayedAt and createdAt timestamps', () => {
         const now = Date.now();
         const created = now - 86400000;
-        const profile = h.computePlayerProfile({ mmr: 1000, rd: 100, lastPlayedAt: now, createdAt: created });
+        const profile = h.computePlayerProfile({ mmr: 1000, rd: 100, totalGames: 10, lastPlayedAt: now, createdAt: created });
         expect(profile.lastPlayedAt).toBe(now);
         expect(profile.createdAt).toBe(created);
     });

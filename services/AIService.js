@@ -9,10 +9,7 @@ import config from '#root/config.json' with { type: 'json' };
 import LogFormatter from '#root/formatters/LogFormatter.js';
 // Wrappers
 import ComfyUIWrapper from '#root/wrappers/ComfyUIWrapper.js';
-import OpenAIWrapper from '#root/wrappers/OpenAIWrapper.js';
-import LocalAIWrapper from '#root/wrappers/LocalAIWrapper.js';
-import AnthrophicWrapper from '#root/wrappers/AnthropicWrapper.js';
-import GoogleAIWrapper from '#root/wrappers/GoogleAIWrapper.js';
+import PrismWrapper from '#root/wrappers/PrismWrapper.js';
 import MongoWrapper from '#root/wrappers/MongoWrapper.js';
 // Libraries
 import UtilityLibrary from '#root/libraries/UtilityLibrary.js';
@@ -29,7 +26,7 @@ let Jimp;
 try {
     sharp = (await import('sharp')).default;
     console.log('Using sharp for image processing');
-} catch (error) {
+} catch {
     const jimp = await import('jimp');
     Jimp = jimp.Jimp;
     console.log('sharp unavailable, using Jimp for image processing');
@@ -131,96 +128,7 @@ function assembleConversation(systemMessage, userMessage, message) {
     return conversation;
 }
 
-async function tryModelsWithSameIntelligence({
-    type,
-    initialModel,
-    conversation,
-    tokens,
-    temperature,
-    wrapperFunction
-}) {
-    // Track which models we've tried
-    const triedModels = new Set();
-    let success = false;
-    let textResponse = null;
-    let finalModel = initialModel;
 
-    // Get the model type map for the provider
-    const modelTypeMap = ModelsMap.get(type);
-    if (!modelTypeMap) {
-        console.error('Model type not found in ModelsMap:', type);
-        return { text: null, model: null, error: `Model type ${type} not found` };
-    }
-
-    // Get the initial model's details
-    const initialModelDetails = modelTypeMap.get(initialModel);
-    if (!initialModelDetails) {
-        console.error('Model not found in ModelsMap:', initialModel);
-        return { text: null, model: null, error: `Model ${initialModel} not found` };
-    }
-
-    // Get all models with the same intelligence rank
-    const sameIntelligenceModels = [];
-    for (const [modelName, modelDetails] of modelTypeMap.entries()) {
-        if (modelDetails.intelligenceRank === initialModelDetails.intelligenceRank) {
-            sameIntelligenceModels.push(modelName);
-        }
-    }
-
-    // Ensure the initial model is tried first
-    const orderedModels = [
-        initialModel,
-        ...sameIntelligenceModels.filter(m => m !== initialModel)
-    ];
-
-    // Try each model until one succeeds
-    for (const modelToTry of orderedModels) {
-        if (triedModels.has(modelToTry)) {
-            continue; // Skip already tried models
-        }
-
-        triedModels.add(modelToTry);
-        finalModel = modelToTry;
-
-        try {
-            const result = await wrapperFunction(conversation, modelToTry, tokens, temperature);
-
-            // Handle different response formats
-            if (type === 'ANTHROPIC') {
-                const { text, error } = result;
-                if (!error && text) {
-                    textResponse = text;
-                    success = true;
-                    break;
-                } else {
-                    console.warn(`Error with model ${modelToTry}:`, error);
-                }
-            } else {
-                // For OpenAI and LOCAL, they typically return the text directly or throw
-                if (result) {
-                    textResponse = result;
-                    success = true;
-                    break;
-                }
-            }
-        } catch (error) {
-            console.warn(`Error with model ${modelToTry}:`, error);
-            // Continue to next model
-        }
-    }
-
-    if (!success) {
-        console.error('All models failed for intelligence rank:', initialModelDetails.intelligenceRank);
-        console.error('Tried models:', Array.from(triedModels));
-        return {
-            text: null,
-            model: null,
-            error: `All models failed. Tried: ${Array.from(triedModels).join(', ')}`
-        };
-    }
-
-    return { text: textResponse, model: finalModel, error: null };
-}
 
 const AIService = {
     // Base Text-to-Text Generation (Completion)
@@ -268,40 +176,35 @@ const AIService = {
                 config.LANGUAGE_MODEL_LOCAL;
         }
 
-        // Map wrapper functions for each type
-        const wrapperFunctions = {
-            'OPENAI': OpenAIWrapper.generateOpenAITextResponse,
-            'ANTHROPIC': AnthrophicWrapper.generateAnthropicTextResponse,
-            'LOCAL': LocalAIWrapper.generateLocalAITextResponse
-        };
+        // Route through Prism API gateway
+        let usedModel = model || generateTextModel;
+        try {
+            // Get Discord username for tracking (if available)
+            const discordMessage = CurrentService.getMessage();
+            const discordUsername = discordMessage?.author?.username || 'lupos';
 
-        const wrapperFunction = wrapperFunctions[type];
-        if (!wrapperFunction) {
-            console.error('Unknown model type:', type);
+            const prismResult = await PrismWrapper.generateText(
+                conversation,
+                type,
+                usedModel,
+                tokens,
+                temperature,
+                discordUsername,
+            );
+
+            textResponse = prismResult.text;
+            if (prismResult.model) {
+                usedModel = prismResult.model;
+            }
+
+            // Use actual token counts from Prism when available
+            if (prismResult.usage) {
+                inputTokenCount = prismResult.usage.inputTokens || 0;
+                outputTokenCount = prismResult.usage.outputTokens || 0;
+            }
+        } catch (prismError) {
+            console.error(`Prism API error for ${type}/${usedModel}:`, prismError.message);
             return null;
-        }
-
-        // Try models with automatic fallback
-        const { text, model: usedModel, error } = await tryModelsWithSameIntelligence({
-            type,
-            initialModel: generateTextModel,
-            conversation,
-            tokens,
-            temperature,
-            wrapperFunction
-        });
-
-        if (error) {
-            console.error(`Failed to generate text with ${type}:`, error);
-            return null;
-        }
-
-        textResponse = text;
-        generateTextModel = usedModel; // Update to the model that actually worked
-
-        // Log successful model if different from initial
-        if (usedModel !== generateTextModel) {
-            console.log(`Fallback successful: Used ${usedModel} instead of ${generateTextModel}`);
         }
 
         // count characters in conversation
@@ -315,14 +218,12 @@ const AIService = {
         const end = performance.now();
         const duration = end - start;
 
-        inputTokenCount = inputCharacterCount / 4;
-        outputTokenCount = outputCharacterCount / 4;
-
-        if (inputTokenCount > 0 && inputTokenCount < 1) {
-            inputTokenCount = 1;
+        // Use character-based estimation as fallback only if Prism didn't return token counts
+        if (inputTokenCount === 0) {
+            inputTokenCount = inputCharacterCount / 4;
         }
-        if (outputTokenCount > 0 && outputTokenCount < 1) {
-            outputTokenCount = 1;
+        if (outputTokenCount === 0) {
+            outputTokenCount = outputCharacterCount / 4;
         }
 
         let inputTokenCost = new BigNumber(0);
@@ -422,54 +323,62 @@ const AIService = {
         } else if (type === 'GOOGLE') {
             let hasError = false;
             try {
-                let images = [];
+                // Convert image URLs to { imageData, mimeType } objects for Prism's Google provider
+                let imageObjects = [];
                 if (imageUrls.length) {
                     for (const url of imageUrls) {
                         const fetchImageUrlResponse = await fetch(url);
                         const imageAsBuffer = await fetchImageUrlResponse.arrayBuffer();
                         let imageType = fetchImageUrlResponse.headers.get('content-type');
-                        let imageAsBase64;
 
                         // Convert GIF to PNG (first frame) since Gemini doesn't support GIFs
                         if (imageType === 'image/gif') {
                             const pngBuffer = await convertGifToPng(Buffer.from(imageAsBuffer));
-                            imageAsBase64 = pngBuffer.toString('base64');
-                            imageType = 'image/png';
+                            const imageAsBase64 = pngBuffer.toString('base64');
+                            imageObjects.push({ imageData: imageAsBase64, mimeType: 'image/png' });
                         } else {
-                            imageAsBase64 = Buffer.from(imageAsBuffer).toString('base64');
+                            const imageAsBase64 = Buffer.from(imageAsBuffer).toString('base64');
+                            imageObjects.push({ imageData: imageAsBase64, mimeType: imageType });
                         }
-
-                        images.push({ data: imageAsBase64, type: imageType });
                     }
                 }
-                usedModel = 'gemini-3.1-flash-image-preview';
-                const { response, error } = await GoogleAIWrapper.generateGoogleAIImage(prompt, images);
 
-                if (error) {
-                    console.log('Google AI Image Generation failed, falling back to LOCAL.');
+                usedModel = 'gemini-3.1-flash-image-preview';
+                const discordMessage = CurrentService.getMessage();
+                const discordUsername = discordMessage?.author?.username || 'lupos';
+
+                const prismResult = await PrismWrapper.generateImage(
+                    prompt,
+                    'google',
+                    usedModel,
+                    imageObjects,
+                    discordUsername,
+                );
+
+                if (prismResult.imageData) {
+                    generatedImage = prismResult.imageData;
+                    generatedText = prismResult.text;
+
+                    // Calculate cost from ModelsMap
+                    const modelTypeMap = ModelsMap.get('GOOGLE');
+                    const modelDetails = modelTypeMap?.get('gemini-3.1-flash-image-preview');
+                    if (modelDetails) {
+                        let rawAllPricingInput = new BigNumber(modelDetails.pricing.input);
+                        rawAllPricingInput = rawAllPricingInput.dividedBy(1000000).multipliedBy(inputTokenCount);
+                        let rawImagePricingOutput = new BigNumber(modelDetails.imagePricing.output);
+                        rawImagePricingOutput = rawImagePricingOutput.dividedBy(1000000).multipliedBy(calculateImageTokens(1024, 1024));
+                        let rawTotalCost = rawAllPricingInput.plus(rawImagePricingOutput);
+
+                        totalInputCost = rawAllPricingInput.toFixed(10);
+                        totalOutputCost = rawImagePricingOutput.toFixed(10);
+                        totalCost = rawTotalCost.toFixed(10);
+                    }
+                } else {
+                    // No image in response, fall back to LOCAL
+                    console.log('Google AI Image Generation returned no image, falling back to LOCAL.');
                     usedModel = 'FLUX.1-dev';
                     const generatedImageResponseLocal = await AIService.generateImage('LOCAL', prompt, client, imageUrls, username);
                     generatedImage = generatedImageResponseLocal;
-                } else {
-                    const modelTypeMap = ModelsMap.get('GOOGLE');
-                    const modelDetails = modelTypeMap?.get('gemini-3.1-flash-image-preview');
-                    let rawAllPricingInput = new BigNumber(modelDetails.pricing.input);
-                    rawAllPricingInput = rawAllPricingInput.dividedBy(1000000).multipliedBy(response.allInputTokenCount);
-                    let rawTextPricingOutput = new BigNumber(modelDetails.pricing.output);
-                    rawTextPricingOutput = rawTextPricingOutput.dividedBy(1000000).multipliedBy(response.textOutputTokenCount);
-
-                    let rawImagePricingOutput = new BigNumber(modelDetails.imagePricing.output);
-                    rawImagePricingOutput = rawImagePricingOutput.dividedBy(1000000).multipliedBy(calculateImageTokens(1024, 1024)); // Assuming 1024x1024 image for pricing
-                    let rawAllPricingOutput = rawTextPricingOutput.plus(rawImagePricingOutput);
-                    let rawTotalCost = rawAllPricingInput.plus(rawAllPricingOutput);
-
-                    totalInputCost = rawAllPricingInput.toFixed(10);
-                    totalOutputCost = rawAllPricingOutput.toFixed(10);
-                    totalCost = rawTotalCost.toFixed(10);
-
-                    generatedImage = response.imageData;
-                    inputTokenCount = response.allInputTokenCount;
-                    generatedText = response.text;
                 }
             } catch (error) {
                 console.error(...LogFormatter.error('generateImage', error));
@@ -479,6 +388,38 @@ const AIService = {
                 console.error('Falling back to LOCAL image generation.');
                 const generatedImageResponseLocal = await AIService.generateImage('LOCAL', prompt, client, imageUrls, username);
                 generatedImage = generatedImageResponseLocal;
+            }
+        } else if (type === 'OPENAI') {
+            // Route OpenAI image generation through Prism
+            try {
+                const discordMessage = CurrentService.getMessage();
+                const discordUsername = discordMessage?.author?.username || 'lupos';
+
+                // Convert image URLs to { imageData, mimeType } objects for Prism
+                let imageObjects = [];
+                if (imageUrls.length) {
+                    for (const url of imageUrls) {
+                        const fetchImageUrlResponse = await fetch(url);
+                        const imageAsBuffer = await fetchImageUrlResponse.arrayBuffer();
+                        const imageType = fetchImageUrlResponse.headers.get('content-type');
+                        const imageAsBase64 = Buffer.from(imageAsBuffer).toString('base64');
+                        imageObjects.push({ imageData: imageAsBase64, mimeType: imageType });
+                    }
+                }
+
+                usedModel = 'gpt-image-1.5';
+                const prismResult = await PrismWrapper.generateImage(
+                    prompt,
+                    'openai',
+                    usedModel,
+                    imageObjects,
+                    discordUsername,
+                );
+
+                generatedImage = prismResult.imageData;
+                generatedText = prismResult.text;
+            } catch (error) {
+                console.error(...LogFormatter.error('generateImage', error));
             }
         }
 
@@ -529,12 +470,29 @@ const AIService = {
 
         return generatedImage;
     },
-    // Base Image-to-Text Generation (Captioning)
+    // Base Image-to-Text Generation (Captioning) — via Prism
     async generateVision(imageUrl, text) {
-        const { response, error } = await OpenAIWrapper.generateVisionResponse(imageUrl, text);
-        return { response, error };
+        try {
+            const discordMessage = CurrentService.getMessage();
+            const discordUsername = discordMessage?.author?.username || 'lupos';
+
+            const result = await PrismWrapper.captionImage(
+                imageUrl,
+                text || "What's in this image?",
+                'openai',
+                null,
+                discordUsername,
+            );
+
+            return {
+                response: { choices: [{ message: { content: result.text } }] },
+                error: null,
+            };
+        } catch (error) {
+            return { response: null, error };
+        }
     },
-    // Base Speech-to-Text Generation (Transcription)
+    // Base Speech-to-Text Generation (Transcription) — via Prism
     async transcribeSpeech(audioUrl, messageId, index) {
         // Parse the URL to get just the filename without query parameters
         const url = new URL(audioUrl);
@@ -555,13 +513,21 @@ const AIService = {
             audioFilePath = path.join(voicesDir, `${generateRandomId()}-${filename}`);
         }
         const audioFile = await fetch(audioUrl);
-        const audioBuffer = await audioFile.arrayBuffer();
-        fs.writeFileSync(audioFilePath, Buffer.from(audioBuffer));
-        const audioFileObject = fs.createReadStream(audioFilePath);
+        const audioBuffer = Buffer.from(await audioFile.arrayBuffer());
+        fs.writeFileSync(audioFilePath, audioBuffer);
 
-        // Create a read stream for the transcription
-        let transcription = await OpenAIWrapper.speechToText(audioFileObject);
-        transcription = transcription.trim().replace(/\n+/g, ' ');
+        // Determine MIME type from file extension
+        const ext = path.extname(filename).toLowerCase().replace('.', '');
+        const mimeMap = { mp3: 'audio/mpeg', wav: 'audio/wav', ogg: 'audio/ogg', webm: 'audio/webm', m4a: 'audio/mp4', flac: 'audio/flac' };
+        const mimeType = mimeMap[ext] || 'audio/wav';
+
+        // Get Discord username for tracking
+        const discordMessage = CurrentService.getMessage();
+        const discordUsername = discordMessage?.author?.username || 'lupos';
+
+        // Transcribe via Prism
+        const result = await PrismWrapper.transcribeAudio(audioBuffer, mimeType, 'openai', null, discordUsername);
+        let transcription = (result.text || '').trim().replace(/\n+/g, ' ');
         return transcription;
     },
     // Caption images and store data in MongoDB

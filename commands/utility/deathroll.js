@@ -4,7 +4,7 @@ import { executeDeathroll } from './deathrollUtils.js';
 export default {
     data: new SlashCommandBuilder()
         .setName('deathroll')
-        .setDescription('Start a deathroll game - roll until someone hits 0! The loser gets timed out for 10 minutes.')
+        .setDescription('Start a deathroll game - roll until someone hits 0! The loser gets timed out for 5 minutes.')
         .addUserOption(option =>
             option.setName('opponent')
                 .setDescription('Challenge a specific user to deathroll')

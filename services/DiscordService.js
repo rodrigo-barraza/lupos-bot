@@ -30,6 +30,7 @@ import YouTubeWrapper from '#root/wrappers/YouTubeWrapper.js';
 import LightWrapper from '#root/wrappers/LightWrapper.js';
 import ComfyUIWrapper from '#root/wrappers/ComfyUIWrapper.js';
 import MongoWrapper from '#root/wrappers/MongoWrapper.js';
+import PrismWrapper from '#root/wrappers/PrismWrapper.js';
 // SERVICES
 import DiscordUtilityService from '#root/services/DiscordUtilityService.js';
 import MessageService from '#root/services/MessageService.js';
@@ -950,6 +951,58 @@ async function replyMessage(queuedDatum, localMongo) {
     generatedTextResponse = generatedText;
     generatedImage = image;
     generatedImagePrompt = promptForImagePromptGeneration;
+
+    // Fire-and-forget: save main conversation to Prism for admin visibility
+    if (generatedTextResponse) {
+        try {
+            const channelId = channel?.id || 'unknown';
+            const guildName = guild?.name || 'DM';
+            const channelName = channel?.name || 'direct-message';
+            const discordUsername = user?.username || 'lupos';
+
+            // Get model/cost metadata from CurrentService
+            const models = CurrentService.getModels();
+            const modelTypes = CurrentService.getModelTypes();
+            const totalCost = CurrentService.getTextTotalCost();
+            const lastModel = models.length > 0 ? models[models.length - 1] : null;
+            const lastModelType = modelTypes.length > 0 ? modelTypes[modelTypes.length - 1] : null;
+
+            // Build full conversation with enriched assistant response
+            const assistantMsg = {
+                role: 'assistant',
+                content: generatedTextResponse,
+            };
+            if (lastModel) assistantMsg.model = lastModel;
+            if (totalCost) {
+                const costNum = typeof totalCost === 'object' ? parseFloat(totalCost.toString()) : parseFloat(totalCost);
+                if (!isNaN(costNum)) assistantMsg.estimatedCost = costNum;
+            }
+
+            const fullConversation = [
+                ...conversation,
+                assistantMsg,
+            ];
+
+            const title = `${guildName} / #${channelName}`;
+            const systemMsg = conversation.find(m => m.role === 'system');
+            const systemPrompt = systemMsg?.content || '';
+
+            const settings = {};
+            if (lastModel) settings.model = lastModel;
+            if (lastModelType) settings.provider = lastModelType;
+
+            PrismWrapper.saveConversation(
+                channelId,
+                title,
+                fullConversation,
+                systemPrompt,
+                settings,
+                discordUsername,
+            ).catch(err => console.error('Failed to save conversation to Prism:', err.message));
+        } catch (saveError) {
+            console.error('Error preparing conversation save:', saveError.message);
+        }
+    }
 
     LightWrapper.cycleColor(config.PRIMARY_LIGHT_ID, 'purples');
     // GENERATE SUMMARY
