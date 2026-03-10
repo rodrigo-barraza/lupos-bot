@@ -277,9 +277,9 @@ const AIService = {
                 model: usedModel,
                 provider: type?.toLowerCase(),
                 timestamp: new Date().toISOString(),
-                estimatedCost: parseFloat(totalCost) || 0,
+                estimatedCost: parseFloat((parseFloat(totalCost) || 0).toFixed(8)),
                 usage: { inputTokens: inputTokenCount, outputTokens: outputTokenCount },
-                totalTime: duration / 1000,
+                totalTime: parseFloat((duration / 1000).toFixed(3)),
             };
 
             const messages = [...nonSystemMessages, assistantMsg];
@@ -451,7 +451,7 @@ const AIService = {
                 userId: userId,
                 userName: userName,
                 messageId: messageId || null,
-                duration,
+                duration: parseFloat(duration.toFixed(3)),
                 inputTokenCount,
                 totalInputCost,
                 totalOutputCost,
@@ -504,8 +504,8 @@ const AIService = {
                     model: usedModel,
                     provider: providerName,
                     timestamp: new Date().toISOString(),
-                    estimatedCost: parseFloat(totalCost) || 0,
-                    totalTime: duration / 1000,
+                    estimatedCost: parseFloat((parseFloat(totalCost) || 0).toFixed(8)),
+                    totalTime: parseFloat((duration / 1000).toFixed(3)),
                 };
 
                 const title = `🖼️ Image Generation · ${guildName} / #${channelName}`;
