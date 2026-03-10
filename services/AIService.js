@@ -471,6 +471,58 @@ const AIService = {
             totalCost,
         }));
 
+        // Save this image generation as a conversation to Prism
+        if (generatedImage) {
+            try {
+                const discordMessage = CurrentService.getMessage();
+                const channelId = discordMessage?.channel?.id || 'unknown';
+                const discordUsername = discordMessage?.author?.username || 'lupos';
+                const guildName = discordMessage?.guild?.name || 'DM';
+                const channelName = discordMessage?.channel?.name || 'direct-message';
+                const timestamp = Date.now();
+                const convId = `${channelId}-img-${timestamp}`;
+
+                const providerName = type === 'LOCAL' ? 'local'
+                    : type === 'GOOGLE' ? 'google'
+                    : type === 'OPENAI' ? 'openai'
+                    : type?.toLowerCase() || 'unknown';
+
+                const mimeType = 'image/png';
+                const dataUrl = `data:${mimeType};base64,${generatedImage}`;
+
+                const userMsg = {
+                    role: 'user',
+                    content: prompt,
+                    name: discordUsername,
+                    timestamp: new Date(start).toISOString(),
+                };
+
+                const assistantMsg = {
+                    role: 'assistant',
+                    content: generatedText || '',
+                    images: [dataUrl],
+                    model: usedModel,
+                    provider: providerName,
+                    timestamp: new Date().toISOString(),
+                    estimatedCost: parseFloat(totalCost) || 0,
+                    totalTime: duration / 1000,
+                };
+
+                const title = `🖼️ Image Generation · ${guildName} / #${channelName}`;
+
+                PrismWrapper.saveConversation(
+                    convId,
+                    title,
+                    [userMsg, assistantMsg],
+                    '',
+                    { model: usedModel, provider: providerName },
+                    discordUsername,
+                ).catch(err => console.error(`Failed to save image conversation: ${err.message}`));
+            } catch (saveErr) {
+                console.error('Error saving image conversation:', saveErr.message);
+            }
+        }
+
         return generatedImage;
     },
     // Base Image-to-Text Generation (Captioning) — via Prism

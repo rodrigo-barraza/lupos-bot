@@ -952,42 +952,7 @@ async function replyMessage(queuedDatum, localMongo) {
     generatedImage = image;
     generatedImagePrompt = promptForImagePromptGeneration;
 
-    // If an image was generated, save it as a separate conversation to Prism
-    // (text conversations are already saved per-call inside generateText)
-    if (generatedImage) {
-        try {
-            const channelId = channel?.id || 'unknown';
-            const guildName = guild?.name || 'DM';
-            const channelName = channel?.name || 'direct-message';
-            const discordUsername = user?.username || 'lupos';
-            const timestamp = Date.now();
-            const convId = `${channelId}-img-${timestamp}`;
-
-            const mimeType = 'image/png';
-            const dataUrl = `data:${mimeType};base64,${generatedImage}`;
-
-            const assistantMsg = {
-                role: 'assistant',
-                content: generatedTextResponse || '',
-                images: [dataUrl],
-                imagePrompt: generatedImagePrompt || '',
-                timestamp: new Date().toISOString(),
-            };
-
-            const title = `🖼️ ${guildName} / #${channelName}`;
-
-            PrismWrapper.saveConversation(
-                convId,
-                title,
-                [assistantMsg],
-                '',
-                {},
-                discordUsername,
-            ).catch(err => console.error('Failed to save image conversation:', err.message));
-        } catch (saveError) {
-            console.error('Error saving image conversation:', saveError.message);
-        }
-    }
+    // (Image conversations are already saved per-call inside generateImage)
 
     LightWrapper.cycleColor(config.PRIMARY_LIGHT_ID, 'purples');
     // GENERATE SUMMARY
