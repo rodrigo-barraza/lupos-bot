@@ -78,6 +78,7 @@ const AIService = {
         let textResponse;
         let generateTextModel;
         let prismUsage = null;
+        let prismEstimatedCost = null;
         const start = performance.now();
         const localMongo = MongoWrapper.getClient('local');
 
@@ -127,6 +128,7 @@ const AIService = {
 
             textResponse = prismResult.text;
             prismUsage = prismResult.usage || null;
+            prismEstimatedCost = prismResult.estimatedCost || null;
             if (prismResult.model) {
                 usedModel = prismResult.model;
             }
@@ -197,6 +199,7 @@ const AIService = {
                 timestamp: new Date().toISOString(),
                 usage: prismUsage || {},
                 totalTime: parseFloat((duration / 1000).toFixed(3)),
+                estimatedCost: prismEstimatedCost,
             };
 
             const messages = [...nonSystemMessages, assistantMsg];
@@ -467,6 +470,7 @@ const AIService = {
                     provider: 'openai',
                     timestamp: new Date().toISOString(),
                     totalTime: parseFloat((duration / 1000).toFixed(3)),
+                    estimatedCost: result.estimatedCost || null,
                 };
 
                 const title = `👁️ Image Captioning · ${guildName} / #${channelName}`;
