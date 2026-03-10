@@ -376,8 +376,8 @@ const AIService = {
 
                 const providerName = type === 'LOCAL' ? 'local'
                     : type === 'GOOGLE' ? 'google'
-                    : type === 'OPENAI' ? 'openai'
-                    : type?.toLowerCase() || 'unknown';
+                        : type === 'OPENAI' ? 'openai'
+                            : type?.toLowerCase() || 'unknown';
 
                 const mimeType = 'image/png';
                 const dataUrl = `data:${mimeType};base64,${generatedImage}`;
@@ -418,6 +418,7 @@ const AIService = {
     },
     // Base Image-to-Text Generation (Captioning) — via Prism
     async generateVision(imageUrl, text) {
+        const start = performance.now();
         try {
             const discordMessage = CurrentService.getMessage();
             const discordUsername = discordMessage?.author?.username || 'lupos';
@@ -429,6 +430,47 @@ const AIService = {
                 null,
                 discordUsername,
             );
+
+            // Save this captioning call as a conversation to Prism
+            try {
+                const channelId = discordMessage?.channel?.id || 'unknown';
+                const guildName = discordMessage?.guild?.name || 'DM';
+                const channelName = discordMessage?.channel?.name || 'direct-message';
+                const timestamp = Date.now();
+                const convId = `${channelId}-caption-${timestamp}`;
+                const end = performance.now();
+                const duration = end - start;
+
+                const userMsg = {
+                    role: 'user',
+                    content: text || "What's in this image?",
+                    images: [imageUrl],
+                    name: discordUsername,
+                    timestamp: new Date(start).toISOString(),
+                };
+
+                const assistantMsg = {
+                    role: 'assistant',
+                    content: result.text || '',
+                    model: result.model || 'gpt-4.1-mini',
+                    provider: 'openai',
+                    timestamp: new Date().toISOString(),
+                    totalTime: parseFloat((duration / 1000).toFixed(3)),
+                };
+
+                const title = `👁️ Image Captioning · ${guildName} / #${channelName}`;
+
+                PrismWrapper.saveConversation(
+                    convId,
+                    title,
+                    [userMsg, assistantMsg],
+                    '',
+                    { model: result.model || 'gpt-4.1-mini', provider: 'openai' },
+                    discordUsername,
+                ).catch(err => console.error(`Failed to save caption conversation: ${err.message}`));
+            } catch (saveErr) {
+                console.error('Error saving caption conversation:', saveErr.message);
+            }
 
             return {
                 response: { choices: [{ message: { content: result.text } }] },
