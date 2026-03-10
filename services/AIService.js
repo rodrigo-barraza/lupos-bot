@@ -110,11 +110,43 @@ const AIService = {
 
         // Route through Prism API gateway
         let usedModel = model || generateTextModel;
-        try {
-            // Get Discord username for tracking (if available)
-            const discordMessage = CurrentService.getMessage();
-            const discordUsername = discordMessage?.author?.username || "lupos";
 
+        // Pre-create conversation for server-side accumulation
+        const discordMessage = CurrentService.getMessage();
+        const discordUsername = discordMessage?.author?.username || "lupos";
+        const channelName = discordMessage?.channel?.name || "direct-message";
+        const convGuildName = discordMessage?.guild?.name || "DM";
+        const convLabel = label || "Text Generation";
+        const convTitle = `${convLabel} · ${convGuildName} / #${channelName}`;
+        const systemMsg = conversation.find((m) => m.role === "system");
+        const systemPrompt = systemMsg?.content || "";
+        const nonSystemMessages = conversation.filter((m) => m.role !== "system");
+
+        let conversationId = null;
+        try {
+            const conv = await PrismWrapper.startConversation(
+                convTitle,
+                systemPrompt,
+                { model: usedModel, provider: type?.toLowerCase() },
+                discordUsername,
+            );
+            conversationId = conv.id;
+        } catch (startErr) {
+            console.error("Start conversation failed:", startErr.message);
+        }
+
+        // Build user message for auto-append
+        const lastUserMsg = nonSystemMessages.findLast((m) => m.role === "user");
+        const userMessage = lastUserMsg
+            ? {
+                role: "user",
+                content: lastUserMsg.content,
+                name: lastUserMsg.name || discordUsername,
+                timestamp: new Date().toISOString(),
+            }
+            : null;
+
+        try {
             const prismResult = await PrismWrapper.generateText(
                 conversation,
                 type,
@@ -122,6 +154,7 @@ const AIService = {
                 tokens,
                 temperature,
                 discordUsername,
+                { conversationId, userMessage },
             );
 
             textResponse = prismResult.text;
@@ -151,7 +184,6 @@ const AIService = {
             const userId = user.id;
             const userName = user.username;
             const guildId = message.guild?.id;
-            const guildName = message.guild?.name;
 
             // Save the generated text and its metadata to the database
             const db = localMongo.db("lupos");
@@ -163,7 +195,7 @@ const AIService = {
                 input: conversation,
                 output: textResponse,
                 guildId: guildId || "DM",
-                guildName: guildName || "DM",
+                guildName: convGuildName || "DM",
                 userId: userId,
                 userName: userName,
                 messageId: messageId || null,
@@ -179,50 +211,20 @@ const AIService = {
             }),
         );
 
-        // Save this individual API call as a conversation to Prism
-        try {
-            const discordMessage = CurrentService.getMessage();
-            const channelId = discordMessage?.channel?.id || "unknown";
-            const discordUsername = discordMessage?.author?.username || "lupos";
-            const guildName = discordMessage?.guild?.name || "DM";
-            const channelName = discordMessage?.channel?.name || "direct-message";
-            const timestamp = Date.now();
-            const convId = `${channelId}-${timestamp}`;
-
-            const systemMsg = conversation.find((m) => m.role === "system");
-            const systemPrompt = systemMsg?.content || "";
-            const nonSystemMessages = conversation.filter((m) => m.role !== "system");
-
-            const assistantMsg = {
-                role: "assistant",
-                content: textResponse,
-                model: usedModel,
-                provider: type?.toLowerCase(),
-                timestamp: new Date().toISOString(),
-                usage: prismUsage || {},
-                totalTime: parseFloat((duration / 1000).toFixed(3)),
-                estimatedCost: prismEstimatedCost,
-            };
-
-            const messages = [...nonSystemMessages, assistantMsg];
-            const convLabel = label || "Text Generation";
-            const title = `${convLabel} · ${guildName} / #${channelName}`;
-
-            PrismWrapper.saveConversation(
-                convId,
-                title,
-                messages,
+        // Finalize conversation metadata (messages already saved server-side via auto-append)
+        if (conversationId) {
+            PrismWrapper.finalizeConversation(
+                conversationId,
+                convTitle,
                 systemPrompt,
                 { model: usedModel, provider: type?.toLowerCase() },
                 discordUsername,
             ).catch((err) =>
                 console.error(
-                    `Failed to save conversation for ${usedModel}:`,
+                    `Failed to finalize conversation for ${usedModel}:`,
                     err.message,
                 ),
             );
-        } catch (saveErr) {
-            console.error("Error saving per-call conversation:", saveErr.message);
         }
 
         return textResponse;
@@ -236,6 +238,40 @@ const AIService = {
         let imageEstimatedCost = null;
         let userInputImageDataUrls = [];
         const start = performance.now();
+
+        // Pre-create conversation for server-side accumulation
+        const imgDiscordMessage = CurrentService.getMessage();
+        const imgDiscordUsername = imgDiscordMessage?.author?.username || username || "lupos";
+        const imgGuildName = imgDiscordMessage?.guild?.name || "DM";
+        const imgChannelName = imgDiscordMessage?.channel?.name || "direct-message";
+
+        const imgProviderName =
+            type === "LOCAL" ? "local"
+                : type === "GOOGLE" ? "google"
+                    : type === "OPENAI" ? "openai"
+                        : type?.toLowerCase() || "unknown";
+        const imgTitle = `🖼️ Image Generation · ${imgGuildName} / #${imgChannelName}`;
+
+        let conversationId = null;
+        try {
+            const conv = await PrismWrapper.startConversation(
+                imgTitle,
+                "",
+                { provider: imgProviderName },
+                imgDiscordUsername,
+            );
+            conversationId = conv.id;
+        } catch (startErr) {
+            console.error("Start image conversation failed:", startErr.message);
+        }
+
+        // Build user message for auto-append
+        const imgUserMsg = {
+            role: "user",
+            content: prompt,
+            name: imgDiscordUsername,
+            timestamp: new Date(start).toISOString(),
+        };
 
         if (type === "LOCAL") {
             try {
@@ -286,6 +322,11 @@ const AIService = {
                     (img) => `data:${img.mimeType};base64,${img.imageData}`,
                 );
 
+                // Include user input images in the user message for conversation display
+                if (userInputImageDataUrls.length > 0) {
+                    imgUserMsg.images = userInputImageDataUrls;
+                }
+
                 usedModel = "gemini-3.1-flash-image-preview";
                 const discordMessage = CurrentService.getMessage();
                 const discordUsername = discordMessage?.author?.username || "lupos";
@@ -296,6 +337,7 @@ const AIService = {
                     usedModel,
                     imageObjects,
                     discordUsername,
+                    { conversationId, userMessage: imgUserMsg },
                 );
 
                 if (prismResult.imageData) {
@@ -356,6 +398,11 @@ const AIService = {
                     (img) => `data:${img.mimeType};base64,${img.imageData}`,
                 );
 
+                // Include user input images in the user message for conversation display
+                if (userInputImageDataUrls.length > 0) {
+                    imgUserMsg.images = userInputImageDataUrls;
+                }
+
                 usedModel = "gpt-image-1.5";
                 const prismResult = await PrismWrapper.generateImage(
                     prompt,
@@ -363,6 +410,7 @@ const AIService = {
                     usedModel,
                     imageObjects,
                     discordUsername,
+                    { conversationId, userMessage: imgUserMsg },
                 );
 
                 generatedImage = prismResult.imageData;
@@ -414,65 +462,17 @@ const AIService = {
             }),
         );
 
-        // Save this image generation as a conversation to Prism
-        if (generatedImage) {
-            try {
-                const discordMessage = CurrentService.getMessage();
-                const channelId = discordMessage?.channel?.id || "unknown";
-                const discordUsername = discordMessage?.author?.username || "lupos";
-                const guildName = discordMessage?.guild?.name || "DM";
-                const channelName = discordMessage?.channel?.name || "direct-message";
-                const timestamp = Date.now();
-                const convId = `${channelId}-img-${timestamp}`;
-
-                const providerName =
-                    type === "LOCAL"
-                        ? "local"
-                        : type === "GOOGLE"
-                            ? "google"
-                            : type === "OPENAI"
-                                ? "openai"
-                                : type?.toLowerCase() || "unknown";
-
-                const mimeType = "image/png";
-                const dataUrl = `data:${mimeType};base64,${generatedImage}`;
-
-                const userMsg = {
-                    role: "user",
-                    content: prompt,
-                    ...(userInputImageDataUrls.length > 0 && {
-                        images: userInputImageDataUrls,
-                    }),
-                    name: discordUsername,
-                    timestamp: new Date(start).toISOString(),
-                };
-
-                const assistantMsg = {
-                    role: "assistant",
-                    content: generatedText || "",
-                    images: [dataUrl],
-                    model: usedModel,
-                    provider: providerName,
-                    timestamp: new Date().toISOString(),
-                    totalTime: parseFloat((duration / 1000).toFixed(3)),
-                    estimatedCost: imageEstimatedCost,
-                };
-
-                const title = `🖼️ Image Generation · ${guildName} / #${channelName}`;
-
-                PrismWrapper.saveConversation(
-                    convId,
-                    title,
-                    [userMsg, assistantMsg],
-                    "",
-                    { model: usedModel, provider: providerName },
-                    discordUsername,
-                ).catch((err) =>
-                    console.error(`Failed to save image conversation: ${err.message}`),
-                );
-            } catch (saveErr) {
-                console.error("Error saving image conversation:", saveErr.message);
-            }
+        // Finalize conversation metadata (messages already saved server-side via auto-append)
+        if (conversationId && generatedImage) {
+            PrismWrapper.finalizeConversation(
+                conversationId,
+                imgTitle,
+                "",
+                { model: usedModel, provider: imgProviderName },
+                imgDiscordUsername,
+            ).catch((err) =>
+                console.error(`Failed to finalize image conversation: ${err.message}`),
+            );
         }
 
         return generatedImage;
@@ -484,68 +484,53 @@ const AIService = {
             const discordMessage = CurrentService.getMessage();
             const discordUsername = discordMessage?.author?.username || "lupos";
 
+            const guildName = discordMessage?.guild?.name || "DM";
+            const channelName = discordMessage?.channel?.name || "direct-message";
+            const captionTitle = `👁️ Image Captioning · ${guildName} / #${channelName}`;
+
+            // Pre-create conversation for server-side accumulation
+            let visionConvId = null;
+            try {
+                const conv = await PrismWrapper.startConversation(
+                    captionTitle,
+                    "",
+                    { provider: "openai" },
+                    discordUsername,
+                );
+                visionConvId = conv.id;
+            } catch (startErr) {
+                console.error("Start caption conversation failed:", startErr.message);
+            }
+
+            // Build user message for auto-append
+            const captionUserMsg = {
+                role: "user",
+                content: text || "What's in this image?",
+                images: [imageUrl],
+                name: discordUsername,
+                timestamp: new Date(start).toISOString(),
+            };
+
             const result = await PrismWrapper.captionImage(
                 imageUrl,
                 text || "What's in this image?",
                 "openai",
                 null,
                 discordUsername,
+                { conversationId: visionConvId, userMessage: captionUserMsg },
             );
 
-            // Save this captioning call as a conversation to Prism
-            try {
-                const channelId = discordMessage?.channel?.id || "unknown";
-                const guildName = discordMessage?.guild?.name || "DM";
-                const channelName = discordMessage?.channel?.name || "direct-message";
-                const timestamp = Date.now();
-                const convId = `${channelId}-caption-${timestamp}`;
-                const end = performance.now();
-                const duration = end - start;
-
-                // Download image and convert to base64 data URL for MinIO upload
-                let imageRef = imageUrl;
-                try {
-                    const imgResponse = await fetch(imageUrl);
-                    const imgBuffer = Buffer.from(await imgResponse.arrayBuffer());
-                    const contentType =
-                        imgResponse.headers.get("content-type") || "image/png";
-                    imageRef = `data:${contentType};base64,${imgBuffer.toString("base64")}`;
-                } catch (dlErr) {
-                    console.error(`Failed to download image for MinIO: ${dlErr.message}`);
-                }
-
-                const userMsg = {
-                    role: "user",
-                    content: text || "What's in this image?",
-                    images: [imageRef],
-                    name: discordUsername,
-                    timestamp: new Date(start).toISOString(),
-                };
-
-                const assistantMsg = {
-                    role: "assistant",
-                    content: result.text || "",
-                    model: result.model || "gpt-4.1-mini",
-                    provider: "openai",
-                    timestamp: new Date().toISOString(),
-                    totalTime: parseFloat((duration / 1000).toFixed(3)),
-                    estimatedCost: result.estimatedCost || null,
-                };
-
-                const title = `👁️ Image Captioning · ${guildName} / #${channelName}`;
-
-                PrismWrapper.saveConversation(
-                    convId,
-                    title,
-                    [userMsg, assistantMsg],
+            // Finalize conversation metadata
+            if (visionConvId) {
+                PrismWrapper.finalizeConversation(
+                    visionConvId,
+                    captionTitle,
                     "",
                     { model: result.model || "gpt-4.1-mini", provider: "openai" },
                     discordUsername,
                 ).catch((err) =>
-                    console.error(`Failed to save caption conversation: ${err.message}`),
+                    console.error(`Failed to finalize caption conversation: ${err.message}`),
                 );
-            } catch (saveErr) {
-                console.error("Error saving caption conversation:", saveErr.message);
             }
 
             return {
