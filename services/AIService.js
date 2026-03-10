@@ -100,6 +100,7 @@ const AIService = {
         temperature = config.LANGUAGE_MODEL_TEMPERATURE,
         tokens = config.LANGUAGE_MODEL_MAX_TOKENS,
         model = null,
+        label = null,
     }) {
         const functionName = 'generateText';
         let textResponse;
@@ -282,7 +283,8 @@ const AIService = {
             };
 
             const messages = [...nonSystemMessages, assistantMsg];
-            const title = `${guildName} / #${channelName}`;
+            const convLabel = label || 'Text Generation';
+            const title = `${convLabel} · ${guildName} / #${channelName}`;
 
             PrismWrapper.saveConversation(
                 convId,
@@ -693,6 +695,7 @@ const AIService = {
             modelPerformance: 'POWERFUL',
             tokens: config.LANGUAGE_MODEL_MAX_TOKENS,
             temperature: config.LANGUAGE_MODEL_TEMPERATURE,
+            label: '🧠 Summary',
             // model,
             // localMongo,
             // replyMessageStartTime,
@@ -747,6 +750,7 @@ ${guildEmojiList}
             conversation: conversation,
             type: 'ANTHROPIC',
             model: config.ANTHROPIC_LANGUAGE_MODEL_CLAUDE_SONNET_4,
+            label: '🧠 Emoji React',
         });
 
         // Clean up the response - remove any extra whitespace, newlines, or formatting
@@ -828,7 +832,8 @@ Only output the number, nothing else. No explanations. No punctuation. No extra 
         let response = await AIService.generateText({
             conversation,
             type: 'ANTHROPIC',
-            model: config.ANTHROPIC_LANGUAGE_MODEL_CLAUDE_SONNET_4
+            model: config.ANTHROPIC_LANGUAGE_MODEL_CLAUDE_SONNET_4,
+            label: '🧠 Fetch Count',
         });
 
         // Helper function to validate the number
@@ -906,7 +911,8 @@ Implicit editing (common in replies):
         let response = await AIService.generateText({
             conversation,
             type: 'OPENAI',
-            model: config.OPENAI_LANGUAGE_MODEL_GPT5_NANO
+            model: config.OPENAI_LANGUAGE_MODEL_GPT5_NANO,
+            label: '🧠 Image Detection',
         });
 
         if (!response) return false;
@@ -949,7 +955,8 @@ Examples that should return "no":
         let response = await AIService.generateText({
             conversation,
             type: 'OPENAI',
-            model: config.OPENAI_LANGUAGE_MODEL_GPT5_NANO
+            model: config.OPENAI_LANGUAGE_MODEL_GPT5_NANO,
+            label: '🧠 Self-Portrait Detection',
         });
 
         if (!response) return false;
@@ -983,7 +990,8 @@ Examples that should return "yes":
         let response = await AIService.generateText({
             conversation,
             type: 'OPENAI',
-            model: config.OPENAI_LANGUAGE_MODEL_GPT5_NANO
+            model: config.OPENAI_LANGUAGE_MODEL_GPT5_NANO,
+            label: '🧠 NSFW Detection',
         });
 
         if (!response) return false;
@@ -1015,6 +1023,7 @@ As the output, I want you to provide the descriptions in dash list form, without
             conversation: conversation,
             type: 'OPENAI',
             model: config.OPENAI_LANGUAGE_MODEL_GPT4_1_NANO,
+            label: '🧠 User Analysis',
         });
         return generatedText;
     },
@@ -1040,7 +1049,8 @@ ${systemPrompt}`
             type: config.LANGUAGE_MODEL_TYPE,
             modelPerformance: 'POWERFUL',
             tokens: config.LANGUAGE_MODEL_MAX_TOKENS,
-            temperature: config.LANGUAGE_MODEL_TEMPERATURE
+            temperature: config.LANGUAGE_MODEL_TEMPERATURE,
+            label: '💬 Reply',
         });
         return generatedText;
     },
@@ -1067,7 +1077,8 @@ ${systemPrompt}`
             type: config.LANGUAGE_MODEL_TYPE,
             modelPerformance: 'POWERFUL',
             tokens: config.LANGUAGE_MODEL_MAX_TOKENS,
-            temperature: config.LANGUAGE_MODEL_TEMPERATURE
+            temperature: config.LANGUAGE_MODEL_TEMPERATURE,
+            label: '💬 Reply (Image)',
         });
         return generatedText;
     },
@@ -1166,7 +1177,8 @@ ${systemPrompt}`;
             type: config.LANGUAGE_MODEL_TYPE,
             modelPerformance: 'POWERFUL',
             tokens: config.LANGUAGE_MODEL_MAX_TOKENS,
-            temperature: config.LANGUAGE_MODEL_TEMPERATURE
+            temperature: config.LANGUAGE_MODEL_TEMPERATURE,
+            label: '🧠 Image Prompt',
         });
 
         return generatedText;
