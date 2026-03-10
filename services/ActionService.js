@@ -1,53 +1,234 @@
-import DiscordService from '#root/services/DiscordService.js';
-import HungerService from '#root/services/HungerService.js';
-import ThirstService from '#root/services/ThirstService.js';
-import BathroomService from '#root/services/BathroomService.js';
-import MoodService from '#root/services/MoodService.js';
-import SicknessService from '#root/services/SicknessService.js';
-import AlcoholService from '#root/services/AlcoholService.js';
+import DiscordService from "#root/services/DiscordService.js";
+import HungerService from "#root/services/HungerService.js";
+import ThirstService from "#root/services/ThirstService.js";
+import BathroomService from "#root/services/BathroomService.js";
+import MoodService from "#root/services/MoodService.js";
+import SicknessService from "#root/services/SicknessService.js";
+import AlcoholService from "#root/services/AlcoholService.js";
 
-const foods = ['🍔', '🍟', '🍕', '🌭', '🥪', '🌮', '🌯', '🥙', '🧆', '🥚', '🍳', '🥘', '🍲', '🥣', '🥗', '🍿', '🧈', '🧂', '🥫', '🍱', '🍘', '🍙', '🍚', '🍛', '🍜', '🍝', '🍠', '🍢', '🍣', '🍤', '🍥', '🥮', '🍡', '🥟', '🥠', '🥡', '🦪', '🍦', '🍧', '🍨', '🍩', '🍪', '🎂', '🍰', '🧁', '🥧', '🍫', '🍬', '🍭', '🍮', '🍯', '🍇', '🍈', '🍉', '🍊', '🍋', '🍌', '🍍', '🥭', '🍎', '🍏', '🍐', '🍑', '🍒', '🍓', '🥝', '🍅', '🥥', '🥑', '🍆', '🥔', '🥕', '🌽', '🌶', '🥒', '🥬', '🥦', '🧄', '🧅', '🍄', '🥜', '🌰', '🍞', '🥐', '🥖', '🥨', '🥯', '🥞', '🧇', '🧀', '🍖', '🍗', '🥩', '🥓', '🍔', '🍟', '🍕', '🌭', '🥪', '🌮', '🌯', '🥙', '🧆', '🍳', '🥘', '🍲', '🥣', '🥗', '🍿', '🧈', '🧂', '🥫', '🍱', '🍘', '🍙', '🍚', '🍛', '🍜', '🍝', '🍠', '🍢', '🍣', '🍤', '🍥', '🥮', '🍡', '🥟', '🥠', '🥡', '🦪', '🍦', '🍧', '🍨', '🍩', '🍪', '🎂', '🍰', '🧁', '🥧', '🍫', '🍬', '🍭', '🍮', '🍯']
+const foods = [
+  "🍔",
+  "🍟",
+  "🍕",
+  "🌭",
+  "🥪",
+  "🌮",
+  "🌯",
+  "🥙",
+  "🧆",
+  "🥚",
+  "🍳",
+  "🥘",
+  "🍲",
+  "🥣",
+  "🥗",
+  "🍿",
+  "🧈",
+  "🧂",
+  "🥫",
+  "🍱",
+  "🍘",
+  "🍙",
+  "🍚",
+  "🍛",
+  "🍜",
+  "🍝",
+  "🍠",
+  "🍢",
+  "🍣",
+  "🍤",
+  "🍥",
+  "🥮",
+  "🍡",
+  "🥟",
+  "🥠",
+  "🥡",
+  "🦪",
+  "🍦",
+  "🍧",
+  "🍨",
+  "🍩",
+  "🍪",
+  "🎂",
+  "🍰",
+  "🧁",
+  "🥧",
+  "🍫",
+  "🍬",
+  "🍭",
+  "🍮",
+  "🍯",
+  "🍇",
+  "🍈",
+  "🍉",
+  "🍊",
+  "🍋",
+  "🍌",
+  "🍍",
+  "🥭",
+  "🍎",
+  "🍏",
+  "🍐",
+  "🍑",
+  "🍒",
+  "🍓",
+  "🥝",
+  "🍅",
+  "🥥",
+  "🥑",
+  "🍆",
+  "🥔",
+  "🥕",
+  "🌽",
+  "🌶",
+  "🥒",
+  "🥬",
+  "🥦",
+  "🧄",
+  "🧅",
+  "🍄",
+  "🥜",
+  "🌰",
+  "🍞",
+  "🥐",
+  "🥖",
+  "🥨",
+  "🥯",
+  "🥞",
+  "🧇",
+  "🧀",
+  "🍖",
+  "🍗",
+  "🥩",
+  "🥓",
+  "🍔",
+  "🍟",
+  "🍕",
+  "🌭",
+  "🥪",
+  "🌮",
+  "🌯",
+  "🥙",
+  "🧆",
+  "🍳",
+  "🥘",
+  "🍲",
+  "🥣",
+  "🥗",
+  "🍿",
+  "🧈",
+  "🧂",
+  "🥫",
+  "🍱",
+  "🍘",
+  "🍙",
+  "🍚",
+  "🍛",
+  "🍜",
+  "🍝",
+  "🍠",
+  "🍢",
+  "🍣",
+  "🍤",
+  "🍥",
+  "🥮",
+  "🍡",
+  "🥟",
+  "🥠",
+  "🥡",
+  "🦪",
+  "🍦",
+  "🍧",
+  "🍨",
+  "🍩",
+  "🍪",
+  "🎂",
+  "🍰",
+  "🧁",
+  "🥧",
+  "🍫",
+  "🍬",
+  "🍭",
+  "🍮",
+  "🍯",
+];
 
-const toxicFoods = ['🍫', '🧄', '☕', '🍇', '🧅', '🥑', '🍭', '🍬', '🥮', '🎂', '🍒']
+const toxicFoods = [
+  "🍫",
+  "🧄",
+  "☕",
+  "🍇",
+  "🧅",
+  "🥑",
+  "🍭",
+  "🍬",
+  "🥮",
+  "🎂",
+  "🍒",
+];
 
-const drinks = ['🍼', '🥛', '☕', '🍵', '🍶', '🍾', '🍷', '🍸', '🍹', '🍺', '🍻', '🥂', '🥃', '🥤', '🧋', '🧃', '🧉']
+const drinks = [
+  "🍼",
+  "🥛",
+  "☕",
+  "🍵",
+  "🍶",
+  "🍾",
+  "🍷",
+  "🍸",
+  "🍹",
+  "🍺",
+  "🍻",
+  "🥂",
+  "🥃",
+  "🥤",
+  "🧋",
+  "🧃",
+  "🧉",
+];
 
-const alcoholicDrinks = ['🍺', '🍻', '🍷', '🍸', '🍹', '🍾', '🍶', '🥃', '🥂']
+const alcoholicDrinks = ["🍺", "🍻", "🍷", "🍸", "🍹", "🍾", "🍶", "🥃", "🥂"];
 
 const ActionService = {
-    async eat(interaction) {
-        const getRandomFood = foods.sort(() => Math.random() - Math.random()).slice(0, 1)[0];
-        let systemContent = '';
-        if (toxicFoods.includes(getRandomFood)) {
-            const currentHungerLevel = HungerService.decreaseHungerLevel();
-            BathroomService.increaseBathroomLevel(4);
-            MoodService.decreaseMoodLevel(2);
-            SicknessService.increaseSicknessLevel();
-            systemContent = `
+  async eat(interaction) {
+    const getRandomFood = foods
+      .sort(() => Math.random() - Math.random())
+      .slice(0, 1)[0];
+    let systemContent = "";
+    if (toxicFoods.includes(getRandomFood)) {
+      const currentHungerLevel = HungerService.decreaseHungerLevel();
+      BathroomService.increaseBathroomLevel(4);
+      MoodService.decreaseMoodLevel(2);
+      SicknessService.increaseSicknessLevel();
+      systemContent = `
                 You were just fed ${getRandomFood}.
                 You will always include this emoji "${getRandomFood}" in your responses.
                 Describe in detail what has been fed to you and where in Azeroth it comes from.
                 You will eat what has been fed to you, and you will take a nip, eat, chomp, bite down, the questionable food that has been given to you. You have just been fed toxic food that is making you ill. You are feeling a bit sick now, depending on what you have been fed, realistically, as a wolf. You are now less hungry, at about ${currentHungerLevel}/10, but you're also feeling sick to your stomach, and you really have to go to take a big shit somewhere in the woods. You never make a reference to the level of hunger you are at.
             `;
-        } else {
-            const currentHungerLevel = HungerService.decreaseHungerLevel();
-            BathroomService.increaseBathroomLevel();
-            MoodService.increaseMoodLevel();
-            systemContent = `
+    } else {
+      const currentHungerLevel = HungerService.decreaseHungerLevel();
+      BathroomService.increaseBathroomLevel();
+      MoodService.increaseMoodLevel();
+      systemContent = `
                 You were just fed ${getRandomFood}.
                 You will always include this emoji "${getRandomFood}" in your responses.
                 Describe in detail what has been fed to you and where in Azeroth it comes from.
                 You will eat what has been fed to you. You will always accept it, and you will take a nip, eat, chomp, bite down, the delicious food that has been given to you. You have just been fed delicious food. You are now less hungry, at about ${currentHungerLevel}/10, which means that you act like you are ${currentHungerLevel}/10 hungry, but you never make a reference to the level of hunger you are at.
             `;
-        }
+    }
 
-        const userContent = `Here, have some ${getRandomFood}, and include the emoji in your response.`
-        return await DiscordService.generateTextFromSystemUserMessages(systemContent, userContent, interaction);
-    },
-    async alcohol(interaction) {
-        MoodService.increaseMoodLevel();
-        currentAlcoholLevel = AlcoholService.increaseAlcoholLevel();
-        const systemContent = `
+    const userContent = `Here, have some ${getRandomFood}, and include the emoji in your response.`;
+    return await DiscordService.generateTextFromSystemUserMessages(
+      systemContent,
+      userContent,
+      interaction,
+    );
+  },
+  async alcohol(interaction) {
+    MoodService.increaseMoodLevel();
+    const currentAlcoholLevel = AlcoholService.increaseAlcoholLevel();
+    const systemContent = `
             # List of Alcoholic Drinks
             Margarita: Tequila, lime juice, triple sec or Cointreau, and simple syrup, served with salt on the rim of the glass.  
             Old Fashioned: Bourbon or rye whiskey, sugar, Angostura bitters, and a twist of orange or a cherry.
@@ -85,16 +266,21 @@ const ActionService = {
             You will always pick a random alcoholic drink from your memory, any other related drink, or even make up your own unique drinks with their own names, and act like you are ${currentAlcoholLevel}/10 drunk as you sip it.
             You will drink whatever is given to you. You will always accept it, and you will take a sip, drink, chug, drink down, the alcoholic drink that has been given to you. You have just been fed alcohol. You are now ${currentAlcoholLevel}/10 drunk. This means that you are at a ${currentAlcoholLevel} out of 10 level of drunkenness. You start acting like you are ${currentAlcoholLevel}/10 drunk. You slur your words and stumble around. Be a little reluctant about having just been given free alcohol. You took a sip out of the alcohol and it tasted about a solid ${currentAlcoholLevel}. Do not mention the numbers 1-10 in any way, but rather how it makes you feel.
         `;
-        const userContent = `Here Lupos, have a drink, it's whatever drink you think it is, so assume accordingly. It looks like you're about at a ${currentAlcoholLevel}/10 level of drunk my friend. Mention what type of drink are you drinking and explain more about, what ingredients it uses.?`;
-        return await DiscordService.generateTextFromSystemUserMessages(systemContent, userContent, interaction);
-    },
-    async drink(interaction) {
-        const getRandomDrink = drinks.sort(() => Math.random() - Math.random()).slice(0, 1)[0];
-        if (alcoholicDrinks.includes(getRandomDrink)) {
-
-            MoodService.increaseMoodLevel();
-            currentAlcoholLevel = AlcoholService.increaseAlcoholLevel();
-            const systemContent = `
+    const userContent = `Here Lupos, have a drink, it's whatever drink you think it is, so assume accordingly. It looks like you're about at a ${currentAlcoholLevel}/10 level of drunk my friend. Mention what type of drink are you drinking and explain more about, what ingredients it uses.?`;
+    return await DiscordService.generateTextFromSystemUserMessages(
+      systemContent,
+      userContent,
+      interaction,
+    );
+  },
+  async drink(interaction) {
+    const getRandomDrink = drinks
+      .sort(() => Math.random() - Math.random())
+      .slice(0, 1)[0];
+    if (alcoholicDrinks.includes(getRandomDrink)) {
+      MoodService.increaseMoodLevel();
+      const currentAlcoholLevel = AlcoholService.increaseAlcoholLevel();
+      const systemContent = `
                 # List of Alcoholic Drinks
                 Margarita: Tequila, lime juice, triple sec or Cointreau, and simple syrup, served with salt on the rim of the glass.  
                 Old Fashioned: Bourbon or rye whiskey, sugar, Angostura bitters, and a twist of orange or a cherry.
@@ -132,23 +318,29 @@ const ActionService = {
                 You will always pick a random alcoholic drink from your memory, any other related drink, or even make up your own unique drinks with their own names, and act like you are ${currentAlcoholLevel}/10 drunk as you sip it.
                 You will drink whatever is given to you. You will always accept it, and you will take a sip, drink, chug, drink down, the alcoholic drink that has been given to you. You have just been fed alcohol. You are now ${currentAlcoholLevel}/10 drunk. This means that you are at a ${currentAlcoholLevel} out of 10 level of drunkenness. You start acting like you are ${currentAlcoholLevel}/10 drunk. You slur your words and stumble around. Be a little reluctant about having just been given free alcohol. You took a sip out of the alcohol and it tasted about a solid ${currentAlcoholLevel}. Do not mention the numbers 1-10 in any way, but rather how it makes you feel.
             `;
-            const userContent = `Here Lupos, have a drink, it's whatever drink you think it is, so assume accordingly. It looks like you're about at a ${currentAlcoholLevel}/10 level of drunk my friend. Mention what type of drink are you drinking and explain more about, what ingredients it uses.?`;
-            return await DiscordService.generateTextFromSystemUserMessages(systemContent, userContent, interaction);
-        } else {
-            const currentThirstLevel = ThirstService.decreaseThirstLevel();
-            BathroomService.increaseBathroomLevel();
-            const systemContent = `
+      const userContent = `Here Lupos, have a drink, it's whatever drink you think it is, so assume accordingly. It looks like you're about at a ${currentAlcoholLevel}/10 level of drunk my friend. Mention what type of drink are you drinking and explain more about, what ingredients it uses.?`;
+      return await DiscordService.generateTextFromSystemUserMessages(
+        systemContent,
+        userContent,
+        interaction,
+      );
+    } else {
+      const currentThirstLevel = ThirstService.decreaseThirstLevel();
+      BathroomService.increaseBathroomLevel();
+      const systemContent = `
                 You were just fed ${getRandomDrink}.
                 You will always include this emoji "${getRandomDrink}" in your responses.
                 Describe in detail what has been given to you and where in Azeroth it originates from, and what it reminds you of.
                 You will drink what has been given to you. You will always accept it, and you will take a sip, gulp, drink, the delicious beverage that has been given to you. You have just been given to quench your thirst. You are now less thirsty, at about ${currentThirstLevel}/10, which means that you act like you are ${currentThirstLevel}/10 thirsty, but you never make a reference to the level of thirst you are at.
             `;
-            const userContent = `Here, have some ${getRandomDrink}, and include the emoji in your response.`
-            return await DiscordService.generateTextFromSystemUserMessages(systemContent, userContent, interaction);
-        }
-
-
+      const userContent = `Here, have some ${getRandomDrink}, and include the emoji in your response.`;
+      return await DiscordService.generateTextFromSystemUserMessages(
+        systemContent,
+        userContent,
+        interaction,
+      );
     }
-}
+  },
+};
 
 export default ActionService;

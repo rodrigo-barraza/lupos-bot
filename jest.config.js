@@ -1,4 +1,4 @@
 export default {
-    transform: {},
-    injectGlobals: true,
+  transform: {},
+  injectGlobals: true,
 };

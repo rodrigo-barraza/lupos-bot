@@ -1,0 +1,7 @@
+node_modules/
+images/
+recordings/
+voices/
+eslint_output.json
+jest_output_ascii.txt
+package-lock.json

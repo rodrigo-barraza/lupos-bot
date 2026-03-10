@@ -1,12 +1,12 @@
-import 'dotenv/config';
-import { Client, GatewayIntentBits, Partials } from 'discord.js';
+import "dotenv/config";
+import { Client, GatewayIntentBits, Partials } from "discord.js";
 
-let clients = [];
+const clients = [];
 
 const DiscordWrapper = {
   clients: clients,
-  createClient (name, token) {
-    let client = new Client({
+  createClient(name, token) {
+    const client = new Client({
       intents: [
         GatewayIntentBits.Guilds,
         GatewayIntentBits.GuildMembers,
@@ -39,8 +39,8 @@ const DiscordWrapper = {
 
     return client;
   },
-  getClient (name) {
-    return clients.find(client => client.name === name).client;
+  getClient(name) {
+    return clients.find((client) => client.name === name).client;
   },
 };
 

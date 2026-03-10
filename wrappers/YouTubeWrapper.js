@@ -1,15 +1,25 @@
-import { joinVoiceChannel, createAudioPlayer, createAudioResource, AudioPlayerStatus, StreamType } from '@discordjs/voice';
-import play from 'play-dl';
-import ytdl from '@distube/ytdl-core';
-import DiscordUtilityService from '#root/services/DiscordUtilityService.js';
-import { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, AttachmentBuilder } from 'discord.js';
+import {
+    joinVoiceChannel,
+    createAudioPlayer,
+    createAudioResource,
+    AudioPlayerStatus,
+    StreamType,
+} from "@discordjs/voice";
+import play from "play-dl";
+import ytdl from "@distube/ytdl-core";
+import DiscordUtilityService from "#root/services/DiscordUtilityService.js";
+import {
+    ActionRowBuilder,
+    ButtonBuilder,
+    ButtonStyle,
+    EmbedBuilder,
+    AttachmentBuilder,
+} from "discord.js";
 
 // new
-import prism from 'prism-media';
-import fs from 'fs';
-import path from 'path';
-import { pipeline } from 'stream';
-const { Lame: lame } = await import('node-lame');
+import prism from "prism-media";
+import fs from "fs";
+import path from "path";
 
 let connection;
 let player;
@@ -19,11 +29,18 @@ let currentVideo = null; // Track the currently playing video
 let nowPlayingMessage = null; // Add this to track the now playing message
 let updateInterval = null; // Add this to track the update interval
 let volumeLevel = 5;
-let statusStymbol = '▶';
+const statusStymbol = "▶";
 let currentMessage = null; // Track the current message being processed
 
+function formatTime(ms) {
+    const totalSeconds = Math.floor(ms / 1000);
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+    return `${minutes}:${seconds.toString().padStart(2, "0")}`;
+}
+
 // Add these variables at the top with your other variables
-let recordingStreams = new Map();
+const recordingStreams = new Map();
 let isRecording = false;
 let combinedStream = null;
 let audioMixer = null;
@@ -41,17 +58,17 @@ class AudioMixer {
     addSource(id, stream) {
         this.sources.set(id, {
             stream,
-            buffer: Buffer.alloc(0)
+            buffer: Buffer.alloc(0),
         });
 
-        stream.on('data', (chunk) => {
+        stream.on("data", (chunk) => {
             const source = this.sources.get(id);
             if (source) {
                 source.buffer = Buffer.concat([source.buffer, chunk]);
             }
         });
 
-        stream.on('end', () => {
+        stream.on("end", () => {
             this.sources.delete(id);
             if (this.sources.size === 0) {
                 this.stopMixing();
@@ -66,7 +83,7 @@ class AudioMixer {
             const mixed = Buffer.alloc(this.bufferSize);
             let activeStreams = 0;
 
-            for (const [id, source] of this.sources) {
+            for (const [_id, source] of this.sources) {
                 if (source.buffer.length >= this.bufferSize) {
                     activeStreams++;
                     const chunk = source.buffer.slice(0, this.bufferSize);
@@ -109,25 +126,26 @@ class AudioMixer {
 function createEmbed(video, queueMessage) {
     const videoUrl = video.url;
     const videoTitle = video.title;
-    const videoDescription = video.description;
+    const _videoDescription = video.description;
     const videoDuration = video.durationRaw;
-    const videoViews = video.views;
-    const channelName = video.channel.name;
-    const videoThumbnail = video.thumbnails[1] ? video.thumbnails[1].url : video.thumbnails[0].url;
-
+    const _videoViews = video.views;
+    const _channelName = video.channel.name;
+    const videoThumbnail = video.thumbnails[1]
+        ? video.thumbnails[1].url
+        : video.thumbnails[0].url;
 
     // message.reply(`Now playing: **${video.title}** (${video.durationRaw}), requested by ${video.author}`);
 
-    const username = DiscordUtilityService.getNameFromItem(queueMessage);
-    const userProfilePicture = queueMessage.author.displayAvatarURL();
+    const _username = DiscordUtilityService.getNameFromItem(queueMessage);
+    const _userProfilePicture = queueMessage.author.displayAvatarURL();
 
-    let formatted = '0:00';
+    let formatted = "0:00";
     if (player.state?.resource?.playbackDuration) {
         const milliseconds = player.state.resource.playbackDuration;
         const totalSeconds = Math.floor(milliseconds / 1000);
         const minutes = Math.floor(totalSeconds / 60);
         const seconds = totalSeconds % 60;
-        formatted = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+        formatted = `${minutes}:${seconds.toString().padStart(2, "0")}`;
     }
 
     // formatted message with embed
@@ -137,8 +155,8 @@ function createEmbed(video, queueMessage) {
         url: videoUrl,
         description: videoTitle,
         fields: [
-            { name: '', value: '', inline: false },
-            { name: '', value: `Volume: ${volumeLevel}%` },
+            { name: "", value: "", inline: false },
+            { name: "", value: `Volume: ${volumeLevel}%` },
             // { name: 'Currently Playing', value: videoTitle, inline: false },
             // { name: 'Duration', value: `${formatted} / ${videoDuration}`, inline: false },
             // { name: 'Duration', value: videoDuration, inline: true },
@@ -160,23 +178,26 @@ function createEmbed(video, queueMessage) {
 
     // add a field with the name "Up Next:" and the value of all the next songs in the queue
     if (queue.length > 0) {
-        const nextSongs = queue.map((item, index) => `${index + 1}. ${item.video.title} (${item.video.durationRaw})`).join('\n');
+        const nextSongs = queue
+            .map(
+                (item, index) =>
+                    `${index + 1}. ${item.video.title} (${item.video.durationRaw})`,
+            )
+            .join("\n");
         embed.fields.push({
-            name: 'Up Next:',
+            name: "Up Next:",
             value: nextSongs,
             inline: false,
         });
     } else {
         embed.fields.push({
-            name: 'Up Next',
-            value: 'No songs in the queue.',
+            name: "Up Next",
+            value: "No songs in the queue.",
             inline: false,
         });
     }
     return embed;
 }
-
-
 
 const YouTubeWrapper = {
     async processQueue(client, message) {
@@ -189,7 +210,7 @@ const YouTubeWrapper = {
         currentMessage = queueMessage;
         try {
             // Join voice channel if not already connected
-            if (!connection || connection.state.status === 'disconnected') {
+            if (!connection || connection.state.status === "disconnected") {
                 connection = joinVoiceChannel({
                     channelId: message.member.voice.channel.id,
                     guildId: message.guild.id,
@@ -205,21 +226,23 @@ const YouTubeWrapper = {
 
             const info = await ytdl.getInfo(video.url);
 
-
             // if info.formats hasAudio
             // pick highest audioBitrate in info.formats
-            if (!info.formats.some(format => format.hasAudio)) {
-                return await message.reply('No audio format found for this video!');
+            if (!info.formats.some((format) => format.hasAudio)) {
+                return await message.reply("No audio format found for this video!");
             } else {
-                console.log('Audio format found!');
+                console.log("Audio format found!");
             }
-            const audioFormats = info.formats.filter(format => format.hasAudio);
-            const highestAudioBitrate = Math.max(...audioFormats.map(format => format.audioBitrate));
-            const selectedFormat = audioFormats.find(format => format.audioBitrate === highestAudioBitrate);
-
+            const audioFormats = info.formats.filter((format) => format.hasAudio);
+            const highestAudioBitrate = Math.max(
+                ...audioFormats.map((format) => format.audioBitrate),
+            );
+            const selectedFormat = audioFormats.find(
+                (format) => format.audioBitrate === highestAudioBitrate,
+            );
 
             const stream = ytdl(video.url, {
-                filter: 'audio',
+                filter: "audio",
                 quality: selectedFormat.itag,
                 // quality: 'highestaudio',
                 // highWaterMark: 1 << 25, // 32MB
@@ -229,8 +252,9 @@ const YouTubeWrapper = {
                 dlChunkSize: 0,
                 requestOptions: {
                     headers: {
-                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-                        'Accept-Language': 'en-US,en;q=0.9',
+                        "User-Agent":
+                            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+                        "Accept-Language": "en-US,en;q=0.9",
                     },
                     family: 4, // Force IPv4, or 6 for IPv6
                 },
@@ -248,9 +272,11 @@ const YouTubeWrapper = {
             player.removeAllListeners();
 
             // Add error handler
-            player.on('error', async error => {
-                console.error('Player error:', error);
-                await message.channel.send('An error occurred while streaming the song, now skipping to the next song...');
+            player.on("error", async (error) => {
+                console.error("Player error:", error);
+                await message.channel.send(
+                    "An error occurred while streaming the song, now skipping to the next song...",
+                );
                 this.stopUpdateInterval();
                 await this.processQueue(client, message);
             });
@@ -267,28 +293,35 @@ const YouTubeWrapper = {
             nowPlayingMessage = await message.channel.send({ embeds: [embed] });
             this.startUpdateInterval();
         } catch (error) {
-            console.error('Error processing queue:', error);
-            message.reply('An error occurred while processing the queue!');
+            console.error("Error processing queue:", error);
+            message.reply("An error occurred while processing the queue!");
             isQueueProcessing = false;
             connection.destroy();
             connection = null;
         }
     },
     async searchAndPlay(client, message) {
-        if (!message.content.startsWith('!play ')) return;
+        if (!message.content.startsWith("!play ")) return;
         try {
-            const permissions = message.member.voice.channel.permissionsFor(client.user);
-            if (!permissions.has(['CONNECT', 'SPEAK'])) {
-                return message.reply('I need permissions to join and speak in your voice channel!');
+            const permissions = message.member.voice.channel.permissionsFor(
+                client.user,
+            );
+            if (!permissions.has(["CONNECT", "SPEAK"])) {
+                return message.reply(
+                    "I need permissions to join and speak in your voice channel!",
+                );
             }
 
             message.content = message.content.slice(6).trim(); // Remove '!play ' prefix
 
             let video;
 
-            if (message.content.includes('youtube.com/watch') || message.content.includes('youtu.be/')) {
+            if (
+                message.content.includes("youtube.com/watch") ||
+                message.content.includes("youtu.be/")
+            ) {
                 if (!ytdl.validateURL(message.content)) {
-                    return message.reply('Invalid YouTube URL!');
+                    return message.reply("Invalid YouTube URL!");
                 }
                 // Get video info using play-dl
                 const basicInfo = await play.video_basic_info(message.content);
@@ -296,11 +329,11 @@ const YouTubeWrapper = {
             } else {
                 const query = message.content;
                 if (!message.member.voice.channel) {
-                    return message.reply('You need to be in a voice channel!');
+                    return message.reply("You need to be in a voice channel!");
                 }
                 const searchResults = await play.search(query, { limit: 1 });
                 if (searchResults.length === 0) {
-                    return message.reply('No results found!');
+                    return message.reply("No results found!");
                 }
 
                 video = searchResults[0];
@@ -309,7 +342,7 @@ const YouTubeWrapper = {
             const queueObject = {
                 video,
                 message,
-            }
+            };
             queue.push(queueObject);
 
             // Add message when song is added to queue
@@ -318,7 +351,7 @@ const YouTubeWrapper = {
                 const totalSeconds = Math.floor(milliseconds / 1000);
                 const minutes = Math.floor(totalSeconds / 60);
                 const seconds = totalSeconds % 60;
-                const formatted = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+                const _formatted = `${minutes}:${seconds.toString().padStart(2, "0")}`;
 
                 // grab existing message embed and resend it with updated fields
                 const existingEmbed = nowPlayingMessage.embeds[0];
@@ -327,27 +360,37 @@ const YouTubeWrapper = {
                     title: existingEmbed.title,
                     url: existingEmbed.url,
                     description: existingEmbed.description,
-                    fields: [{
-                        name: '',
-                        value: `Volume: ${volumeLevel}%`,
-                    }],
+                    fields: [
+                        {
+                            name: "",
+                            value: `Volume: ${volumeLevel}%`,
+                        },
+                    ],
                     footer: existingEmbed.footer,
                     author: existingEmbed.author,
                     image: existingEmbed.image,
                 };
 
-
                 if (queue.length > 0) {
-                    const nextSongs = queue.map((item, index) => `${index + 1}. ${item.video.title} (${item.video.durationRaw})`).join('\n');
+                    const nextSongs = queue
+                        .map(
+                            (item, index) =>
+                                `${index + 1}. ${item.video.title} (${item.video.durationRaw})`,
+                        )
+                        .join("\n");
                     updatedEmbed.fields.push({
-                        name: 'Up Next',
+                        name: "Up Next",
                         value: nextSongs,
                         inline: false,
                     });
                 }
 
-                message.reply(`Added to queue: **${video.title}** (${video.durationRaw}) - Position #${queue.length}`);
-                nowPlayingMessage = await message.channel.send({ embeds: [updatedEmbed] });
+                message.reply(
+                    `Added to queue: **${video.title}** (${video.durationRaw}) - Position #${queue.length}`,
+                );
+                nowPlayingMessage = await message.channel.send({
+                    embeds: [updatedEmbed],
+                });
 
                 // stop the update interval if it's running
                 if (updateInterval) {
@@ -364,17 +407,17 @@ const YouTubeWrapper = {
                 await this.processQueue(client, message);
             }
         } catch (error) {
-            console.error('Error:', error);
-            message.reply('An error occurred while searching/playing!');
+            console.error("Error:", error);
+            message.reply("An error occurred while searching/playing!");
         }
     },
     async recordVoiceInVoiceChannel(client, message) {
-        if (!message.content.startsWith('!record')) return;
+        if (!message.content.startsWith("!record")) return;
         if (!message.member.voice.channel) {
-            return message.reply('You need to be in a voice channel!');
+            return message.reply("You need to be in a voice channel!");
         }
 
-        if (!connection || connection.state.status === 'disconnected') {
+        if (!connection || connection.state.status === "disconnected") {
             connection = joinVoiceChannel({
                 channelId: message.member.voice.channel.id,
                 guildId: message.guild.id,
@@ -385,11 +428,11 @@ const YouTubeWrapper = {
 
         // Wait for connection to be ready
         await new Promise((resolve) => {
-            if (connection.state.status === 'ready') {
+            if (connection.state.status === "ready") {
                 resolve();
             } else {
-                connection.on('stateChange', (oldState, newState) => {
-                    if (newState.status === 'ready') {
+                connection.on("stateChange", (oldState, newState) => {
+                    if (newState.status === "ready") {
                         resolve();
                     }
                 });
@@ -399,7 +442,7 @@ const YouTubeWrapper = {
         const receiver = connection.receiver;
 
         // Create recordings directory if it doesn't exist
-        const recordingsDir = path.join(import.meta.dirname, '../recordings');
+        const recordingsDir = path.join(import.meta.dirname, "../recordings");
         if (!fs.existsSync(recordingsDir)) {
             fs.mkdirSync(recordingsDir, { recursive: true });
         }
@@ -407,12 +450,12 @@ const YouTubeWrapper = {
         // Create combined recording stream
         const combinedFilename = `combined-${Date.now()}.pcm`;
         const combinedPcmPath = path.join(recordingsDir, combinedFilename);
-        const combinedMp3Path = combinedPcmPath.replace('.pcm', '.mp3');
+        const combinedMp3Path = combinedPcmPath.replace(".pcm", ".mp3");
         combinedStream = fs.createWriteStream(combinedPcmPath);
         audioMixer = new AudioMixer(combinedStream);
 
         // Listen for when user starts speaking
-        receiver.speaking.on('start', (userId) => {
+        receiver.speaking.on("start", (userId) => {
             if (isRecording) {
                 this.createRecordingStream(receiver, userId, recordingsDir);
             }
@@ -422,13 +465,16 @@ const YouTubeWrapper = {
 
         // Start recording for all users currently in the voice channel
         const voiceChannel = message.member.voice.channel;
-        voiceChannel.members.forEach(member => {
-            if (!member.user.bot) { // Don't record bots
+        voiceChannel.members.forEach((member) => {
+            if (!member.user.bot) {
+                // Don't record bots
                 this.createRecordingStream(receiver, member.id, recordingsDir);
             }
         });
 
-        const replyMessage = await message.reply('🔴 Recording started for the next **5 seconds**!');
+        const replyMessage = await message.reply(
+            "🔴 Recording started for the next **5 seconds**!",
+        );
 
         setTimeout(() => {
             if (isRecording) {
@@ -436,7 +482,7 @@ const YouTubeWrapper = {
                 // message.reply('🟥 Recording stopped! Check the recordings folder for your MP3 files.');
 
                 // Stop all active recordings
-                for (const [userId, streams] of recordingStreams) {
+                for (const [_userId, streams] of recordingStreams) {
                     if (streams.opusStream && !streams.opusStream.destroyed) {
                         streams.opusStream.destroy();
                     }
@@ -461,26 +507,36 @@ const YouTubeWrapper = {
                             try {
                                 await this.convertToMp3(combinedPcmPath, combinedMp3Path);
 
-
-                                let userTags = voiceChannel.members.map(member => `<@${member.user.id}>`).join(', ').replace(`<@${client.user.id}>`, '');
+                                let userTags = voiceChannel.members
+                                    .map((member) => `<@${member.user.id}>`)
+                                    .join(", ")
+                                    .replace(`<@${client.user.id}>`, "");
                                 // if there is only two users, remove the comma
-                                if (userTags.endsWith(', ')) {
+                                if (userTags.endsWith(", ")) {
                                     userTags = userTags.slice(0, -2);
                                 }
 
                                 const attachment = new AttachmentBuilder(combinedMp3Path);
                                 const embed = new EmbedBuilder()
-                                    .setTitle('Audio Recording')
-                                    .setDescription(`Requested by <@${message.author.id}> in <#${voiceChannel.id}>`)
-                                    .addFields({ name: 'Users Recorded', value: userTags || 'No users recorded' })
-                                    .setColor('#00FF00')
+                                    .setTitle("Audio Recording")
+                                    .setDescription(
+                                        `Requested by <@${message.author.id}> in <#${voiceChannel.id}>`,
+                                    )
+                                    .addFields({
+                                        name: "Users Recorded",
+                                        value: userTags || "No users recorded",
+                                    })
+                                    .setColor("#00FF00");
                                 // .setTimestamp()
                                 // .setFooter({ text: 'Recording Bot' });
 
-                                await replyMessage.edit({ content: '', embeds: [embed], files: [attachment] });
-
+                                await replyMessage.edit({
+                                    content: "",
+                                    embeds: [embed],
+                                    files: [attachment],
+                                });
                             } catch (error) {
-                                console.error('Failed to convert combined recording:', error);
+                                console.error("Failed to convert combined recording:", error);
                             }
                         } else {
                             fs.unlinkSync(combinedPcmPath);
@@ -497,7 +553,7 @@ const YouTubeWrapper = {
         try {
             const opusStream = receiver.subscribe(userId, {
                 end: {
-                    behavior: 'afterSilence',
+                    behavior: "afterSilence",
                     duration: 100,
                 },
             });
@@ -523,7 +579,7 @@ const YouTubeWrapper = {
 
             const filename = `${userId}-${Date.now()}.pcm`;
             const pcmPath = path.join(recordingsDir, filename);
-            const mp3Path = pcmPath.replace('.pcm', '.mp3');
+            const mp3Path = pcmPath.replace(".pcm", ".mp3");
             const outputStream = fs.createWriteStream(pcmPath);
 
             recordingStreams.set(userId, {
@@ -538,14 +594,17 @@ const YouTubeWrapper = {
             opusStream
                 .pipe(decoder)
                 .pipe(outputStream)
-                .on('finish', async () => {
+                .on("finish", async () => {
                     console.log(`Recording saved for user ${userId}`);
                     const stats = fs.statSync(pcmPath);
                     if (stats.size > 0) {
                         try {
                             await this.convertToMp3(pcmPath, mp3Path);
                         } catch (error) {
-                            console.error(`Failed to convert recording for user ${userId}:`, error);
+                            console.error(
+                                `Failed to convert recording for user ${userId}:`,
+                                error,
+                            );
                         }
                     } else {
                         console.log(`Empty recording for user ${userId}, deleting...`);
@@ -558,7 +617,7 @@ const YouTubeWrapper = {
             if (audioMixer) {
                 const mixerStream = receiver.subscribe(userId, {
                     end: {
-                        behavior: 'afterSilence',
+                        behavior: "afterSilence",
                         duration: 100,
                     },
                 });
@@ -570,49 +629,47 @@ const YouTubeWrapper = {
             }
 
             // Add error handling
-            opusStream.on('error', (error) => {
+            opusStream.on("error", (error) => {
                 console.error(`OpusStream error for user ${userId}:`, error);
                 recordingStreams.delete(userId);
             });
 
-            decoder.on('error', (error) => {
+            decoder.on("error", (error) => {
                 console.error(`Decoder error for user ${userId}:`, error);
                 recordingStreams.delete(userId);
             });
 
-            outputStream.on('error', (error) => {
+            outputStream.on("error", (error) => {
                 console.error(`Output stream error for user ${userId}:`, error);
                 recordingStreams.delete(userId);
             });
-
         } catch (error) {
-            console.error(`Error creating recording stream for user ${userId}:`, error);
+            console.error(
+                `Error creating recording stream for user ${userId}:`,
+                error,
+            );
         }
     },
     // And here's a simpler convertToMp3 function using fluent-ffmpeg:
     async convertToMp3(pcmPath, mp3Path) {
-        const { default: ffmpeg } = await import('fluent-ffmpeg');
+        const { default: ffmpeg } = await import("fluent-ffmpeg");
 
         console.log(`Converting PCM to MP3: ${pcmPath} -> ${mp3Path}`);
 
         return new Promise((resolve, reject) => {
             ffmpeg()
                 .input(pcmPath)
-                .inputOptions([
-                    '-f', 's16le',
-                    '-ar', '48000',
-                    '-ac', '2'
-                ])
+                .inputOptions(["-f", "s16le", "-ar", "48000", "-ac", "2"])
                 .output(mp3Path)
-                .audioCodec('libmp3lame')
+                .audioCodec("libmp3lame")
                 .audioBitrate(128)
-                .on('end', () => {
+                .on("end", () => {
                     console.log(`MP3 saved: ${mp3Path}`);
                     fs.unlinkSync(pcmPath);
                     resolve(mp3Path);
                 })
-                .on('error', (err) => {
-                    console.error('FFmpeg error:', err);
+                .on("error", (err) => {
+                    console.error("FFmpeg error:", err);
                     reject(err);
                 })
                 .run();
@@ -631,33 +688,43 @@ const YouTubeWrapper = {
             // }
 
             // empty bar with 45 spaces
-            let progressBar = '░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░';
-            let dividingLine = '───────────────────────────────────────────';
+            let progressBar = "░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░";
+            let dividingLine = "───────────────────────────────────────────";
 
-            let volumeBar = '░░░░░░░░░░░░';
+            let volumeBar = "░░░░░░░░░░░░";
 
-            const progress = player.state.resource.playbackDuration / (currentVideo.durationInSec * 1000);
+            const progress =
+                player.state.resource.playbackDuration /
+                (currentVideo.durationInSec * 1000);
             const filledLength = Math.floor(progress * progressBar.length);
-            progressBar = progressBar.substring(0, filledLength).replace(/░/g, '█') + progressBar.substring(filledLength);
+            progressBar =
+                progressBar.substring(0, filledLength).replace(/░/g, "█") +
+                progressBar.substring(filledLength);
 
             const milliseconds = player.state.resource.playbackDuration;
             const totalSeconds = Math.floor(milliseconds / 1000);
             const minutes = Math.floor(totalSeconds / 60);
             const seconds = totalSeconds % 60;
-            const formatted = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+            const formatted = `${minutes}:${seconds.toString().padStart(2, "0")}`;
 
-            dividingLine = dividingLine.slice(formatted.length).slice(currentVideo.durationRaw.length);
+            dividingLine = dividingLine
+                .slice(formatted.length)
+                .slice(currentVideo.durationRaw.length);
 
             // replace volumeBar ░ with █ based on volumeLevel
-            const volumeFilledLength = Math.floor((volumeLevel / 100) * volumeBar.length);
-            volumeBar = volumeBar.substring(0, volumeFilledLength).replace(/░/g, '█') + volumeBar.substring(volumeFilledLength);
+            const volumeFilledLength = Math.floor(
+                (volumeLevel / 100) * volumeBar.length,
+            );
+            volumeBar =
+                volumeBar.substring(0, volumeFilledLength).replace(/░/g, "█") +
+                volumeBar.substring(volumeFilledLength);
 
             const dox = `\`\`\`
 ${progressBar}
 ${formatted} ${dividingLine} ${currentVideo.durationRaw}
 \`\`\``;
 
-            const vol = `\`\`\`
+            const _vol = `\`\`\`
 🔊 ${volumeBar} ${volumeLevel}%
 \`\`\``;
 
@@ -671,7 +738,7 @@ ${formatted} ${dividingLine} ${currentVideo.durationRaw}
                 description: existingEmbed.description,
                 fields: [
                     {
-                        name: '',
+                        name: "",
                         value: dox,
                     },
                     // {
@@ -680,7 +747,7 @@ ${formatted} ${dividingLine} ${currentVideo.durationRaw}
                     //     inline: true,
                     // },
                     {
-                        name: '',
+                        name: "",
                         value: `\`🔊 ${volumeLevel}% | Queue: ${queue.length} | Requested by @${DiscordUtilityService.getNameFromItem(currentMessage)}\``,
                         inline: true,
                     },
@@ -698,108 +765,113 @@ ${formatted} ${dividingLine} ${currentVideo.durationRaw}
             };
 
             if (queue.length > 0) {
-                const nextSongs = queue.map((item, index) => `\`${index + 1}. ${item.video.title} (${item.video.durationRaw}) @${DiscordUtilityService.getNameFromItem(item.message)}\``).join('\n');
+                const nextSongs = queue
+                    .map(
+                        (item, index) =>
+                            `\`${index + 1}. ${item.video.title} (${item.video.durationRaw}) @${DiscordUtilityService.getNameFromItem(item.message)}\``,
+                    )
+                    .join("\n");
                 updatedEmbed.fields.push({
-                    name: 'Up Next',
+                    name: "Up Next",
                     value: nextSongs,
                     inline: false,
                 });
             } else {
                 updatedEmbed.fields.push({
-                    name: 'Up Next',
-                    value: 'No songs in the queue.',
+                    name: "Up Next",
+                    value: "No songs in the queue.",
                     inline: false,
                 });
             }
 
-
-
-            let actionRow = new ActionRowBuilder()
+            const actionRow = new ActionRowBuilder();
             // if is paused change button to resume
 
             const isThereANextSong = queue.length > 0;
 
             actionRow.addComponents(
                 new ButtonBuilder()
-                    .setCustomId('empty')
-                    .setLabel('⠀⠀⠀⠀⠀⠀')
+                    .setCustomId("empty")
+                    .setLabel("⠀⠀⠀⠀⠀⠀")
                     .setStyle(ButtonStyle.Secondary)
-                    .setDisabled(true)
+                    .setDisabled(true),
             );
             actionRow.addComponents(
                 new ButtonBuilder()
-                    .setCustomId('back')
-                    .setLabel('⏮️')
+                    .setCustomId("back")
+                    .setLabel("⏮️")
                     .setStyle(ButtonStyle.Primary)
-                    .setDisabled(true)
+                    .setDisabled(true),
             );
-            if (player.state.status === AudioPlayerStatus.Playing || player.state.status === AudioPlayerStatus.Buffering) {
+            if (
+                player.state.status === AudioPlayerStatus.Playing ||
+                player.state.status === AudioPlayerStatus.Buffering
+            ) {
                 actionRow.addComponents(
                     new ButtonBuilder()
-                        .setCustomId('pause')
-                        .setLabel('⏸️')
+                        .setCustomId("pause")
+                        .setLabel("⏸️")
                         .setStyle(ButtonStyle.Primary),
                 );
             } else {
                 actionRow.addComponents(
                     new ButtonBuilder()
-                        .setCustomId('resume')
-                        .setLabel('▶️')
-                        .setStyle(ButtonStyle.Primary)
+                        .setCustomId("resume")
+                        .setLabel("▶️")
+                        .setStyle(ButtonStyle.Primary),
                 );
             }
             actionRow.addComponents(
                 new ButtonBuilder()
-                    .setCustomId('next')
-                    .setLabel('⏭️')
+                    .setCustomId("next")
+                    .setLabel("⏭️")
                     .setStyle(ButtonStyle.Primary)
-                    .setDisabled(!isThereANextSong)
+                    .setDisabled(!isThereANextSong),
             );
             actionRow.addComponents(
                 new ButtonBuilder()
-                    .setCustomId('empty2')
-                    .setLabel('⠀⠀⠀⠀⠀⠀')
+                    .setCustomId("empty2")
+                    .setLabel("⠀⠀⠀⠀⠀⠀")
                     .setStyle(ButtonStyle.Secondary)
-                    .setDisabled(true)
+                    .setDisabled(true),
             );
-            const volumeRow = new ActionRowBuilder()
-                .addComponents(
-                    new ButtonBuilder()
-                        .setCustomId('empty3')
-                        .setLabel('⠀⠀')
-                        .setStyle(ButtonStyle.Secondary)
-                        .setDisabled(true),
-                    new ButtonBuilder()
-                        .setCustomId('volumeDown')
-                        .setLabel('Volume Down ⬇️')
-                        .setStyle(ButtonStyle.Secondary),
-                    new ButtonBuilder()
-                        .setCustomId('volumeLevel')
-                        .setLabel(`🔊 ${volumeLevel.toString()}%`)
-                        .setStyle(ButtonStyle.Secondary)
-                        // .setEmoji('744928265009103008')
-                        .setDisabled(true),
-                    new ButtonBuilder()
-                        .setCustomId('volumeUp')
-                        .setLabel('⬆️ Volume Up')
-                        .setStyle(ButtonStyle.Secondary),
-                    new ButtonBuilder()
-                        .setCustomId('empty4')
-                        .setLabel('⠀⠀')
-                        .setStyle(ButtonStyle.Secondary)
-                        .setDisabled(true),
-                    // new ButtonBuilder()
-                    //     .setCustomId('volumeMute')
-                    //     .setLabel('🔇 Mute')
-                    //     .setStyle(ButtonStyle.Secondary),
-                );
+            const volumeRow = new ActionRowBuilder().addComponents(
+                new ButtonBuilder()
+                    .setCustomId("empty3")
+                    .setLabel("⠀⠀")
+                    .setStyle(ButtonStyle.Secondary)
+                    .setDisabled(true),
+                new ButtonBuilder()
+                    .setCustomId("volumeDown")
+                    .setLabel("Volume Down ⬇️")
+                    .setStyle(ButtonStyle.Secondary),
+                new ButtonBuilder()
+                    .setCustomId("volumeLevel")
+                    .setLabel(`🔊 ${volumeLevel.toString()}%`)
+                    .setStyle(ButtonStyle.Secondary)
+                    // .setEmoji('744928265009103008')
+                    .setDisabled(true),
+                new ButtonBuilder()
+                    .setCustomId("volumeUp")
+                    .setLabel("⬆️ Volume Up")
+                    .setStyle(ButtonStyle.Secondary),
+                new ButtonBuilder()
+                    .setCustomId("empty4")
+                    .setLabel("⠀⠀")
+                    .setStyle(ButtonStyle.Secondary)
+                    .setDisabled(true),
+                // new ButtonBuilder()
+                //     .setCustomId('volumeMute')
+                //     .setLabel('🔇 Mute')
+                //     .setStyle(ButtonStyle.Secondary),
+            );
 
-
-
-            nowPlayingMessage.edit({ embeds: [updatedEmbed], components: [actionRow, volumeRow] }).catch(err => {
-                console.error('Failed to update embed:', err);
-                this.stopUpdateInterval();
-            });
+            nowPlayingMessage
+                .edit({ embeds: [updatedEmbed], components: [actionRow, volumeRow] })
+                .catch((err) => {
+                    console.error("Failed to update embed:", err);
+                    this.stopUpdateInterval();
+                });
         }, 1000);
     },
 
@@ -811,7 +883,7 @@ ${formatted} ${dividingLine} ${currentVideo.durationRaw}
         nowPlayingMessage = null;
     },
     async stop(client, message) {
-        if (!message.content.startsWith('!stop')) return;
+        if (!message.content.startsWith("!stop")) return;
 
         if (player) {
             player.stop();
@@ -825,14 +897,20 @@ ${formatted} ${dividingLine} ${currentVideo.durationRaw}
         queue = [];
         isQueueProcessing = false;
 
-        await message.reply('Stopped playing!');
+        await message.reply("Stopped playing!");
     },
 
     async next(client, message) {
-        if (!message.content.startsWith('!skip') && !message.content.startsWith('!next')) return;
+        if (
+            !message.content.startsWith("!skip") &&
+            !message.content.startsWith("!next")
+        )
+            return;
 
         if (!player || queue.length === 0) {
-            return message.reply('No song is currently playing or the queue is empty!');
+            return message.reply(
+                "No song is currently playing or the queue is empty!",
+            );
         }
 
         // Stop current song and move to next
@@ -840,33 +918,36 @@ ${formatted} ${dividingLine} ${currentVideo.durationRaw}
     },
 
     async pause(client, message) {
-        if (!message.content.startsWith('!pause')) return;
-        if (!player) return message.reply('No song is currently playing!');
+        if (!message.content.startsWith("!pause")) return;
+        if (!player) return message.reply("No song is currently playing!");
 
         player.pause();
-        await message.reply('Paused!');
+        await message.reply("Paused!");
     },
 
     async resume(client, message) {
-        if (!message.content.startsWith('!resume')) return;
-        if (!player) return message.reply('No song is currently playing!');
+        if (!message.content.startsWith("!resume")) return;
+        if (!player) return message.reply("No song is currently playing!");
 
         player.unpause();
-        message.reply('Resumed!');
+        message.reply("Resumed!");
     },
     async setVolume(client, message) {
-        if (!message.content.startsWith('!volume ')) return;
-        if (!player) return message.reply('No song is currently playing!');
+        if (!message.content.startsWith("!volume ")) return;
+        if (!player) return message.reply("No song is currently playing!");
 
-        const args = message.content.split(' ');
+        const args = message.content.split(" ");
         if (args.length !== 2 || isNaN(args[1]) || args[1] < 0 || args[1] > 100) {
-            return message.reply('Please provide a valid volume between 0 and 100.');
+            return message.reply("Please provide a valid volume between 0 and 100.");
         }
 
         volumeLevel = parseInt(args[1], 10);
 
         // Get the current resource from the player
-        if (player.state.status === AudioPlayerStatus.Playing && player.state.resource.volume) {
+        if (
+            player.state.status === AudioPlayerStatus.Playing &&
+            player.state.resource.volume
+        ) {
             player.state.resource.volume.setVolume(volumeLevel / 100);
             message.reply(`Volume set to ${volumeLevel}%`);
 
@@ -879,13 +960,13 @@ ${formatted} ${dividingLine} ${currentVideo.durationRaw}
                 description: existingEmbed.description,
                 fields: [
                     {
-                        name: '',
-                        value: '',
+                        name: "",
+                        value: "",
                     },
                     {
-                        name: '',
+                        name: "",
                         value: `Volume: ${volumeLevel}%`,
-                    }
+                    },
                 ],
                 author: existingEmbed.author,
                 image: existingEmbed.image,
@@ -893,21 +974,28 @@ ${formatted} ${dividingLine} ${currentVideo.durationRaw}
             };
 
             if (queue.length > 0) {
-                const nextSongs = queue.map((item, index) => `${index + 1}. ${item.video.title} (${item.video.durationRaw})`).join('\n');
+                const nextSongs = queue
+                    .map(
+                        (item, index) =>
+                            `${index + 1}. ${item.video.title} (${item.video.durationRaw})`,
+                    )
+                    .join("\n");
                 updatedEmbed.fields.push({
-                    name: 'Up Next',
+                    name: "Up Next",
                     value: nextSongs,
                     inline: false,
                 });
             } else {
                 updatedEmbed.fields.push({
-                    name: 'Up Next',
-                    value: 'No songs in the queue.',
+                    name: "Up Next",
+                    value: "No songs in the queue.",
                     inline: false,
                 });
             }
 
-            nowPlayingMessage = await message.channel.send({ embeds: [updatedEmbed] });
+            nowPlayingMessage = await message.channel.send({
+                embeds: [updatedEmbed],
+            });
 
             // stop the update interval if it's running
             if (updateInterval) {
@@ -917,9 +1005,8 @@ ${formatted} ${dividingLine} ${currentVideo.durationRaw}
 
             // start a new update interval
             this.startUpdateInterval();
-
         } else {
-            message.reply('Cannot adjust volume at this time.');
+            message.reply("Cannot adjust volume at this time.");
         }
     },
     async setVolumeByAmount(amount) {
@@ -970,13 +1057,15 @@ ${formatted} ${dividingLine} ${currentVideo.durationRaw}
         player.stop();
     },
     async getCurrentTimePlayed(client, message) {
-        if (!message.content.startsWith('!time')) return;
-        if (!player) return message.reply('No song is currently playing!');
+        if (!message.content.startsWith("!time")) return;
+        if (!player) return message.reply("No song is currently playing!");
 
         const currentTime = player.state.resource.playbackDuration;
         const totalDuration = player.state.resource.metadata.duration;
 
-        message.reply(`Current time: ${formatTime(currentTime)} / ${formatTime(totalDuration)}`);
+        message.reply(
+            `Current time: ${formatTime(currentTime)} / ${formatTime(totalDuration)}`,
+        );
     },
 };
 
