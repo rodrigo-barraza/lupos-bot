@@ -226,6 +226,7 @@ const AIService = {
         let localMongo = MongoWrapper.getClient('local');
         let usedModel;
         let generatedText;
+        let imageEstimatedCost = null;
         const start = performance.now();
 
         if (type === 'LOCAL') {
@@ -277,6 +278,7 @@ const AIService = {
                 if (prismResult.imageData) {
                     generatedImage = prismResult.imageData;
                     generatedText = prismResult.text;
+                    imageEstimatedCost = prismResult.estimatedCost || null;
                 } else {
                     // No image in response, fall back to LOCAL
                     console.log('Google AI Image Generation returned no image, falling back to LOCAL.');
@@ -322,6 +324,7 @@ const AIService = {
 
                 generatedImage = prismResult.imageData;
                 generatedText = prismResult.text;
+                imageEstimatedCost = prismResult.estimatedCost || null;
             } catch (error) {
                 console.error(...LogFormatter.error('generateImage', error));
             }
@@ -400,6 +403,7 @@ const AIService = {
                     provider: providerName,
                     timestamp: new Date().toISOString(),
                     totalTime: parseFloat((duration / 1000).toFixed(3)),
+                    estimatedCost: imageEstimatedCost,
                 };
 
                 const title = `🖼️ Image Generation · ${guildName} / #${channelName}`;
