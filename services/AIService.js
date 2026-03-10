@@ -72,40 +72,6 @@ function calculateImageTokens(width, height) {
     return totalTiles * 258;
 }
 
-/**
- * Save a mini-brain utility conversation to Prism for admin visibility.
- * These are lightweight sub-calls like image detection, prompt generation, etc.
- */
-function saveMiniConversation(title, conversation, response, model, type) {
-    try {
-        const discordMessage = CurrentService.getMessage();
-        const channelId = discordMessage?.channel?.id || 'unknown';
-        const username = discordMessage?.author?.username || 'lupos';
-        const timestamp = Date.now();
-        const id = `${channelId}-mini-${timestamp}`;
-
-        const messages = [
-            ...conversation,
-            { role: 'assistant', content: typeof response === 'string' ? response : JSON.stringify(response) },
-        ];
-
-        const systemMsg = conversation.find(m => m.role === 'system');
-        const systemPrompt = systemMsg?.content || '';
-        // Remove system message from messages array since it's stored separately
-        const nonSystemMessages = messages.filter(m => m.role !== 'system');
-
-        PrismWrapper.saveConversation(
-            id,
-            `🧠 ${title}`,
-            nonSystemMessages,
-            systemPrompt,
-            { model, provider: type },
-            username,
-        ).catch(err => console.error(`Failed to save mini conversation '${title}':`, err.message));
-    } catch (error) {
-        console.error(`Error preparing mini conversation save '${title}':`, error.message);
-    }
-}
 
 
 function assembleConversation(systemMessage, userMessage, message) {
@@ -289,6 +255,46 @@ const AIService = {
             outputTokenCount: outputTokenCount,
             totalCost: totalCost,
         }));
+
+        // Save this individual API call as a conversation to Prism
+        try {
+            const discordMessage = CurrentService.getMessage();
+            const channelId = discordMessage?.channel?.id || 'unknown';
+            const discordUsername = discordMessage?.author?.username || 'lupos';
+            const guildName = discordMessage?.guild?.name || 'DM';
+            const channelName = discordMessage?.channel?.name || 'direct-message';
+            const timestamp = Date.now();
+            const convId = `${channelId}-${timestamp}`;
+
+            const systemMsg = conversation.find(m => m.role === 'system');
+            const systemPrompt = systemMsg?.content || '';
+            const nonSystemMessages = conversation.filter(m => m.role !== 'system');
+
+            const assistantMsg = {
+                role: 'assistant',
+                content: textResponse,
+                model: usedModel,
+                provider: type?.toLowerCase(),
+                timestamp: new Date().toISOString(),
+                estimatedCost: parseFloat(totalCost) || 0,
+                usage: { inputTokens: inputTokenCount, outputTokens: outputTokenCount },
+                totalTime: duration / 1000,
+            };
+
+            const messages = [...nonSystemMessages, assistantMsg];
+            const title = `${guildName} / #${channelName}`;
+
+            PrismWrapper.saveConversation(
+                convId,
+                title,
+                messages,
+                systemPrompt,
+                { model: usedModel, provider: type?.toLowerCase() },
+                discordUsername,
+            ).catch(err => console.error(`Failed to save conversation for ${usedModel}:`, err.message));
+        } catch (saveErr) {
+            console.error('Error saving per-call conversation:', saveErr.message);
+        }
 
         return textResponse;
     },
@@ -696,7 +702,6 @@ const AIService = {
         });
         // trim generatedText to 128 characters
         summary = generatedText.substring(0, 128);
-        saveMiniConversation('Summary', conversation, summary, config.LANGUAGE_MODEL_TYPE, config.LANGUAGE_MODEL_TYPE);
         return summary;
     },
     async generateTextCustomEmojiReactFromMessage(message, localMongo) {
@@ -845,7 +850,6 @@ Only output the number, nothing else. No explanations. No punctuation. No extra 
 
         // Validate and return
         if (isValidFetchCount(fetchCount)) {
-            saveMiniConversation('Message Fetch Count', conversation, String(fetchCount), config.ANTHROPIC_LANGUAGE_MODEL_CLAUDE_SONNET_4, 'ANTHROPIC');
             return fetchCount;
         }
 
@@ -908,8 +912,6 @@ Implicit editing (common in replies):
         if (!response) return false;
 
         response = response.trim().toLowerCase();
-
-        saveMiniConversation('Image Detection', conversation, response, config.OPENAI_LANGUAGE_MODEL_GPT5_NANO, 'OPENAI');
 
         if (response === 'yes') return true;
         if (response === 'no') return false;
@@ -1166,8 +1168,6 @@ ${systemPrompt}`;
             tokens: config.LANGUAGE_MODEL_MAX_TOKENS,
             temperature: config.LANGUAGE_MODEL_TEMPERATURE
         });
-
-        saveMiniConversation('Image Prompt', conversation, generatedText, config.LANGUAGE_MODEL_TYPE, config.LANGUAGE_MODEL_TYPE);
 
         return generatedText;
     },

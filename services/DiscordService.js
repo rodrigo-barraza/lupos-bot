@@ -952,76 +952,40 @@ async function replyMessage(queuedDatum, localMongo) {
     generatedImage = image;
     generatedImagePrompt = promptForImagePromptGeneration;
 
-    // Fire-and-forget: save main conversation to Prism for admin visibility
-    if (generatedTextResponse) {
+    // If an image was generated, save it as a separate conversation to Prism
+    // (text conversations are already saved per-call inside generateText)
+    if (generatedImage) {
         try {
             const channelId = channel?.id || 'unknown';
             const guildName = guild?.name || 'DM';
             const channelName = channel?.name || 'direct-message';
             const discordUsername = user?.username || 'lupos';
+            const timestamp = Date.now();
+            const convId = `${channelId}-img-${timestamp}`;
 
-            // Get model/cost metadata from CurrentService
-            const models = CurrentService.getModels();
-            const modelTypes = CurrentService.getModelTypes();
-            const totalCost = CurrentService.getTextTotalCost();
-            const inputTokens = CurrentService.getTextTotalInputTokens();
-            const outputTokens = CurrentService.getTextTotalOutputTokens();
-            const lastModel = models.length > 0 ? models[models.length - 1] : null;
-            const lastModelType = modelTypes.length > 0 ? modelTypes[modelTypes.length - 1] : null;
+            const mimeType = 'image/png';
+            const dataUrl = `data:${mimeType};base64,${generatedImage}`;
 
-            const totalTime = (performance.now() - start) / 1000;
-
-            // Build full conversation with enriched assistant response
             const assistantMsg = {
                 role: 'assistant',
-                content: generatedTextResponse,
+                content: generatedTextResponse || '',
+                images: [dataUrl],
+                imagePrompt: generatedImagePrompt || '',
                 timestamp: new Date().toISOString(),
             };
-            if (lastModel) assistantMsg.model = lastModel;
-            if (lastModelType) assistantMsg.provider = lastModelType;
-            if (totalCost) {
-                const costNum = typeof totalCost === 'object' ? parseFloat(totalCost.toString()) : parseFloat(totalCost);
-                if (!isNaN(costNum)) assistantMsg.estimatedCost = costNum;
-            }
-            if (inputTokens || outputTokens) {
-                assistantMsg.usage = { inputTokens, outputTokens };
-            }
-            assistantMsg.totalTime = totalTime;
 
-            // Include the generated image as a data URL in the images array
-            // Prism's conversations route will extract it to MinIO automatically
-            if (generatedImage) {
-                const mimeType = 'image/png';
-                const dataUrl = `data:${mimeType};base64,${generatedImage}`;
-                assistantMsg.images = [dataUrl];
-                if (generatedImagePrompt) {
-                    assistantMsg.imagePrompt = generatedImagePrompt;
-                }
-            }
-
-            const fullConversation = [
-                ...conversation,
-                assistantMsg,
-            ];
-
-            const title = `${guildName} / #${channelName}`;
-            const systemMsg = conversation.find(m => m.role === 'system');
-            const systemPrompt = systemMsg?.content || '';
-
-            const settings = {};
-            if (lastModel) settings.model = lastModel;
-            if (lastModelType) settings.provider = lastModelType;
+            const title = `🖼️ ${guildName} / #${channelName}`;
 
             PrismWrapper.saveConversation(
-                channelId,
+                convId,
                 title,
-                fullConversation,
-                systemPrompt,
-                settings,
+                [assistantMsg],
+                '',
+                {},
                 discordUsername,
-            ).catch(err => console.error('Failed to save conversation to Prism:', err.message));
+            ).catch(err => console.error('Failed to save image conversation:', err.message));
         } catch (saveError) {
-            console.error('Error preparing conversation save:', saveError.message);
+            console.error('Error saving image conversation:', saveError.message);
         }
     }
 
