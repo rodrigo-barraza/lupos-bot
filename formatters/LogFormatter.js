@@ -49,14 +49,7 @@ const LogFormatter = {
         // NEW GENERATIVE INFO
         modelType,
         modelName,
-        inputCharacterCount,
-        outputCharacterCount,
-        // duration, already exists
-        inputTokenCount,
-        outputTokenCount,
-        inputTokenCost,
-        outputTokenCost,
-        totalCost,
+
         // NEW SCRAPE INFO
         url,
         result,
@@ -313,27 +306,7 @@ const LogFormatter = {
         if (modelName) {
             logParts.push(`\n    Model Name: ${modelName}`);
         }
-        if (inputCharacterCount) {
-            logParts.push(`\n    Character Count: ${inputCharacterCount}`);
-        }
-        if (outputCharacterCount) {
-            logParts.push(`\n    Output Character Count: ${outputCharacterCount}`);
-        }
-        if (inputTokenCount) {
-            logParts.push(`\n    Input Token Count: ${inputTokenCount}`);
-        }
-        if (outputTokenCount) {
-            logParts.push(`\n    Output Token Count: ${outputTokenCount}`);
-        }
-        if (inputTokenCost) {
-            logParts.push(`\n    Input Token Cost: $${inputTokenCost}`);
-        }
-        if (outputTokenCost) {
-            logParts.push(`\n    Output Token Cost: $${outputTokenCost}`);
-        }
-        if (totalCost) {
-            logParts.push(`\n    Total Cost: $${totalCost}`);
-        }
+
         // SCRAPE INFO
         if (url) {
             logParts.push(`\n    URL: ${url}`);
@@ -378,15 +351,8 @@ const LogFormatter = {
     generateTextSuccess({
         functionName,
         duration,
-        inputCharacterCount,
-        inputTokenCost,
-        inputTokenCount,
         modelName,
         modelType,
-        outputCharacterCount,
-        outputTokenCost,
-        outputTokenCount,
-        totalCost,
     }) {
         return LogFormatter.globalFormatter({
             functionName,
@@ -394,14 +360,7 @@ const LogFormatter = {
             logName: `${styles.yellowBackground}GENERATE TEXT SUCCESS${styles.reset}`,
             modelType,
             modelName,
-            inputCharacterCount,
-            outputCharacterCount,
             duration,
-            inputTokenCount,
-            outputTokenCount,
-            inputTokenCost,
-            outputTokenCost,
-            totalCost,
         });
     },
     // generateImageSuccess({
@@ -418,13 +377,12 @@ const LogFormatter = {
             prompt,
         });
     },
-    generateImageSuccess({ prompt, duration, totalCost }) {
+    generateImageSuccess({ prompt, duration }) {
         return LogFormatter.globalFormatter({
             logEmoji: '🖼️',
             logName: `${styles.yellowBackground}GENERATE IMAGE SUCCESS${styles.reset}`,
             prompt,
             duration,
-            totalCost,
         });
     },
     // SCRAPE INFO

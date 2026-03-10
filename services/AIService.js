@@ -1,7 +1,7 @@
 // Packages
 import fs from 'fs';
 import path from 'path';
-import BigNumber from 'bignumber.js';
+
 // import { DateTime } from 'luxon';
 // Config
 import config from '#root/config.json' with { type: 'json' };
@@ -16,8 +16,7 @@ import UtilityLibrary from '#root/libraries/UtilityLibrary.js';
 // Services
 import CurrentService from '#root/services/CurrentService.js';
 import DiscordUtilityService from '#root/services/DiscordUtilityService.js';
-// Maps
-import ModelsMap from '#root/maps/ModelsMap.js';
+
 
 // Image processing - prefer sharp, fallback to Jimp
 let sharp;
@@ -43,33 +42,6 @@ async function convertGifToPng(imageBuffer) {
         const pngBuffer = await image.getBuffer('image/png');
         return pngBuffer;
     }
-}
-
-function calculateImageTokens(width, height) {
-    // If both dimensions are <= 384, use 258 tokens
-    if (width <= 384 && height <= 384) {
-        return 258;
-    }
-
-    // Calculate tile size
-    const smallerDimension = Math.min(width, height);
-    let tileSize = smallerDimension / 1.5;
-
-    // Adjust tile size to be between 256 and 768 pixels
-    tileSize = Math.max(256, Math.min(768, tileSize));
-
-    // Calculate number of tiles in each dimension
-    const tilesX = Math.ceil(width / tileSize);
-    const tilesY = Math.ceil(height / tileSize);
-
-    // Total tiles (crop tiles)
-    const cropTiles = tilesX * tilesY;
-
-    // When tiling is needed, include 1 base image tile plus the crop tiles
-    const totalTiles = 1 + cropTiles;
-
-    // Each tile uses 258 tokens
-    return totalTiles * 258;
 }
 
 
@@ -105,8 +77,7 @@ const AIService = {
         const functionName = 'generateText';
         let textResponse;
         let generateTextModel;
-        let inputTokenCount = 0;
-        let outputTokenCount = 0;
+        let prismUsage = null;
         const start = performance.now();
         const localMongo = MongoWrapper.getClient('local');
 
@@ -155,62 +126,21 @@ const AIService = {
             );
 
             textResponse = prismResult.text;
+            prismUsage = prismResult.usage || null;
             if (prismResult.model) {
                 usedModel = prismResult.model;
-            }
-
-            // Use actual token counts from Prism when available
-            if (prismResult.usage) {
-                inputTokenCount = prismResult.usage.inputTokens || 0;
-                outputTokenCount = prismResult.usage.outputTokens || 0;
             }
         } catch (prismError) {
             console.error(`Prism API error for ${type}/${usedModel}:`, prismError.message);
             return null;
         }
 
-        // count characters in conversation
-        let inputCharacterCount = 0;
-        for (let i = 0; i < conversation.length; i++) {
-            inputCharacterCount += conversation[i].content.length;
-        }
-
-        const outputCharacterCount = textResponse.length;
 
         const end = performance.now();
         const duration = end - start;
 
-        // Use character-based estimation as fallback only if Prism didn't return token counts
-        if (inputTokenCount === 0) {
-            inputTokenCount = inputCharacterCount / 4;
-        }
-        if (outputTokenCount === 0) {
-            outputTokenCount = outputCharacterCount / 4;
-        }
-
-        let inputTokenCost = new BigNumber(0);
-        let outputTokenCost = new BigNumber(0);
-        let totalCost = new BigNumber(0);
-        const modelTypeMap = ModelsMap.get(type);
-        const modelDetails = modelTypeMap?.get(usedModel);
-        if (modelDetails) {
-            let pricingInput = new BigNumber(modelDetails.pricing.input);
-            let pricingOutput = new BigNumber(modelDetails.pricing.output);
-            pricingInput = pricingInput.dividedBy(1000000).multipliedBy(inputTokenCount);
-            pricingOutput = pricingOutput.dividedBy(1000000).multipliedBy(outputTokenCount);
-            inputTokenCost = pricingInput.toFixed(10);
-            outputTokenCost = pricingOutput.toFixed(10);
-            const rawTotalCost = pricingInput.plus(pricingOutput);
-            totalCost = rawTotalCost.toFixed(10);
-
-            CurrentService.addToTextTotalCost(rawTotalCost);
-            CurrentService.addToTextTotalInputTokens(inputTokenCount);
-            CurrentService.addToTextTotalInputCost(inputTokenCost);
-            CurrentService.addToTextTotalOutputTokens(outputTokenCount);
-            CurrentService.addToTextTotalOutputCost(outputTokenCost);
-            CurrentService.addModel(usedModel);
-            CurrentService.addModelType(type);
-        }
+        CurrentService.addModel(usedModel);
+        CurrentService.addModelType(type);
 
         if (localMongo) {
             const message = CurrentService.getMessage();
@@ -225,11 +155,6 @@ const AIService = {
             const db = localMongo.db("lupos");
             const collection = db.collection('MetricsTextGeneration');
             await collection.insertOne({
-                inputTokens: inputTokenCount,
-                outputTokens: outputTokenCount,
-                inputCost: inputTokenCost,
-                outputCost: outputTokenCost,
-                totalCost: totalCost,
                 model: usedModel,
                 modelType: type,
                 promptType: 'TEXT',
@@ -246,15 +171,8 @@ const AIService = {
         console.log(...LogFormatter.generateTextSuccess({
             functionName,
             duration,
-            inputCharacterCount,
-            inputTokenCost,
-            inputTokenCount,
             modelName: usedModel,
             modelType: type,
-            outputCharacterCount,
-            outputTokenCost: outputTokenCost,
-            outputTokenCount: outputTokenCount,
-            totalCost: totalCost,
         }));
 
         // Save this individual API call as a conversation to Prism
@@ -277,8 +195,7 @@ const AIService = {
                 model: usedModel,
                 provider: type?.toLowerCase(),
                 timestamp: new Date().toISOString(),
-                estimatedCost: parseFloat((parseFloat(totalCost) || 0).toFixed(8)),
-                usage: { inputTokens: inputTokenCount, outputTokens: outputTokenCount },
+                usage: prismUsage || {},
                 totalTime: parseFloat((duration / 1000).toFixed(3)),
             };
 
@@ -302,11 +219,7 @@ const AIService = {
     },
     // Base Text-to-Image Generation (Diffusion)
     async generateImage(type, prompt, client, imageUrls = [], username = null) {
-        let inputTokenCount = 0;
         let generatedImage;
-        let totalInputCost = 0;
-        let totalOutputCost = 0;
-        let totalCost = 0;
         let localMongo = MongoWrapper.getClient('local');
         let usedModel;
         let generatedText;
@@ -361,21 +274,6 @@ const AIService = {
                 if (prismResult.imageData) {
                     generatedImage = prismResult.imageData;
                     generatedText = prismResult.text;
-
-                    // Calculate cost from ModelsMap
-                    const modelTypeMap = ModelsMap.get('GOOGLE');
-                    const modelDetails = modelTypeMap?.get('gemini-3.1-flash-image-preview');
-                    if (modelDetails) {
-                        let rawAllPricingInput = new BigNumber(modelDetails.pricing.input);
-                        rawAllPricingInput = rawAllPricingInput.dividedBy(1000000).multipliedBy(inputTokenCount);
-                        let rawImagePricingOutput = new BigNumber(modelDetails.imagePricing.output);
-                        rawImagePricingOutput = rawImagePricingOutput.dividedBy(1000000).multipliedBy(calculateImageTokens(1024, 1024));
-                        let rawTotalCost = rawAllPricingInput.plus(rawImagePricingOutput);
-
-                        totalInputCost = rawAllPricingInput.toFixed(10);
-                        totalOutputCost = rawImagePricingOutput.toFixed(10);
-                        totalCost = rawTotalCost.toFixed(10);
-                    }
                 } else {
                     // No image in response, fall back to LOCAL
                     console.log('Google AI Image Generation returned no image, falling back to LOCAL.');
@@ -452,10 +350,6 @@ const AIService = {
                 userName: userName,
                 messageId: messageId || null,
                 duration: parseFloat(duration.toFixed(3)),
-                inputTokenCount,
-                totalInputCost,
-                totalOutputCost,
-                totalCost
             });
         }
 
@@ -467,8 +361,6 @@ const AIService = {
         console.log(...LogFormatter.generateImageSuccess({
             duration,
             prompt,
-            inputTokenCount,
-            totalCost,
         }));
 
         // Save this image generation as a conversation to Prism
@@ -504,7 +396,6 @@ const AIService = {
                     model: usedModel,
                     provider: providerName,
                     timestamp: new Date().toISOString(),
-                    estimatedCost: parseFloat((parseFloat(totalCost) || 0).toFixed(8)),
                     totalTime: parseFloat((duration / 1000).toFixed(3)),
                 };
 

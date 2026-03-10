@@ -67,7 +67,6 @@ const PrismWrapper = {
       usage: data.usage || { inputTokens: 0, outputTokens: 0 },
       model: data.model,
       provider: data.provider,
-      estimatedCost: data.estimatedCost,
     };
   },
 

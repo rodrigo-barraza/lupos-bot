@@ -1,6 +1,5 @@
 import { jest, describe, test, it, expect, beforeEach, afterEach, beforeAll, afterAll } from '@jest/globals';
 
-const BigNumber = (await import('bignumber.js')).default;
 const CurrentService = (await import('../../services/CurrentService.js')).default;
 
 describe('CurrentService', () => {
@@ -10,13 +9,8 @@ describe('CurrentService', () => {
         CurrentService.setMessage(null);
         CurrentService.setStartTime(null);
         CurrentService.setEndTime(null);
-        CurrentService.clearTextTotalInputTokens();
-        CurrentService.clearTextTotalInputCost();
-        CurrentService.clearTextTotalOutputTokens();
-        CurrentService.clearTextTotalOutputCost();
         CurrentService.clearModels();
         CurrentService.clearModelTypes();
-        CurrentService.clearTextTotalCost();
     });
 
     test('should handle user and message getters/setters', () => {
@@ -33,29 +27,6 @@ describe('CurrentService', () => {
 
         CurrentService.setEndTime('11:00');
         expect(CurrentService.getEndTime()).toBe('11:00');
-    });
-
-    test('should correctly add and retrieve input/output tokens', () => {
-        CurrentService.addToTextTotalInputTokens(100);
-        CurrentService.addToTextTotalInputTokens(50);
-        expect(CurrentService.getTextTotalInputTokens()).toBe(150);
-
-        CurrentService.addToTextTotalOutputTokens(200);
-        CurrentService.addToTextTotalOutputTokens(25);
-        expect(CurrentService.getTextTotalOutputTokens()).toBe(225);
-    });
-
-    test('should correctly compute costs utilizing BigNumber', () => {
-        CurrentService.addToTextTotalInputCost(0.001);
-        CurrentService.addToTextTotalInputCost(0.002);
-        // 0.0030000000
-        expect(CurrentService.getTextTotalInputCost()).toBe('0.0030000000');
-
-        CurrentService.addToTextTotalOutputCost(0.004);
-        expect(CurrentService.getTextTotalOutputCost()).toBe('0.0040000000');
-
-        CurrentService.addToTextTotalCost(0.007);
-        expect(CurrentService.getTextTotalCost()).toBe('0.0070000000');
     });
 
     test('should handle models and model types', () => {

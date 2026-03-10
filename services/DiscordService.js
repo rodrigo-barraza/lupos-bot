@@ -837,7 +837,7 @@ async function replyMessage(queuedDatum, localMongo) {
     CurrentService.setUser(user);
     CurrentService.setMessage(message);
     CurrentService.setStartTime(Date.now());
-    CurrentService.clearTextTotalCost();
+
 
     let combinedGuildInformation;
     let combinedChannelInformation;
@@ -1002,22 +1002,12 @@ ${combinedGuildInformation && combinedChannelInformation ? `URL: https://discord
         console.log(...LogFormatter.replyDirectMessageSuccess(message, generatedTextResponse, duration));
     }
 
-    const totalCost = CurrentService.getTextTotalCost();
-    const inputTokenCount = CurrentService.getTextTotalInputTokens();
-    const outputTokenCount = CurrentService.getTextTotalOutputTokens();
-    const inputTokenCost = CurrentService.getTextTotalInputCost();
-    const outputTokenCost = CurrentService.getTextTotalOutputCost();
     const models = CurrentService.getModels();
     const modelTypes = CurrentService.getModelTypes();
 
     const db = localMongo.db("lupos");
     const collection2 = db.collection('MetricsMessageGeneration');
     await collection2.insertOne({
-        inputTokens: inputTokenCount,
-        outputTokens: outputTokenCount,
-        inputCost: inputTokenCost,
-        outputCost: outputTokenCost,
-        totalCost: totalCost,
         models: models.join(', '),
         modelTypes: modelTypes.join(', '),
         guildId: message.guild?.id || 'DM',
@@ -1029,11 +1019,6 @@ ${combinedGuildInformation && combinedChannelInformation ? `URL: https://discord
         userName: message.author?.username,
         content: message.cleanContent,
     });
-    CurrentService.clearTextTotalCost();
-    CurrentService.clearTextTotalInputTokens();
-    CurrentService.clearTextTotalInputCost();
-    CurrentService.clearTextTotalOutputTokens();
-    CurrentService.clearTextTotalOutputCost();
     CurrentService.clearModels();
     CurrentService.clearModelTypes();
     LightWrapper.cycleColor(config.PRIMARY_LIGHT_ID, 'purples');
