@@ -1059,7 +1059,11 @@ const DiscordUtilityService = {
                         }
                     } else {
                         const tenorImage = await PuppeteerWrapper.scrapeTenor(url);
-                        imageUrls.push(tenorImage.image);
+                        if (tenorImage?.image) {
+                            imageUrls.push(tenorImage.image);
+                        } else {
+                            console.warn(`⚠️ [extractImageUrlsFromMessage] Could not extract image from Tenor URL: ${url}`);
+                        }
                     }
                 }
             }

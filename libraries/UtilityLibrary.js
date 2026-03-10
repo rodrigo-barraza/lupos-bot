@@ -7,6 +7,9 @@ const UtilityLibrary = {
     // Crypto utilities
     async generateFileHash(url) {
         try {
+            if (!url) {
+                throw new Error(`generateFileHash called with invalid URL: ${url}`);
+            }
             const response = await fetch(url);
             const bytes = await response.bytes();
             const buffer = Buffer.from(bytes);

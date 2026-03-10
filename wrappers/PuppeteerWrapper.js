@@ -1,5 +1,6 @@
 import 'dotenv/config';
 import UtilityLibrary from '#root/libraries/UtilityLibrary.js';
+import fs from 'fs';
 const puppeteer = await import(process.platform === "win32" ? "puppeteer" : "puppeteer-core");
 // const puppeteer = require('puppeteer-core');
 import { executablePath } from 'puppeteer-core';
@@ -12,7 +13,23 @@ let puppeteerOptions = {};
 if (process.platform === "win32") {
     puppeteerOptions = { headless: true };
 } else {
-    puppeteerOptions = { headless: true, executablePath: '/usr/bin/chromium-browser', args: ['--no-sandbox'] };
+    // Find a usable Chromium/Chrome executable for Linux/WSL
+    const LINUX_CHROME_PATHS = [
+        '/usr/bin/chromium-browser',
+        '/usr/bin/chromium',
+        '/usr/bin/google-chrome',
+        '/usr/bin/google-chrome-stable',
+    ];
+    let chromePath = LINUX_CHROME_PATHS.find(p => fs.existsSync(p));
+    if (!chromePath) {
+        // Fall back to puppeteer-core's bundled browser (e.g. ~/.cache/puppeteer)
+        try {
+            chromePath = executablePath();
+        } catch {
+            console.warn('⚠️ [PuppeteerWrapper] Could not find a Chrome/Chromium executable. Puppeteer may fail to launch.');
+        }
+    }
+    puppeteerOptions = { headless: true, executablePath: chromePath, args: ['--no-sandbox'] };
 }
 
 const PuppeteerWrapper = {
