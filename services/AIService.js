@@ -441,10 +441,21 @@ const AIService = {
                 const end = performance.now();
                 const duration = end - start;
 
+                // Download image and convert to base64 data URL for MinIO upload
+                let imageRef = imageUrl;
+                try {
+                    const imgResponse = await fetch(imageUrl);
+                    const imgBuffer = Buffer.from(await imgResponse.arrayBuffer());
+                    const contentType = imgResponse.headers.get('content-type') || 'image/png';
+                    imageRef = `data:${contentType};base64,${imgBuffer.toString('base64')}`;
+                } catch (dlErr) {
+                    console.error(`Failed to download image for MinIO: ${dlErr.message}`);
+                }
+
                 const userMsg = {
                     role: 'user',
                     content: text || "What's in this image?",
-                    images: [imageUrl],
+                    images: [imageRef],
                     name: discordUsername,
                     timestamp: new Date(start).toISOString(),
                 };
