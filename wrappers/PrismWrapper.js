@@ -126,7 +126,7 @@ const PrismWrapper = {
     /**
      * Caption an image via Prism's /image-to-text endpoint.
      *
-     * @param {string} imageUrl - URL or base64 data URL of the image
+     * @param {string|string[]} imageUrlOrArray - URL/base64 string or array of them
      * @param {string} prompt - Caption prompt
      * @param {string} provider - Provider name for Prism
      * @param {string} model - Model name
@@ -134,16 +134,19 @@ const PrismWrapper = {
      * @returns {Promise<{ text: string }>}
      */
     async captionImage(
-        imageUrl,
+        imageUrlOrArray,
         prompt,
         provider = "openai",
         model,
         username = "lupos",
         { conversationId, userMessage } = {},
     ) {
+        // Normalize to array
+        const images = Array.isArray(imageUrlOrArray) ? imageUrlOrArray : [imageUrlOrArray];
+
         const body = {
             provider,
-            image: imageUrl,
+            images,
             prompt,
         };
 
