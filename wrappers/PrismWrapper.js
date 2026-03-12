@@ -97,7 +97,7 @@ const PrismWrapper = {
         model,
         images = [],
         username = "lupos",
-        { conversationId, userMessage } = {},
+        { conversationId, userMessage, systemPrompt } = {},
     ) {
         const body = {
             provider,
@@ -106,6 +106,7 @@ const PrismWrapper = {
 
         if (model) body.model = model;
         if (images.length > 0) body.images = images;
+        if (systemPrompt) body.systemPrompt = systemPrompt;
         if (conversationId) body.conversationId = conversationId;
         if (userMessage) body.userMessage = userMessage;
 
@@ -139,7 +140,7 @@ const PrismWrapper = {
         provider = "openai",
         model,
         username = "lupos",
-        { conversationId, userMessage } = {},
+        { conversationId, userMessage, systemPrompt } = {},
     ) {
         // Normalize to array
         const images = Array.isArray(imageUrlOrArray) ? imageUrlOrArray : [imageUrlOrArray];
@@ -151,6 +152,7 @@ const PrismWrapper = {
         };
 
         if (model) body.model = model;
+        if (systemPrompt) body.systemPrompt = systemPrompt;
         if (conversationId) body.conversationId = conversationId;
         if (userMessage) body.userMessage = userMessage;
 
