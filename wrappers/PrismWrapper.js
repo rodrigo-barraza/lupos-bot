@@ -99,13 +99,27 @@ const PrismWrapper = {
         username = "lupos",
         { conversationId, userMessage, systemPrompt } = {},
     ) {
+        // Convert images from { imageData, mimeType } objects to data URLs
+        const imageDataUrls = images.map((img) => {
+            if (typeof img === "string") return img;
+            return `data:${img.mimeType || "image/png"};base64,${img.imageData}`;
+        });
+
+        // Build a messages array — the /chat endpoint requires it
+        const messages = [
+            {
+                role: "user",
+                content: prompt,
+                ...(imageDataUrls.length > 0 && { images: imageDataUrls }),
+            },
+        ];
+
         const body = {
             provider,
-            prompt,
+            model,
+            messages,
         };
 
-        if (model) body.model = model;
-        if (images.length > 0) body.images = images;
         if (systemPrompt) body.systemPrompt = systemPrompt;
         if (conversationId) body.conversationId = conversationId;
         if (userMessage) body.userMessage = userMessage;
@@ -121,7 +135,21 @@ const PrismWrapper = {
             throw new Error(`Prism API error: ${response.status} ${errorText}`);
         }
 
-        return response.json();
+        const result = await response.json();
+
+        // Flatten the response to match what Lupos expects:
+        // { imageData, mimeType, text, estimatedCost, ... }
+        const firstImage = result.images?.[0];
+        return {
+            imageData: firstImage?.data || null,
+            mimeType: firstImage?.mimeType || "image/png",
+            minioRef: firstImage?.minioRef || null,
+            text: result.text || null,
+            usage: result.usage || null,
+            estimatedCost: result.estimatedCost ?? null,
+            model: result.model,
+            provider: result.provider,
+        };
     },
 
     /**
@@ -145,10 +173,18 @@ const PrismWrapper = {
         // Normalize to array
         const images = Array.isArray(imageUrlOrArray) ? imageUrlOrArray : [imageUrlOrArray];
 
+        // Build a messages array — the /chat endpoint requires it
+        const messages = [
+            {
+                role: "user",
+                content: prompt,
+                images,
+            },
+        ];
+
         const body = {
             provider,
-            images,
-            prompt,
+            messages,
         };
 
         if (model) body.model = model;
@@ -188,9 +224,20 @@ const PrismWrapper = {
         username = "lupos",
     ) {
         const base64 = audioBuffer.toString("base64");
+        const audioDataUrl = `data:${mimeType};base64,${base64}`;
+
+        // Build a messages array — the /chat endpoint requires it
+        const messages = [
+            {
+                role: "user",
+                content: "Transcribe this audio.",
+                audio: audioDataUrl,
+            },
+        ];
+
         const body = {
             provider,
-            audio: `data:${mimeType};base64,${base64}`,
+            messages,
         };
 
         if (model) body.model = model;
