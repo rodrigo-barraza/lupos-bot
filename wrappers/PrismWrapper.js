@@ -22,7 +22,7 @@ function getHeaders(username = "lupos") {
 
 const PrismWrapper = {
     /**
-     * Generate text via Prism's /text-to-text endpoint.
+     * Generate text via Prism's /chat endpoint.
      * Maps lupos's provider types (OPENAI, ANTHROPIC, LOCAL) to Prism provider names.
      *
      * @param {Array} conversation - Array of { role, name?, content } message objects
@@ -59,7 +59,7 @@ const PrismWrapper = {
         if (conversationId) body.conversationId = conversationId;
         if (userMessage) body.userMessage = userMessage;
 
-        const response = await fetch(`${PRISM_API_URL}/text-to-text`, {
+        const response = await fetch(`${PRISM_API_URL}/chat?stream=false`, {
             method: "POST",
             headers: getHeaders(username),
             body: JSON.stringify(body),
@@ -82,7 +82,7 @@ const PrismWrapper = {
     },
 
     /**
-     * Generate an image via Prism's /text-to-image endpoint.
+     * Generate an image via Prism's /chat endpoint.
      *
      * @param {string} prompt - Image generation prompt
      * @param {string} provider - Provider name for Prism (e.g. 'google', 'openai')
@@ -110,7 +110,7 @@ const PrismWrapper = {
         if (conversationId) body.conversationId = conversationId;
         if (userMessage) body.userMessage = userMessage;
 
-        const response = await fetch(`${PRISM_API_URL}/text-to-image`, {
+        const response = await fetch(`${PRISM_API_URL}/chat?stream=false`, {
             method: "POST",
             headers: getHeaders(username),
             body: JSON.stringify(body),
@@ -125,7 +125,7 @@ const PrismWrapper = {
     },
 
     /**
-     * Caption an image via Prism's /image-to-text endpoint.
+     * Caption an image via Prism's /chat endpoint.
      *
      * @param {string|string[]} imageUrlOrArray - URL/base64 string or array of them
      * @param {string} prompt - Caption prompt
@@ -156,7 +156,7 @@ const PrismWrapper = {
         if (conversationId) body.conversationId = conversationId;
         if (userMessage) body.userMessage = userMessage;
 
-        const response = await fetch(`${PRISM_API_URL}/image-to-text`, {
+        const response = await fetch(`${PRISM_API_URL}/chat?stream=false`, {
             method: "POST",
             headers: getHeaders(username),
             body: JSON.stringify(body),
@@ -171,7 +171,7 @@ const PrismWrapper = {
     },
 
     /**
-     * Transcribe audio via Prism's /audio-to-text endpoint.
+     * Transcribe audio via Prism's /chat endpoint.
      *
      * @param {Buffer} audioBuffer - Audio file buffer
      * @param {string} mimeType - MIME type of the audio
@@ -195,7 +195,7 @@ const PrismWrapper = {
 
         if (model) body.model = model;
 
-        const response = await fetch(`${PRISM_API_URL}/audio-to-text`, {
+        const response = await fetch(`${PRISM_API_URL}/chat?stream=false`, {
             method: "POST",
             headers: getHeaders(username),
             body: JSON.stringify(body),
