@@ -64,6 +64,7 @@ const AI_TIMEOUT = 30_000;
 describe("Image Generation Detection", () => {
   describe("should detect image generation requests (return true)", () => {
     const positivePrompts = [
+      // Direct requests
       "Draw a sunset over mountains",
       "Can you generate an image of a cat?",
       "Create a futuristic cityscape",
@@ -72,11 +73,43 @@ describe("Image Generation Detection", () => {
       "Paint me a landscape with rolling hills",
       "Sketch a portrait of a samurai",
       "draw me a banana as a superhero",
+      // Editing / redraw requests
       "Can you redraw this in a pixel art style?",
       "Make it look like a watercolor painting",
       "Add a rainbow to the background",
       "Change the background to a beach setting",
       "Turn this into an anime style",
+      // Implicit / subtle requests
+      "turn me into a card too",
+      "evolve my pokemon card and give it a new move",
+      "make me a pokemon card",
+      "please draw this",
+      "can you make me into a trading card",
+      "what would I look like as a knight",
+      "show me what a robot samurai would look like",
+      "make this but in space",
+      "do one of me",
+      "now do her as a warrior princess",
+      "put him in a maid outfit",
+      "make it more cursed",
+      "make that but bigger and more dramatic",
+      "now add explosions",
+      "redo it without the hat",
+      "same thing but add a corgi to it",
+      // Casual / slang phrasing
+      "yo make me look cool",
+      "bro visualize a giant robot fighting a dragon for me",
+      "gimme a pic of a cool dragon",
+      "I wanna see me as an anime character",
+      "drop a render of that",
+      "whip up something with a samurai vibe",
+      // Creative requests without obvious keywords
+      "show me a cyberpunk dentist",
+      "show me a version of kvz as a final boss",
+      "imagine me as a villain and make it",
+      "I need you to make my profile picture but cooler",
+      "turn the chat into a meme",
+      "can you picture me riding a dinosaur",
     ];
 
     for (const prompt of positivePrompts) {
@@ -97,6 +130,7 @@ describe("Image Generation Detection", () => {
 
   describe("should NOT detect non-image requests (return false)", () => {
     const negativePrompts = [
+      // Standard non-image questions
       "What's the weather like today?",
       "Tell me a joke",
       "How do I fix this JavaScript error?",
@@ -105,6 +139,19 @@ describe("Image Generation Detection", () => {
       "Hey Lupos, what's up?",
       "Who won the Super Bowl last year?",
       "What time is it in Tokyo?",
+      // Tricky near-misses that mention visual words but aren't requests
+      "I drew a picture yesterday, it was fun",
+      "my art teacher says I need to practice more",
+      "have you seen the new painting at the museum?",
+      "the graphics in this game are insane",
+      "I can picture it in my head already",
+      "can you describe what a dragon looks like?",
+      "what do you think of this image I sent?",
+      "that drawing someone made was hilarious",
+      // Conversation about image generation without requesting one
+      "do you like drawing?",
+      "what's your favorite art style?",
+      "how does AI image generation work?",
     ];
 
     for (const prompt of negativePrompts) {
