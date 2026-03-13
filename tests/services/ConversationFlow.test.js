@@ -668,3 +668,99 @@ describe("Fast-Path Fetch Count (Rule-Based)", () => {
     AI_TIMEOUT,
   );
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 8. UNTAGGED NAME EXTRACTION
+//    Tests for generateTextExtractMentionedNames
+// ─────────────────────────────────────────────────────────────────────────────
+describe("Untagged Name Extraction", () => {
+  const participants = [
+    { id: "111", username: "rodrigo", displayName: "Rodrigo" },
+    { id: "222", username: "alex_g", displayName: "Alex" },
+    { id: "333", username: "sarah_m", displayName: "Sarah" },
+    { id: "444", username: "wolfboy99", displayName: "The Wolf" },
+  ];
+
+  it(
+    "should match a single name in a draw request",
+    async () => {
+      const result = await AIService.generateTextExtractMentionedNames(
+        "draw Rodrigo as a samurai warrior",
+        participants,
+        mockMessage,
+      );
+      expect(result).toContain("111");
+      expect(result).toHaveLength(1);
+    },
+    AI_TIMEOUT,
+  );
+
+  it(
+    "should match multiple names in a draw request",
+    async () => {
+      const result = await AIService.generateTextExtractMentionedNames(
+        "draw Rodrigo and Alex fighting each other",
+        participants,
+        mockMessage,
+      );
+      expect(result).toContain("111");
+      expect(result).toContain("222");
+      expect(result).toHaveLength(2);
+    },
+    AI_TIMEOUT,
+  );
+
+  it(
+    "should return empty for self-references ('draw me')",
+    async () => {
+      const result = await AIService.generateTextExtractMentionedNames(
+        "draw me as a superhero",
+        participants,
+        mockMessage,
+      );
+      expect(result).toHaveLength(0);
+    },
+    AI_TIMEOUT,
+  );
+
+  it(
+    "should return empty when no names match",
+    async () => {
+      const result = await AIService.generateTextExtractMentionedNames(
+        "draw a sunset over mountains",
+        participants,
+        mockMessage,
+      );
+      expect(result).toHaveLength(0);
+    },
+    AI_TIMEOUT,
+  );
+
+  it(
+    "should not match generic words that happen to be names",
+    async () => {
+      const result = await AIService.generateTextExtractMentionedNames(
+        "draw me a wolf howling at the moon",
+        participants,
+        mockMessage,
+      );
+      // "wolf" appears in "The Wolf" display name but this is clearly not referring to that user
+      expect(result).toHaveLength(0);
+    },
+    AI_TIMEOUT,
+  );
+
+  it(
+    "should match by username when display name differs",
+    async () => {
+      const result = await AIService.generateTextExtractMentionedNames(
+        "can you draw wolfboy99 riding a dragon",
+        participants,
+        mockMessage,
+      );
+      expect(result).toContain("444");
+      expect(result).toHaveLength(1);
+    },
+    AI_TIMEOUT,
+  );
+});

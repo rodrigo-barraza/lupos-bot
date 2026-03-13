@@ -1095,6 +1095,69 @@ Examples that should return "yes":
         console.error("Unexpected response from AI:", response);
         return false;
     },
+    /**
+     * Extract person names from a message and match them to known participants.
+     * Returns an array of matched user IDs.
+     * @param {string} messageContent - The message text (e.g. "draw Rodrigo and Alex fighting")
+     * @param {Array<{id: string, username: string, displayName: string}>} participants - Known participants
+     * @param {object} message - Discord message object
+     * @returns {Promise<string[]>} - Array of matched user IDs
+     */
+    async generateTextExtractMentionedNames(messageContent, participants, message) {
+        if (!participants || participants.length === 0) return [];
+
+        const participantList = participants
+            .map((p) => `  {"id":"${p.id}","username":"${p.username}","displayName":"${p.displayName}"}`)
+            .join(",\n");
+
+        const conversation = [
+            {
+                role: "system",
+                content: `You identify people mentioned BY NAME in a message and match them to a list of known users.
+
+# RULES:
+1. Only match names that clearly refer to a SPECIFIC PERSON the user wants drawn/depicted
+2. "draw me" or "draw myself" = the message author, NOT a match (return empty)
+3. Match by username OR displayName (case-insensitive, partial matches OK if unambiguous)
+4. Do NOT match generic words that happen to be names (e.g. "draw me a rose" — Rose is not a person here)
+5. Return ONLY a JSON array of matched user IDs, e.g. ["123","456"]
+6. If no names match, return []
+
+# KNOWN USERS:
+[
+${participantList}
+]`,
+            },
+            {
+                role: "user",
+                name: DiscordUtilityService.getUsernameNoSpaces(message),
+                content: messageContent,
+            },
+        ];
+
+        const response = await AIService.generateText({
+            conversation,
+            type: "OPENAI",
+            model: config.OPENAI_LANGUAGE_MODEL_GPT5_NANO,
+            label: "🧠 Extract Mentioned Names",
+        });
+
+        if (!response) return [];
+
+        try {
+            // Extract JSON array from response (handle markdown code blocks)
+            const jsonMatch = response.match(/\[.*\]/s);
+            if (!jsonMatch) return [];
+            const parsed = JSON.parse(jsonMatch[0]);
+            if (!Array.isArray(parsed)) return [];
+            // Filter to only valid participant IDs
+            const validIds = new Set(participants.map((p) => p.id));
+            return parsed.filter((id) => validIds.has(String(id))).map(String);
+        } catch {
+            console.error("Failed to parse mentioned names response:", response);
+            return [];
+        }
+    },
     async sanitizeImagePrompt(prompt, message) {
         const conversation = [
             {

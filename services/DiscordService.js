@@ -626,6 +626,65 @@ async function buildAndGenerateReply({
             );
         }
 
+        // Rodrigo: Detect untagged user names in image generation requests
+        // e.g. "draw Rodrigo as a samurai" without @Rodrigo
+        const untaggedMatchedUserIds = new Set();
+        if (isMessageAskingToGenerateImage) {
+            // Build list of known participants (exclude bot and already-mentioned users)
+            const alreadyMentionedIds = new Set([
+                ...(memberMentionsCollection?.keys() || []),
+                ...(userMentionsCollection?.keys() || []),
+                bot.id,
+            ]);
+
+            const knownParticipants = [];
+            for (const [id, member] of participantsMembersCollection.entries()) {
+                if (alreadyMentionedIds.has(id)) continue;
+                knownParticipants.push({
+                    id,
+                    username: member.user?.username || member.username || "",
+                    displayName: member.displayName || member.user?.globalName || member.user?.username || "",
+                });
+            }
+            // Also check participantsUsersCollection for users not in members
+            for (const [id, user] of participantsUsersCollection.entries()) {
+                if (alreadyMentionedIds.has(id) || participantsMembersCollection.has(id)) continue;
+                knownParticipants.push({
+                    id,
+                    username: user.username || "",
+                    displayName: user.globalName || user.username || "",
+                });
+            }
+
+            if (knownParticipants.length > 0) {
+                const matchedIds = await AIService.generateTextExtractMentionedNames(
+                    message.cleanContent || message.content,
+                    knownParticipants,
+                    message,
+                );
+
+                for (const matchedId of matchedIds) {
+                    untaggedMatchedUserIds.add(matchedId);
+                    // Add to memberMentionsCollection so they get full generateDescription treatment
+                    if (!memberMentionsCollection.has(matchedId)) {
+                        const member = participantsMembersCollection.get(matchedId);
+                        const user = participantsUsersCollection.get(matchedId);
+                        if (member) {
+                            memberMentionsCollection.set(matchedId, member);
+                        } else if (user) {
+                            userMentionsCollection.set(matchedId, user);
+                        }
+                    }
+                }
+
+                if (untaggedMatchedUserIds.size > 0) {
+                    console.log(
+                        `🏷️ [DiscordService] Detected ${untaggedMatchedUserIds.size} untagged user(s) in draw request: ${[...untaggedMatchedUserIds].join(", ")}`,
+                    );
+                }
+            }
+        }
+
         // Rodrigo: Process mentioned members
         if (memberMentionsCollection?.size) {
             systemPrompt += `\n\n# Mentioned members in this server (${memberMentionsCollection.size})`;
@@ -911,6 +970,69 @@ async function buildAndGenerateReply({
                         imageUrls.push(mapObject.url);
                         edittedMessageCleanContent += `\n* Person ${index + 1}: ${userDisplayName} ${captionToAdd}`;
                         index++;
+                    }
+                }
+            }
+        }
+        // Rodrigo: Handle avatars for untagged matched users (detected by name, not @tag)
+        if (isMessageAskingToGenerateImage && untaggedMatchedUserIds.size > 0) {
+            const messageReference =
+                await DiscordUtilityService.retrieveMessageReferenceFromMessage(
+                    message,
+                );
+            const repliedUserId = messageReference?.author?.id;
+
+            for (const matchedId of untaggedMatchedUserIds) {
+                // Skip if already handled by @mention block above
+                if (mentionsImageUrls.some((m) => m.userId === matchedId)) continue;
+                // Skip bot and replied-to user
+                if (matchedId === bot.id || matchedId === repliedUserId) continue;
+
+                // Try to get the member from the guild for their avatar
+                let matchedMember = participantsMembersCollection.get(matchedId);
+                if (!matchedMember && message.guild) {
+                    matchedMember =
+                        await DiscordUtilityService.retrieveMemberFromGuildById(
+                            message.guild,
+                            matchedId,
+                        );
+                }
+                const matchedUser = participantsUsersCollection.get(matchedId);
+                const avatarSource = matchedMember || matchedUser;
+
+                if (avatarSource && avatarSource.displayAvatarURL) {
+                    shouldRedrawImage = true;
+                    const avatarUrl = avatarSource.displayAvatarURL({
+                        format: "png",
+                        size: 512,
+                    });
+                    mentionsImageUrls.push({ userId: matchedId, url: avatarUrl });
+                }
+            }
+            // Caption any new untagged user avatars
+            if (mentionsImageUrls.length > 0) {
+                // Only caption the newly added ones (avoid re-captioning @mention avatars)
+                const uncaptionedUrls = mentionsImageUrls.filter(
+                    (m) => !imageUrls.includes(m.url),
+                );
+                if (uncaptionedUrls.length > 0) {
+                    const { imagesMap } = await AIService.captionImages(
+                        uncaptionedUrls,
+                        localMongo,
+                        "SMALL",
+                    );
+                    if (!edittedMessageCleanContent.length) {
+                        edittedMessageCleanContent += `# Input Reference Images:`;
+                    }
+                    for (const [_hash, mapObject] of imagesMap.entries()) {
+                        shouldRedrawImage = true;
+                        const userDisplayName = await DiscordUtilityService.getDisplayName(
+                            message,
+                            mapObject.userId,
+                        );
+                        const captionToAdd = `(${mapObject.caption})`;
+                        imageUrls.push(mapObject.url);
+                        edittedMessageCleanContent += `\n* Person (detected by name): ${userDisplayName} ${captionToAdd}`;
                     }
                 }
             }
