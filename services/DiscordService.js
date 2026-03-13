@@ -639,11 +639,14 @@ async function buildAndGenerateReply({
         // e.g. "draw Rodrigo as a samurai" without @Rodrigo
         const untaggedMatchedUserIds = new Set();
         if (isMessageAskingToGenerateImage) {
-            // Build list of known participants (exclude bot and already-mentioned users)
+            // Build list of known participants (exclude bot, already-mentioned users, and message author)
+            // The author is excluded because "draw your X" shouldn't match the author's name.
+            // If the author wants to draw themselves, they should use "draw me" or @mention themselves.
             const alreadyMentionedIds = new Set([
                 ...(memberMentionsCollection?.keys() || []),
                 ...(userMentionsCollection?.keys() || []),
                 bot.id,
+                message.author?.id,
             ]);
 
             const knownParticipants = [];
