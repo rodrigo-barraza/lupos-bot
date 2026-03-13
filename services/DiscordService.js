@@ -56,8 +56,17 @@ const mode = args.find((arg) => arg.startsWith("mode="))?.split("=")[1];
 let lastMessageSentTime = DateTime.now().toISO();
 let isProcessingQueue = false;
 const queuedData = [];
+const cancelledMessageIds = new Set();
 const repliedMessagesCollection = new Collection();
 const botRepliedMessages = new Collection();
+
+/**
+ * Check if a message has been cancelled (deleted by user).
+ * Also auto-cleans up expired entries.
+ */
+function isMessageCancelled(messageId) {
+    return cancelledMessageIds.has(messageId);
+}
 // QUEUE: Reactions
 let isProcessingOnReactionQueue = false;
 const reactionQueue = [];
@@ -853,6 +862,7 @@ async function buildAndGenerateReply({
 
         let shouldRedrawImage = false;
         const imageUrls = [];
+        const imageLabels = []; // Tracks what each image in imageUrls represents
         const mentionsImageUrls = [];
         // This creates a shallow copy, which is no different than what we had before, can be changed back.
         let edittedMessageCleanContent = "";
@@ -873,6 +883,7 @@ async function buildAndGenerateReply({
                 shouldRedrawImage = true;
                 for (const imageObject of attachmentImages.first().values()) {
                     const imageUrl = imageObject.url;
+                    imageLabels.push("Attached image from message");
                     imageUrls.push(imageUrl);
                 }
             }
@@ -900,6 +911,7 @@ async function buildAndGenerateReply({
                 shouldRedrawImage = true;
                 const imageUrl = referencedMessageImages.first().values().next()
                     .value.url;
+                imageLabels.push("Replied-to message image");
                 imageUrls.push(imageUrl);
             } else {
                 // If the referenced message is not in the collection, because we process a random amount of messages (5-100) ...
@@ -926,6 +938,7 @@ async function buildAndGenerateReply({
                     if (imageAttachment) {
                         shouldRedrawImage = true;
                         const imageUrl = imageAttachment.proxyURL || imageAttachment.url;
+                        imageLabels.push("Replied-to message image");
                         imageUrls.push(imageUrl);
                     }
                 }
@@ -1006,6 +1019,7 @@ async function buildAndGenerateReply({
                         // const mentionSyntax = `@${userDisplayName}`;
                         const captionToAdd = `(${mapObject.caption})`;
                         // composition = composition.replace(mentionSyntax, `${mentionSyntax} ${captionToAdd}`);
+                        imageLabels.push(`${userDisplayName}'s avatar/profile picture`);
                         imageUrls.push(mapObject.url);
                         edittedMessageCleanContent += `\n* Person ${index + 1}: ${userDisplayName} ${captionToAdd}`;
                         index++;
@@ -1070,6 +1084,7 @@ async function buildAndGenerateReply({
                             mapObject.userId,
                         );
                         const captionToAdd = `(${mapObject.caption})`;
+                        imageLabels.push(`${userDisplayName}'s avatar/profile picture`);
                         imageUrls.push(mapObject.url);
                         edittedMessageCleanContent += `\n* Person (detected by name): ${userDisplayName} ${captionToAdd}`;
                     }
@@ -1090,6 +1105,7 @@ async function buildAndGenerateReply({
             let index = 0;
             for (const [emoji, emojiObject] of emojisInMessage.entries()) {
                 if (emojiObject && emojiObject.url) {
+                    imageLabels.push(`Emoji: ${emojiObject.name || emoji}`);
                     imageUrls.push(emojiObject.url);
                     const emojiCaption = emojiObject.caption
                         ? `(${emojiObject.caption})`
@@ -1127,6 +1143,12 @@ async function buildAndGenerateReply({
 
             const username = message.author?.username || "unknown";
 
+            // Check if message was deleted before starting expensive image generation
+            if (isMessageCancelled(message.id)) {
+                console.log(`🗑️ [DiscordService] Message ${message.id} was deleted before image generation, aborting.`);
+                return { generatedText: null, image: null, promptForImagePromptGeneration: null };
+            }
+
             // Step 1: Generate the image first (before text reply)
             if (isMessageNSFW) {
                 image = await AIService.generateImage(
@@ -1137,9 +1159,17 @@ async function buildAndGenerateReply({
                     username,
                 );
             } else {
+                // Prepend image-to-person mapping so Gemini knows which attached image is which
+                let labeledPrompt = promptForImagePromptGeneration;
+                if (imageLabels.length > 0 && imageUrls.length > 0) {
+                    const mapping = imageLabels
+                        .map((label, i) => `- Attached image ${i + 1}: ${label}`)
+                        .join("\n");
+                    labeledPrompt = `REFERENCE IMAGE MAP (the attached images correspond to):\n${mapping}\n\n${promptForImagePromptGeneration}`;
+                }
                 image = await AIService.generateImage(
                     "GOOGLE",
-                    promptForImagePromptGeneration,
+                    labeledPrompt,
                     client,
                     imageUrls,
                     username,
@@ -1160,9 +1190,17 @@ async function buildAndGenerateReply({
                         `⚠️ [DiscordService] Sanitized prompt: "${sanitizedPrompt.substring(0, 100)}..."`,
                     );
                     promptForImagePromptGeneration = sanitizedPrompt;
+                    // Re-prepend image mapping for the retry
+                    let retryPrompt = sanitizedPrompt;
+                    if (imageLabels.length > 0 && imageUrls.length > 0) {
+                        const mapping = imageLabels
+                            .map((label, i) => `- Attached image ${i + 1}: ${label}`)
+                            .join("\n");
+                        retryPrompt = `REFERENCE IMAGE MAP (the attached images correspond to):\n${mapping}\n\n${sanitizedPrompt}`;
+                    }
                     image = await AIService.generateImage(
                         "GOOGLE",
-                        sanitizedPrompt,
+                        retryPrompt,
                         client,
                         imageUrls,
                         username,
@@ -1245,6 +1283,13 @@ async function replyMessage(queuedDatum, localMongo) {
     CurrentService.setUser(user);
     CurrentService.setMessage(message);
     CurrentService.setStartTime(Date.now());
+
+    // Check if message was deleted before we start processing
+    if (isMessageCancelled(message.id)) {
+        console.log(`🗑️ [DiscordService] Message ${message.id} was deleted before processing started, skipping.`);
+        cancelledMessageIds.delete(message.id);
+        return;
+    }
 
     let combinedGuildInformation;
     let combinedChannelInformation;
@@ -1352,6 +1397,13 @@ async function replyMessage(queuedDatum, localMongo) {
 
     LightWrapper.cycleColor(config.PRIMARY_LIGHT_ID, "purples");
 
+    // Check if message was deleted during content extraction
+    if (isMessageCancelled(message.id)) {
+        console.log(`🗑️ [DiscordService] Message ${message.id} was deleted during content extraction, aborting.`);
+        cancelledMessageIds.delete(message.id);
+        return;
+    }
+
     const { generatedText, image, promptForImagePromptGeneration } =
         await buildAndGenerateReply({
             canGenerateImage,
@@ -1400,8 +1452,12 @@ ${combinedGuildInformation && combinedChannelInformation ? `URL: https://discord
     }
     // SEND THE REPLY
     try {
-        // This prevents the bot from trying to reply to messages that have been deleted
-        // !note: Would be nice to be able to stop processing as soon as the message is deleted
+        // Check if message was deleted during reply generation
+        if (isMessageCancelled(message.id)) {
+            console.log(`🗑️ [DiscordService] Message ${message.id} was deleted during reply generation, not sending reply.`);
+            cancelledMessageIds.delete(message.id);
+            return;
+        }
         await message.fetch();
         LightWrapper.cycleColor(config.PRIMARY_LIGHT_ID, "purples");
         const messageSent = await DiscordUtilityService.sendMessageInChunks(
@@ -3140,6 +3196,23 @@ async function luposOnMessageDelete(client, message) {
             return;
         }
     }
+
+    // Cancel any pending or in-flight processing for this message
+    const deletedMessageId = message.id;
+    // Remove from pending queue
+    const removedCount = queuedData.length;
+    for (let i = queuedData.length - 1; i >= 0; i--) {
+        if (queuedData[i].message?.id === deletedMessageId) {
+            queuedData.splice(i, 1);
+        }
+    }
+    if (queuedData.length < removedCount) {
+        console.log(`🗑️ [DiscordService] Removed deleted message ${deletedMessageId} from pending queue.`);
+    }
+    // Mark as cancelled for in-flight processing
+    cancelledMessageIds.add(deletedMessageId);
+    // Auto-cleanup after 5 minutes to prevent memory leaks
+    setTimeout(() => cancelledMessageIds.delete(deletedMessageId), 5 * 60 * 1000);
 
     // Early returns for invalid cases
     if (message.author?.bot) return;
