@@ -773,6 +773,7 @@ const AIService = {
             // userId,
             // userName,
         });
+        if (!generatedText) return "";
         // trim generatedText to 128 characters
         summary = generatedText.substring(0, 128);
         return summary;
@@ -827,6 +828,8 @@ ${guildEmojiList}
             model: config.ANTHROPIC_LANGUAGE_MODEL_CLAUDE_SONNET_4,
             label: "🧠 Emoji React",
         });
+
+        if (!generatedText) return null;
 
         // Clean up the response - remove any extra whitespace, newlines, or formatting
         let cleanedResponse = generatedText.trim().replace(/[\n\r]/g, "");
