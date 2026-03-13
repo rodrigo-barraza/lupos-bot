@@ -1242,9 +1242,10 @@ As the output, I want you to provide the descriptions in dash list form, without
         const conversation = [
             {
                 role: "system",
-                content: `# Generated Image Context
-You did not generate any images for this message, as they were not requested nor required.
-You might have generated images in previous messages, but not for this one.
+                content: `# Image Generation Status
+No image was generated for this message. You did NOT draw, paint, create, or produce any image.
+CRITICAL: Do NOT claim or imply that you drew, created, or generated any image. You did not. No image is attached.
+If the user asked you to draw something, you should detect that intent and respond conversationally, but an image WILL be generated separately by the system — do NOT describe what the image looks like or pretend you already made it.
 
 ${assistantMessage}
 
@@ -1264,19 +1265,22 @@ ${systemPrompt}`,
         });
         return generatedText;
     },
-    async generateTextReplyImageGenerated(
+    async generateTextReplyImageFailed(
         conversationForTextGeneration,
         assistantMessage,
         systemPrompt,
-        promptForImagePromptGeneration,
     ) {
         const conversation = [
             {
                 role: "system",
-                content: `# Generated Image Context
-An image was generated and attached to this message based on the following prompt: "${promptForImagePromptGeneration}"
-## Your Task
-Incorporate visual details from the generated image into your response to enhance the description and provide a richer experience for the user. But do not make a mention about the imgage generation process itself, nor the image prompt.
+                content: `# Image Generation Status: FAILED
+The user asked you to generate an image, but image generation FAILED. No image was produced. No image is attached.
+CRITICAL RULES:
+- Do NOT claim you drew, created, or generated any image — you did NOT.
+- Do NOT describe what the image would look like as if you made it.
+- Acknowledge the request and let the user know the image couldn't be generated.
+- Keep your response short (1-2 sentences) and in-character.
+- You can suggest they try again or rephrase their request.
 
 ${assistantMessage}
 
@@ -1290,7 +1294,48 @@ ${systemPrompt}`,
             conversation: conversation,
             type: config.LANGUAGE_MODEL_TYPE,
             modelPerformance: "POWERFUL",
-            tokens: config.LANGUAGE_MODEL_MAX_TOKENS,
+            tokens: 150,
+            temperature: config.LANGUAGE_MODEL_TEMPERATURE,
+            label: "💬 Reply (Image Failed)",
+        });
+        return generatedText;
+    },
+    async generateTextReplyImageGenerated(
+        conversationForTextGeneration,
+        assistantMessage,
+        systemPrompt,
+        promptForImagePromptGeneration,
+        drawnUserMentions = [],
+    ) {
+        const mentionsList = drawnUserMentions.length > 0
+            ? `\n## MANDATORY: Tag these users in your response\nYou MUST start your response by tagging these users: ${drawnUserMentions.join(" ")}\nExample: "${drawnUserMentions.join(" ")} [your one-sentence remark]"`
+            : "";
+
+        const conversation = [
+            {
+                role: "system",
+                content: `# Generated Image Context
+An image was generated and attached to this message based on the following prompt: "${promptForImagePromptGeneration}"
+## Your Task
+The image is already attached — DO NOT describe what's in it. The user can see it.
+Instead, write ONE short sentence (max 15-20 words) as a casual remark, roast, or quip about the image or the request.
+Keep it punchy, sarcastic, and in-character. The image speaks for itself.
+Do NOT mention the image generation process, the prompt, or technical details.
+${mentionsList}
+
+${assistantMessage}
+
+${systemPrompt}`,
+            },
+        ];
+
+        conversation.push(...conversationForTextGeneration);
+
+        const generatedText = await AIService.generateText({
+            conversation: conversation,
+            type: config.LANGUAGE_MODEL_TYPE,
+            modelPerformance: "POWERFUL",
+            tokens: 100,
             temperature: config.LANGUAGE_MODEL_TEMPERATURE,
             label: "💬 Reply (Image)",
         });

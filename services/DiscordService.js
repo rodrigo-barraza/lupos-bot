@@ -1210,18 +1210,31 @@ async function buildAndGenerateReply({
 
             // Step 3: Generate text reply BASED ON whether image was actually produced
             if (image) {
+                // Collect mention syntax for all drawn users (from @mentions and untagged matches)
+                const drawnUserMentions = [];
+                const addedMentionIds = new Set();
+                for (const imgMention of mentionsImageUrls) {
+                    if (imgMention.userId && !addedMentionIds.has(imgMention.userId)) {
+                        addedMentionIds.add(imgMention.userId);
+                        drawnUserMentions.push(`<@${imgMention.userId}>`);
+                    }
+                }
+                // Also include the message author if they asked to draw themselves
+                // (they're already in the conversation context, no need to add here)
+
                 generatedText = await AIService.generateTextReplyImageGenerated(
                     conversationForTextGeneration,
                     assistantMessage,
                     systemPrompt,
                     promptForImagePromptGeneration,
+                    drawnUserMentions,
                 );
             } else {
                 // Image completely failed — don't pretend we drew something
                 console.log(
                     "⚠️ [DiscordService] Image generation failed after retry, generating text-only reply.",
                 );
-                generatedText = await AIService.generateTextReplyNoImageGenerated(
+                generatedText = await AIService.generateTextReplyImageFailed(
                     conversationForTextGeneration,
                     assistantMessage,
                     systemPrompt,

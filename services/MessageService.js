@@ -12,13 +12,12 @@ const MessageService = {
       if (canGenerateImage) {
         assistantMessage += `# Generative capabilities`;
         assistantMessage += `\n- You are able to generate text.`;
-        assistantMessage += `\n- You are able to generate images such as paintings, drawings, and more.`;
-        assistantMessage += `\n- You are able to draw, paint, sketch, design, illustrate, and create images.`;
-        assistantMessage += `\n- If you were previously unable to generate images, you are now able to do so.`;
+        assistantMessage += `\n- You are part of a multi-modal workflow that can generate text and images.`;
+        assistantMessage += `\n- Images are generated SEPARATELY by the system — you do NOT produce images yourself.`;
+        assistantMessage += `\n- NEVER claim you "drew", "created", "made", or "generated" an image unless an image is ACTUALLY attached to your message.`;
+        assistantMessage += `\n- NEVER describe what an image looks like as if you produced it — if no image is attached, no image exists.`;
+        assistantMessage += `\n- When asked to draw, acknowledge the request conversationally but do NOT pretend the image already exists.`;
         assistantMessage += `\n- You cannot generate sound or audio.`;
-        assistantMessage += `\n- You are part of a multi-modal workflow that is able to generate text, images, and anything else visual like charts, graphs, photographs, and more.`;
-        assistantMessage += `\n- When asked to draw or generate an image, acknowlege that you can do, but continue your conversation with the user.`;
-        assistantMessage += `\n- When asked to draw, do not output an image prompt, but rather acknowledge that you can draw and continue the conversation.`;
         assistantMessage += `\n\n`;
       } else {
         assistantMessage += `\n\n# Generative capabilities`;
