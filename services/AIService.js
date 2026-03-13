@@ -853,6 +853,15 @@ ${guildEmojiList}
         message,
         messageCountText,
     ) {
+        // Rule-based fast-path: standalone image requests need minimal context
+        const strippedContent = content.replace(/<@\d+>/g, "").trim().toLowerCase();
+        const isImageRequest = /\b(draw|paint|sketch|create|generate|make|illustrate)\b/i.test(strippedContent);
+        const refersToConversation = /\b(conversation|we talked|earlier|before|what was|what did|summarize|recap|context|going on|been discussing|you said|he said|she said|they said)\b/i.test(strippedContent);
+
+        if (isImageRequest && !refersToConversation) {
+            return 5;
+        }
+
         const conversation = [
             {
                 role: "system",
@@ -1085,6 +1094,56 @@ Examples that should return "yes":
 
         console.error("Unexpected response from AI:", response);
         return false;
+    },
+    async sanitizeImagePrompt(prompt, message) {
+        const conversation = [
+            {
+                role: "system",
+                content: `You are an expert at rephrasing prompts for image generation APIs (like Google Gemini) that have strict content policies. Your job is to rephrase prompts that would be REJECTED by these APIs.
+
+# CONTENT THAT IMAGE APIs WILL REJECT (you MUST rephrase these):
+1. **Historical atrocity figures**: Hitler, Stalin, Mussolini, Bin Laden, serial killers, dictators associated with genocide/mass murder
+   - Replace with: a fictional absurd caricature (e.g. "a silly man with a tiny mustache" or "a cartoonish villain")
+2. **Real-world violence**: shootings, bombings, stabbings, torture, gore, assault, terrorism
+   - Replace with: cartoon/slapstick or exaggerated comic-book action (e.g. "a dramatic cartoon action scene with silly spray effects")
+3. **Sexual/nude content**: nudity, sexual acts, seductive poses, explicit body parts
+   - Replace with: artistic/clothed/abstract alternatives (e.g. "person wrapped in flowing silk fabrics")
+4. **Hate symbols**: swastikas, confederate flags, KKK imagery, slurs
+   - Replace with: absurd/harmless alternatives
+5. **Real political figures in demeaning/violent scenarios**
+   - Replace with: generic fictional characters or satirical caricatures
+6. **Self-harm, suicide, drug use**
+   - Replace with: harmless/humorous alternatives
+
+# CONTENT THAT IS FINE (do NOT change):
+- Fantasy violence (dragons fighting, sword battles, action heroes)
+- Fictional characters (anime, cartoons, games, movies)
+- Normal people in normal scenarios
+- Animals, landscapes, food, objects, abstract art
+
+# RULES:
+- ALWAYS keep the core scene/concept (setting, other people, activity) but replace ONLY the problematic elements
+- Make replacements FUNNY and ABSURD rather than just removing content
+- Return ONLY the rephrased prompt text as a single paragraph
+- NO explanations, commentary, prefixes, or meta-text
+- If the prompt has NO problematic content, return it EXACTLY as-is with zero changes`,
+            },
+            {
+                role: "user",
+                name: DiscordUtilityService.getUsernameNoSpaces(message),
+                content: prompt,
+            },
+        ];
+
+        const response = await AIService.generateText({
+            conversation,
+            type: "OPENAI",
+            model: config.OPENAI_LANGUAGE_MODEL_GPT5_MINI,
+            label: "🧠 Prompt Sanitization",
+        });
+
+        if (!response) return prompt;
+        return response.trim();
     },
     async generateTextFromUserConversation(
         userName,

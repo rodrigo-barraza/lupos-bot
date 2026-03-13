@@ -850,7 +850,7 @@ async function buildAndGenerateReply({
             }
         }
         // If it mentions a user with an avatar, use that avatar as the image
-        if (message.mentions && message.mentions.users.size > 0) {
+        if (isMessageAskingToGenerateImage && message.mentions && message.mentions.users.size > 0) {
             // Get the ID of the user being replied to (if this is a reply)
             const messageReference =
                 await DiscordUtilityService.retrieveMessageReferenceFromMessage(
@@ -963,39 +963,71 @@ async function buildAndGenerateReply({
                     shouldRedrawImage,
                     edittedMessageCleanContent,
                 );
-            const thingsToPromise = [
-                AIService.generateTextReplyImageGenerated(
+
+            const username = message.author?.username || "unknown";
+
+            // Step 1: Generate the image first (before text reply)
+            if (isMessageNSFW) {
+                image = await AIService.generateImage(
+                    "LOCAL",
+                    promptForImagePromptGeneration,
+                    client,
+                    imageUrls,
+                    username,
+                );
+            } else {
+                image = await AIService.generateImage(
+                    "GOOGLE",
+                    promptForImagePromptGeneration,
+                    client,
+                    imageUrls,
+                    username,
+                );
+            }
+
+            // Step 2: If image generation failed (e.g. Gemini declined), sanitize and retry
+            if (!image && !isMessageNSFW && promptForImagePromptGeneration) {
+                console.log(
+                    "⚠️ [DiscordService] Image generation returned null, sanitizing prompt and retrying...",
+                );
+                const sanitizedPrompt = await AIService.sanitizeImagePrompt(
+                    promptForImagePromptGeneration,
+                    message,
+                );
+                if (sanitizedPrompt && sanitizedPrompt !== promptForImagePromptGeneration) {
+                    console.log(
+                        `⚠️ [DiscordService] Sanitized prompt: "${sanitizedPrompt.substring(0, 100)}..."`,
+                    );
+                    promptForImagePromptGeneration = sanitizedPrompt;
+                    image = await AIService.generateImage(
+                        "GOOGLE",
+                        sanitizedPrompt,
+                        client,
+                        imageUrls,
+                        username,
+                    );
+                }
+            }
+
+            // Step 3: Generate text reply BASED ON whether image was actually produced
+            if (image) {
+                generatedText = await AIService.generateTextReplyImageGenerated(
                     conversationForTextGeneration,
                     assistantMessage,
                     systemPrompt,
                     promptForImagePromptGeneration,
-                ),
-            ];
-            const username = message.author?.username || "unknown";
-            if (isMessageNSFW) {
-                thingsToPromise.push(
-                    AIService.generateImage(
-                        "LOCAL",
-                        promptForImagePromptGeneration,
-                        client,
-                        imageUrls,
-                        username,
-                    ),
                 );
             } else {
-                thingsToPromise.push(
-                    AIService.generateImage(
-                        "GOOGLE",
-                        promptForImagePromptGeneration,
-                        client,
-                        imageUrls,
-                        username,
-                    ),
+                // Image completely failed — don't pretend we drew something
+                console.log(
+                    "⚠️ [DiscordService] Image generation failed after retry, generating text-only reply.",
+                );
+                generatedText = await AIService.generateTextReplyNoImageGenerated(
+                    conversationForTextGeneration,
+                    assistantMessage,
+                    systemPrompt,
                 );
             }
-            const [textResult, imageResult] = await Promise.all(thingsToPromise);
-            generatedText = textResult;
-            image = imageResult;
         } else {
             generatedText = await AIService.generateTextReplyNoImageGenerated(
                 conversationForTextGeneration,
@@ -1131,7 +1163,10 @@ async function replyMessage(queuedDatum, localMongo) {
                     ),
                 );
                 if (isMessageAskingToGenerateImage) {
-                    // isAskingToDrawSelf = await AIService.generateTextIsAskingToDrawSelf(message.content, message);
+                    isMessageNSFW = await AIService.generateTextIsAskingLewdOrNSFW(
+                        message.cleanContent,
+                        message,
+                    );
                 }
             }
         }
