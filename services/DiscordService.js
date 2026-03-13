@@ -638,8 +638,10 @@ async function buildAndGenerateReply({
             ]);
 
             const knownParticipants = [];
+            const addedIds = new Set();
             for (const [id, member] of participantsMembersCollection.entries()) {
                 if (alreadyMentionedIds.has(id)) continue;
+                addedIds.add(id);
                 knownParticipants.push({
                     id,
                     username: member.user?.username || member.username || "",
@@ -648,12 +650,34 @@ async function buildAndGenerateReply({
             }
             // Also check participantsUsersCollection for users not in members
             for (const [id, user] of participantsUsersCollection.entries()) {
-                if (alreadyMentionedIds.has(id) || participantsMembersCollection.has(id)) continue;
+                if (alreadyMentionedIds.has(id) || addedIds.has(id)) continue;
+                addedIds.add(id);
                 knownParticipants.push({
                     id,
                     username: user.username || "",
                     displayName: user.globalName || user.username || "",
                 });
+            }
+            // Also check the guild member cache (covers users from reactions, voice, other channels, etc.)
+            // Pre-filter: only include members whose name appears in the message (avoids sending thousands of names to AI)
+            if (message.guild?.members?.cache) {
+                const messageTextLower = (message.cleanContent || message.content || "").toLowerCase();
+                for (const [id, member] of message.guild.members.cache.entries()) {
+                    if (alreadyMentionedIds.has(id) || addedIds.has(id) || member.user?.bot) continue;
+                    const username = (member.user?.username || "").toLowerCase();
+                    const displayName = (member.displayName || member.user?.globalName || "").toLowerCase();
+                    // Only include if the name (3+ chars) appears in the message text
+                    const hasNameMatch =
+                        (username.length >= 3 && messageTextLower.includes(username)) ||
+                        (displayName.length >= 3 && messageTextLower.includes(displayName));
+                    if (!hasNameMatch) continue;
+                    addedIds.add(id);
+                    knownParticipants.push({
+                        id,
+                        username: member.user?.username || "",
+                        displayName: member.displayName || member.user?.globalName || member.user?.username || "",
+                    });
+                }
             }
 
             if (knownParticipants.length > 0) {
@@ -667,12 +691,27 @@ async function buildAndGenerateReply({
                     untaggedMatchedUserIds.add(matchedId);
                     // Add to memberMentionsCollection so they get full generateDescription treatment
                     if (!memberMentionsCollection.has(matchedId)) {
-                        const member = participantsMembersCollection.get(matchedId);
+                        const member = participantsMembersCollection.get(matchedId)
+                            || message.guild?.members?.cache?.get(matchedId);
                         const user = participantsUsersCollection.get(matchedId);
                         if (member) {
                             memberMentionsCollection.set(matchedId, member);
                         } else if (user) {
                             userMentionsCollection.set(matchedId, user);
+                        } else if (message.guild) {
+                            // Last resort: fetch the member from the guild API
+                            try {
+                                const fetchedMember =
+                                    await DiscordUtilityService.retrieveMemberFromGuildById(
+                                        message.guild,
+                                        matchedId,
+                                    );
+                                if (fetchedMember) {
+                                    memberMentionsCollection.set(matchedId, fetchedMember);
+                                }
+                            } catch {
+                                console.warn(`🏷️ [DiscordService] Could not fetch member ${matchedId} from guild`);
+                            }
                         }
                     }
                 }
