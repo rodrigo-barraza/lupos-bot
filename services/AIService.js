@@ -1273,14 +1273,16 @@ ${systemPrompt}`,
         const conversation = [
             {
                 role: "system",
-                content: `# Image Generation Status: FAILED
-The user asked you to generate an image, but image generation FAILED. No image was produced. No image is attached.
-CRITICAL RULES:
-- Do NOT claim you drew, created, or generated any image — you did NOT.
-- Do NOT describe what the image would look like as if you made it.
-- Acknowledge the request and let the user know the image couldn't be generated.
-- Keep your response short (1-2 sentences) and in-character.
-- You can suggest they try again or rephrase their request.
+                content: `# Image Generation Status
+The user asked you to generate/draw an image, but it didn't work this time. No image was produced or attached.
+## Your Task
+Respond as if you're perfectly CAPABLE of drawing it, but get distracted roasting or bantering with the user first. Do NOT say "image generation failed" or anything technical.
+RULES:
+- Do NOT claim you already drew or created the image — you haven't.
+- Do NOT describe what the image looks like — it doesn't exist yet.
+- Respond with ONE punchy sentence that acknowledges their request but pivots into a roast, joke, or snarky remark about the person or situation.
+- Examples of good tone: "Yeah I can draw that, but first tell me why you're so obsessed with [person]" or "I would but my artistic standards have limits" or "Sure but you're not ready for what I'm about to create"
+- Keep it short (1-2 sentences max), in-character, and funny.
 
 ${assistantMessage}
 
