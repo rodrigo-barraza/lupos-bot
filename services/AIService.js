@@ -1158,6 +1158,55 @@ ${participantList}
             return [];
         }
     },
+    /**
+     * Detect if a draw request references a GROUP of people without naming them.
+     * e.g. "draw the top 5 people here", "draw everyone", "draw the boys"
+     * Returns the number of people to include (0 = not a group reference).
+     * @param {string} messageContent - The message text
+     * @param {object} message - Discord message object
+     * @returns {Promise<number>} - Number of people to include (0 if not a group ref)
+     */
+    async generateTextDetectGroupReference(messageContent, message) {
+        const conversation = [
+            {
+                role: "system",
+                content: `You determine if a message is asking to draw/depict a GROUP of people from the chat, without naming them specifically.
+
+# RULES:
+1. If the message references a generic group (e.g. "the top 5 people here", "everyone", "all of us", "the boys", "the squad", "the chat"), return the NUMBER of people implied.
+2. If a specific number is mentioned (e.g. "top 5", "the 3 of us"), return that number.
+3. If it says "everyone" or "all", return 99 (the caller will cap it).
+4. If the message names specific people OR does NOT reference a group at all, return 0.
+5. Return ONLY a single integer, nothing else.
+
+# EXAMPLES:
+- "draw the top 5 people here as captain planet" → 5
+- "draw everyone in the chat as avengers" → 99
+- "make us all into a group photo" → 99
+- "draw the boys as superheroes" → 99
+- "draw me and @someone" → 0 (specific people, not a group reference)
+- "draw a sunset" → 0 (no people referenced)
+- "draw kvz as a knight" → 0 (specific person named)`,
+            },
+            {
+                role: "user",
+                name: DiscordUtilityService.getUsernameNoSpaces(message),
+                content: messageContent,
+            },
+        ];
+
+        const response = await AIService.generateText({
+            conversation,
+            type: "OPENAI",
+            model: config.OPENAI_LANGUAGE_MODEL_GPT5_NANO,
+            label: "🧠 Detect Group Reference",
+        });
+
+        if (!response) return 0;
+
+        const num = parseInt(response.trim(), 10);
+        return isNaN(num) ? 0 : num;
+    },
     async sanitizeImagePrompt(prompt, message) {
         const conversation = [
             {

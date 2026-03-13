@@ -733,6 +733,84 @@ async function buildAndGenerateReply({
             }
         }
 
+        // Detect GROUP references (e.g. "draw the top 5 people here", "draw everyone")
+        // Only triggers when no specific users were @mentioned or detected by name
+        if (
+            isMessageAskingToGenerateImage &&
+            memberMentionsCollection.size === 0 &&
+            userMentionsCollection.size === 0 &&
+            untaggedMatchedUserIds.size === 0
+        ) {
+            const groupCount = await AIService.generateTextDetectGroupReference(
+                message.cleanContent || message.content,
+                message,
+            );
+
+            if (groupCount > 0) {
+                console.log(
+                    `👥 [DiscordService] Detected group reference requesting ${groupCount} people`,
+                );
+
+                // Rank participants by message count in recentMessages
+                const messageCounts = new Map();
+                for (const msg of recentMessages.values()) {
+                    const authorId = msg.author?.id;
+                    if (!authorId || authorId === bot.id || authorId === message.author.id) continue;
+                    messageCounts.set(authorId, (messageCounts.get(authorId) || 0) + 1);
+                }
+
+                // Sort by message count (most active first), cap at groupCount
+                const cap = groupCount === 99
+                    ? Math.min(messageCounts.size, 10) // "everyone" capped at 10
+                    : Math.min(groupCount, messageCounts.size);
+
+                const topUserIds = [...messageCounts.entries()]
+                    .sort((a, b) => b[1] - a[1])
+                    .slice(0, cap)
+                    .map(([id]) => id);
+
+                // Add the message author too (they said "us" / "the boys" — likely including themselves)
+                if (!topUserIds.includes(message.author.id)) {
+                    topUserIds.unshift(message.author.id);
+                    // Keep within cap
+                    if (topUserIds.length > cap && cap > 0) topUserIds.pop();
+                }
+
+                for (const userId of topUserIds) {
+                    untaggedMatchedUserIds.add(userId);
+                    if (!memberMentionsCollection.has(userId)) {
+                        const member = participantsMembersCollection.get(userId)
+                            || message.guild?.members?.cache?.get(userId);
+                        const user = participantsUsersCollection.get(userId);
+                        if (member) {
+                            memberMentionsCollection.set(userId, member);
+                        } else if (user) {
+                            userMentionsCollection.set(userId, user);
+                        } else if (message.guild) {
+                            try {
+                                const fetchedMember =
+                                    await DiscordUtilityService.retrieveMemberFromGuildById(
+                                        message.guild,
+                                        userId,
+                                    );
+                                if (fetchedMember) {
+                                    memberMentionsCollection.set(userId, fetchedMember);
+                                }
+                            } catch {
+                                console.warn(`👥 [DiscordService] Could not fetch member ${userId} from guild`);
+                            }
+                        }
+                    }
+                }
+
+                if (topUserIds.length > 0) {
+                    console.log(
+                        `👥 [DiscordService] Auto-populated ${topUserIds.length} participants for group reference: ${topUserIds.join(", ")}`,
+                    );
+                }
+            }
+        }
+
         // Rodrigo: Process mentioned members
         if (memberMentionsCollection?.size) {
             systemPrompt += `\n\n# Mentioned members in this server (${memberMentionsCollection.size})`;
