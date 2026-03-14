@@ -20,7 +20,7 @@ function getHeaders(username = "lupos") {
     };
 }
 
-const PrismWrapper = {
+const PrismService = {
     /**
      * Generate text via Prism's /chat endpoint.
      * Maps lupos's provider types (OPENAI, ANTHROPIC, LOCAL) to Prism provider names.
@@ -441,4 +441,4 @@ const PrismWrapper = {
     },
 };
 
-export default PrismWrapper;
+export default PrismService;

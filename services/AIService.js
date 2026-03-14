@@ -9,11 +9,11 @@ import config from "#root/config.json" with { type: "json" };
 import LogFormatter from "#root/formatters/LogFormatter.js";
 // Wrappers
 import ComfyUIWrapper from "#root/wrappers/ComfyUIWrapper.js";
-import PrismWrapper from "#root/wrappers/PrismWrapper.js";
 import MongoWrapper from "#root/wrappers/MongoWrapper.js";
 // Libraries
 import UtilityLibrary from "#root/libraries/UtilityLibrary.js";
 // Services
+import PrismService from "#root/services/PrismService.js";
 import CurrentService from "#root/services/CurrentService.js";
 import DiscordUtilityService from "#root/services/DiscordUtilityService.js";
 
@@ -124,7 +124,7 @@ const AIService = {
 
         let conversationId = null;
         try {
-            const conv = await PrismWrapper.startConversation(
+            const conv = await PrismService.startConversation(
                 convTitle,
                 systemPrompt,
                 { model: usedModel, provider: type?.toLowerCase() },
@@ -147,7 +147,7 @@ const AIService = {
             : null;
 
         try {
-            const prismResult = await PrismWrapper.generateText(
+            const prismResult = await PrismService.generateText(
                 conversation,
                 type,
                 usedModel,
@@ -183,6 +183,9 @@ const AIService = {
             duration: parseFloat(duration.toFixed(3)),
             inputType: "text",
             outputType: "text",
+            systemPrompt: systemPrompt?.substring(0, 1000) || null,
+            input: lastUserMsg?.content?.substring(0, 1000) || null,
+            output: textResponse?.substring(0, 1000) || null,
         });
 
         if (localMongo) {
@@ -221,7 +224,7 @@ const AIService = {
 
         // Finalize conversation metadata (messages already saved server-side via auto-append)
         if (conversationId) {
-            PrismWrapper.finalizeConversation(
+            PrismService.finalizeConversation(
                 conversationId,
                 convTitle,
                 systemPrompt,
@@ -262,7 +265,7 @@ const AIService = {
 
         let conversationId = null;
         try {
-            const conv = await PrismWrapper.startConversation(
+            const conv = await PrismService.startConversation(
                 imgTitle,
                 "",
                 { provider: imgProviderName },
@@ -339,7 +342,7 @@ const AIService = {
                 const discordMessage = CurrentService.getMessage();
                 const discordUsername = discordMessage?.author?.username || "lupos";
 
-                const prismResult = await PrismWrapper.generateImage(
+                const prismResult = await PrismService.generateImage(
                     prompt,
                     "google",
                     usedModel,
@@ -412,7 +415,7 @@ const AIService = {
                 }
 
                 usedModel = "gpt-image-1.5";
-                const prismResult = await PrismWrapper.generateImage(
+                const prismResult = await PrismService.generateImage(
                     prompt,
                     "openai",
                     usedModel,
@@ -469,6 +472,8 @@ const AIService = {
                 duration: imgDuration,
                 inputType: imageUrls.length > 0 ? "text+image" : "text",
                 outputType: "image",
+                input: prompt?.substring(0, 1000) || null,
+                output: generatedText?.substring(0, 1000) || "[image]",
             });
         }
 
@@ -483,7 +488,7 @@ const AIService = {
 
         // Finalize conversation metadata (messages already saved server-side via auto-append)
         if (conversationId && generatedImage) {
-            PrismWrapper.finalizeConversation(
+            PrismService.finalizeConversation(
                 conversationId,
                 imgTitle,
                 "",
@@ -510,7 +515,7 @@ const AIService = {
             // Pre-create conversation for server-side accumulation
             let visionConvId = null;
             try {
-                const conv = await PrismWrapper.startConversation(
+                const conv = await PrismService.startConversation(
                     captionTitle,
                     "",
                     { provider: "openai" },
@@ -530,7 +535,7 @@ const AIService = {
                 timestamp: new Date(start).toISOString(),
             };
 
-            const result = await PrismWrapper.captionImage(
+            const result = await PrismService.captionImage(
                 imageUrl,
                 text || "What's in this image?",
                 "openai",
@@ -541,7 +546,7 @@ const AIService = {
 
             // Finalize conversation metadata
             if (visionConvId) {
-                PrismWrapper.finalizeConversation(
+                PrismService.finalizeConversation(
                     visionConvId,
                     captionTitle,
                     "",
@@ -601,7 +606,7 @@ const AIService = {
         const discordUsername = discordMessage?.author?.username || "lupos";
 
         // Transcribe via Prism
-        const result = await PrismWrapper.transcribeAudio(
+        const result = await PrismService.transcribeAudio(
             audioBuffer,
             mimeType,
             "openai",

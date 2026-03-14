@@ -30,8 +30,8 @@ import YouTubeWrapper from "#root/wrappers/YouTubeWrapper.js";
 import LightWrapper from "#root/wrappers/LightWrapper.js";
 import ComfyUIWrapper from "#root/wrappers/ComfyUIWrapper.js";
 import MongoWrapper from "#root/wrappers/MongoWrapper.js";
-import PrismWrapper from "#root/wrappers/PrismWrapper.js";
 // SERVICES
+import PrismService from "#root/services/PrismService.js";
 import DiscordUtilityService from "#root/services/DiscordUtilityService.js";
 import MessageService from "#root/services/MessageService.js";
 import AIService from "#root/services/AIService.js";
@@ -966,7 +966,7 @@ async function buildAndGenerateReply({
                     .join("\n");
                 const queryText = recentUserConvo || message.cleanContent || message.content || "";
                 if (queryText.length > 3) {
-                    const memoryResult = await PrismWrapper.searchMemories(
+                    const memoryResult = await PrismService.searchMemories(
                         message.guildId,
                         participantUserIds,
                         queryText,
@@ -1658,7 +1658,7 @@ ${combinedGuildInformation && combinedChannelInformation ? `URL: https://discord
                 .filter((m) => m.role === "user")
                 .slice(-10);
 
-            PrismWrapper.extractMemories(
+            PrismService.extractMemories(
                 message.guildId,
                 message.channel?.id,
                 recentUserMessages,
@@ -1725,7 +1725,9 @@ ${combinedGuildInformation && combinedChannelInformation ? `URL: https://discord
             displayName: step.label || step.model || "Step",
             inputTypes: [step.inputType || "text"],
             outputTypes: [step.outputType || "text"],
-            messages: [],
+            systemPrompt: step.systemPrompt || null,
+            input: step.input || null,
+            output: step.output || null,
             position: { x: 120 + i * 280, y: 200 },
             stepMeta: {
                 duration: step.duration,
@@ -1744,7 +1746,7 @@ ${combinedGuildInformation && combinedChannelInformation ? `URL: https://discord
 
         const totalDuration = workflowSteps.reduce((sum, s) => sum + (s.duration || 0), 0);
 
-        PrismWrapper.saveWorkflow({
+        PrismService.saveWorkflow({
             messageId: message.id,
             guildId: message.guild?.id || "DM",
             guildName: message.guild?.name || "DM",
