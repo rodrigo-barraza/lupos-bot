@@ -224,7 +224,7 @@ export default class PrismService {
     if (model) body.model = model;
     if (language) body.language = language;
 
-    return PrismService._request("/audio/transcribe", { body });
+    return PrismService._request("/audio-to-text", { body });
   }
 
   // ---------------------------------------------------------------------------
