@@ -184,9 +184,9 @@ const AIService = {
             duration: parseFloat(duration.toFixed(3)),
             inputType: "text",
             outputType: "text",
-            systemPrompt: systemPrompt?.substring(0, 1000) || null,
-            input: lastUserMsg?.content?.substring(0, 1000) || null,
-            output: textResponse?.substring(0, 1000) || null,
+            systemPrompt: systemPrompt || null,
+            input: lastUserMsg?.content || null,
+            output: textResponse || null,
         });
 
         if (localMongo) {
@@ -478,8 +478,8 @@ const AIService = {
                 duration: imgDuration,
                 inputType: imageUrls.length > 0 ? "text+image" : "text",
                 outputType: "image",
-                input: prompt?.substring(0, 1000) || null,
-                output: generatedText?.substring(0, 1000) || "[image]",
+                input: prompt || null,
+                output: generatedText || "[image]",
                 imageRef: imageMinioRef || null,
             });
         }
