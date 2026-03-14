@@ -420,18 +420,15 @@ const PrismWrapper = {
         return response.json();
     },
     /**
-     * Save a workflow document via Prism's admin endpoint.
+     * Save a workflow document via Prism's /workflows endpoint.
      *
      * @param {object} workflow - Workflow document with nodes, connections, steps, and metadata
      * @returns {Promise<object>}
      */
     async saveWorkflow(workflow) {
-        const response = await fetch(`${PRISM_API_URL}/admin/workflows`, {
+        const response = await fetch(`${PRISM_API_URL}/workflows`, {
             method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-                "x-admin-secret": config.PRISM_ADMIN_SECRET,
-            },
+            headers: getHeaders("lupos"),
             body: JSON.stringify(workflow),
         });
 
