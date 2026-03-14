@@ -737,18 +737,9 @@ async function buildAndGenerateReply({
         }
 
         // Detect GROUP references (e.g. "draw the top 5 people here", "draw everyone")
-        // Only triggers when no specific HUMAN users were @mentioned or detected by name
-        // (the bot's own @mention doesn't count — "@Lupos draw everyone" should still trigger)
-        const humanMemberMentionCount = [...memberMentionsCollection.keys()]
-            .filter((id) => id !== bot.id).length;
-        const humanUserMentionCount = [...userMentionsCollection.keys()]
-            .filter((id) => id !== bot.id).length;
-        if (
-            isMessageAskingToGenerateImage &&
-            humanMemberMentionCount === 0 &&
-            humanUserMentionCount === 0 &&
-            untaggedMatchedUserIds.size === 0
-        ) {
+        // Always check for group references in image requests — the AI returns 0 for non-group cases.
+        // This handles mixed cases like "draw @Rodrigo surrounded by everyone" correctly.
+        if (isMessageAskingToGenerateImage) {
             const groupCount = await AIService.generateTextDetectGroupReference(
                 message.cleanContent || message.content,
                 message,

@@ -1170,23 +1170,27 @@ ${participantList}
         const conversation = [
             {
                 role: "system",
-                content: `You determine if a message is asking to draw/depict a GROUP of people from the chat, without naming them specifically.
+                content: `You determine if a message is asking to draw/depict a GROUP of people from the chat.
 
 # RULES:
-1. If the message references a generic group (e.g. "the top 5 people here", "everyone", "all of us", "the boys", "the squad", "the chat"), return the NUMBER of people implied.
+1. If the message references a generic group (e.g. "the top 5 people here", "everyone", "all of us", "the boys", "the squad", "the chat", "everyone else"), return the NUMBER of people implied.
 2. If a specific number is mentioned (e.g. "top 5", "the 3 of us"), return that number.
-3. If it says "everyone" or "all", return 99 (the caller will cap it).
-4. If the message names specific people OR does NOT reference a group at all, return 0.
-5. Return ONLY a single integer, nothing else.
+3. If it says "everyone" or "all" or "everyone else", return 99 (the caller will cap it).
+4. If the message ALSO names specific people alongside a group reference (e.g. "draw @someone fighting everyone else"), STILL return the group number. The specific people are handled separately.
+5. If the message ONLY names specific people with NO group reference at all, return 0.
+6. If the message does NOT reference any people at all, return 0.
+7. Return ONLY a single integer, nothing else.
 
 # EXAMPLES:
 - "draw the top 5 people here as captain planet" → 5
 - "draw everyone in the chat as avengers" → 99
 - "make us all into a group photo" → 99
 - "draw the boys as superheroes" → 99
-- "draw me and @someone" → 0 (specific people, not a group reference)
+- "draw @AnimeClock and @BlueHippo fighting everyone else" → 99 (group reference "everyone else")
+- "draw @Rodrigo surrounded by the boys" → 99 (group reference "the boys")
+- "draw me and @someone" → 0 (specific people only, no group reference)
 - "draw a sunset" → 0 (no people referenced)
-- "draw kvz as a knight" → 0 (specific person named)`,
+- "draw kvz as a knight" → 0 (specific person named, no group reference)`,
             },
             {
                 role: "user",
@@ -1197,8 +1201,8 @@ ${participantList}
 
         const response = await AIService.generateText({
             conversation,
-            type: "OPENAI",
-            model: config.OPENAI_LANGUAGE_MODEL_GPT5_NANO,
+            type: "ANTHROPIC",
+            model: config.ANTHROPIC_LANGUAGE_MODEL_FAST,
             label: "🧠 Detect Group Reference",
         });
 
