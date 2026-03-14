@@ -966,12 +966,12 @@ async function buildAndGenerateReply({
                     .join("\n");
                 const queryText = recentUserConvo || message.cleanContent || message.content || "";
                 if (queryText.length > 3) {
-                    const memoryResult = await PrismService.searchMemories(
-                        message.guildId,
-                        participantUserIds,
+                    const memoryResult = await PrismService.searchMemories({
+                        guildId: message.guildId,
+                        userIds: participantUserIds,
                         queryText,
-                        8,
-                    );
+                        limit: 8,
+                    });
 
                     if (memoryResult?.memories?.length > 0) {
                         systemPrompt += `\n\n# Memories about participants`;
@@ -1658,13 +1658,13 @@ ${combinedGuildInformation && combinedChannelInformation ? `URL: https://discord
                 .filter((m) => m.role === "user")
                 .slice(-10);
 
-            PrismService.extractMemories(
-                message.guildId,
-                message.channel?.id,
-                recentUserMessages,
-                memoryParticipants,
-                message.id,
-            ).then((result) => {
+            PrismService.extractMemories({
+                guildId: message.guildId,
+                channelId: message.channel?.id,
+                messages: recentUserMessages,
+                participants: memoryParticipants,
+                sourceMessageId: message.id,
+            }).then((result) => {
                 if (result?.count > 0) {
                     console.log(`🧠 [DiscordService] Extracted ${result.count} memory/memories from conversation.`);
                 }
