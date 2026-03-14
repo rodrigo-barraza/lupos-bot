@@ -248,6 +248,7 @@ const AIService = {
         let usedModel;
         let generatedText;
         let imageEstimatedCost = null;
+        let imageMinioRef = null;
         let userInputImageDataUrls = [];
         const start = performance.now();
 
@@ -357,6 +358,7 @@ const AIService = {
                     generatedImage = prismResult.imageData;
                     generatedText = prismResult.text;
                     imageEstimatedCost = prismResult.estimatedCost || null;
+                    imageMinioRef = prismResult.minioRef || null;
                 } else {
                     // No image in response, fall back to LOCAL
                     console.log(
@@ -430,6 +432,7 @@ const AIService = {
                 generatedImage = prismResult.imageData;
                 generatedText = prismResult.text;
                 imageEstimatedCost = prismResult.estimatedCost || null;
+                imageMinioRef = prismResult.minioRef || null;
             } catch (error) {
                 console.error(...LogFormatter.error("generateImage", error));
             }
@@ -477,6 +480,7 @@ const AIService = {
                 outputType: "image",
                 input: prompt?.substring(0, 1000) || null,
                 output: generatedText?.substring(0, 1000) || "[image]",
+                imageRef: imageMinioRef || null,
             });
         }
 

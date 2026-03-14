@@ -1727,6 +1727,7 @@ ${combinedGuildInformation && combinedChannelInformation ? `URL: https://discord
             systemPrompt: step.systemPrompt || null,
             input: step.input || null,
             output: step.output || null,
+            imageRef: step.imageRef || null,
             position: { x: 120 + i * 280, y: 200 },
             stepMeta: {
                 duration: step.duration,
