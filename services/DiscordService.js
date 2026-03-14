@@ -30,7 +30,7 @@ import YouTubeWrapper from "#root/wrappers/YouTubeWrapper.js";
 import LightWrapper from "#root/wrappers/LightWrapper.js";
 import ComfyUIWrapper from "#root/wrappers/ComfyUIWrapper.js";
 import MongoWrapper from "#root/wrappers/MongoWrapper.js";
-import _PrismWrapper from "#root/wrappers/PrismWrapper.js";
+import PrismWrapper from "#root/wrappers/PrismWrapper.js";
 // SERVICES
 import DiscordUtilityService from "#root/services/DiscordUtilityService.js";
 import MessageService from "#root/services/MessageService.js";
@@ -737,11 +737,16 @@ async function buildAndGenerateReply({
         }
 
         // Detect GROUP references (e.g. "draw the top 5 people here", "draw everyone")
-        // Only triggers when no specific users were @mentioned or detected by name
+        // Only triggers when no specific HUMAN users were @mentioned or detected by name
+        // (the bot's own @mention doesn't count — "@Lupos draw everyone" should still trigger)
+        const humanMemberMentionCount = [...memberMentionsCollection.keys()]
+            .filter((id) => id !== bot.id).length;
+        const humanUserMentionCount = [...userMentionsCollection.keys()]
+            .filter((id) => id !== bot.id).length;
         if (
             isMessageAskingToGenerateImage &&
-            memberMentionsCollection.size === 0 &&
-            userMentionsCollection.size === 0 &&
+            humanMemberMentionCount === 0 &&
+            humanUserMentionCount === 0 &&
             untaggedMatchedUserIds.size === 0
         ) {
             const groupCount = await AIService.generateTextDetectGroupReference(
@@ -754,11 +759,11 @@ async function buildAndGenerateReply({
                     `👥 [DiscordService] Detected group reference requesting ${groupCount} people`,
                 );
 
-                // Rank participants by message count in recentMessages
+                // Rank participants by message count in recentMessages (exclude bot only)
                 const messageCounts = new Map();
                 for (const msg of recentMessages.values()) {
                     const authorId = msg.author?.id;
-                    if (!authorId || authorId === bot.id || authorId === message.author.id) continue;
+                    if (!authorId || authorId === bot.id) continue;
                     messageCounts.set(authorId, (messageCounts.get(authorId) || 0) + 1);
                 }
 
@@ -938,6 +943,57 @@ async function buildAndGenerateReply({
                 systemPrompt += `\n\n# ${context.title}`;
                 systemPrompt += `\n- Keywords: ${context.keywords}`;
                 systemPrompt += `\n- Description: ${context.description}`;
+            }
+        }
+
+        // Memory retrieval — search for relevant memories about participants
+        if (message.guildId) {
+            try {
+                // Collect all participant user IDs for the search
+                const participantUserIds = [];
+                if (message.author?.id) participantUserIds.push(message.author.id);
+                for (const [id] of memberMentionsCollection.entries()) {
+                    if (!participantUserIds.includes(id)) participantUserIds.push(id);
+                }
+                for (const [id] of userMentionsCollection.entries()) {
+                    if (!participantUserIds.includes(id)) participantUserIds.push(id);
+                }
+                // Add secondary participants
+                if (participantsCollection?.size) {
+                    for (const participant of participantsCollection.values()) {
+                        if (participant?.user?.id && !participantUserIds.includes(participant.user.id)) {
+                            participantUserIds.push(participant.user.id);
+                        }
+                    }
+                }
+
+                // Build a search query from recent conversation context (not just the triggering message)
+                const recentUserConvo = conversation
+                    .filter((m) => m.role === "user")
+                    .slice(-5)
+                    .map((m) => m.content)
+                    .join("\n");
+                const queryText = recentUserConvo || message.cleanContent || message.content || "";
+                if (queryText.length > 3) {
+                    const memoryResult = await PrismWrapper.searchMemories(
+                        message.guildId,
+                        participantUserIds,
+                        queryText,
+                        8,
+                    );
+
+                    if (memoryResult?.memories?.length > 0) {
+                        systemPrompt += `\n\n# Memories about participants`;
+                        systemPrompt += `\nThese are things you remember from past conversations. Use them naturally when relevant — don't force them into every response.`;
+                        for (const memory of memoryResult.memories) {
+                            const createdDate = new Date(memory.createdAt);
+                            const timeAgo = DateTime.fromJSDate(createdDate).toRelative();
+                            systemPrompt += `\n- ${memory.fact} (about ${memory.aboutUsername}, remembered ${timeAgo})`;
+                        }
+                    }
+                }
+            } catch (memoryErr) {
+                console.warn(`🧠 [DiscordService] Memory retrieval failed: ${memoryErr.message}`);
             }
         }
 
@@ -1576,6 +1632,56 @@ ${combinedGuildInformation && combinedChannelInformation ? `URL: https://discord
 
     lastMessageSentTime = DateTime.now().toISO();
     CurrentService.setEndTime(Date.now());
+
+    // Fire-and-forget memory extraction from the conversation
+    if (message.guildId && conversation?.length > 0) {
+        const memoryParticipants = [];
+        // Collect participant info for extraction
+        if (participantsCollection?.size) {
+            for (const participant of participantsCollection.values()) {
+                if (participant?.user) {
+                    memoryParticipants.push({
+                        id: participant.user.id,
+                        username: participant.user.username,
+                        displayName: participant.user.globalName || participant.user.username,
+                    });
+                }
+            }
+        }
+        // Include mentioned users
+        if (memberMentionsCollection?.size) {
+            for (const member of memberMentionsCollection.values()) {
+                const alreadyAdded = memoryParticipants.some((p) => p.id === member.id);
+                if (!alreadyAdded) {
+                    memoryParticipants.push({
+                        id: member.id,
+                        username: member.user?.username || member.username,
+                        displayName: member.displayName || member.user?.globalName || member.user?.username,
+                    });
+                }
+            }
+        }
+        if (memoryParticipants.length > 0) {
+            // Only send the last ~10 user messages for extraction (skip system/assistant)
+            const recentUserMessages = conversation
+                .filter((m) => m.role === "user")
+                .slice(-10);
+
+            PrismWrapper.extractMemories(
+                message.guildId,
+                message.channel?.id,
+                recentUserMessages,
+                memoryParticipants,
+                message.id,
+            ).then((result) => {
+                if (result?.count > 0) {
+                    console.log(`🧠 [DiscordService] Extracted ${result.count} memory/memories from conversation.`);
+                }
+            }).catch((err) => {
+                console.warn(`🧠 [DiscordService] Memory extraction failed: ${err.message}`);
+            });
+        }
+    }
 
     const end = performance.now();
     const duration = end - start;
@@ -2387,7 +2493,8 @@ async function extractContentFromMessages(
                 if (recentMessage.reactions?.cache?.size > 0) {
                     reactionsContent = `\n[REACTIONS]`;
                     for (const reaction of recentMessage.reactions.cache.values()) {
-                        reactionsContent += `\n- ${reaction.emoji.name} x ${reaction.count}`;
+                        const byMe = reaction.me ? " (by you, Lupos)" : "";
+                        reactionsContent += `\n- ${reaction.emoji.name} x ${reaction.count}${byMe}`;
                     }
                 }
 
@@ -2554,7 +2661,10 @@ async function extractContentFromMessages(
                 const isCurrentMessage = recentMessage.id !== message.id;
                 if (recentMessage.reactions?.cache?.size > 0 && !isCurrentMessage) {
                     const reactions = recentMessage.reactions.cache.map(
-                        (reaction) => reaction.emoji.name,
+                        (reaction) => {
+                            const byMe = reaction.me ? " (by you, Lupos)" : "";
+                            return `${reaction.emoji.name}${byMe}`;
+                        },
                     );
                     modifiedContent += `\nNumber of reactions in this message: ${recentMessage.reactions.cache.size}`;
                     modifiedContent += `\nReaction list: ${reactions.join(", ")}`;

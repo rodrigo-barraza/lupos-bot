@@ -333,6 +333,92 @@ const PrismWrapper = {
 
         return response.json();
     },
+
+    /**
+     * Extract and store memories from a conversation chunk.
+     *
+     * @param {string} guildId - Discord guild ID
+     * @param {string} channelId - Discord channel ID
+     * @param {Array} messages - Recent conversation messages [{ role, name?, content }]
+     * @param {Array} participants - Array of { id, username, displayName }
+     * @param {string} [sourceMessageId] - Message that triggered extraction
+     * @returns {Promise<{ memories: Array, count: number }>}
+     */
+    async extractMemories(guildId, channelId, messages, participants, sourceMessageId = null) {
+        const body = {
+            guildId,
+            channelId,
+            messages,
+            participants,
+        };
+        if (sourceMessageId) body.sourceMessageId = sourceMessageId;
+
+        const response = await fetch(`${PRISM_API_URL}/memory/extract`, {
+            method: "POST",
+            headers: getHeaders("lupos"),
+            body: JSON.stringify(body),
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`Prism API error: ${response.status} ${errorText}`);
+        }
+
+        return response.json();
+    },
+
+    /**
+     * Search for relevant memories using vector similarity.
+     *
+     * @param {string} guildId - Discord guild ID
+     * @param {string[]} [userIds] - Filter to memories about these users
+     * @param {string} queryText - Text to search for
+     * @param {number} [limit=10] - Max results
+     * @returns {Promise<{ memories: Array, count: number }>}
+     */
+    async searchMemories(guildId, userIds = null, queryText, limit = 10) {
+        const body = { guildId, queryText, limit };
+        if (userIds && userIds.length > 0) body.userIds = userIds;
+
+        const response = await fetch(`${PRISM_API_URL}/memory/search`, {
+            method: "POST",
+            headers: getHeaders("lupos"),
+            body: JSON.stringify(body),
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`Prism API error: ${response.status} ${errorText}`);
+        }
+
+        return response.json();
+    },
+
+    /**
+     * Generate an embedding vector for text via Prism's /embed endpoint.
+     *
+     * @param {string} text - Text to embed
+     * @param {string} [provider="openai"] - Embedding provider
+     * @param {string} [model] - Embedding model (defaults to provider default)
+     * @returns {Promise<{ embedding: number[], dimensions: number }>}
+     */
+    async generateEmbedding(text, provider = "openai", model = null) {
+        const body = { provider, text };
+        if (model) body.model = model;
+
+        const response = await fetch(`${PRISM_API_URL}/embed`, {
+            method: "POST",
+            headers: getHeaders("lupos"),
+            body: JSON.stringify(body),
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`Prism API error: ${response.status} ${errorText}`);
+        }
+
+        return response.json();
+    },
 };
 
 export default PrismWrapper;
