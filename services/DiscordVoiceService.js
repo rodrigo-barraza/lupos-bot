@@ -5,7 +5,7 @@ import path from "path";
 import prism from "prism-media";
 import { joinVoiceChannel } from "@discordjs/voice";
 const recordingStreams = new Map();
-import OpenAIWrapper from "#root/wrappers/OpenAIWrapper.js";
+import PrismService from "#root/services/PrismService.js";
 
 let isRecording = false;
 let combinedStream = null;
@@ -205,9 +205,11 @@ class UserRecordingStream {
       console.log(
         `[${this.username}] Transcribing segment ${segmentNumber}...`,
       );
-      const transcription = await OpenAIWrapper.speechToText(
-        fs.createReadStream(mp3Path),
-      );
+      const transcriptionResult = await PrismService.transcribeAudio({
+        audio: fs.readFileSync(mp3Path),
+        mimeType: "audio/mpeg",
+      });
+      const transcription = transcriptionResult.text;
 
       if (transcription && transcription.trim().length > 0) {
         const transcriptionEntry = {

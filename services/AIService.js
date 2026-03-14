@@ -8,8 +8,8 @@ import config from "#root/config.json" with { type: "json" };
 // Formatters
 import LogFormatter from "#root/formatters/LogFormatter.js";
 // Wrappers
-import ComfyUIWrapper from "#root/wrappers/ComfyUIWrapper.js";
-import MongoWrapper from "#root/wrappers/MongoWrapper.js";
+import ComfyUIService from "#root/services/ComfyUIService.js";
+import MongoService from "#root/services/MongoService.js";
 // Libraries
 import UtilityLibrary from "#root/libraries/UtilityLibrary.js";
 // Services
@@ -75,7 +75,7 @@ const AIService = {
         let prismUsage = null;
         let prismEstimatedCost = null;
         const start = performance.now();
-        const localMongo = MongoWrapper.getClient("local");
+        const localMongo = MongoService.getClient("local");
 
         // Determine initial model based on type and performance
         if (type === "OPENAI") {
@@ -244,7 +244,7 @@ const AIService = {
     // Base Text-to-Image Generation (Diffusion)
     async generateImage(type, prompt, client, imageUrls = [], username = null) {
         let generatedImage;
-        const localMongo = MongoWrapper.getClient("local");
+        const localMongo = MongoService.getClient("local");
         let usedModel;
         let generatedText;
         let imageEstimatedCost = null;
@@ -288,10 +288,10 @@ const AIService = {
         if (type === "LOCAL") {
             try {
                 console.log(...LogFormatter.generateImageStart({ prompt }));
-                await ComfyUIWrapper.checkComfyUIWebsocketStatus();
+                await ComfyUIService.checkComfyUIWebsocketStatus();
                 if (prompt) {
                     usedModel = "FLUX.1-dev";
-                    generatedImage = await ComfyUIWrapper.generateComfyUIImage(
+                    generatedImage = await ComfyUIService.generateComfyUIImage(
                         prompt,
                         client,
                     );
@@ -760,10 +760,10 @@ const AIService = {
     //     consoleLog('=', `PROMPT:\n\n${text}`);
     //     let generatedImage;
     //     try {
-    //         await ComfyUIWrapper.checkComfyUIWebsocketStatus();
+    //         await ComfyUIService.checkComfyUIWebsocketStatus();
     //         let currentTime = new Date().getTime();
     //         if (text) {
-    //             generatedImage = await ComfyUIWrapper.generateComfyUIImageToImage(text, imageUrl, denoisingStrength);
+    //             generatedImage = await ComfyUIService.generateComfyUIImageToImage(text, imageUrl, denoisingStrength);
     //             let timeTakenInSeconds = (new Date().getTime() - currentTime) / 1000;
     //             consoleLog('=', `Type: FLUX`);
     //             consoleLog('=', `Time: ${timeTakenInSeconds}`);

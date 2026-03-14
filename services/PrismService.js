@@ -208,22 +208,23 @@ export default class PrismService {
    * @returns {Promise<{ text: string, usage: object }>}
    */
   static async transcribeAudio({
-    audioBuffer,
-    mimeType,
+    audio,
+    mimeType = "audio/mpeg",
     provider = "openai",
     model,
-    username = "lupos",
+    language,
   }) {
-    const audioDataUrl = `data:${mimeType};base64,${audioBuffer.toString("base64")}`;
+    // Accept Buffer or base64 string
+    const base64Audio = Buffer.isBuffer(audio)
+      ? audio.toString("base64")
+      : audio;
+    const dataUrl = `data:${mimeType};base64,${base64Audio}`;
 
-    const body = {
-      provider,
-      messages: [{ role: "user", content: "Transcribe this audio.", audio: audioDataUrl }],
-    };
-
+    const body = { provider, audio: dataUrl };
     if (model) body.model = model;
+    if (language) body.language = language;
 
-    return PrismService._request("/chat?stream=false", { body, username });
+    return PrismService._request("/audio/transcribe", { body });
   }
 
   // ---------------------------------------------------------------------------

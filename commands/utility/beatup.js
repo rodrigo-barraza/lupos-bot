@@ -1,5 +1,5 @@
 import { SlashCommandBuilder, PermissionFlagsBits } from "discord.js";
-import MongoWrapper from "#root/wrappers/MongoWrapper.js";
+import MongoService from "#root/services/MongoService.js";
 
 // How many votes needed to trigger timeout
 const VOTES_REQUIRED = 3;
@@ -113,7 +113,7 @@ export default {
     await interaction.deferReply();
 
     try {
-      const localMongo = MongoWrapper.getClient("local");
+      const localMongo = MongoService.getClient("local");
       const db = localMongo.db("lupos");
       const beatupVotesCollection = db.collection("BeatUpGameVotes");
       const beatupCooldownsCollection = db.collection("BeatUpGameCooldowns");

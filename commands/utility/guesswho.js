@@ -5,7 +5,7 @@ import {
   ButtonBuilder,
   ButtonStyle,
 } from "discord.js";
-import MongoWrapper from "#root/wrappers/MongoWrapper.js";
+import MongoService from "#root/services/MongoService.js";
 
 export default {
   data: new SlashCommandBuilder()
@@ -45,7 +45,7 @@ export default {
     ),
 
   async execute(interaction) {
-    const localMongo = MongoWrapper.getClient("local");
+    const localMongo = MongoService.getClient("local");
     const db = localMongo.db("lupos");
     const messagesCollection = db.collection("Messages");
     const scoresCollection = db.collection("GuessWhoGameScore");

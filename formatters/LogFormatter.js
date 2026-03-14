@@ -1,6 +1,6 @@
 import config from "#root/config.json" with { type: "json" };
 import UtilityLibrary from "#root/libraries/UtilityLibrary.js";
-import LightWrapper from "#root/wrappers/LightWrapper.js";
+import LightService from "#root/services/LightService.js";
 
 const { slowBlink, bold } = UtilityLibrary.ansiEscapeCodes(true);
 
@@ -64,7 +64,7 @@ const LogFormatter = {
     imageUrl,
     caption,
   }) {
-    LightWrapper.cycleColor(config.PRIMARY_LIGHT_ID);
+    LightService.cycleColor(config.PRIMARY_LIGHT_ID);
 
     let theClient;
     let theUser;

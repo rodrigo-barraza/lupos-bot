@@ -63,7 +63,7 @@ if (process.platform === "win32") {
         }
         if (!chromePath) {
             console.warn(
-                "⚠️ [PuppeteerWrapper] Could not find a Chrome/Chromium executable. Puppeteer may fail to launch.",
+                "⚠️ [ScraperService] Could not find a Chrome/Chromium executable. Puppeteer may fail to launch.",
             );
         }
     }
@@ -74,8 +74,8 @@ if (process.platform === "win32") {
     };
 }
 
-const PuppeteerWrapper = {
-    async scrapeRSS(url) {
+class ScraperService {
+    static async scrapeRSS(url) {
         const browser = await puppeteer.launch(puppeteerOptions);
         const page = await browser.newPage();
         await page.goto(url, { waitUntil: "networkidle0" });
@@ -94,59 +94,9 @@ const PuppeteerWrapper = {
         const result = await parser.parseStringPromise(xmlContent);
         const items = result.rss.channel.item;
         return items;
-    },
-    // async scrapeRSSGoogleNews(message) {
-    //     const url = 'https://news.google.com/rss?gl=US&hl=en-US&ceid=US:en';
-    //     const browser = await puppeteer.launch({ headless: true, executablePath: executablePath() });
-    //     const page = await browser.newPage();
-    //     await page.goto(url, { waitUntil: 'networkidle0' });
+    }
 
-    //     // Extract XML content from the page
-    //     let xmlContent = await page.evaluate(() => document.body.innerText);
-
-    //     await browser.close();
-
-    //     xmlContent = xmlContent.substring(xmlContent.indexOf('<rss'));
-
-    //     xmlContent = xmlContent.replace(/&(?!nbsp;)/g, '&amp;');
-
-    //     // Parse XML content to JSON
-    //     const parser = new xml2js.Parser({ explicitArray: false, mergeAttrs: true });
-    //     const result = await parser.parseStringPromise(xmlContent);
-
-    //     let userMessage = "# Latest News\n";
-
-    //     const items = result.rss.channel.item;
-    //     items.forEach((item) => {
-    //         const title = item.title;
-    //         const pubDate = UtilityLibrary.getCurrentDateAndTime(item.pubDate);
-    //         const minutesAgo = UtilityLibrary.getMinutesAgo(item.pubDate);
-    //         const link = item.link;
-    //         const description = item.description || '';
-
-    //         userMessage += `## Title: ${title}\n`;
-    //         userMessage += `- Date: ${pubDate}\n`;
-    //         userMessage += `- Minutes ago: ${minutesAgo}\n`;
-    //         userMessage += `- Link: ${link}\n`
-    //         userMessage += `- Description: ${description}\n`;
-    //     });
-
-    //     userMessage += `If any, return the most related news to this: ${message.content}`;
-
-    //     const systemMessage = `#Task:\n-You return the most related news, and summarize the description without adding more information.\n-If there is no related news, return an empty string.\n\n#Output Format:
-    //     -## Title: [Title]
-    //     -Date: [Date]
-    //     -Minutes ago: [Minutes]
-    //     -Link: [Link]
-    //     -Description: [Description]`;
-
-    //     const conversation = await AIService.rawGenerateConversation(systemMessage, userMessage, message)
-
-    //     await AIService.rawGenerateText({conversation, type: 'OPENAI', performance: 'FAST'})
-
-    //     return userMessage;
-    // },
-    async scrapeRSSGoogleTrends() {
+    static async scrapeRSSGoogleTrends() {
         const url =
             "https://trends.google.com/trends/trendingsearches/daily/rss?geo=US";
         const browser = await puppeteer.launch({ headless: true });
@@ -197,8 +147,9 @@ const PuppeteerWrapper = {
         });
 
         return output;
-    },
-    async scrapeURL(url) {
+    }
+
+    static async scrapeURL(url) {
         const _functionName = "scrapeURL";
         if (url.includes("aveda.com")) {
             // ignore
@@ -358,8 +309,9 @@ const PuppeteerWrapper = {
         await browser.close();
         // console.log(...LogFormatter.scrapeSuccess({functionName, url, result}));
         return result;
-    },
-    async scrapeURL2(url) {
+    }
+
+    static async scrapeURL2(url) {
         async function isImageURL(url) {
             const res = await fetch(url, { method: "HEAD" });
             const type = res.headers.get("content-type");
@@ -451,8 +403,9 @@ const PuppeteerWrapper = {
 
         await browser.close();
         return result;
-    },
-    async scrapeTenor(url) {
+    }
+
+    static async scrapeTenor(url) {
         let browser;
         try {
             // consoleInfo('<', 'scrapeTenor');
@@ -517,8 +470,9 @@ const PuppeteerWrapper = {
                 await browser.close();
             }
         }
-    },
-    async scrapeTwitchUrl(url) {
+    }
+
+    static async scrapeTwitchUrl(url) {
         const _functionName = "scrapeTwitchUrl";
         try {
             const browser = await puppeteer.launch(puppeteerOptions);
@@ -575,8 +529,9 @@ const PuppeteerWrapper = {
             console.error("Puppeteer Error:\n", error);
             return {};
         }
-    },
-    async scrapeGoogleAlerts(searchText) {
+    }
+
+    static async scrapeGoogleAlerts(searchText) {
         let result;
         const browser = await puppeteer.launch(puppeteerOptions);
         const page = await browser.newPage();
@@ -614,7 +569,7 @@ const PuppeteerWrapper = {
         await browser.close();
         // UtilityLibrary.consoleInfoColor([[`║ 📰 News: `, { }], [result, { }]]);
         return result;
-    },
-};
+    }
+}
 
-export default PuppeteerWrapper;
+export default ScraperService;

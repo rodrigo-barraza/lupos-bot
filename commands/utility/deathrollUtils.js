@@ -11,7 +11,7 @@ import {
   PermissionFlagsBits,
   EmbedBuilder,
 } from "discord.js";
-import MongoWrapper from "#root/wrappers/MongoWrapper.js";
+import MongoService from "#root/services/MongoService.js";
 import config from "#root/config.json" with { type: "json" };
 
 // ─── Constants ────────────────────────────────────────────────────────
@@ -247,7 +247,7 @@ function getMedal(index) {
 // ─── Database Helpers ─────────────────────────────────────────────────
 
 function getDeathrollCollections() {
-  const localMongo = MongoWrapper.getClient("local");
+  const localMongo = MongoService.getClient("local");
   const db = localMongo.db("lupos");
   return {
     statsCollection: db.collection("DeathRollUserStats"),

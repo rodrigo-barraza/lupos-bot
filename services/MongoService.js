@@ -3,8 +3,8 @@ import LogFormatter from "#root/formatters/LogFormatter.js";
 
 const clients = new Map();
 
-const MongoWrapper = {
-  async createClient(name, uri) {
+export default class MongoService {
+  static async createClient(name, uri) {
     try {
       const client = new MongoClient(uri);
       await client.connect();
@@ -15,17 +15,17 @@ const MongoWrapper = {
       console.error(...LogFormatter.mongoConnectionError(name, error));
       throw error;
     }
-  },
-  getClient(name) {
+  }
+
+  static getClient(name) {
     return clients.get(name);
-  },
-  closeClient(name) {
+  }
+
+  static closeClient(name) {
     const client = clients.get(name);
     if (client) {
       client.close();
       clients.delete(name);
     }
-  },
-};
-
-export default MongoWrapper;
+  }
+}

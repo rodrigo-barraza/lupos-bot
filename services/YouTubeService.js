@@ -199,8 +199,8 @@ function createEmbed(video, queueMessage) {
     return embed;
 }
 
-const YouTubeWrapper = {
-    async processQueue(client, message) {
+class YouTubeService {
+    static async processQueue(client, message) {
         if (queue.length === 0) {
             isQueueProcessing = false;
             return;
@@ -277,13 +277,13 @@ const YouTubeWrapper = {
                 await message.channel.send(
                     "An error occurred while streaming the song, now skipping to the next song...",
                 );
-                this.stopUpdateInterval();
-                await this.processQueue(client, message);
+                YouTubeService.stopUpdateInterval();
+                await YouTubeService.processQueue(client, message);
             });
 
             player.on(AudioPlayerStatus.Idle, async () => {
-                this.stopUpdateInterval();
-                await this.processQueue(client, message);
+                YouTubeService.stopUpdateInterval();
+                await YouTubeService.processQueue(client, message);
             });
 
             player.play(resource);
@@ -291,7 +291,7 @@ const YouTubeWrapper = {
             const embed = createEmbed(video, queueMessage);
 
             nowPlayingMessage = await message.channel.send({ embeds: [embed] });
-            this.startUpdateInterval();
+            YouTubeService.startUpdateInterval();
         } catch (error) {
             console.error("Error processing queue:", error);
             message.reply("An error occurred while processing the queue!");
@@ -299,8 +299,9 @@ const YouTubeWrapper = {
             connection.destroy();
             connection = null;
         }
-    },
-    async searchAndPlay(client, message) {
+    }
+
+    static async searchAndPlay(client, message) {
         if (!message.content.startsWith("!play ")) return;
         try {
             const permissions = message.member.voice.channel.permissionsFor(
@@ -399,19 +400,20 @@ const YouTubeWrapper = {
                 }
 
                 // start a new update interval
-                this.startUpdateInterval();
+                YouTubeService.startUpdateInterval();
             }
 
             if (!isQueueProcessing) {
                 isQueueProcessing = true;
-                await this.processQueue(client, message);
+                await YouTubeService.processQueue(client, message);
             }
         } catch (error) {
             console.error("Error:", error);
             message.reply("An error occurred while searching/playing!");
         }
-    },
-    async recordVoiceInVoiceChannel(client, message) {
+    }
+
+    static async recordVoiceInVoiceChannel(client, message) {
         if (!message.content.startsWith("!record")) return;
         if (!message.member.voice.channel) {
             return message.reply("You need to be in a voice channel!");
@@ -457,7 +459,7 @@ const YouTubeWrapper = {
         // Listen for when user starts speaking
         receiver.speaking.on("start", (userId) => {
             if (isRecording) {
-                this.createRecordingStream(receiver, userId, recordingsDir);
+                YouTubeService.createRecordingStream(receiver, userId, recordingsDir);
             }
         });
 
@@ -468,7 +470,7 @@ const YouTubeWrapper = {
         voiceChannel.members.forEach((member) => {
             if (!member.user.bot) {
                 // Don't record bots
-                this.createRecordingStream(receiver, member.id, recordingsDir);
+                YouTubeService.createRecordingStream(receiver, member.id, recordingsDir);
             }
         });
 
@@ -505,7 +507,7 @@ const YouTubeWrapper = {
                         const stats = fs.statSync(combinedPcmPath);
                         if (stats.size > 0) {
                             try {
-                                await this.convertToMp3(combinedPcmPath, combinedMp3Path);
+                                await YouTubeService.convertToMp3(combinedPcmPath, combinedMp3Path);
 
                                 let userTags = voiceChannel.members
                                     .map((member) => `<@${member.user.id}>`)
@@ -545,9 +547,9 @@ const YouTubeWrapper = {
                 }
             }
         }, 5000); // 30 seconds
-    },
-    // Add this new function to handle the recording stream
-    createRecordingStream(receiver, userId, recordingsDir) {
+    }
+
+    static createRecordingStream(receiver, userId, recordingsDir) {
         if (recordingStreams.has(userId) || !isRecording) return;
 
         try {
@@ -599,7 +601,7 @@ const YouTubeWrapper = {
                     const stats = fs.statSync(pcmPath);
                     if (stats.size > 0) {
                         try {
-                            await this.convertToMp3(pcmPath, mp3Path);
+                            await YouTubeService.convertToMp3(pcmPath, mp3Path);
                         } catch (error) {
                             console.error(
                                 `Failed to convert recording for user ${userId}:`,
@@ -649,9 +651,9 @@ const YouTubeWrapper = {
                 error,
             );
         }
-    },
-    // And here's a simpler convertToMp3 function using fluent-ffmpeg:
-    async convertToMp3(pcmPath, mp3Path) {
+    }
+
+    static async convertToMp3(pcmPath, mp3Path) {
         const { default: ffmpeg } = await import("fluent-ffmpeg");
 
         console.log(`Converting PCM to MP3: ${pcmPath} -> ${mp3Path}`);
@@ -674,8 +676,9 @@ const YouTubeWrapper = {
                 })
                 .run();
         });
-    },
-    startUpdateInterval() {
+    }
+
+    static startUpdateInterval() {
         if (updateInterval) {
             clearInterval(updateInterval);
             updateInterval = null;
@@ -870,19 +873,20 @@ ${formatted} ${dividingLine} ${currentVideo.durationRaw}
                 .edit({ embeds: [updatedEmbed], components: [actionRow, volumeRow] })
                 .catch((err) => {
                     console.error("Failed to update embed:", err);
-                    this.stopUpdateInterval();
+                    YouTubeService.stopUpdateInterval();
                 });
         }, 1000);
-    },
+    }
 
-    stopUpdateInterval() {
+    static stopUpdateInterval() {
         if (updateInterval) {
             clearInterval(updateInterval);
             updateInterval = null;
         }
         nowPlayingMessage = null;
-    },
-    async stop(client, message) {
+    }
+
+    static async stop(client, message) {
         if (!message.content.startsWith("!stop")) return;
 
         if (player) {
@@ -892,15 +896,15 @@ ${formatted} ${dividingLine} ${currentVideo.durationRaw}
             connection.destroy();
             connection = null;
         }
-        this.stopUpdateInterval();
+        YouTubeService.stopUpdateInterval();
         player = null;
         queue = [];
         isQueueProcessing = false;
 
         await message.reply("Stopped playing!");
-    },
+    }
 
-    async next(client, message) {
+    static async next(client, message) {
         if (
             !message.content.startsWith("!skip") &&
             !message.content.startsWith("!next")
@@ -915,24 +919,25 @@ ${formatted} ${dividingLine} ${currentVideo.durationRaw}
 
         // Stop current song and move to next
         player.stop();
-    },
+    }
 
-    async pause(client, message) {
+    static async pause(client, message) {
         if (!message.content.startsWith("!pause")) return;
         if (!player) return message.reply("No song is currently playing!");
 
         player.pause();
         await message.reply("Paused!");
-    },
+    }
 
-    async resume(client, message) {
+    static async resume(client, message) {
         if (!message.content.startsWith("!resume")) return;
         if (!player) return message.reply("No song is currently playing!");
 
         player.unpause();
         message.reply("Resumed!");
-    },
-    async setVolume(client, message) {
+    }
+
+    static async setVolume(client, message) {
         if (!message.content.startsWith("!volume ")) return;
         if (!player) return message.reply("No song is currently playing!");
 
@@ -1004,47 +1009,52 @@ ${formatted} ${dividingLine} ${currentVideo.durationRaw}
             }
 
             // start a new update interval
-            this.startUpdateInterval();
+            YouTubeService.startUpdateInterval();
         } else {
             message.reply("Cannot adjust volume at this time.");
         }
-    },
-    async setVolumeByAmount(amount) {
+    }
+
+    static async setVolumeByAmount(amount) {
         if (!player) return;
         volumeLevel = Math.min(volumeLevel + amount, 100);
         player.state.resource.volume.setVolume(volumeLevel / 100);
         return volumeLevel;
-    },
-    // async buttonStop() {
-    //     if (player) {
-    //         player.stop();
-    //     }
-    //     if (connection) {
-    //         connection.destroy();
-    //         connection = null;
-    //     }
-    //     this.stopUpdateInterval();
-    //     player = null;
-    //     queue = [];
-    //     isQueueProcessing = false;
-    // },
-    async buttonSkip() {
+    }
+
+    static async buttonStop() {
+        if (player) {
+            player.stop();
+        }
+        if (connection) {
+            connection.destroy();
+            connection = null;
+        }
+        YouTubeService.stopUpdateInterval();
+        player = null;
+        queue = [];
+        isQueueProcessing = false;
+    }
+    static async buttonSkip() {
         if (!player || queue.length === 0) {
             return;
         }
 
         // Stop current song and move to next
         player.stop();
-    },
-    async buttonPause() {
+    }
+
+    static async buttonPause() {
         if (!player) return;
         player.pause();
-    },
-    async buttonResume() {
+    }
+
+    static async buttonResume() {
         if (!player) return;
         player.unpause();
-    },
-    async buttonNext() {
+    }
+
+    static async buttonNext() {
         if (!player || queue.length === 0) {
             return;
         }
@@ -1055,8 +1065,9 @@ ${formatted} ${dividingLine} ${currentVideo.durationRaw}
         }
         // Stop current song and move to next
         player.stop();
-    },
-    async getCurrentTimePlayed(client, message) {
+    }
+
+    static async getCurrentTimePlayed(client, message) {
         if (!message.content.startsWith("!time")) return;
         if (!player) return message.reply("No song is currently playing!");
 
@@ -1066,7 +1077,7 @@ ${formatted} ${dividingLine} ${currentVideo.durationRaw}
         message.reply(
             `Current time: ${formatTime(currentTime)} / ${formatTime(totalDuration)}`,
         );
-    },
-};
+    }
+}
 
-export default YouTubeWrapper;
+export default YouTubeService;

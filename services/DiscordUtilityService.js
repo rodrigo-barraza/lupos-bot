@@ -4,8 +4,8 @@ import UtilityLibrary from "#root/libraries/UtilityLibrary.js";
 const { consoleLog } = UtilityLibrary;
 import config from "#root/config.json" with { type: "json" };
 import { Collection, ChannelType, Events, ActivityType } from "discord.js";
-import PuppeteerWrapper from "#root/wrappers/PuppeteerWrapper.js";
-import LightWrapper from "#root/wrappers/LightWrapper.js";
+import ScraperService from "#root/services/ScraperService.js";
+import LightService from "#root/services/LightService.js";
 import LogFormatter from "#root/formatters/LogFormatter.js";
 
 async function fetchMessagesWithOptionalLastId(
@@ -1130,7 +1130,7 @@ const DiscordUtilityService = {
               imageUrls.push(url);
             }
           } else {
-            const tenorImage = await PuppeteerWrapper.scrapeTenor(url);
+            const tenorImage = await ScraperService.scrapeTenor(url);
             if (tenorImage?.image) {
               imageUrls.push(tenorImage.image);
             } else {
@@ -2227,7 +2227,7 @@ const DiscordUtilityService = {
         !member.roles.cache.some((role) => role.id === roleId)
       ) {
         await member.roles.add(role);
-        LightWrapper.cycleColor(config.PRIMARY_LIGHT_ID);
+        LightService.cycleColor(config.PRIMARY_LIGHT_ID);
         console.log(...LogFormatter.roleAdded(member, role));
       }
     } catch (error) {
@@ -2246,7 +2246,7 @@ const DiscordUtilityService = {
         member.roles.cache.some((role) => role.id === roleId)
       ) {
         await member.roles.remove(role);
-        LightWrapper.cycleColor(config.PRIMARY_LIGHT_ID);
+        LightService.cycleColor(config.PRIMARY_LIGHT_ID);
         console.log(...LogFormatter.roleRemoved(member, role));
       }
     } catch (error) {

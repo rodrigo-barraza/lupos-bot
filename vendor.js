@@ -23,8 +23,8 @@ import UtilityLibrary from "./libraries/UtilityLibrary.js";
 import MoodService from "./services/MoodService.js";
 import DiscordService from "./services/DiscordService.js";
 import luxon from "luxon";
-import _PuppeteerWrapper from "./wrappers/PuppeteerWrapper.js";
-import LightWrapper from "./wrappers/LightWrapper.js";
+import _ScraperService from "./services/ScraperService.js";
+import LightService from "./services/LightService.js";
 const app = express();
 
 // SERVER
@@ -121,7 +121,7 @@ UtilityLibrary.consoleInfo([
 ]);
 
 async function replyMessage(client, queuedMessage) {
-  LightWrapper.setState({ color: "purple" }, PRIMARY_LIGHT_ID);
+  LightService.setState({ color: "purple" }, PRIMARY_LIGHT_ID);
   // await DiscordService.fetchMessages(1302506119813660692, 300);
   await queuedMessage.channel.sendTyping();
   const fetchRecentMessages = (
@@ -177,7 +177,7 @@ async function replyMessage(client, queuedMessage) {
   );
   console.log("Summary:", summary);
   DiscordService.setUserActivity(summary);
-  LightWrapper.setState({ color: "red" }, PRIMARY_LIGHT_ID);
+  LightService.setState({ color: "red" }, PRIMARY_LIGHT_ID);
 
   const { generatedText, imagePrompt, modifiedMessage, systemPrompt } =
     await DiscordService.generateNewTextResponse(
@@ -185,7 +185,7 @@ async function replyMessage(client, queuedMessage) {
       queuedMessage,
       recentMessages,
     );
-  LightWrapper.setState({ color: "yellow" }, PRIMARY_LIGHT_ID);
+  LightService.setState({ color: "yellow" }, PRIMARY_LIGHT_ID);
 
   generatedTextResponse = generatedText;
 
@@ -201,12 +201,12 @@ async function replyMessage(client, queuedMessage) {
           imageToGenerate,
         );
 
-      LightWrapper.setState({ color: "purple" }, PRIMARY_LIGHT_ID);
+      LightService.setState({ color: "purple" }, PRIMARY_LIGHT_ID);
 
       if (newImagePrompt) {
         generatedImage = await DiscordService.generateImage(newImagePrompt);
 
-        LightWrapper.setState({ color: "yellow" }, PRIMARY_LIGHT_ID);
+        LightService.setState({ color: "yellow" }, PRIMARY_LIGHT_ID);
         if (generatedImage) {
           const { generatedText: generatedText2 } =
             await DiscordService.generateNewTextResponsePart2(
@@ -218,7 +218,7 @@ async function replyMessage(client, queuedMessage) {
               newImagePrompt,
             );
           generatedTextResponse = generatedText2;
-          LightWrapper.setState({ color: "purple" }, PRIMARY_LIGHT_ID);
+          LightService.setState({ color: "purple" }, PRIMARY_LIGHT_ID);
         }
       }
     }
@@ -302,7 +302,7 @@ async function replyMessage(client, queuedMessage) {
   lastMessageSentTime = luxon.DateTime.now().toISO();
 
   clearInterval(sendTypingInterval);
-  LightWrapper.setState({ color: "white" }, PRIMARY_LIGHT_ID);
+  LightService.setState({ color: "white" }, PRIMARY_LIGHT_ID);
   UtilityLibrary.consoleInfo([
     [`⏱️ Duration: ${timer} seconds`, { color: "cyan" }, "middle"],
   ]);

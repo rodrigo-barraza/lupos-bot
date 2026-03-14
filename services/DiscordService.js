@@ -23,14 +23,13 @@ import {
     warcraftFactions,
 } from "#root/arrays/roles.js";
 import channels from "#root/arrays/channels.js";
-// WRAPPERS
-import PuppeteerWrapper from "#root/wrappers/PuppeteerWrapper.js";
-import DiscordWrapper from "#root/wrappers/DiscordWrapper.js";
-import YouTubeWrapper from "#root/wrappers/YouTubeWrapper.js";
-import LightWrapper from "#root/wrappers/LightWrapper.js";
-import ComfyUIWrapper from "#root/wrappers/ComfyUIWrapper.js";
-import MongoWrapper from "#root/wrappers/MongoWrapper.js";
 // SERVICES
+import ScraperService from "#root/services/ScraperService.js";
+import DiscordWrapper from "#root/wrappers/DiscordWrapper.js";
+import YouTubeService from "#root/services/YouTubeService.js";
+import LightService from "#root/services/LightService.js";
+import ComfyUIService from "#root/services/ComfyUIService.js";
+import MongoService from "#root/services/MongoService.js";
 import PrismService from "#root/services/PrismService.js";
 import DiscordUtilityService from "#root/services/DiscordUtilityService.js";
 import MessageService from "#root/services/MessageService.js";
@@ -1406,7 +1405,7 @@ async function buildAndGenerateReply({
 
 async function replyMessage(queuedDatum, localMongo) {
     // Rodrigo: This function is called when a message is received or updated on Discord.
-    LightWrapper.cycleColor(config.PRIMARY_LIGHT_ID, "purples");
+    LightService.cycleColor(config.PRIMARY_LIGHT_ID, "purples");
     const message = queuedDatum.message;
     const _messages = queuedDatum.recentMessages;
     const actionType = queuedDatum.actionType;
@@ -1462,7 +1461,7 @@ async function replyMessage(queuedDatum, localMongo) {
 
     // CHECK IF WE CAN GENERATE AN IMAGE
 
-    LightWrapper.cycleColor(config.PRIMARY_LIGHT_ID, "purples");
+    LightService.cycleColor(config.PRIMARY_LIGHT_ID, "purples");
     // Rodrigo: Generate a custom emoji reaction based on the message content
     const customEmojiReact =
         await AIService.generateTextCustomEmojiReactFromMessage(
@@ -1479,7 +1478,7 @@ async function replyMessage(queuedDatum, localMongo) {
     } else {
         // Handle case where no custom emoji is generated
     }
-    LightWrapper.cycleColor(config.PRIMARY_LIGHT_ID, "purples");
+    LightService.cycleColor(config.PRIMARY_LIGHT_ID, "purples");
 
     if (config.GENERATE_IMAGE) {
         // Are we using Google Generative AI?
@@ -1488,7 +1487,7 @@ async function replyMessage(queuedDatum, localMongo) {
             // Are we using a local ComfyUI instance?
         } else {
             try {
-                await ComfyUIWrapper.checkComfyUIWebsocketStatus();
+                await ComfyUIService.checkComfyUIWebsocketStatus();
                 canGenerateImage = true;
                 // eslint-disable-next-line no-unused-vars
             } catch (error) {
@@ -1536,7 +1535,7 @@ async function replyMessage(queuedDatum, localMongo) {
         userMentionsCollection,
     } = await extractContentFromMessages(queuedDatum, localMongo);
 
-    LightWrapper.cycleColor(config.PRIMARY_LIGHT_ID, "purples");
+    LightService.cycleColor(config.PRIMARY_LIGHT_ID, "purples");
 
     // Check if message was deleted during content extraction
     if (isMessageCancelled(message.id)) {
@@ -1572,18 +1571,18 @@ async function replyMessage(queuedDatum, localMongo) {
 
     // (Image conversations are already saved per-call inside generateImage)
 
-    LightWrapper.cycleColor(config.PRIMARY_LIGHT_ID, "purples");
+    LightService.cycleColor(config.PRIMARY_LIGHT_ID, "purples");
     // GENERATE SUMMARY
     const textSummary = await AIService.generateTextSummaryFromMessage(
         message,
         generatedTextResponse,
     );
     DiscordUtilityService.setUserActivity(client, textSummary);
-    LightWrapper.cycleColor(config.PRIMARY_LIGHT_ID, "purples");
+    LightService.cycleColor(config.PRIMARY_LIGHT_ID, "purples");
     if (!generatedTextResponse) {
         await message.reply("...");
         lastMessageSentTime = DateTime.now().toISO();
-        LightWrapper.setState({ color: "red" }, config.PRIMARY_LIGHT_ID);
+        LightService.setState({ color: "red" }, config.PRIMARY_LIGHT_ID);
         console.error(`❌ [DiscordService:replyMessage] NO RESPONSE GENERATED
 ${member ? `Member: ${combinedNames}` : `User: ${combinedNames}`}
 ${combinedGuildInformation ? `Guild: ${combinedGuildInformation}` : "Direct Message"}
@@ -1600,7 +1599,7 @@ ${combinedGuildInformation && combinedChannelInformation ? `URL: https://discord
             return;
         }
         await message.fetch();
-        LightWrapper.cycleColor(config.PRIMARY_LIGHT_ID, "purples");
+        LightService.cycleColor(config.PRIMARY_LIGHT_ID, "purples");
         const messageSent = await DiscordUtilityService.sendMessageInChunks(
             "reply",
             message,
@@ -1609,7 +1608,7 @@ ${combinedGuildInformation && combinedChannelInformation ? `URL: https://discord
             generatedImagePrompt,
         );
         repliedMessagesCollection.set(message.id, messageSent.id);
-        LightWrapper.cycleColor(config.PRIMARY_LIGHT_ID, "purples");
+        LightService.cycleColor(config.PRIMARY_LIGHT_ID, "purples");
     } catch (error) {
         console.warn(`❌ [DiscordService:replyMessage] MESSAGE NOT FOUND (OR DELETED)
             ${error}
@@ -1617,7 +1616,7 @@ ${combinedGuildInformation && combinedChannelInformation ? `URL: https://discord
     ${combinedGuildInformation ? `Guild: ${combinedGuildInformation}` : "Direct Message"}
     ${combinedChannelInformation ? `Channel: ${combinedChannelInformation}` : ""}
     ${combinedGuildInformation && combinedChannelInformation ? `URL: https://discord.com/channels/${guild.id}/${channel.id}/${message.id}` : ""}`);
-        LightWrapper.setState({ color: "red" }, config.PRIMARY_LIGHT_ID);
+        LightService.setState({ color: "red" }, config.PRIMARY_LIGHT_ID);
         return;
     }
 
@@ -1767,7 +1766,7 @@ ${combinedGuildInformation && combinedChannelInformation ? `URL: https://discord
         CurrentService.clearSteps();
     }
 
-    LightWrapper.cycleColor(config.PRIMARY_LIGHT_ID, "purples");
+    LightService.cycleColor(config.PRIMARY_LIGHT_ID, "purples");
     return;
 }
 
@@ -1821,7 +1820,7 @@ async function extractContentFromMessages(
     _maxSimultaneous = 50,
 ) {
     const functionName = "extractContentFromMessages";
-    LightWrapper.cycleColor(config.PRIMARY_LIGHT_ID, "purples");
+    LightService.cycleColor(config.PRIMARY_LIGHT_ID, "purples");
     const { message, recentMessages } = queuedDatum;
     const now = Date.now();
     const newestMessage = recentMessages.last();
@@ -2277,7 +2276,7 @@ async function extractContentFromMessages(
                         messageId: recentMessage.id,
                         urls,
                         promises: urls.map((url) =>
-                            PuppeteerWrapper.scrapeURL(url).catch((_error) => ({
+                            ScraperService.scrapeURL(url).catch((_error) => ({
                                 url,
                                 error: "Failed to load",
                                 content: null,
@@ -3203,17 +3202,17 @@ URL: https://discord.com/channels/${message.guild?.id}/${message.channel.id}/${m
     }
 
     if (config.CHANNEL_IDS_JUKEBOX.includes(message.channelId)) {
-        await YouTubeWrapper.searchAndPlay(client, message);
-        await YouTubeWrapper.stop(client, message);
-        await YouTubeWrapper.next(client, message);
-        await YouTubeWrapper.pause(client, message);
-        await YouTubeWrapper.resume(client, message);
-        await YouTubeWrapper.setVolume(client, message);
+        await YouTubeService.searchAndPlay(client, message);
+        await YouTubeService.stop(client, message);
+        await YouTubeService.next(client, message);
+        await YouTubeService.pause(client, message);
+        await YouTubeService.resume(client, message);
+        await YouTubeService.setVolume(client, message);
     }
 
     // if it's not in this channel: '835237008691560528' or this channel: '835237008691560528'
     if (message.channelId !== "835237008691560528") {
-        LightWrapper.cycleColor(config.PRIMARY_LIGHT_ID, "rainbow");
+        LightService.cycleColor(config.PRIMARY_LIGHT_ID, "rainbow");
     }
 
     if (isMessageWithoutSelfMention) {
@@ -3760,7 +3759,7 @@ async function processCreateReaction(client, queuedReaction) {
             const regex = /(https:\/\/tenor\.com\/view\/\S*)/;
             const match = content.match(regex);
             const url = match ? match[0] : "";
-            const tenorImage = await PuppeteerWrapper.scrapeTenor(url);
+            const tenorImage = await ScraperService.scrapeTenor(url);
             embed.setImage(tenorImage.image);
         }
 
@@ -3891,7 +3890,7 @@ async function luposOnGuildMemberUpdate(client, mongo, oldMember, newMember) {
     const hasOldMemberCompletedOnboarding = oldMember.flags & (1 << 1);
     const hasNewMemberCompletedOnboarding = newMember.flags & (1 << 1);
     if (!hasOldMemberCompletedOnboarding && hasNewMemberCompletedOnboarding) {
-        LightWrapper.cycleColor(config.PRIMARY_LIGHT_ID);
+        LightService.cycleColor(config.PRIMARY_LIGHT_ID);
         console.log(
             ...LogFormatter.memberUpdateOnboardingComplete(functionName, newMember),
         );
@@ -3954,27 +3953,27 @@ async function luposOnInteractionCreate(client, mongo, interaction) {
 
         if (interaction.customId === "volumeUp") {
             const reply = await interaction.deferReply();
-            YouTubeWrapper.setVolumeByAmount(5);
+            YouTubeService.setVolumeByAmount(5);
             await reply.delete();
             return;
         } else if (interaction.customId === "volumeDown") {
             const reply = await interaction.deferReply();
-            YouTubeWrapper.setVolumeByAmount(-5);
+            YouTubeService.setVolumeByAmount(-5);
             await reply.delete();
             return;
         } else if (interaction.customId === "pause") {
             const reply = await interaction.deferReply();
-            YouTubeWrapper.buttonPause();
+            YouTubeService.buttonPause();
             await reply.delete();
             return;
         } else if (interaction.customId === "resume") {
             const reply = await interaction.deferReply();
-            YouTubeWrapper.buttonResume();
+            YouTubeService.buttonResume();
             await reply.delete();
             return;
         } else if (interaction.customId === "next") {
             const reply = await interaction.deferReply();
-            YouTubeWrapper.buttonNext();
+            YouTubeService.buttonNext();
             await reply.delete();
             return;
         }
@@ -4023,7 +4022,7 @@ async function luposOnInteractionCreate(client, mongo, interaction) {
 async function luposOnPresenceUpdate(client, oldPresence, newPresence) {
     const functionName = "luposOnPresenceUpdate";
 
-    const mongo = MongoWrapper.getClient("local");
+    const mongo = MongoService.getClient("local");
     if (newPresence.guild.id !== config.GUILD_ID_PRIMARY) return;
 
     try {
@@ -4144,7 +4143,7 @@ async function luposOnPresenceUpdate(client, oldPresence, newPresence) {
             if (shouldNotify) {
                 try {
                     // Scrape metadata from Twitch
-                    const metadata = await PuppeteerWrapper.scrapeTwitchUrl(streamingUrl);
+                    const metadata = await ScraperService.scrapeTwitchUrl(streamingUrl);
                     // Assign streamer role to user
                     await DiscordUtilityService.addRoleToMember(
                         newPresence.member,
@@ -4378,8 +4377,8 @@ const DiscordService = {
             config.VENDER_TOKEN,
         );
         // Initialize MongoDB client
-        await MongoWrapper.createClient("local", config.LOCAL_DATABASE_URL);
-        const mongo = MongoWrapper.getClient("local");
+        await MongoService.createClient("local", config.LOCAL_DATABASE_URL);
+        const mongo = MongoService.getClient("local");
         DiscordUtilityService.onEventClientReady(
             venderClient,
             { mongo },
@@ -4403,10 +4402,10 @@ const DiscordService = {
             config.LUPOS_TOKEN,
         );
         // Initialize MongoDB clients
-        await MongoWrapper.createClient("cloud", config.DATABASE_URL);
-        await MongoWrapper.createClient("local", config.LOCAL_DATABASE_URL);
-        const mongo = MongoWrapper.getClient("cloud");
-        const localMongo = MongoWrapper.getClient("local");
+        await MongoService.createClient("cloud", config.DATABASE_URL);
+        await MongoService.createClient("local", config.LOCAL_DATABASE_URL);
+        const mongo = MongoService.getClient("cloud");
+        const localMongo = MongoService.getClient("local");
         DiscordUtilityService.onEventClientReady(
             luposClient,
             { mongo, localMongo },
@@ -4597,8 +4596,8 @@ const DiscordService = {
             "lupos",
             config.LUPOS_TOKEN,
         );
-        await MongoWrapper.createClient("local", config.LOCAL_DATABASE_URL);
-        const localMongo = MongoWrapper.getClient("local");
+        await MongoService.createClient("local", config.LOCAL_DATABASE_URL);
+        const localMongo = MongoService.getClient("local");
         DiscordUtilityService.onEventClientReady(
             luposClient,
             { localMongo },
@@ -4610,8 +4609,8 @@ const DiscordService = {
             "lupos",
             config.LUPOS_TOKEN,
         );
-        await MongoWrapper.createClient("local", config.LOCAL_DATABASE_URL);
-        const localMongo = MongoWrapper.getClient("local");
+        await MongoService.createClient("local", config.LOCAL_DATABASE_URL);
+        const localMongo = MongoService.getClient("local");
         DiscordUtilityService.onEventClientReady(
             luposClient,
             { localMongo },
@@ -4630,7 +4629,7 @@ const DiscordService = {
         );
     },
     initializeBotLuposReports() {
-        const mongo = MongoWrapper.getClient("local");
+        const mongo = MongoService.getClient("local");
         const luposClient = DiscordWrapper.createClient(
             "lupos",
             config.LUPOS_TOKEN,

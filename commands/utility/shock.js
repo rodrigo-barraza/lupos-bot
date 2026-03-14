@@ -1,5 +1,5 @@
 import { SlashCommandBuilder, PermissionFlagsBits } from "discord.js";
-import MongoWrapper from "#root/wrappers/MongoWrapper.js";
+import MongoService from "#root/services/MongoService.js";
 
 // Store cooldowns in memory (userId -> timestamp)
 const cooldowns = new Map();
@@ -208,7 +208,7 @@ export default {
       );
 
       // Save shock to MongoDB and get updated count
-      const localMongo = MongoWrapper.getClient("local");
+      const localMongo = MongoService.getClient("local");
       const db = localMongo.db("lupos");
       const shocksCollection = db.collection("ShockGameStatistics");
 

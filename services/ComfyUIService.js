@@ -6,7 +6,7 @@ const { consoleLog } = UtilityLibrary;
 import config from "#root/config.json" with { type: "json" };
 // Formatter
 import LogFormatter from "#root/formatters/LogFormatter.js";
-import LightWrapper from "#root/wrappers/LightWrapper.js";
+import LightService from "#root/services/LightService.js";
 
 const { COMFY_UI_IMAGE_MODEL_API_URL, COMFY_UI_IMAGE_MODEL_WEBSOCKET_URL } =
   config;
@@ -217,7 +217,7 @@ async function generateImageWithTracking(prompt, client) {
             const percentage = Math.round((value / max) * 100);
             progressDots = calculatePeriodsIncreaseOverTime(progressDots);
 
-            LightWrapper.cycleColor(config.PRIMARY_LIGHT_ID, "rainbow");
+            LightService.cycleColor(config.PRIMARY_LIGHT_ID, "rainbow");
 
             // Clear the line and show progress
             // console.log('\x1b[2K'); // Clear the entire line
@@ -1131,11 +1131,11 @@ function generateImageToImagePrompt(text, imagePath, denoisingStrength) {
   return fullPrompt;
 }
 
-const ComfyUIWrapper = {
-  async generateComfyUIImage(text, client) {
+class ComfyUIService {
+  static async generateComfyUIImage(text, client) {
     try {
       // Check if ComfyUI is available before attempting generation
-      await ComfyUIWrapper.checkComfyUIWebsocketStatus();
+      await ComfyUIService.checkComfyUIWebsocketStatus();
 
       const prompt = generateTextToImagePrompt(text);
       const images = await generateImageWithTracking(prompt, client);
@@ -1152,11 +1152,12 @@ const ComfyUIWrapper = {
       );
       throw error; // Re-throw to let caller handle it
     }
-  },
-  async generateComfyUIImageToImage(text, imageUrl, denoisingStrength) {
+  }
+
+  static async generateComfyUIImageToImage(text, imageUrl, denoisingStrength) {
     try {
       // Check if ComfyUI is available before attempting generation
-      await ComfyUIWrapper.checkComfyUIWebsocketStatus();
+      await ComfyUIService.checkComfyUIWebsocketStatus();
 
       const imagePath = await downloadImage(
         imageUrl,
@@ -1181,8 +1182,9 @@ const ComfyUIWrapper = {
       );
       throw error; // Re-throw to let caller handle it
     }
-  },
-  async checkComfyUIWebsocketStatus() {
+  }
+
+  static async checkComfyUIWebsocketStatus() {
     const functionName = "checkComfyUIWebsocketStatus";
     return new Promise((resolve, reject) => {
       const websocket = new WebSocket(
@@ -1209,7 +1211,7 @@ const ComfyUIWrapper = {
         reject();
       };
     });
-  },
-};
+  }
+}
 
-export default ComfyUIWrapper;
+export default ComfyUIService;
