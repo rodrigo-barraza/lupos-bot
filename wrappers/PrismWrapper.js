@@ -419,6 +419,29 @@ const PrismWrapper = {
 
         return response.json();
     },
+    /**
+     * Save a workflow document via Prism's admin endpoint.
+     *
+     * @param {object} workflow - Workflow document with nodes, connections, steps, and metadata
+     * @returns {Promise<object>}
+     */
+    async saveWorkflow(workflow) {
+        const response = await fetch(`${PRISM_API_URL}/admin/workflows`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "x-admin-secret": config.PRISM_ADMIN_SECRET,
+            },
+            body: JSON.stringify(workflow),
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`Prism API error: ${response.status} ${errorText}`);
+        }
+
+        return response.json();
+    },
 };
 
 export default PrismWrapper;

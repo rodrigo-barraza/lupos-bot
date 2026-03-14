@@ -176,6 +176,14 @@ const AIService = {
 
         CurrentService.addModel(usedModel);
         CurrentService.addModelType(type);
+        CurrentService.addStep({
+            model: usedModel,
+            type,
+            label: label || "Text Generation",
+            duration: parseFloat(duration.toFixed(3)),
+            inputType: "text",
+            outputType: "text",
+        });
 
         if (localMongo) {
             const message = CurrentService.getMessage();
@@ -421,6 +429,9 @@ const AIService = {
             }
         }
 
+        const end = performance.now();
+        const duration = end - start;
+
         if (localMongo && generatedImage) {
             const message = CurrentService.getMessage();
             const messageId = message?.id;
@@ -429,9 +440,6 @@ const AIService = {
             const userName = user.username;
             const guildId = message.guild?.id;
             const guildName = message.guild?.name;
-
-            const end = performance.now();
-            const duration = end - start;
 
             // Save the generated image and its metadata to the database
             const db = localMongo.db("lupos");
@@ -450,10 +458,21 @@ const AIService = {
             });
         }
 
-        // Image is now stored in MinIO via Prism's text-to-image route
+        if (generatedImage) {
+            const imgDuration = parseFloat(duration.toFixed(3));
+            CurrentService.addModel(usedModel);
+            CurrentService.addModelType(type);
+            CurrentService.addStep({
+                model: usedModel,
+                type,
+                label: "Image Generation",
+                duration: imgDuration,
+                inputType: imageUrls.length > 0 ? "text+image" : "text",
+                outputType: "image",
+            });
+        }
 
-        const end = performance.now();
-        const duration = end - start;
+        // Image is now stored in MinIO via Prism's text-to-image route
 
         console.log(
             ...LogFormatter.generateImageSuccess({

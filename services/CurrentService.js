@@ -5,6 +5,7 @@ let endTime = null;
 
 let models = new Set();
 let modelTypes = new Set();
+let steps = [];
 
 const CurrentService = {
   setUser(newUser) {
@@ -48,6 +49,23 @@ const CurrentService = {
   },
   clearModelTypes() {
     modelTypes = new Set();
+  },
+  /**
+   * Add an ordered workflow step.
+   * @param {{ model: string, type: string, label: string, duration: number, inputType: string, outputType: string }} step
+   */
+  addStep(step) {
+    steps.push({
+      ...step,
+      index: steps.length,
+      timestamp: new Date().toISOString(),
+    });
+  },
+  getSteps() {
+    return [...steps];
+  },
+  clearSteps() {
+    steps = [];
   },
 };
 

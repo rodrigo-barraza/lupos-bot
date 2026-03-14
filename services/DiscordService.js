@@ -1714,6 +1714,57 @@ ${combinedGuildInformation && combinedChannelInformation ? `URL: https://discord
     });
     CurrentService.clearModels();
     CurrentService.clearModelTypes();
+
+    // Save workflow document for admin visualization
+    const workflowSteps = CurrentService.getSteps();
+    if (workflowSteps.length > 0) {
+        const workflowNodes = workflowSteps.map((step, i) => ({
+            id: `step_${i}`,
+            modelName: step.model || "unknown",
+            provider: step.type?.toLowerCase() || "unknown",
+            displayName: step.label || step.model || "Step",
+            inputTypes: [step.inputType || "text"],
+            outputTypes: [step.outputType || "text"],
+            messages: [],
+            position: { x: 120 + i * 280, y: 200 },
+            stepMeta: {
+                duration: step.duration,
+                timestamp: step.timestamp,
+                index: step.index,
+            },
+        }));
+
+        const workflowConnections = workflowSteps.slice(1).map((_, i) => ({
+            id: `conn_${i}`,
+            sourceNodeId: `step_${i}`,
+            targetNodeId: `step_${i + 1}`,
+            sourceModality: workflowSteps[i].outputType || "text",
+            targetModality: workflowSteps[i + 1].inputType || "text",
+        }));
+
+        const totalDuration = workflowSteps.reduce((sum, s) => sum + (s.duration || 0), 0);
+
+        PrismWrapper.saveWorkflow({
+            messageId: message.id,
+            guildId: message.guild?.id || "DM",
+            guildName: message.guild?.name || "DM",
+            channelId: message.channel?.id || "DM",
+            channelName: message.channel?.name || "DM",
+            userId: message.author?.id,
+            userName: message.author?.username,
+            userContent: message.cleanContent?.substring(0, 500) || "",
+            steps: workflowSteps,
+            nodes: workflowNodes,
+            connections: workflowConnections,
+            totalDuration: parseFloat(totalDuration.toFixed(3)),
+            stepCount: workflowSteps.length,
+        }).catch((err) => {
+            console.warn(`⚠️ [DiscordService] Failed to save workflow: ${err.message}`);
+        });
+
+        CurrentService.clearSteps();
+    }
+
     LightWrapper.cycleColor(config.PRIMARY_LIGHT_ID, "purples");
     return;
 }
