@@ -1717,32 +1717,230 @@ ${combinedGuildInformation && combinedChannelInformation ? `URL: https://discord
     // Save workflow document for admin visualization
     const workflowSteps = CurrentService.getSteps();
     if (workflowSteps.length > 0) {
-        const workflowNodes = workflowSteps.map((step, i) => ({
-            id: `step_${i}`,
-            modelName: step.model || "unknown",
-            provider: step.type?.toLowerCase() || "unknown",
-            displayName: step.label || step.model || "Step",
-            inputTypes: [step.inputType || "text"],
-            outputTypes: [step.outputType || "text"],
-            systemPrompt: step.systemPrompt || null,
-            input: step.input || null,
-            output: step.output || null,
-            imageRef: step.imageRef || null,
-            position: { x: 120 + i * 280, y: 200 },
-            stepMeta: {
-                duration: step.duration,
-                timestamp: step.timestamp,
-                index: step.index,
-            },
-        }));
+        const allNodes = [];
+        const allConnections = [];
+        const nodeResults = {};
+        const nodeStatuses = {};
+        const STEP_WIDTH = 900;
+        const INPUT_X_OFFSET = 0;
+        const CONV_X_OFFSET = 350;
+        const MODEL_X_OFFSET = 650;
 
-        const workflowConnections = workflowSteps.slice(1).map((_, i) => ({
-            id: `conn_${i}`,
-            sourceNodeId: `step_${i}`,
-            targetNodeId: `step_${i + 1}`,
-            sourceModality: workflowSteps[i].outputType || "text",
-            targetModality: workflowSteps[i + 1].inputType || "text",
-        }));
+        workflowSteps.forEach((step, i) => {
+            const baseX = 80 + i * STEP_WIDTH;
+            const baseY = 80;
+            const stepPrefix = `s${i}`;
+            const isImageGen = step.outputType === "image";
+            let inputY = baseY;
+
+            // ── 1. Text Input: System Prompt ──
+            const sysId = `${stepPrefix}_sys`;
+            if (step.systemPrompt) {
+                allNodes.push({
+                    id: sysId,
+                    nodeType: "input",
+                    modality: "text",
+                    content: step.systemPrompt,
+                    inputTypes: [],
+                    outputTypes: ["text"],
+                    position: { x: baseX + INPUT_X_OFFSET, y: inputY },
+                });
+                inputY += 200;
+            }
+
+            // ── 2. Text Input: User Message ──
+            const userMsgId = `${stepPrefix}_user`;
+            if (step.input) {
+                allNodes.push({
+                    id: userMsgId,
+                    nodeType: "input",
+                    modality: "text",
+                    content: step.input,
+                    inputTypes: [],
+                    outputTypes: ["text"],
+                    position: { x: baseX + INPUT_X_OFFSET, y: inputY },
+                });
+                inputY += 200;
+            }
+
+            // ── 3. Image Input (if applicable) ──
+            const imgId = `${stepPrefix}_img`;
+            if (step.imageRef) {
+                allNodes.push({
+                    id: imgId,
+                    nodeType: "input",
+                    modality: "image",
+                    content: step.imageRef,
+                    inputTypes: [],
+                    outputTypes: ["image"],
+                    position: { x: baseX + INPUT_X_OFFSET, y: inputY },
+                });
+                inputY += 200;
+            }
+
+            // ── 4. Conversation Node ──
+            // NOTE: Conversation nodes derive their modality ports from the connected
+            // model's rawInputTypes (see retina WorkflowsPage onAddConnection).
+            // When a conversation→model connection is made, Retina sets the conversation
+            // node's supportedModalities from the model's rawInputTypes, then rebuilds
+            // inputTypes using buildConversationPorts(messages, supportedModalities).
+            // Here we pre-compute both so the admin read-only view renders correctly.
+            const convId = `${stepPrefix}_conv`;
+            const messages = [];
+            if (step.systemPrompt) messages.push({ role: "system", content: step.systemPrompt });
+            const userMsg = { role: "user", content: step.input || "" };
+            if (step.imageRef) userMsg.images = [step.imageRef];
+            messages.push(userMsg);
+            if (step.output) {
+                const assistantMsg = { role: "assistant", content: step.output };
+                if (step.outputImageRef) assistantMsg.images = [step.outputImageRef];
+                messages.push(assistantMsg);
+            }
+
+            // Modalities supported by the downstream model (text always, image if present)
+            const supportedModalities = ["text"];
+            if (step.imageRef) supportedModalities.push("image");
+
+            // Build compound port IDs matching Retina's buildConversationPorts():
+            // Format: "{messageIndex}.{modality}" e.g. "0.text", "1.text", "1.image"
+            const convInputTypes = [];
+            for (let m = 0; m < messages.length; m++) {
+                convInputTypes.push(`${m}.text`);
+                if (messages[m].role === "user" || messages[m].role === "assistant") {
+                    for (const mod of supportedModalities) {
+                        if (mod !== "text") convInputTypes.push(`${m}.${mod}`);
+                    }
+                }
+            }
+
+            allNodes.push({
+                id: convId,
+                nodeType: "input",
+                modality: "conversation",
+                messages,
+                supportedModalities,
+                inputTypes: convInputTypes,
+                outputTypes: ["conversation"],
+                position: { x: baseX + CONV_X_OFFSET, y: baseY + 100 },
+            });
+
+            // Wire inputs → conversation node using compound port targets
+            // System prompt is always message index 0
+            const sysIdx = 0;
+            const userIdx = step.systemPrompt ? 1 : 0;
+
+            if (step.systemPrompt) {
+                allConnections.push({
+                    id: `${stepPrefix}_sys_to_conv`,
+                    sourceNodeId: sysId,
+                    targetNodeId: convId,
+                    sourceModality: "text",
+                    targetModality: `${sysIdx}.text`,
+                });
+            }
+            if (step.input) {
+                allConnections.push({
+                    id: `${stepPrefix}_user_to_conv`,
+                    sourceNodeId: userMsgId,
+                    targetNodeId: convId,
+                    sourceModality: "text",
+                    targetModality: `${userIdx}.text`,
+                });
+            }
+            if (step.imageRef) {
+                allConnections.push({
+                    id: `${stepPrefix}_img_to_conv`,
+                    sourceNodeId: imgId,
+                    targetNodeId: convId,
+                    sourceModality: "image",
+                    targetModality: `${userIdx}.image`,
+                });
+            }
+
+            // ── 5. Model Node ──
+            // rawInputTypes lists the model's accepted modalities so that when linked
+            // to a conversation node, Retina can derive the conversation's ports.
+            const rawInputTypes = ["text"];
+            if (step.imageRef) rawInputTypes.push("image");
+
+            const modelId = `${stepPrefix}_model`;
+            allNodes.push({
+                id: modelId,
+                modelName: step.model || "unknown",
+                provider: step.type?.toLowerCase() || "unknown",
+                displayName: step.label || step.model || "Step",
+                modelType: isImageGen ? "image" : "conversation",
+                inputTypes: ["conversation"],
+                rawInputTypes,
+                outputTypes: isImageGen ? ["text", "image"] : ["text"],
+                supportsSystemPrompt: true,
+                position: { x: baseX + MODEL_X_OFFSET, y: baseY + 100 },
+                stepMeta: {
+                    duration: step.duration,
+                    timestamp: step.timestamp,
+                    index: step.index,
+                },
+            });
+
+            // Wire conversation → model
+            allConnections.push({
+                id: `${stepPrefix}_conv_to_model`,
+                sourceNodeId: convId,
+                targetNodeId: modelId,
+                sourceModality: "conversation",
+                targetModality: "conversation",
+            });
+
+            // Mark model node as done with results
+            nodeStatuses[modelId] = "done";
+            const result = {};
+            if (step.output) result.text = step.output;
+            if (step.outputImageRef) result.image = step.outputImageRef;
+            nodeResults[modelId] = result;
+
+            // ── 6. Chain from previous model → this step's model ──
+            // Shows data flow between sequential pipeline steps
+            if (i > 0) {
+                const prevModelId = `s${i - 1}_model`;
+                allConnections.push({
+                    id: `chain_${i - 1}_to_${i}`,
+                    sourceNodeId: prevModelId,
+                    targetNodeId: modelId,
+                    sourceModality: "text",
+                    targetModality: "text",
+                });
+                // Add a "text" input port on the model node for the chain connection
+                allNodes[allNodes.length - 1].inputTypes.push("text");
+            }
+        });
+
+        // ── Final: Output Viewer for the last step ──
+        const lastStep = workflowSteps[workflowSteps.length - 1];
+        const lastModelId = `s${workflowSteps.length - 1}_model`;
+        const viewerId = "output_viewer";
+        allNodes.push({
+            id: viewerId,
+            nodeType: "viewer",
+            modality: null,
+            inputTypes: ["text", "image", "audio"],
+            outputTypes: ["text", "image", "audio"],
+            position: {
+                x: 80 + workflowSteps.length * STEP_WIDTH,
+                y: 200,
+            },
+        });
+        allConnections.push({
+            id: "last_model_to_viewer",
+            sourceNodeId: lastModelId,
+            targetNodeId: viewerId,
+            sourceModality: "text",
+            targetModality: "text",
+        });
+        // Viewer receives the final output
+        nodeStatuses[viewerId] = "done";
+        nodeResults[viewerId] = {};
+        if (lastStep.output) nodeResults[viewerId].text = lastStep.output;
+        if (lastStep.outputImageRef) nodeResults[viewerId].image = lastStep.outputImageRef;
 
         const totalDuration = workflowSteps.reduce((sum, s) => sum + (s.duration || 0), 0);
 
@@ -1756,8 +1954,10 @@ ${combinedGuildInformation && combinedChannelInformation ? `URL: https://discord
             userName: message.author?.username,
             userContent: message.cleanContent?.substring(0, 500) || "",
             steps: workflowSteps,
-            nodes: workflowNodes,
-            connections: workflowConnections,
+            nodes: allNodes,
+            connections: allConnections,
+            nodeResults,
+            nodeStatuses,
             totalDuration: parseFloat(totalDuration.toFixed(3)),
             stepCount: workflowSteps.length,
         }).catch((err) => {

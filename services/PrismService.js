@@ -71,6 +71,7 @@ export default class PrismService {
     username = "lupos",
     conversationId,
     userMessage,
+    conversationMeta,
   }) {
     const provider = PROVIDER_MAP[type];
     if (!provider) {
@@ -88,6 +89,7 @@ export default class PrismService {
     if (temperature !== undefined) body.options.temperature = temperature;
     if (conversationId) body.conversationId = conversationId;
     if (userMessage) body.userMessage = userMessage;
+    if (conversationMeta) body.conversationMeta = conversationMeta;
 
     const data = await PrismService._request("/chat?stream=false", { body, username });
 
@@ -121,6 +123,7 @@ export default class PrismService {
     username = "lupos",
     conversationId,
     userMessage,
+    conversationMeta,
     systemPrompt,
   }) {
     const imageDataUrls = images.map((img) => {
@@ -143,6 +146,7 @@ export default class PrismService {
     if (systemPrompt) body.systemPrompt = systemPrompt;
     if (conversationId) body.conversationId = conversationId;
     if (userMessage) body.userMessage = userMessage;
+    if (conversationMeta) body.conversationMeta = conversationMeta;
 
     const result = await PrismService._request("/chat?stream=false", { body, username });
 
@@ -180,6 +184,7 @@ export default class PrismService {
     username = "lupos",
     conversationId,
     userMessage,
+    conversationMeta,
     systemPrompt,
   }) {
     const normalizedImages = Array.isArray(images) ? images : [images];
@@ -193,6 +198,7 @@ export default class PrismService {
     if (systemPrompt) body.systemPrompt = systemPrompt;
     if (conversationId) body.conversationId = conversationId;
     if (userMessage) body.userMessage = userMessage;
+    if (conversationMeta) body.conversationMeta = conversationMeta;
 
     return PrismService._request("/chat?stream=false", { body, username });
   }
