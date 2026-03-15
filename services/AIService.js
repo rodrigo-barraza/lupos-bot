@@ -456,7 +456,7 @@ const AIService = {
                 outputType: "image",
                 input: prompt || null,
                 output: generatedText || "[image]",
-                imageRef: imageMinioRef || null,
+                outputImageRef: imageMinioRef || null,
             });
         }
 
