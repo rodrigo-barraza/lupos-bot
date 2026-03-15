@@ -124,6 +124,7 @@ const AIService = {
         const nonSystemMessages = conversation.filter((m) => m.role !== "system");
 
         const conversationId = crypto.randomUUID();
+        CurrentService.addConversationId(conversationId);
         const conversationMeta = {
             title: convTitle,
             systemPrompt,
@@ -246,6 +247,7 @@ const AIService = {
         const imgTitle = `🖼️ Image Generation · ${imgGuildName} / #${imgChannelName}`;
 
         const conversationId = crypto.randomUUID();
+        CurrentService.addConversationId(conversationId);
         const imgConversationMeta = {
             title: imgTitle,
             systemPrompt: "",
@@ -484,6 +486,7 @@ const AIService = {
 
             // Pre-create conversation for server-side accumulation
             const visionConvId = crypto.randomUUID();
+            CurrentService.addConversationId(visionConvId);
             const captionConvMeta = {
                 title: captionTitle,
                 systemPrompt: "",

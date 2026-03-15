@@ -1717,6 +1717,7 @@ ${combinedGuildInformation && combinedChannelInformation ? `URL: https://discord
     // Save workflow document for admin visualization
     // Prism assembles the visual graph (nodes/connections/viewers) server-side
     const workflowSteps = CurrentService.getSteps();
+    const workflowConvIds = CurrentService.getConversationIds();
     if (workflowSteps.length > 0) {
         const totalDuration = workflowSteps.reduce((sum, s) => sum + (s.duration || 0), 0);
         PrismService.saveWorkflow({
@@ -1729,12 +1730,14 @@ ${combinedGuildInformation && combinedChannelInformation ? `URL: https://discord
             userName: message.author?.username,
             userContent: message.cleanContent?.substring(0, 500) || "",
             steps: workflowSteps,
+            conversationIds: workflowConvIds,
             totalDuration: parseFloat(totalDuration.toFixed(3)),
             stepCount: workflowSteps.length,
         }).catch((err) => {
             console.warn(`⚠️ [DiscordService] Failed to save workflow: ${err.message}`);
         });
         CurrentService.clearSteps();
+        CurrentService.clearConversationIds();
     }
 
     LightService.cycleColor(config.PRIMARY_LIGHT_ID, "purples");

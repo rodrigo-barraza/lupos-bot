@@ -6,6 +6,7 @@ let endTime = null;
 let models = new Set();
 let modelTypes = new Set();
 let steps = [];
+let conversationIds = new Set();
 
 const CurrentService = {
   setUser(newUser) {
@@ -49,6 +50,19 @@ const CurrentService = {
   },
   clearModelTypes() {
     modelTypes = new Set();
+  },
+  /**
+   * Track a conversation ID generated during an AI call.
+   * @param {string} id
+   */
+  addConversationId(id) {
+    if (id) conversationIds.add(id);
+  },
+  getConversationIds() {
+    return Array.from(conversationIds);
+  },
+  clearConversationIds() {
+    conversationIds = new Set();
   },
   /**
    * Add an ordered workflow step.

@@ -308,4 +308,18 @@ export default class PrismService {
   static async saveWorkflow(workflow) {
     return PrismService._request("/workflows", { body: workflow });
   }
+
+  /**
+   * Patch conversation IDs onto a workflow.
+   * Triggers totalCost recomputation from linked conversations in Prism.
+   * @param {string} workflowId
+   * @param {string[]} conversationIds
+   * @returns {Promise<object>}
+   */
+  static async patchWorkflowConversations(workflowId, conversationIds) {
+    return PrismService._request(`/workflows/${workflowId}/conversations`, {
+      method: "PATCH",
+      body: { conversationIds },
+    });
+  }
 }
