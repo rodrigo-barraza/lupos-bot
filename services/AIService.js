@@ -1,6 +1,7 @@
 // Packages
 import fs from "fs";
 import path from "path";
+import crypto from "crypto";
 
 // import { DateTime } from 'luxon';
 // Config
@@ -122,18 +123,12 @@ const AIService = {
         const systemPrompt = systemMsg?.content || "";
         const nonSystemMessages = conversation.filter((m) => m.role !== "system");
 
-        let conversationId = null;
-        try {
-            const conv = await PrismService.startConversation({
-                title: convTitle,
-                systemPrompt,
-                settings: { model: usedModel, provider: type?.toLowerCase() },
-                username: discordUsername,
-            });
-            conversationId = conv.id;
-        } catch (startErr) {
-            console.error("Start conversation failed:", startErr.message);
-        }
+        const conversationId = crypto.randomUUID();
+        const conversationMeta = {
+            title: convTitle,
+            systemPrompt,
+            settings: { model: usedModel, provider: type?.toLowerCase() },
+        };
 
         // Build user message for auto-append
         const lastUserMsg = nonSystemMessages.findLast((m) => m.role === "user");
@@ -156,6 +151,7 @@ const AIService = {
                 username: discordUsername,
                 conversationId,
                 userMessage,
+                conversationMeta,
             });
 
             textResponse = prismResult.text;
@@ -223,22 +219,6 @@ const AIService = {
             }),
         );
 
-        // Finalize conversation metadata (messages already saved server-side via auto-append)
-        if (conversationId) {
-            PrismService.finalizeConversation({
-                id: conversationId,
-                title: convTitle,
-                systemPrompt,
-                settings: { model: usedModel, provider: type?.toLowerCase() },
-                username: discordUsername,
-            }).catch((err) =>
-                console.error(
-                    `Failed to finalize conversation for ${usedModel}:`,
-                    err.message,
-                ),
-            );
-        }
-
         return textResponse;
     },
     // Base Text-to-Image Generation (Diffusion)
@@ -265,18 +245,12 @@ const AIService = {
                         : type?.toLowerCase() || "unknown";
         const imgTitle = `🖼️ Image Generation · ${imgGuildName} / #${imgChannelName}`;
 
-        let conversationId = null;
-        try {
-            const conv = await PrismService.startConversation({
-                title: imgTitle,
-                systemPrompt: "",
-                settings: { provider: imgProviderName },
-                username: imgDiscordUsername,
-            });
-            conversationId = conv.id;
-        } catch (startErr) {
-            console.error("Start image conversation failed:", startErr.message);
-        }
+        const conversationId = crypto.randomUUID();
+        const imgConversationMeta = {
+            title: imgTitle,
+            systemPrompt: "",
+            settings: { provider: imgProviderName },
+        };
 
         // Build user message for auto-append
         const imgUserMsg = {
@@ -352,6 +326,7 @@ const AIService = {
                     username: discordUsername,
                     conversationId,
                     userMessage: imgUserMsg,
+                    conversationMeta: imgConversationMeta,
                 });
 
                 if (prismResult.imageData) {
@@ -427,6 +402,7 @@ const AIService = {
                     username: discordUsername,
                     conversationId,
                     userMessage: imgUserMsg,
+                    conversationMeta: imgConversationMeta,
                 });
 
                 generatedImage = prismResult.imageData;
@@ -493,19 +469,6 @@ const AIService = {
             }),
         );
 
-        // Finalize conversation metadata (messages already saved server-side via auto-append)
-        if (conversationId && generatedImage) {
-            PrismService.finalizeConversation({
-                id: conversationId,
-                title: imgTitle,
-                systemPrompt: "",
-                settings: { model: usedModel, provider: imgProviderName },
-                username: imgDiscordUsername,
-            }).catch((err) =>
-                console.error(`Failed to finalize image conversation: ${err.message}`),
-            );
-        }
-
         return generatedImage;
     },
     // Base Image-to-Text Generation (Captioning) — via Prism
@@ -520,18 +483,12 @@ const AIService = {
             const captionTitle = `👁️ Image Captioning · ${guildName} / #${channelName}`;
 
             // Pre-create conversation for server-side accumulation
-            let visionConvId = null;
-            try {
-                const conv = await PrismService.startConversation({
-                    title: captionTitle,
-                    systemPrompt: "",
-                    settings: { provider: "openai" },
-                    username: discordUsername,
-                });
-                visionConvId = conv.id;
-            } catch (startErr) {
-                console.error("Start caption conversation failed:", startErr.message);
-            }
+            const visionConvId = crypto.randomUUID();
+            const captionConvMeta = {
+                title: captionTitle,
+                systemPrompt: "",
+                settings: { provider: "openai" },
+            };
 
             // Build user message for auto-append
             const captionUserMsg = {
@@ -549,20 +506,8 @@ const AIService = {
                 username: discordUsername,
                 conversationId: visionConvId,
                 userMessage: captionUserMsg,
+                conversationMeta: captionConvMeta,
             });
-
-            // Finalize conversation metadata
-            if (visionConvId) {
-                PrismService.finalizeConversation({
-                    id: visionConvId,
-                    title: captionTitle,
-                    systemPrompt: "",
-                    settings: { model: result.model || "gpt-4.1-mini", provider: "openai" },
-                    username: discordUsername,
-                }).catch((err) =>
-                    console.error(`Failed to finalize caption conversation: ${err.message}`),
-                );
-            }
 
             return {
                 response: { choices: [{ message: { content: result.text } }] },
