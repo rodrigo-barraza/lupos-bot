@@ -934,18 +934,18 @@ Only output the number, nothing else. No explanations. No punctuation. No extra 
         const conversation = [
             {
                 role: "system",
-                content: `You are an expert at detecting image generation/editing requests. Output ONLY "yes" or "no".
+                content: `You are an expert at detecting image generation/editing requests. Respond ONLY with a valid JSON object.
 
-Output "yes" if the message:
+Output {"result": true} if the message:
 - Asks to draw, create, generate, or illustrate something
 - Asks to edit, modify, redraw, or change an existing image
 - Is replying to a Lupos message containing an image AND uses phrases like "make it", "change this", "turn into", etc.
 
-Output "no" for all other messages.
+Output {"result": false} for all other messages.
 
 CRITICAL: Pay special attention to replies to Lupos' image messages - these often contain implicit editing requests. Sometimes the message is long and the request is subtle, so analyze carefully.
 
-Example requests that should return "yes":
+Examples that should return {"result": true}:
 
 Creation requests:
 - "Draw a sunset over mountains"
@@ -976,37 +976,40 @@ Implicit editing (common in replies):
             },
         ];
 
-        let response = await AIService.generateText({
+        const response = await AIService.generateText({
             conversation,
             type: "OPENAI",
             model: config.OPENAI_LANGUAGE_MODEL_GPT5_NANO,
-            label: "🧠 Image Detection",
+            label: "🧠 Image Request Detection",
         });
 
         if (!response) return false;
 
-        response = response.trim().toLowerCase();
-
-        if (response === "yes") return true;
-        if (response === "no") return false;
-
-        console.error("Unexpected response from AI:", response);
-        return false;
+        try {
+            const parsed = JSON.parse(response.trim());
+            return parsed.result === true;
+        } catch {
+            console.error("Unexpected response from AI (expected JSON):", response);
+            return false;
+        }
     },
     async generateTextIsAskingToDrawThemselves(content, message) {
         const conversation = [
             {
                 role: "system",
-                content: `You are an expert at detecting if a message is asking to draw, create, generate, or illustrate the user themselves. You will answer with a yes if the message is asking to draw, create, generate, or illustrate the user themselves. You will answer with a no if the message is not asking to draw, create, generate, or illustrate the user themselves. You will only output a yes or no, nothing else.
+                content: `You are an expert at detecting if a message is asking to draw, create, generate, or illustrate the user themselves. Respond ONLY with a valid JSON object.
 
-Examples that should return "yes":
+Output {"result": true} if the message is asking to draw, create, generate, or illustrate the user themselves.
+Output {"result": false} if the message is not asking to draw, create, generate, or illustrate the user themselves.
+
+Examples that should return {"result": true}:
 "Draw me as a superhero"
 "Can you create an image of me?"
 "Make an image of myself"
 "Make me as a cartoon character"
 "What would I look like as a pirate?"
 
-Examples that should return "no":
+Examples that should return {"result": false}:
 "Draw me a banana"
 "Can you create an image of a cat?"
 "Make an image of a landscape"
@@ -1019,7 +1022,7 @@ Examples that should return "no":
             },
         ];
 
-        let response = await AIService.generateText({
+        const response = await AIService.generateText({
             conversation,
             type: "OPENAI",
             model: config.OPENAI_LANGUAGE_MODEL_GPT5_NANO,
@@ -1028,21 +1031,24 @@ Examples that should return "no":
 
         if (!response) return false;
 
-        response = response.trim().toLowerCase();
-
-        if (response === "yes") return true;
-        if (response === "no") return false;
-
-        console.error("Unexpected response from AI:", response);
-        return false;
+        try {
+            const parsed = JSON.parse(response.trim());
+            return parsed.result === true;
+        } catch {
+            console.error("Unexpected response from AI (expected JSON):", response);
+            return false;
+        }
     },
     async generateTextIsAskingLewdOrNSFW(content, message) {
         const conversation = [
             {
                 role: "system",
-                content: `You are an expert at detecting if a message is lewd, NSFW, or inappropriate for image generation. You will answer with a yes if the message is lewd, NSFW, or inappropriate for image generation. You will answer with a no if the message is not lewd, NSFW, or inappropriate for image generation. You will only output a yes or no, nothing else.
+                content: `You are an expert at detecting if a message is lewd, NSFW, or inappropriate for image generation. Respond ONLY with a valid JSON object.
 
-Examples that should return "yes":
+Output {"result": true} if the message is lewd, NSFW, or inappropriate for image generation.
+Output {"result": false} if the message is not lewd, NSFW, or inappropriate for image generation.
+
+Examples that should return {"result": true}:
 "Draw me a naked person"
 "Can you create an image of two people fucking?"`,
             },
@@ -1053,7 +1059,7 @@ Examples that should return "yes":
             },
         ];
 
-        let response = await AIService.generateText({
+        const response = await AIService.generateText({
             conversation,
             type: "OPENAI",
             model: config.OPENAI_LANGUAGE_MODEL_GPT5_NANO,
@@ -1062,13 +1068,13 @@ Examples that should return "yes":
 
         if (!response) return false;
 
-        response = response.trim().toLowerCase();
-
-        if (response === "yes") return true;
-        if (response === "no") return false;
-
-        console.error("Unexpected response from AI:", response);
-        return false;
+        try {
+            const parsed = JSON.parse(response.trim());
+            return parsed.result === true;
+        } catch {
+            console.error("Unexpected response from AI (expected JSON):", response);
+            return false;
+        }
     },
     /**
      * Extract person names from a message and match them to known participants.
