@@ -1,4 +1,4 @@
-import config from "#root/config.json" with { type: "json" };
+import config from "#root/config.js";
 
 const API_BASE = config.PRISM_API_URL;
 const API_SECRET = config.PRISM_API_SECRET;

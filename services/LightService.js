@@ -1,4 +1,4 @@
-import config from "#root/config.json" with { type: "json" };
+import config from "#root/config.js";
 
 const { LIFX_TOKEN } = config;
 

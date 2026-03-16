@@ -1,8 +1,8 @@
 import DiscordUtilityService from "#root/services/DiscordUtilityService.js";
-import config from "#root/config.json" with { type: "json" };
-import { _consoleInfo } from "#root/libraries/UtilityLibrary.js";
+import config from "#root/config.js";
+import { _consoleInfo } from "#root/utilities.js";
 import _YapperService from "#root/services/YapperService.js";
-import _UtilityLibrary from "#root/libraries/UtilityLibrary.js";
+import _utilities from "#root/utilities.js";
 import AIService from "#root/services/AIService.js";
 import luxon from "luxon";
 
@@ -85,7 +85,7 @@ async function processReminders(client, mongo) {
           });
           // await channel.send(`⏰ Reminder: ${userReminder.message}`); // Keep original if preferred
 
-          // UtilityLibrary.consoleInfoColor([[`⏰ Reminder Sent: ${userReminder.message}`, { color: 'green' }, 'middle']]);
+          // utilities.consoleInfoColor([[`⏰ Reminder Sent: ${userReminder.message}`, { color: 'green' }, 'middle']]);
         } else {
           console.log(
             `Member ${userReminder.userId} not found in guild for reminder ${userReminder._id}`,

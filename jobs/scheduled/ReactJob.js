@@ -1,7 +1,7 @@
 import DiscordUtilityService from "#root/services/DiscordUtilityService.js";
-import config from "#root/config.json" with { type: "json" };
-import UtilityLibrary from "#root/libraries/UtilityLibrary.js";
-const { consoleLog } = UtilityLibrary;
+import config from "#root/config.js";
+import utilities from "#root/utilities.js";
+const { consoleLog } = utilities;
 
 let previousOverReactorId;
 

@@ -1,8 +1,8 @@
-import config from "#root/config.json" with { type: "json" };
-import UtilityLibrary from "#root/libraries/UtilityLibrary.js";
+import config from "#root/config.js";
+import utilities from "#root/utilities.js";
 import LightService from "#root/services/LightService.js";
 
-const { slowBlink, bold } = UtilityLibrary.ansiEscapeCodes(true);
+const { slowBlink, bold } = utilities.ansiEscapeCodes(true);
 
 const styles = {
   white: "\x1b[38;5;255m",
@@ -139,20 +139,20 @@ const LogFormatter = {
       theMessage = message;
     }
 
-    const combinedNames = UtilityLibrary.getCombinedNamesFromUserOrMember(
+    const combinedNames = utilities.getCombinedNamesFromUserOrMember(
       { user: theUser, member: theMember },
       true,
     );
     const combinedGuildInformation =
-      UtilityLibrary.getCombinedGuildInformationFromGuild(theGuild, true);
+      utilities.getCombinedGuildInformationFromGuild(theGuild, true);
     const combinedChannelInformation =
-      UtilityLibrary.getCombinedChannelInformationFromChannel(theChannel, true);
+      utilities.getCombinedChannelInformationFromChannel(theChannel, true);
     const combinedEmojiInformation =
-      UtilityLibrary.getCombinedEmojiInformationFromReaction(reaction, true);
+      utilities.getCombinedEmojiInformationFromReaction(reaction, true);
     const combinedRoleInformation =
-      UtilityLibrary.getCombinedRoleInformationFromRole(role, true);
+      utilities.getCombinedRoleInformationFromRole(role, true);
     const combinedTimeInformation =
-      UtilityLibrary.getCombinedDateInformationFromDate(undefined, true);
+      utilities.getCombinedDateInformationFromDate(undefined, true);
 
     let log = `${combinedTimeInformation}`;
     if (logEmoji) {
@@ -170,11 +170,11 @@ const LogFormatter = {
     }
     // Client and Guilds
     if (theClient) {
-      log += `\n    Client: ${UtilityLibrary.getCombinedNamesFromUserOrMember({ user: theClient.user }, true)}`;
+      log += `\n    Client: ${utilities.getCombinedNamesFromUserOrMember({ user: theClient.user }, true)}`;
     }
     if (theGuilds) {
       for (const guild of theGuilds.values()) {
-        log += `\n    - ${UtilityLibrary.getCombinedGuildInformationFromGuild(guild, true)}`;
+        log += `\n    - ${utilities.getCombinedGuildInformationFromGuild(guild, true)}`;
         // get member count if available
         if (guild.memberCount) {
           log += `\n      - (Members: ${guild.memberCount})`;

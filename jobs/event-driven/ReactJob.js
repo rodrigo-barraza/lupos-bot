@@ -1,5 +1,5 @@
 import DiscordUtilityService from "#root/services/DiscordUtilityService.js";
-import config from "#root/config.json" with { type: "json" };
+import config from "#root/config.js";
 
 let queueIsProcessing = false;
 const queue = [];

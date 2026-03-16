@@ -1,6 +1,6 @@
-import MessageConstant from "#root/constants/MessageConstants.js";
-import ClockCrewConstants from "#root/constants/ClockCrewConstants.js";
-import config from "#root/config.json" with { type: "json" };
+import { MessageConstant } from "#root/constants.js";
+import { ClockCrewConstants } from "#root/constants.js";
+import config from "#root/config.js";
 const { ASSISTANT_MESSAGE } = config;
 
 const MessageService = {

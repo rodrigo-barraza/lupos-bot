@@ -1,6 +1,6 @@
 import DiscordUtilityService from "#root/services/DiscordUtilityService.js";
-import UtilityLibrary from "#root/libraries/UtilityLibrary.js";
-const { consoleLog } = UtilityLibrary;
+import utilities from "#root/utilities.js";
+const { consoleLog } = utilities;
 
 let previousTopAuthorId;
 let previousTopReactorId;
@@ -49,7 +49,7 @@ async function assignActivityRoles({
   const authorCounts = messages.reduce((accumulator, currentMessage) => {
     if (currentMessage.author.bot) return accumulator; // Skip bot messages
     const userId = currentMessage.author.id;
-    const userName = UtilityLibrary.getCombinedNamesFromUserOrMember({
+    const userName = utilities.getCombinedNamesFromUserOrMember({
       user: currentMessage.author,
     });
     let authorObj = accumulator.find((obj) => obj.userId === userId);
@@ -96,7 +96,7 @@ async function assignActivityRoles({
         for (const user of reactionUserMap.values()) {
           if (user.bot) continue; // Skip bot reactions
           const userId = user.id;
-          const userName = UtilityLibrary.getCombinedNamesFromUserOrMember({
+          const userName = utilities.getCombinedNamesFromUserOrMember({
             user: user,
           });
           let userStats = accumulator.find((obj) => obj.userId === userId);

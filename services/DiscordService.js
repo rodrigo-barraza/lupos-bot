@@ -15,14 +15,14 @@ import fs from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 // CONFIG
-import config from "#root/config.json" with { type: "json" };
+import config from "#root/config.js";
 // ARRAYS
 import {
     rolesVideogames,
     warcraftClasses,
     warcraftFactions,
-} from "#root/arrays/roles.js";
-import channels from "#root/arrays/channels.js";
+    channels,
+} from "#root/arrays.js";
 // SERVICES
 import ScraperService from "#root/services/ScraperService.js";
 import DiscordWrapper from "#root/wrappers/DiscordWrapper.js";
@@ -42,11 +42,11 @@ import ActivityRoleAssignmentJob from "#root/jobs/scheduled/ActivityRoleAssignme
 import PermanentTimeOutJob from "#root/jobs/scheduled/PermanentTimeOutJob.js";
 import EventReactJob from "#root/jobs/event-driven/ReactJob.js";
 // LIBRARIES
-import UtilityLibrary from "#root/libraries/UtilityLibrary.js";
+import utilities from "#root/utilities.js";
 // FORMATTERS
 import LogFormatter from "#root/formatters/LogFormatter.js";
 // CONSTANTS
-import MessageConstant from "#root/constants/MessageConstants.js";
+import { MessageConstant } from "#root/constants.js";
 import CensorService from "#root/services/CensorService.js";
 
 const args = process.argv.slice(2);
@@ -179,7 +179,7 @@ async function generateDescription(
 
     let messageSentAt;
     let messageSentAtRelative;
-    const combinedNames = UtilityLibrary.getCombinedNamesFromUserOrMember({
+    const combinedNames = utilities.getCombinedNamesFromUserOrMember({
         member,
         user,
     });
@@ -498,7 +498,7 @@ async function buildAndGenerateReply({
         }
 
         systemPrompt = `# Discord client information`;
-        systemPrompt += `\n- Your name: ${UtilityLibrary.getCombinedNamesFromUserOrMember({ user: bot })}`;
+        systemPrompt += `\n- Your name: ${utilities.getCombinedNamesFromUserOrMember({ user: bot })}`;
         systemPrompt += `\n- Your discord user ID tag: <@${bot.id}>`;
         systemPrompt += `\n- The current date and time is ${moment().format("dddd, MMMM Do, YYYY at h:mm A")} PST.`;
         systemPrompt += `\n- To mention, tag or reply to someone, you do it by mentioning their Discord user ID tag. For example, to mention me, you would type <@${bot.id}>.`;
@@ -569,7 +569,7 @@ async function buildAndGenerateReply({
                 for (const channel of voiceChannelMembers.values()) {
                     systemPrompt += `\n  - ${channel.name} (${channel.members.size} members)`;
                     for (const member of channel.members.values()) {
-                        systemPrompt += `\n    - ${UtilityLibrary.getCombinedNamesFromUserOrMember({ member })}`;
+                        systemPrompt += `\n    - ${utilities.getCombinedNamesFromUserOrMember({ member })}`;
                     }
                 }
             }
@@ -1375,8 +1375,8 @@ async function buildAndGenerateReply({
             );
         }
         // Rodrigo: Cleans the response
-        generatedText = UtilityLibrary.removeMentions(generatedText);
-        generatedText = UtilityLibrary.removeFlaggedWords(generatedText);
+        generatedText = utilities.removeMentions(generatedText);
+        generatedText = utilities.removeFlaggedWords(generatedText);
 
         const end = performance.now();
         const duration = end - start;
@@ -1415,7 +1415,7 @@ async function replyMessage(queuedDatum, localMongo) {
     const channel = message.channel;
     const member = message.member;
     const user = message.author;
-    const combinedNames = UtilityLibrary.getCombinedNamesFromUserOrMember({
+    const combinedNames = utilities.getCombinedNamesFromUserOrMember({
         member,
         user,
     });
@@ -1451,9 +1451,9 @@ async function replyMessage(queuedDatum, localMongo) {
 
     if (guild) {
         combinedGuildInformation =
-            UtilityLibrary.getCombinedGuildInformationFromGuild(guild);
+            utilities.getCombinedGuildInformationFromGuild(guild);
         combinedChannelInformation =
-            UtilityLibrary.getCombinedChannelInformationFromChannel(channel);
+            utilities.getCombinedChannelInformationFromChannel(channel);
         console.log(...LogFormatter.receivedGuildMessage(message, actionType));
     } else {
         console.log(...LogFormatter.receivedDirectMessage(message, actionType));
@@ -2582,7 +2582,7 @@ async function extractContentFromMessages(
                     recentMessage.createdTimestamp,
                 );
                 const messageId = recentMessageDateTime.toFormat(dateIdFormat);
-                const combinedNames = UtilityLibrary.getCombinedNamesFromUserOrMember({
+                const combinedNames = utilities.getCombinedNamesFromUserOrMember({
                     member: recentMessage.member,
                 });
                 const messageSentAt = recentMessageDateTime
@@ -2611,7 +2611,7 @@ async function extractContentFromMessages(
                         const replyMessageId =
                             repliedMessageDateTime.toFormat(dateIdFormat);
                         const combinedRepliedNames =
-                            UtilityLibrary.getCombinedNamesFromUserOrMember({
+                            utilities.getCombinedNamesFromUserOrMember({
                                 member: repliedMessage.member,
                             });
                         modifiedContent += `\nAuthor: ${combinedRepliedNames}`;
@@ -2658,7 +2658,7 @@ async function extractContentFromMessages(
                             modifiedContent += `\n- ${urlData.urls[index]}:`;
                             for (const [key, value] of Object.entries(scrapedData)) {
                                 if (value) {
-                                    modifiedContent += `\n  - ${UtilityLibrary.capitalize(key)}: ${value}`;
+                                    modifiedContent += `\n  - ${utilities.capitalize(key)}: ${value}`;
                                 }
                             }
                         }
@@ -2956,7 +2956,7 @@ async function luposOnReady(client, { mongo }) {
         //             // console.log(`Mention ${mentionsFound}: ${message.id}, Time diff: ${timeDifference.toFixed(2)} minutes, Already replied: ${repliedToIds.has(message.id)}`);
 
         //             if (timeDifference <= 200 && !repliedToIds.has(message.id)) {
-        //                 UtilityLibrary.consoleLog('=', `Found message in politics channel that mentions me and I haven't replied to in the last 5 minutes: ${message.content}`);
+        //                 utilities.consoleLog('=', `Found message in politics channel that mentions me and I haven't replied to in the last 5 minutes: ${message.content}`);
         //                 await processMessage(client, { mongo, localMongo }, message);
         //                 break;
         //             }
@@ -2968,22 +2968,22 @@ async function luposOnReady(client, { mongo }) {
 }
 
 async function luposOnReadyReports(client, mongo) {
-    UtilityLibrary.consoleLog("<");
-    UtilityLibrary.consoleLog(
+    utilities.consoleLog("<");
+    utilities.consoleLog(
         "=",
         `Logged in as ${DiscordUtilityService.getBotName(client)}`,
     );
     try {
         await mongo.connect();
-        UtilityLibrary.consoleLog("=", "Connected to MongoDB");
+        utilities.consoleLog("=", "Connected to MongoDB");
     } catch (error) {
-        UtilityLibrary.consoleLog("=", `Error connecting to MongoDB \n${error}`);
+        utilities.consoleLog("=", `Error connecting to MongoDB \n${error}`);
     }
     // DiscordUtilityService.printOutAllRoles(client);
     // DiscordUtilityService.printOutAllEmojis(client);
     DiscordUtilityService.displayAllChannelActivity(client, mongo);
     // await DiscordUtilityService.calculateMessagesSentOnAveragePerDayInChannel(client, config.CHANNEL_ID_POLITICS);
-    UtilityLibrary.consoleLog(">");
+    utilities.consoleLog(">");
 }
 
 async function luposOnReadyCloneMessages(client, { localMongo }) {
@@ -3052,7 +3052,7 @@ async function processMessage(
     message,
     actionType,
 ) {
-    const { _slowBlink, _bold, _faint } = UtilityLibrary.ansiEscapeCodes(true);
+    const { _slowBlink, _bold, _faint } = utilities.ansiEscapeCodes(true);
     const isDirectMessage = message.channel.type === ChannelType.DM;
     const isSelfMessage = message.author.id === client.user.id;
     const isDirectMessageFromSelf = isDirectMessage && isSelfMessage;
@@ -3143,7 +3143,7 @@ async function processMessage(
 
     try {
         if (!message.author.bot) {
-            const date = UtilityLibrary.getCombinedDateInformationFromDate(
+            const date = utilities.getCombinedDateInformationFromDate(
                 message.createdAt.getTime(),
                 true,
             );
@@ -3166,7 +3166,7 @@ Message: ${message.cleanContent}`;
             logMessage += `
 Guild: ${message.guild?.name}
 Channel: #${message.channel?.name}
-Author: ${UtilityLibrary.getCombinedNamesFromUserOrMember({ member: message.member, user: message.author })}
+Author: ${utilities.getCombinedNamesFromUserOrMember({ member: message.member, user: message.author })}
 URL: https://discord.com/channels/${message.guild?.id}/${message.channel.id}/${message.id}`;
 
             console.log(logMessage);
@@ -3952,7 +3952,7 @@ async function luposOnInteractionCreate(client, mongo, interaction) {
             return;
         }
     } else if (interaction.isCommand()) {
-        // UtilityLibrary.consoleLog('=', `Command interaction received: ${interaction.commandName}`);
+        // utilities.consoleLog('=', `Command interaction received: ${interaction.commandName}`);
         console.log(
             ...LogFormatter.interactionCreateCommand(functionName, interaction),
         );

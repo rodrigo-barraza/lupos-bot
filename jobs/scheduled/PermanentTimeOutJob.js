@@ -1,4 +1,4 @@
-import config from "#root/config.json" with { type: "json" };
+import config from "#root/config.js";
 import DiscordUtilityService from "#root/services/DiscordUtilityService.js";
 import LogFormatter from "#root/formatters/LogFormatter.js";
 

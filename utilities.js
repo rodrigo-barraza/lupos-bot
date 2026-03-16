@@ -1,9 +1,9 @@
 import _moment from "moment";
 import { DateTime } from "luxon";
-import config from "#root/config.json" with { type: "json" };
+import config from "#root/config.js";
 import crypto from "crypto";
 
-const UtilityLibrary = {
+const utilities = {
   // Crypto utilities
   async generateFileHash(url) {
     try {
@@ -19,7 +19,7 @@ const UtilityLibrary = {
       return { hash, fileType };
     } catch (error) {
       console.log(
-        `❌ [UtilityLibrary:generateFileHash] Error generating hash:\n`,
+        `❌ [utilities:generateFileHash] Error generating hash:\n`,
         `${error}`,
       );
       throw error;
@@ -140,7 +140,7 @@ const UtilityLibrary = {
       return contentType.startsWith("image/");
     } catch (error) {
       console.error(
-        `❌ [UtilityLibrary:isImageUrl] Error checking if URL is an image:\n`,
+        `❌ [utilities:isImageUrl] Error checking if URL is an image:\n`,
         `${error}`,
       );
       return false;
@@ -352,7 +352,7 @@ const UtilityLibrary = {
     };
   },
   getCombinedNamesFromUserOrMember({ user, member }, isConsoleLog = false) {
-    const { bold, faint } = UtilityLibrary.ansiEscapeCodes(isConsoleLog);
+    const { bold, faint } = utilities.ansiEscapeCodes(isConsoleLog);
     const parts = [];
 
     if (member) {
@@ -375,7 +375,7 @@ const UtilityLibrary = {
     return parts.join(" • ");
   },
   getCombinedGuildInformationFromGuild(guild, isConsoleLog = false) {
-    const { bold, faint } = UtilityLibrary.ansiEscapeCodes(isConsoleLog);
+    const { bold, faint } = utilities.ansiEscapeCodes(isConsoleLog);
     let combinedGuildInformation;
     if (guild) {
       combinedGuildInformation = `${bold(guild.name)} • ${faint(guild.id)}`;
@@ -383,7 +383,7 @@ const UtilityLibrary = {
     return combinedGuildInformation;
   },
   getCombinedChannelInformationFromChannel(channel, isConsoleLog = false) {
-    const { bold, faint } = UtilityLibrary.ansiEscapeCodes(isConsoleLog);
+    const { bold, faint } = utilities.ansiEscapeCodes(isConsoleLog);
     let combinedChannelInformation;
     if (channel) {
       combinedChannelInformation = `#${bold(channel.name)} • ${faint(channel.id)}`;
@@ -392,7 +392,7 @@ const UtilityLibrary = {
   },
   getCombinedEmojiInformationFromReaction(reaction, isConsoleLog = false) {
     if (!reaction) return;
-    const { bold, faint } = UtilityLibrary.ansiEscapeCodes(isConsoleLog);
+    const { bold, faint } = utilities.ansiEscapeCodes(isConsoleLog);
     const emoji = reaction._emoji;
     const parts = [];
     if (emoji) {
@@ -404,7 +404,7 @@ const UtilityLibrary = {
     return parts.join(" • ");
   },
   getCombinedRoleInformationFromRole(role, isConsoleLog = false) {
-    const { bold, faint } = UtilityLibrary.ansiEscapeCodes(isConsoleLog);
+    const { bold, faint } = utilities.ansiEscapeCodes(isConsoleLog);
     let combinedRoleInformation;
     if (role) {
       combinedRoleInformation = `${bold(role.name)} • ${faint(role.id)}`;
@@ -412,7 +412,7 @@ const UtilityLibrary = {
     return combinedRoleInformation;
   },
   getCombinedDateInformationFromDate(unixDate, isConsoleLog = false) {
-    const { bold, faint } = UtilityLibrary.ansiEscapeCodes(isConsoleLog);
+    const { bold, faint } = utilities.ansiEscapeCodes(isConsoleLog);
     let combinedDateInformation;
     if (!unixDate) {
       unixDate = Date.now();
@@ -427,4 +427,4 @@ const UtilityLibrary = {
   },
 };
 
-export default UtilityLibrary;
+export default utilities;

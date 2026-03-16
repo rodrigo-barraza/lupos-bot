@@ -7,7 +7,7 @@
 import { jest, describe, test, expect, _beforeEach } from "@jest/globals";
 
 // Mock config before importing the module
-jest.unstable_mockModule("#root/config.json", () => ({
+jest.unstable_mockModule("#root/config.js", () => ({
   default: { DEATHROLL_SEASON: 1 },
 }));
 

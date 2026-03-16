@@ -1,7 +1,7 @@
-import _config from "#root/config.json" with { type: "json" };
-import { _consoleInfo, consoleLog } from "#root/libraries/UtilityLibrary.js";
+import _config from "#root/config.js";
+import { _consoleInfo, consoleLog } from "#root/utilities.js";
 import _YapperService from "#root/services/YapperService.js";
-import _UtilityLibrary from "#root/libraries/UtilityLibrary.js";
+import _utilities from "#root/utilities.js";
 import DiscordUtilityService from "#root/services/DiscordUtilityService.js";
 import _luxon from "luxon";
 import AIService from "#root/services/AIService.js";

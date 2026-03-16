@@ -1,8 +1,8 @@
 import "dotenv/config";
 import { DateTime } from "luxon";
-import UtilityLibrary from "#root/libraries/UtilityLibrary.js";
-const { consoleLog } = UtilityLibrary;
-import config from "#root/config.json" with { type: "json" };
+import utilities from "#root/utilities.js";
+const { consoleLog } = utilities;
+import config from "#root/config.js";
 import { Collection, ChannelType, Events, ActivityType } from "discord.js";
 import ScraperService from "#root/services/ScraperService.js";
 import LightService from "#root/services/LightService.js";
@@ -1125,7 +1125,7 @@ const DiscordUtilityService = {
       if (urls?.length) {
         for (const url of urls) {
           if (!url.includes("https://tenor.com/view/")) {
-            const isImage = await UtilityLibrary.isImageUrl(url);
+            const isImage = await utilities.isImageUrl(url);
             if (isImage) {
               imageUrls.push(url);
             }

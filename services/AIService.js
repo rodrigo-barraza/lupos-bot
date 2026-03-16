@@ -5,14 +5,14 @@ import crypto from "crypto";
 
 // import { DateTime } from 'luxon';
 // Config
-import config from "#root/config.json" with { type: "json" };
+import config from "#root/config.js";
 // Formatters
 import LogFormatter from "#root/formatters/LogFormatter.js";
 // Wrappers
 import ComfyUIService from "#root/services/ComfyUIService.js";
 import MongoService from "#root/services/MongoService.js";
 // Libraries
-import UtilityLibrary from "#root/libraries/UtilityLibrary.js";
+import utilities from "#root/utilities.js";
 // Services
 import PrismService from "#root/services/PrismService.js";
 import CurrentService from "#root/services/CurrentService.js";
@@ -612,7 +612,7 @@ const AIService = {
                     const userId = isObject ? imageUrl.userId : null;
 
                     const { hash, fileType } =
-                        await UtilityLibrary.generateFileHash(realImageUrl);
+                        await utilities.generateFileHash(realImageUrl);
                     const existingImage = await collection.findOne({ hash });
                     if (!existingImage) {
                         const { response } = await AIService.generateVision(
@@ -669,7 +669,7 @@ const AIService = {
             for (const audioUrl of audioUrls) {
                 index++;
                 const { hash, fileType } =
-                    await UtilityLibrary.generateFileHash(audioUrl);
+                    await utilities.generateFileHash(audioUrl);
                 existingAudio = await collection.findOne({ hash });
 
                 if (!existingAudio) {

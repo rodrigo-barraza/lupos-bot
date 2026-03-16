@@ -1,5 +1,5 @@
 import { REST, Routes, Client, GatewayIntentBits } from "discord.js";
-import config from "./config.json" with { type: "json" };
+import config from "./config.js";
 const { CLIENT_ID, LUPOS_TOKEN } = config;
 import "dotenv/config";
 const rest = new REST().setToken(LUPOS_TOKEN);

@@ -12,7 +12,7 @@ import {
   EmbedBuilder,
 } from "discord.js";
 import MongoService from "#root/services/MongoService.js";
-import config from "#root/config.json" with { type: "json" };
+import config from "#root/config.js";
 
 // ─── Constants ────────────────────────────────────────────────────────
 

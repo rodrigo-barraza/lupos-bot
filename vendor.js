@@ -1,7 +1,7 @@
 /* eslint-disable no-undef, no-constant-condition */
 process.env.NODE_NO_WARNINGS = "stream/web";
 import "dotenv/config";
-import config from "./config.json" with { type: "json" };
+import config from "./config.js";
 const {
   VENDOR_TOKEN,
   _WHITEMANE_OVERREACTOR_ROLE_ID,
@@ -19,7 +19,7 @@ const {
 } = config;
 import fs from "node:fs";
 import { _Collection, _Events, ChannelType, _EmbedBuilder } from "discord.js";
-import UtilityLibrary from "./libraries/UtilityLibrary.js";
+import utilities from "./libraries/utilities.js";
 import MoodService from "./services/MoodService.js";
 import DiscordService from "./services/DiscordService.js";
 import luxon from "luxon";
@@ -64,11 +64,11 @@ const client = DiscordService.client;
 function displayAllGuilds() {
   const guilds = DiscordService.getAllGuilds();
   const connectedGuildsText = `🌎 Connected Guilds (Servers): ${guilds.length}`;
-  UtilityLibrary.consoleInfo([[connectedGuildsText, {}]]);
+  utilities.consoleInfo([[connectedGuildsText, {}]]);
 }
 
 async function onReady() {
-  UtilityLibrary.consoleInfo([
+  utilities.consoleInfo([
     [`👌 Logged in as ${DiscordService.getBotName()}`, { bold: true }],
   ]);
   // AlcoholService.instantiate();
@@ -115,8 +115,8 @@ async function onReady() {
   console.log("-------------------");
 }
 
-UtilityLibrary.consoleInfo([[`---`, { bold: true, color: "green" }]]);
-UtilityLibrary.consoleInfo([
+utilities.consoleInfo([[`---`, { bold: true, color: "green" }]]);
+utilities.consoleInfo([
   [`🤖 Vendor the Vending Bot v1.0 starting`, { bold: true, color: "red" }],
 ]);
 
@@ -131,13 +131,13 @@ async function replyMessage(client, queuedMessage) {
   const sendTypingInterval = setInterval(() => {
     queuedMessage.channel.sendTyping();
   }, 5000);
-  const discordUserTag = UtilityLibrary.discordUserTag(queuedMessage);
+  const discordUserTag = utilities.discordUserTag(queuedMessage);
   let timer = 0;
   const timerInterval = setInterval(() => {
     timer++;
   }, 1000);
 
-  UtilityLibrary.consoleInfo([
+  utilities.consoleInfo([
     [
       `═══════════════░▒▓ +MESSAGE+ ▓▒░════════════════════════════════════`,
       { color: "yellow" },
@@ -146,7 +146,7 @@ async function replyMessage(client, queuedMessage) {
   ]);
 
   if (queuedMessage.guild) {
-    UtilityLibrary.consoleInfo([
+    utilities.consoleInfo([
       [
         `💬 Replying to: ${discordUserTag} in ${queuedMessage.guild.name} #${queuedMessage.channel.name}`,
         { color: "cyan" },
@@ -154,7 +154,7 @@ async function replyMessage(client, queuedMessage) {
       ],
     ]);
   } else {
-    UtilityLibrary.consoleInfo([
+    utilities.consoleInfo([
       [
         `💬 Replying to: ${discordUserTag} in a private message`,
         { color: "cyan" },
@@ -225,11 +225,11 @@ async function replyMessage(client, queuedMessage) {
   }
 
   if (!generatedTextResponse) {
-    UtilityLibrary.consoleInfo([
+    utilities.consoleInfo([
       [`⏱️ Duration: ${timer} seconds`, { color: "cyan" }, "middle"],
     ]);
     timerInterval.unref();
-    UtilityLibrary.consoleInfo([
+    utilities.consoleInfo([
       [
         `═══════════════░▒▓ -MESSAGE- ▓▒░════════════════════════════════════`,
         { color: "red" },
@@ -245,15 +245,15 @@ async function replyMessage(client, queuedMessage) {
   //  replace <@!1234567890> with the user's display name
   // const voicePrompt = responseMessage.replace(/<@!?\d+>/g, (match) => {
   //     const id = match.replace(/<@!?/, '').replace('>', '');
-  //     return UtilityLibrary.findUserById(client, id);
+  //     return utilities.findUserById(client, id);
   // }).substring(0, 220);
 
   let generatedAudioFile, generatedAudioBuffer;
 
   // if (GENERATE_VOICE) {
-  //     UtilityLibrary.consoleInfo([[`🎤 Generating voice...`, { color: 'yellow' }, 'middle']]);
+  //     utilities.consoleInfo([[`🎤 Generating voice...`, { color: 'yellow' }, 'middle']]);
   //     ({ filename: generatedAudioFile, buffer: generatedAudioBuffer } = await DiscordService.generateVoice(message, voicePrompt))
-  //     UtilityLibrary.consoleInfo([[`🎤 ... voice generated.`, { color: 'green' }, 'middle']]);
+  //     utilities.consoleInfo([[`🎤 ... voice generated.`, { color: 'green' }, 'middle']]);
   // }
 
   const messageChunkSizeLimit = 2000;
@@ -303,14 +303,14 @@ async function replyMessage(client, queuedMessage) {
 
   clearInterval(sendTypingInterval);
   LightService.setState({ color: "white" }, PRIMARY_LIGHT_ID);
-  UtilityLibrary.consoleInfo([
+  utilities.consoleInfo([
     [`⏱️ Duration: ${timer} seconds`, { color: "cyan" }, "middle"],
   ]);
   timerInterval.unref();
 
   if (queuedMessage.guild) {
     console.log("channel id:", queuedMessage.channel.id);
-    UtilityLibrary.consoleInfo([
+    utilities.consoleInfo([
       [
         `💬 Replied to: ${discordUserTag} in ${queuedMessage.guild.name} #${queuedMessage.channel.name}`,
         { color: "cyan" },
@@ -319,7 +319,7 @@ async function replyMessage(client, queuedMessage) {
     ]);
   } else {
     console.log("channel id:", queuedMessage.channel.id);
-    UtilityLibrary.consoleInfo([
+    utilities.consoleInfo([
       [
         `💬 Replied to: ${discordUserTag} in a private message`,
         { color: "cyan" },
@@ -327,7 +327,7 @@ async function replyMessage(client, queuedMessage) {
       ],
     ]);
   }
-  UtilityLibrary.consoleInfo([
+  utilities.consoleInfo([
     [
       `═══════════════░▒▓ -MESSAGE- ▓▒░════════════════════════════════════`,
       { color: "green" },

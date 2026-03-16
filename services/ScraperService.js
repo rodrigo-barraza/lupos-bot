@@ -1,5 +1,5 @@
 import "dotenv/config";
-import _UtilityLibrary from "#root/libraries/UtilityLibrary.js";
+import _utilities from "#root/utilities.js";
 import fs from "fs";
 import path from "path";
 import os from "os";
@@ -567,7 +567,7 @@ class ScraperService {
         }
 
         await browser.close();
-        // UtilityLibrary.consoleInfoColor([[`║ 📰 News: `, { }], [result, { }]]);
+        // utilities.consoleInfoColor([[`║ 📰 News: `, { }], [result, { }]]);
         return result;
     }
 }

@@ -6,8 +6,8 @@ process.env.NODE_NO_WARNINGS = "stream/web";
 
 // Dependencies
 // import { MongoClient } from 'mongodb';
-import config from "./config.json" with { type: "json" };
-// const UtilityLibrary = require('./libraries/UtilityLibrary.js');
+import config from "./config.js";
+// const utilities = require('./libraries/utilities.js');
 import DiscordService from "./services/DiscordService.js";
 import LogFormatter from "./formatters/LogFormatter.js";
 // const MongoWrapper = require('./wrappers/MongoWrapper.js');
@@ -49,7 +49,7 @@ function main() {
     // HOME ASSISTANT
   } catch (error) {
     console.log(LogFormatter.errorInitialization(error));
-    // UtilityLibrary.consoleInfoColor([[`Initialization failed: \n${error}`, { bold: true, color: 'red' }]]);
+    // utilities.consoleInfoColor([[`Initialization failed: \n${error}`, { bold: true, color: 'red' }]]);
     // process.exit(1);
   }
 }

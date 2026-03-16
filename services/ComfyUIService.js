@@ -1,9 +1,9 @@
 import WebSocket from "ws";
 import crypto from "crypto";
 const clientId = crypto.randomBytes(20).toString("hex");
-import UtilityLibrary from "#root/libraries/UtilityLibrary.js";
-const { consoleLog } = UtilityLibrary;
-import config from "#root/config.json" with { type: "json" };
+import utilities from "#root/utilities.js";
+const { consoleLog } = utilities;
+import config from "#root/config.js";
 // Formatter
 import LogFormatter from "#root/formatters/LogFormatter.js";
 import LightService from "#root/services/LightService.js";
