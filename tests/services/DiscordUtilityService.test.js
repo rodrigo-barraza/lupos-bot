@@ -1,13 +1,13 @@
 import {
-  _jest,
+  jest,
   describe,
   test,
-  _it,
+  it,
   expect,
-  _beforeEach,
-  _afterEach,
-  _beforeAll,
-  _afterAll,
+  beforeEach,
+  afterEach,
+  beforeAll,
+  afterAll,
 } from "@jest/globals";
 
 const DiscordUtilityService = (

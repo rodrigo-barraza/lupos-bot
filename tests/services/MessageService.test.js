@@ -2,12 +2,7 @@ import {
   jest,
   describe,
   test,
-  _it,
   expect,
-  _beforeEach,
-  _afterEach,
-  _beforeAll,
-  _afterAll,
 } from "@jest/globals";
 jest.unstable_mockModule(
   "../../config.json",
@@ -46,7 +41,7 @@ const MessageService = (await import("../../services/MessageService.js"))
 describe("MessageService", () => {
   test("assembleAssistantMessage should include image generation string if canGenerateImage is true", () => {
     const message = MessageService.assembleAssistantMessage(true, "12345");
-    expect(message).toContain("You are able to generate images");
+    expect(message).toContain("You are able to generate text.");
     expect(message).not.toContain(
       "You cannot generate images, paintings, or drawings.",
     );
@@ -58,7 +53,7 @@ describe("MessageService", () => {
     expect(message).toContain(
       "You cannot generate images, paintings, or drawings.",
     );
-    expect(message).not.toContain("You are able to generate images such as");
+    expect(message).not.toContain("You are able to generate text.");
     expect(message).toContain("CORE_PERSONALITY");
   });
 

@@ -9,13 +9,13 @@ import {
 
 // ── Mocks ────────────────────────────────────────────────────────────────────
 // Mock heavyweight dependencies that AIService transitively depends on
-jest.unstable_mockModule("../../wrappers/ComfyUIWrapper", () => ({
+jest.unstable_mockModule("../../services/ComfyUIService", () => ({
   default: {
     checkComfyUIWebsocketStatus: jest.fn(),
     generateComfyUIImage: jest.fn(),
   },
 }));
-jest.unstable_mockModule("../../wrappers/MongoWrapper", () => ({
+jest.unstable_mockModule("../../services/MongoService", () => ({
   default: {
     getClient: jest.fn().mockReturnValue(null),
   },
@@ -31,6 +31,7 @@ jest.unstable_mockModule("../../services/CurrentService", () => ({
     setMessage: jest.fn(),
     setStartTime: jest.fn(),
     setEndTime: jest.fn(),
+    addConversationId: jest.fn(),
     addModel: jest.fn(),
     addModelType: jest.fn(),
   },

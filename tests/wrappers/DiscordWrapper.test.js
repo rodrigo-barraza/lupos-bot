@@ -2,12 +2,12 @@ import {
   jest,
   describe,
   test,
-  _it,
+  it,
   expect,
   beforeEach,
-  _afterEach,
-  _beforeAll,
-  _afterAll,
+  afterEach,
+  beforeAll,
+  afterAll,
 } from "@jest/globals";
 
 jest.unstable_mockModule("discord.js", () => {
@@ -39,7 +39,7 @@ jest.unstable_mockModule("discord.js", () => {
   };
 });
 
-const DiscordWrapper = (await import("../../wrappers/DiscordWrapper.js"))
+const DiscordWrapper = (await import("../../services/DiscordService.js"))
   .default;
 const { Client } = await import("discord.js");
 

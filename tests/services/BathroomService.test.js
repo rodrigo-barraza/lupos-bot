@@ -2,12 +2,12 @@ import {
   jest,
   describe,
   test,
-  _it,
+  it,
   expect,
   beforeEach,
-  _afterEach,
-  _beforeAll,
-  _afterAll,
+  afterEach,
+  beforeAll,
+  afterAll,
 } from "@jest/globals";
 jest.unstable_mockModule("../../services/DiscordService", () => ({
   default: {

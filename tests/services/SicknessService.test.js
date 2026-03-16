@@ -1,13 +1,13 @@
 import {
-  _jest,
+  jest,
   describe,
   test,
-  _it,
+  it,
   expect,
   beforeEach,
-  _afterEach,
-  _beforeAll,
-  _afterAll,
+  afterEach,
+  beforeAll,
+  afterAll,
 } from "@jest/globals";
 
 const SicknessService = (await import("../../services/SicknessService.js"))

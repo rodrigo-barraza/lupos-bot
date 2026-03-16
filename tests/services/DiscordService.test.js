@@ -1,13 +1,13 @@
 import {
   jest,
   describe,
-  _test,
+  test,
   it,
   expect,
-  _beforeEach,
-  _afterEach,
-  _beforeAll,
-  _afterAll,
+  beforeEach,
+  afterEach,
+  beforeAll,
+  afterAll,
 } from "@jest/globals";
 
 // DiscordService has many heavy transitive dependencies (puppeteer, sharp, etc.)
@@ -15,10 +15,10 @@ import {
 jest.unstable_mockModule("../../wrappers/PuppeteerWrapper", () => ({
   default: {},
 }));
-jest.unstable_mockModule("../../wrappers/ComfyUIWrapper", () => ({
+jest.unstable_mockModule("../../services/ComfyUIService", () => ({
   default: {},
 }));
-jest.unstable_mockModule("../../wrappers/MongoWrapper", () => ({
+jest.unstable_mockModule("../../services/MongoService", () => ({
   default: {},
 }));
 jest.unstable_mockModule("../../wrappers/YouTubeWrapper", () => ({

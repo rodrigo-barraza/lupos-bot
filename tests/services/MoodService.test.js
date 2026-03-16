@@ -2,14 +2,14 @@ import {
   jest,
   describe,
   test,
-  _it,
+  it,
   expect,
   beforeEach,
-  _afterEach,
-  _beforeAll,
-  _afterAll,
+  afterEach,
+  beforeAll,
+  afterAll,
 } from "@jest/globals";
-jest.unstable_mockModule("../../wrappers/DiscordWrapper", () => ({
+jest.unstable_mockModule("../../services/DiscordService", () => ({
   default: {
     getClient: jest.fn().mockReturnValue({
       user: {
@@ -25,7 +25,7 @@ jest.unstable_mockModule("../../services/DiscordUtilityService", () => ({
 }));
 
 const MoodService = (await import("../../services/MoodService.js")).default;
-const DiscordWrapper = (await import("../../wrappers/DiscordWrapper.js"))
+const DiscordWrapper = (await import("../../services/DiscordService.js"))
   .default;
 const DiscordUtilityService = (
   await import("../../services/DiscordUtilityService.js")

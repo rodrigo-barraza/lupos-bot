@@ -2,12 +2,12 @@ import {
   jest,
   describe,
   test,
-  _it,
+  it,
   expect,
   beforeEach,
-  _afterEach,
-  _beforeAll,
-  _afterAll,
+  afterEach,
+  beforeAll,
+  afterAll,
 } from "@jest/globals";
 
 jest.unstable_mockModule("express", () => {
@@ -100,6 +100,8 @@ describe("services.js (Express Routes)", () => {
       json: jest.fn(),
     };
 
+    const consoleSpy = jest.spyOn(console, "error").mockImplementation(() => {});
+
     await routeHandler(mockReq, mockRes);
 
     expect(mockRes.status).toHaveBeenCalledWith(500);
@@ -107,5 +109,7 @@ describe("services.js (Express Routes)", () => {
       success: false,
       error: "Transcription failed",
     });
+
+    consoleSpy.mockRestore();
   });
 });

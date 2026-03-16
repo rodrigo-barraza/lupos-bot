@@ -2,12 +2,12 @@ import {
   jest,
   describe,
   test,
-  _it,
+  it,
   expect,
   beforeEach,
-  _afterEach,
-  _beforeAll,
-  _afterAll,
+  afterEach,
+  beforeAll,
+  afterAll,
 } from "@jest/globals";
 
 // Mock all transitive dependencies that pull in heavy native modules
