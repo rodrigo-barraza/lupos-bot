@@ -8,8 +8,6 @@ export default {
 	"DATABASE_URL": "mongodb+srv://user:password@cluster.mongodb.net/?retryWrites=true&w=majority&appName=lupos",
 	"LOCAL_DATABASE_URL": "mongodb://localhost:27017/?directConnection=true",
 	"LUPOS_TOKEN": "your-discord-bot-token",
-	"OPENAI_KEY": "sk-your-openai-key",
-	"ANTHROPIC_KEY": "sk-ant-your-anthropic-key",
 	"GOOGLE_KEY": "your-google-key",
 
 	"ROLES_IDS_IGNORE": [
@@ -26,7 +24,6 @@ export default {
 		"1389725795869786284"
 	],
 
-	"CLIENT_ID": "1198099566088699904",
 	"GUILD_ID_PRIMARY": "609471635308937237",
 
 	"GUILD_ID_TESTING": "1357934319879979170",
@@ -40,18 +37,12 @@ export default {
 	"ROLE_ID_FLAG": "1354926676714328154",
     "ROLE_ID_POLITICS_MUTE": "765201362358239252",
 	"CHANNEL_ID_POLITICS": "762734438375096380",
-	"CHANNEL_ID_FITEMANE": "610924538477150239",
-	"CHANNEL_ID_GENERAL": "609475674700251340",
 	"CHANNEL_ID_SELF_ROLES": "1392993431172681848",
 	"CHANNEL_ID_LEAVERS": "1392636842645520415",
 	"CHANNEL_ID_HIGHLIGHTS": "1295184997006708807",
 	"CHANNEL_ID_BOOTY_BAE": "718520315721810030",
 	"CHANNEL_ID_STREAMERS": "609498307626008576",
-	"GUILD_ID_LONEWOLF": "1179859022199922768",
-	"GUILD_ID_THE_CLAM": "1004528256072044705",
-	"GUILD_ID_THE_CLOCK_CREW": "249010731910037507",
 
-	"__________FEATURE_PERMANENT_TIME_OUT": 0,
 	"DEATHROLL_SEASON": 1,
 	"USER_IDS_TIMED_OUT": [
 		"523687983417786379",
@@ -64,31 +55,13 @@ export default {
         "1349125934506053722"
     ],
 	"USER_IDS_NEW_ACCOUNT_WHITELIST": [],
-	"GUILDS": [
-		{
-			"ID": "609471635308937237",
-			"NAME": "Whitemane"
-		},
-		{
-			"ID": "249010731910037507",
-			"NAME": "The Clock Crew"
-		}
-	],
 
-	"____BOT_SETTINGS": 0,
 	"GENERATE_IMAGE": true,
 	"ASSISTANT_MESSAGE": "",
 	"FLAGGED_WORDS": "beaner, c00n, c0on, chink, co0n, coon, f a g g o t, f\\.ag, f@g, f@gg0t, f@ggot, fag, fagg0t, faggatron, faggit, faggot, faggy, fagit, faglord, fagot, fags, fgrt, fgtrtd, FGTRTD, fgts, frociaggine, g00k, g0ok, go0k, gook, honkey, https://imgur.com/aRYkT2C, kike, kys, n!g, n!ger, n!gg3r, n!gger, ni🅱️ 🅱️ a, nibba, nig, nigg3r, nigga, nigger, niglet, pajeet, sassygao, sassygao:, spic, trannies, trannny, tranny, trannys, wetback, www.wowgoldgo.com",
 	
-	"____LIGHT_SETTINGS": 0,
 	"LIFX_TOKEN": "your-lifx-token",
 	"PRIMARY_LIGHT_ID": "d073d523f763",
-
-	"____DISCORD_JS_SETTINGS": 0,
-
-	"____AI_SETTINGS": 0,
-	"🚩MODEL_TYPES": "OPENAI, ANTHROPIC, LOCAL",
-	"🚩MODEL_PERFORMANCES": "POWERFUL, FAST",
 
 	"LANGUAGE_MODEL_PERFORMANCE": "POWERFUL",
 
@@ -96,49 +69,21 @@ export default {
 	"ANTHROPIC_LANGUAGE_MODEL_FAST": "claude-haiku-4-5-20251001",
 
 	"ANTHROPIC_LANGUAGE_MODEL_CLAUDE_SONNET_4": "claude-sonnet-4-6",
-	"OPENAI_LANGUAGE_MODEL_GPT5": "gpt-5",
 	"OPENAI_LANGUAGE_MODEL_GPT5_MINI": "gpt-5-mini",
 	"OPENAI_LANGUAGE_MODEL_GPT5_NANO": "gpt-5-nano",
-	"OPENAI_LANGUAGE_MODEL_GPT4": "gpt-4",
-	"OPENAI_LANGUAGE_MODEL_GPT4O": "gpt-4o",
 	"OPENAI_LANGUAGE_MODEL_GPT4_1_NANO": "gpt-4.1-nano",
 	
 	"LANGUAGE_MODEL_OPENAI": "gpt-4",
-	"LANGUAGE_MODEL_ANTHROPIC": "claude-sonnet-4-6",
 	"LANGUAGE_MODEL_LOCAL": "deepseek-r1-distill-qwen-32b-abliterated@q3_k_s",
 	"LANGUAGE_MODEL_TYPE": "ANTHROPIC",
 	"LANGUAGE_MODEL_MAX_TOKENS": 1000,
 	"LANGUAGE_MODEL_TEMPERATURE": 0.55,
 
 	"LANGUAGE_MODEL_OPENAI_LOW": "gpt-4.1-nano",
-	"LANGUAGE_MODEL_OPENAI_MEDIUM": "",
-	"LANGUAGE_MODEL_OPENAI_HIGH": "",
 
 	"FAST_LANGUAGE_MODEL_OPENAI": "gpt-4o",
 	"FAST_LANGUAGE_MODEL_LOCAL": "deepseek-r1-distill-qwen-32b-abliterated@q3_k_s",
-	"FAST_LANGUAGE_MODEL_TYPE": "OPENAI",
-	"FAST_LANGUAGE_MODEL_MAX_TOKENS": 240,
-	"FAST_LANGUAGE_MODEL_TEMPERATURE": 0.55,
 
-	"IMAGE_PROMPT_LANGUAGE_MODEL_TYPE": "OPENAI",
-	"IMAGE_PROMPT_LANGUAGE_MODEL_PERFORMANCE": "POWERFUL",
-	"IMAGE_PROMPT_LANGUAGE_MODEL_MAX_TOKENS": 240,
-
-	"VOICE_MODEL_TYPE": "OPENAI",
-	"VOICE_MODEL": "tts-1",
-	"VOICE_MODEL_VOICE": "onyx",
-	"VOICE_MODEL_SPEED": 1.2,
-	"VISION_MODEL_TYPE": "OPENAI",
-	"VISION_MODEL_MAX_TOKENS": 300,
-
-	"____AI_MODELS": 0,
-	"🚩OPENAI_LANGUAGE_MODELS": "gpt-3.5-turbo-16k-0613, gpt-4-0125-preview, gpt-4-turbo-2024-04-09, gpt-4o",
-	"OPENAI_VISION_MODEL": "gpt-4o",
-
-	"____LOCAL_SETTINGS": 0,
-	"LOCAL_LANGUAGE_MODEL_API_URL": "http://192.168.86.179:1234",
 	"COMFY_UI_IMAGE_MODEL_API_URL": "http://192.168.86.179:8188",
-	"COMFY_UI_IMAGE_MODEL_WEBSOCKET_URL": "ws://192.168.86.179:8188",
-	"BARK_VOICE_FOLDER": "\\\\wsl.localhost\\Ubuntu\\home\\rodrigo\\chatter",
-	"BARK_VOICE_MODEL_API_URL": "http://localhost:5000/audio"
+	"COMFY_UI_IMAGE_MODEL_WEBSOCKET_URL": "ws://192.168.86.179:8188"
 };
