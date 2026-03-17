@@ -2,6 +2,7 @@
 /images
 /recordings
 /voices
+config.js
 config.json
 .env
 .vscode/settings.json

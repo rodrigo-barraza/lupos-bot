@@ -12,7 +12,7 @@ import {
 
 // DiscordService has many heavy transitive dependencies (puppeteer, sharp, etc.)
 // Mock all heavyweight dependencies to allow the test to load
-jest.unstable_mockModule("../../wrappers/PuppeteerWrapper", () => ({
+jest.unstable_mockModule("../../services/PuppeteerService", () => ({
   default: {},
 }));
 jest.unstable_mockModule("../../services/ComfyUIService", () => ({

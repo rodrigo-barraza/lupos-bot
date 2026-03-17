@@ -32,6 +32,7 @@ jest.unstable_mockModule("../../services/CurrentService", () => ({
     setStartTime: jest.fn(),
     setEndTime: jest.fn(),
     addConversationId: jest.fn(),
+    addConversationToken: jest.fn(),
     addModel: jest.fn(),
     addModelType: jest.fn(),
   },
