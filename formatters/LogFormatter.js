@@ -1,6 +1,4 @@
-import config from "#root/config.js";
 import utilities from "#root/utilities.js";
-import PhotonsService from "#root/services/PhotonsService.js";
 
 const { slowBlink, bold } = utilities.ansiEscapeCodes(true);
 
@@ -64,7 +62,6 @@ const LogFormatter = {
     imageUrl,
     caption,
   }) {
-    PhotonsService.cycleColor(config.PRIMARY_LIGHT_ID);
 
     let theClient;
     let theUser;
