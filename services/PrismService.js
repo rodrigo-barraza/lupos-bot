@@ -1,7 +1,6 @@
 import config from "#root/config.js";
 
 const API_BASE = config.PRISM_API_URL;
-const API_SECRET = config.PRISM_API_SECRET;
 
 /** Map lupos provider types to Prism provider names */
 const PROVIDER_MAP = {
@@ -14,7 +13,6 @@ const PROVIDER_MAP = {
 function getHeaders(username = "lupos") {
   return {
     "Content-Type": "application/json",
-    "x-api-secret": API_SECRET,
     "x-project": "lupos",
     "x-username": username,
   };

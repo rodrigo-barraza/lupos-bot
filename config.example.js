@@ -2,7 +2,6 @@ export default {
 	"VENDER_TOKEN": "xxx",
 
 	"PRISM_API_URL": "http://localhost:7777",
-	"PRISM_API_SECRET": "your-prism-secret",
 
 	"SERVER_PORT": 1337,
 	"DATABASE_URL": "mongodb+srv://user:password@cluster.mongodb.net/?retryWrites=true&w=majority&appName=lupos",
