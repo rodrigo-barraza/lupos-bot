@@ -27,7 +27,7 @@ import {
 import ScraperService from "#root/services/ScraperService.js";
 import DiscordWrapper from "#root/wrappers/DiscordWrapper.js";
 import YouTubeService from "#root/services/YouTubeService.js";
-import LightService from "#root/services/LightService.js";
+import PhotonsService from "#root/services/PhotonsService.js";
 import ComfyUIService from "#root/services/ComfyUIService.js";
 import MongoService from "#root/services/MongoService.js";
 import PrismService from "#root/services/PrismService.js";
@@ -1405,7 +1405,7 @@ async function buildAndGenerateReply({
 
 async function replyMessage(queuedDatum, localMongo) {
     // Rodrigo: This function is called when a message is received or updated on Discord.
-    LightService.cycleColor(config.PRIMARY_LIGHT_ID, "purples");
+    PhotonsService.cycleColor(config.PRIMARY_LIGHT_ID, "purples");
     const message = queuedDatum.message;
     const _messages = queuedDatum.recentMessages;
     const actionType = queuedDatum.actionType;
@@ -1461,7 +1461,7 @@ async function replyMessage(queuedDatum, localMongo) {
 
     // CHECK IF WE CAN GENERATE AN IMAGE
 
-    LightService.cycleColor(config.PRIMARY_LIGHT_ID, "purples");
+    PhotonsService.cycleColor(config.PRIMARY_LIGHT_ID, "purples");
     // Rodrigo: Generate a custom emoji reaction based on the message content
     const customEmojiReact =
         await AIService.generateTextCustomEmojiReactFromMessage(
@@ -1478,7 +1478,7 @@ async function replyMessage(queuedDatum, localMongo) {
     } else {
         // Handle case where no custom emoji is generated
     }
-    LightService.cycleColor(config.PRIMARY_LIGHT_ID, "purples");
+    PhotonsService.cycleColor(config.PRIMARY_LIGHT_ID, "purples");
 
     if (config.GENERATE_IMAGE) {
         // Are we using Google Generative AI?
@@ -1535,7 +1535,7 @@ async function replyMessage(queuedDatum, localMongo) {
         userMentionsCollection,
     } = await extractContentFromMessages(queuedDatum, localMongo);
 
-    LightService.cycleColor(config.PRIMARY_LIGHT_ID, "purples");
+    PhotonsService.cycleColor(config.PRIMARY_LIGHT_ID, "purples");
 
     // Check if message was deleted during content extraction
     if (isMessageCancelled(message.id)) {
@@ -1571,18 +1571,18 @@ async function replyMessage(queuedDatum, localMongo) {
 
     // (Image conversations are already saved per-call inside generateImage)
 
-    LightService.cycleColor(config.PRIMARY_LIGHT_ID, "purples");
+    PhotonsService.cycleColor(config.PRIMARY_LIGHT_ID, "purples");
     // GENERATE SUMMARY
     const textSummary = await AIService.generateTextSummaryFromMessage(
         message,
         generatedTextResponse,
     );
     DiscordUtilityService.setUserActivity(client, textSummary);
-    LightService.cycleColor(config.PRIMARY_LIGHT_ID, "purples");
+    PhotonsService.cycleColor(config.PRIMARY_LIGHT_ID, "purples");
     if (!generatedTextResponse) {
         await message.reply("...");
         lastMessageSentTime = DateTime.now().toISO();
-        LightService.setState({ color: "red" }, config.PRIMARY_LIGHT_ID);
+        PhotonsService.setState({ color: "red" }, config.PRIMARY_LIGHT_ID);
         console.error(`❌ [DiscordService:replyMessage] NO RESPONSE GENERATED
 ${member ? `Member: ${combinedNames}` : `User: ${combinedNames}`}
 ${combinedGuildInformation ? `Guild: ${combinedGuildInformation}` : "Direct Message"}
@@ -1599,7 +1599,7 @@ ${combinedGuildInformation && combinedChannelInformation ? `URL: https://discord
             return;
         }
         await message.fetch();
-        LightService.cycleColor(config.PRIMARY_LIGHT_ID, "purples");
+        PhotonsService.cycleColor(config.PRIMARY_LIGHT_ID, "purples");
         const messageSent = await DiscordUtilityService.sendMessageInChunks(
             "reply",
             message,
@@ -1608,7 +1608,7 @@ ${combinedGuildInformation && combinedChannelInformation ? `URL: https://discord
             generatedImagePrompt,
         );
         repliedMessagesCollection.set(message.id, messageSent.id);
-        LightService.cycleColor(config.PRIMARY_LIGHT_ID, "purples");
+        PhotonsService.cycleColor(config.PRIMARY_LIGHT_ID, "purples");
     } catch (error) {
         console.warn(`❌ [DiscordService:replyMessage] MESSAGE NOT FOUND (OR DELETED)
             ${error}
@@ -1616,7 +1616,7 @@ ${combinedGuildInformation && combinedChannelInformation ? `URL: https://discord
     ${combinedGuildInformation ? `Guild: ${combinedGuildInformation}` : "Direct Message"}
     ${combinedChannelInformation ? `Channel: ${combinedChannelInformation}` : ""}
     ${combinedGuildInformation && combinedChannelInformation ? `URL: https://discord.com/channels/${guild.id}/${channel.id}/${message.id}` : ""}`);
-        LightService.setState({ color: "red" }, config.PRIMARY_LIGHT_ID);
+        PhotonsService.setState({ color: "red" }, config.PRIMARY_LIGHT_ID);
         return;
     }
 
@@ -1740,7 +1740,7 @@ ${combinedGuildInformation && combinedChannelInformation ? `URL: https://discord
         CurrentService.clearConversationIds();
     }
 
-    LightService.cycleColor(config.PRIMARY_LIGHT_ID, "purples");
+    PhotonsService.cycleColor(config.PRIMARY_LIGHT_ID, "purples");
     return;
 }
 
@@ -1794,7 +1794,7 @@ async function extractContentFromMessages(
     _maxSimultaneous = 50,
 ) {
     const functionName = "extractContentFromMessages";
-    LightService.cycleColor(config.PRIMARY_LIGHT_ID, "purples");
+    PhotonsService.cycleColor(config.PRIMARY_LIGHT_ID, "purples");
     const { message, recentMessages } = queuedDatum;
     const now = Date.now();
     const newestMessage = recentMessages.last();
@@ -3186,7 +3186,7 @@ URL: https://discord.com/channels/${message.guild?.id}/${message.channel.id}/${m
 
     // if it's not in this channel: '835237008691560528' or this channel: '835237008691560528'
     if (message.channelId !== "835237008691560528") {
-        LightService.cycleColor(config.PRIMARY_LIGHT_ID, "rainbow");
+        PhotonsService.cycleColor(config.PRIMARY_LIGHT_ID, "rainbow");
     }
 
     if (isMessageWithoutSelfMention) {
@@ -3864,7 +3864,7 @@ async function luposOnGuildMemberUpdate(client, mongo, oldMember, newMember) {
     const hasOldMemberCompletedOnboarding = oldMember.flags & (1 << 1);
     const hasNewMemberCompletedOnboarding = newMember.flags & (1 << 1);
     if (!hasOldMemberCompletedOnboarding && hasNewMemberCompletedOnboarding) {
-        LightService.cycleColor(config.PRIMARY_LIGHT_ID);
+        PhotonsService.cycleColor(config.PRIMARY_LIGHT_ID);
         console.log(
             ...LogFormatter.memberUpdateOnboardingComplete(functionName, newMember),
         );

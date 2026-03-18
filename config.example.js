@@ -59,7 +59,7 @@ export default {
 	"ASSISTANT_MESSAGE": "",
 	"FLAGGED_WORDS": "beaner, c00n, c0on, chink, co0n, coon, f a g g o t, f\\.ag, f@g, f@gg0t, f@ggot, fag, fagg0t, faggatron, faggit, faggot, faggy, fagit, faglord, fagot, fags, fgrt, fgtrtd, FGTRTD, fgts, frociaggine, g00k, g0ok, go0k, gook, honkey, https://imgur.com/aRYkT2C, kike, kys, n!g, n!ger, n!gg3r, n!gger, ni🅱️ 🅱️ a, nibba, nig, nigg3r, nigga, nigger, niglet, pajeet, sassygao, sassygao:, spic, trannies, trannny, tranny, trannys, wetback, www.wowgoldgo.com",
 	
-	"LIFX_TOKEN": "your-lifx-token",
+	"PHOTONS_BASE_URL": "http://localhost:4444",
 	"PRIMARY_LIGHT_ID": "d073d523f763",
 
 	"LANGUAGE_MODEL_PERFORMANCE": "POWERFUL",

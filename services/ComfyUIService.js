@@ -6,7 +6,7 @@ const { consoleLog } = utilities;
 import config from "#root/config.js";
 // Formatter
 import LogFormatter from "#root/formatters/LogFormatter.js";
-import LightService from "#root/services/LightService.js";
+import PhotonsService from "#root/services/PhotonsService.js";
 
 const { COMFY_UI_IMAGE_MODEL_API_URL, COMFY_UI_IMAGE_MODEL_WEBSOCKET_URL } =
   config;
@@ -217,7 +217,7 @@ async function generateImageWithTracking(prompt, client) {
             const percentage = Math.round((value / max) * 100);
             progressDots = calculatePeriodsIncreaseOverTime(progressDots);
 
-            LightService.cycleColor(config.PRIMARY_LIGHT_ID, "rainbow");
+            PhotonsService.cycleColor(config.PRIMARY_LIGHT_ID, "rainbow");
 
             // Clear the line and show progress
             // console.log('\x1b[2K'); // Clear the entire line
