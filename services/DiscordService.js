@@ -35,6 +35,7 @@ import DiscordUtilityService from "#root/services/DiscordUtilityService.js";
 import MessageService from "#root/services/MessageService.js";
 import AIService from "#root/services/AIService.js";
 import CurrentService from "#root/services/CurrentService.js";
+import TrendsService from "#root/services/TrendsService.js";
 // JOBS
 import BirthdayJob from "#root/jobs/scheduled/BirthdayJob.js";
 import ActivityRoleAssignmentJob from "#root/jobs/scheduled/ActivityRoleAssignmentJob.js";
@@ -985,6 +986,16 @@ async function buildAndGenerateReply({
             } catch (memoryErr) {
                 console.warn(`🧠 [DiscordService] Memory retrieval failed: ${memoryErr.message}`);
             }
+        }
+
+        // Trending data — inject what's trending across Trends, Products, and Beacon
+        try {
+            const trendingSummary = await TrendsService.getTrendingSummary();
+            if (trendingSummary) {
+                systemPrompt += trendingSummary;
+            }
+        } catch (trendsErr) {
+            console.warn(`📈 [DiscordService] Trends retrieval failed: ${trendsErr.message}`);
         }
 
         let shouldRedrawImage = false;
