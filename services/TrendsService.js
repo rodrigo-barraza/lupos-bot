@@ -1,9 +1,9 @@
 import config from "#root/config.js";
 
-const TRENDS_BASE_URL = config.TRENDS_API_URL || "http://localhost:5570";
-const PRODUCTS_BASE_URL = config.PRODUCTS_API_URL || "http://localhost:5560";
-const BEACON_BASE_URL = config.BEACON_API_URL || "http://localhost:5556";
-const NIMBUS_BASE_URL = config.NIMBUS_API_URL || "http://localhost:5555";
+const TREND_API_BASE_URL = config.TREND_API_URL || "http://localhost:5570";
+const PRODUCT_API_BASE_URL = config.PRODUCT_API_URL || "http://localhost:5560";
+const EVENT_API_BASE_URL = config.EVENT_API_URL || "http://localhost:5556";
+const WEATHER_API_BASE_URL = config.WEATHER_API_URL || "http://localhost:5555";
 
 const CACHE_TTL_MS = 1 * 60 * 1000; // 1 minutes
 const FETCH_TIMEOUT_MS = 3000; // 3 seconds
@@ -49,7 +49,7 @@ async function fetchTrends() {
   if (isCacheValid("trends")) return cache.trends.data;
   try {
     const data = await fetchWithTimeout(
-      `${TRENDS_BASE_URL}/trends/top?limit=10`,
+      `${TREND_API_BASE_URL}/trends/top?limit=10`,
     );
     if (data?.trends?.length) {
       cache.trends = { data: data.trends, fetchedAt: Date.now() };
@@ -65,7 +65,7 @@ async function fetchProducts() {
   if (isCacheValid("products")) return cache.products.data;
   try {
     const data = await fetchWithTimeout(
-      `${PRODUCTS_BASE_URL}/products/trending?limit=5`,
+      `${PRODUCT_API_BASE_URL}/products/trending?limit=5`,
     );
     if (data?.products?.length) {
       cache.products = { data: data.products, fetchedAt: Date.now() };
@@ -80,7 +80,7 @@ async function fetchProducts() {
 async function fetchEvents() {
   if (isCacheValid("events")) return cache.events.data;
   try {
-    const data = await fetchWithTimeout(`${BEACON_BASE_URL}/events/today`);
+    const data = await fetchWithTimeout(`${EVENT_API_BASE_URL}/events/today`);
     if (data?.events?.length) {
       cache.events = { data: data.events, fetchedAt: Date.now() };
       return data.events;
@@ -94,7 +94,7 @@ async function fetchEvents() {
 async function fetchEarthquakes() {
   if (isCacheValid("earthquakes")) return cache.earthquakes.data;
   try {
-    const data = await fetchWithTimeout(`${NIMBUS_BASE_URL}/earthquakes`);
+    const data = await fetchWithTimeout(`${WEATHER_API_BASE_URL}/earthquakes`);
     if (Array.isArray(data) && data.length) {
       // Filter to M1.0+ only
       const significant = data.filter((q) => (q.magnitude || 0) >= 1.0);
@@ -110,7 +110,7 @@ async function fetchEarthquakes() {
 async function fetchNeo() {
   if (isCacheValid("neo")) return cache.neo.data;
   try {
-    const data = await fetchWithTimeout(`${NIMBUS_BASE_URL}/neo`);
+    const data = await fetchWithTimeout(`${WEATHER_API_BASE_URL}/neo`);
     if (Array.isArray(data) && data.length) {
       cache.neo = { data, fetchedAt: Date.now() };
       return data;
@@ -124,7 +124,7 @@ async function fetchNeo() {
 async function fetchSpaceWeather() {
   if (isCacheValid("spaceWeather")) return cache.spaceWeather.data;
   try {
-    const data = await fetchWithTimeout(`${NIMBUS_BASE_URL}/space-weather`);
+    const data = await fetchWithTimeout(`${WEATHER_API_BASE_URL}/space-weather`);
     if (data) {
       cache.spaceWeather = { data, fetchedAt: Date.now() };
       return data;
@@ -138,7 +138,7 @@ async function fetchSpaceWeather() {
 async function fetchIss() {
   if (isCacheValid("iss")) return cache.iss.data;
   try {
-    const data = await fetchWithTimeout(`${NIMBUS_BASE_URL}/iss`);
+    const data = await fetchWithTimeout(`${WEATHER_API_BASE_URL}/iss`);
     if (data) {
       cache.iss = { data, fetchedAt: Date.now() };
       return data;
@@ -152,7 +152,7 @@ async function fetchIss() {
 async function fetchWildfires() {
   if (isCacheValid("wildfires")) return cache.wildfires.data;
   try {
-    const data = await fetchWithTimeout(`${NIMBUS_BASE_URL}/wildfires`);
+    const data = await fetchWithTimeout(`${WEATHER_API_BASE_URL}/wildfires`);
     if (data?.events?.length) {
       // Filter to significant fires (>1000 acres)
       const major = data.events.filter(

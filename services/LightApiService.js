@@ -1,21 +1,21 @@
 import config from "#root/config.js";
 
-const { PHOTONS_BASE_URL } = config;
+const { LIGHT_API_URL } = config;
 
-export default class PhotonsService {
+export default class LightApiService {
   static currentColor = null;
   static colorIndex = 0;
   static currentStyle = null;
 
   static async getLights(lightId = "all") {
-    const response = await fetch(`${PHOTONS_BASE_URL}/lights/${lightId}`);
+    const response = await fetch(`${LIGHT_API_URL}/lights/${lightId}`);
     const data = await response.json();
     return data;
   }
 
   static async validateColor(color) {
     const response = await fetch(
-      `${PHOTONS_BASE_URL}/color/validate?color=${encodeURIComponent(color)}`,
+      `${LIGHT_API_URL}/color/validate?color=${encodeURIComponent(color)}`,
     );
     const data = await response.json();
     return data;
@@ -30,7 +30,7 @@ export default class PhotonsService {
       fast: state?.fast || true,
     };
     const response = await fetch(
-      `${PHOTONS_BASE_URL}/lights/${lightId}/state`,
+      `${LIGHT_API_URL}/lights/${lightId}/state`,
       {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
@@ -52,7 +52,7 @@ export default class PhotonsService {
       fast: state?.fast || false,
     };
     const response = await fetch(
-      `${PHOTONS_BASE_URL}/lights/${lightId}/state/delta`,
+      `${LIGHT_API_URL}/lights/${lightId}/state/delta`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -65,7 +65,7 @@ export default class PhotonsService {
 
   static async togglePower(lightId = "all", duration = 1) {
     const response = await fetch(
-      `${PHOTONS_BASE_URL}/lights/${lightId}/toggle`,
+      `${LIGHT_API_URL}/lights/${lightId}/toggle`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -78,7 +78,7 @@ export default class PhotonsService {
 
   static async randomizeColor(lightId = "all", duration = 1) {
     const response = await fetch(
-      `${PHOTONS_BASE_URL}/lights/${lightId}/color/randomize`,
+      `${LIGHT_API_URL}/lights/${lightId}/color/randomize`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -91,7 +91,7 @@ export default class PhotonsService {
 
   static async cycleColor(lightId = "all", style = "rainbow", duration = 0.3) {
     const response = await fetch(
-      `${PHOTONS_BASE_URL}/lights/${lightId}/color/cycle`,
+      `${LIGHT_API_URL}/lights/${lightId}/color/cycle`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },

@@ -5,7 +5,7 @@ const { consoleLog } = utilities;
 import config from "#root/config.js";
 import { Collection, ChannelType, Events, ActivityType } from "discord.js";
 import ScraperService from "#root/services/ScraperService.js";
-import PhotonsService from "#root/services/PhotonsService.js";
+import LightApiService from "#root/services/LightApiService.js";
 import LogFormatter from "#root/formatters/LogFormatter.js";
 
 async function fetchMessagesWithOptionalLastId(
@@ -2227,7 +2227,7 @@ const DiscordUtilityService = {
         !member.roles.cache.some((role) => role.id === roleId)
       ) {
         await member.roles.add(role);
-        PhotonsService.cycleColor(config.PRIMARY_LIGHT_ID);
+        LightApiService.cycleColor(config.PRIMARY_LIGHT_ID);
         console.log(...LogFormatter.roleAdded(member, role));
       }
     } catch (error) {
@@ -2246,7 +2246,7 @@ const DiscordUtilityService = {
         member.roles.cache.some((role) => role.id === roleId)
       ) {
         await member.roles.remove(role);
-        PhotonsService.cycleColor(config.PRIMARY_LIGHT_ID);
+        LightApiService.cycleColor(config.PRIMARY_LIGHT_ID);
         console.log(...LogFormatter.roleRemoved(member, role));
       }
     } catch (error) {
