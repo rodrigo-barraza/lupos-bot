@@ -29,11 +29,17 @@ export default class PrismService {
    * @returns {Promise<any>}
    */
   static async _request(endpoint, { method = "POST", body, username = "lupos" } = {}) {
-    const res = await fetch(`${API_BASE}${endpoint}`, {
-      method,
-      headers: getHeaders(username),
-      ...(body && { body: JSON.stringify(body) }),
-    });
+    let res;
+    try {
+      res = await fetch(`${API_BASE}${endpoint}`, {
+        method,
+        headers: getHeaders(username),
+        ...(body && { body: JSON.stringify(body) }),
+      });
+    } catch (error) {
+      console.error(`[PrismService] Network error on ${endpoint}:`, error.message);
+      throw new Error(`Prism unreachable: ${error.message}`);
+    }
 
     if (!res.ok) {
       const errorText = await res.text();

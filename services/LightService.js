@@ -8,29 +8,39 @@ export default class LightService {
   static currentStyle = null;
 
   static async validateColor(color) {
-    const response = await fetch(
-      `https://api.lifx.com/v1/color?string=${color}`,
-      {
-        method: "GET",
+    try {
+      const response = await fetch(
+        `https://api.lifx.com/v1/color?string=${color}`,
+        {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${LIFX_TOKEN}`,
+            "Content-Type": "application/json",
+          },
+        },
+      );
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      console.error("[LightService] validateColor failed:", error.message);
+      return null;
+    }
+  }
+
+  static async getLights(lightId = "all") {
+    try {
+      const response = await fetch(`https://api.lifx.com/v1/lights/${lightId}`, {
         headers: {
           Authorization: `Bearer ${LIFX_TOKEN}`,
           "Content-Type": "application/json",
         },
-      },
-    );
-    const data = await response.json();
-    return data;
-  }
-
-  static async getLights(lightId = "all") {
-    const response = await fetch(`https://api.lifx.com/v1/lights/${lightId}`, {
-      headers: {
-        Authorization: `Bearer ${LIFX_TOKEN}`,
-        "Content-Type": "application/json",
-      },
-    });
-    const data = await response.json();
-    return data;
+      });
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      console.error("[LightService] getLights failed:", error.message);
+      return null;
+    }
   }
 
   static async setState(state, lightId = "all") {
@@ -41,24 +51,29 @@ export default class LightService {
       duration: state?.duration || 1,
       fast: state?.fast || true,
     };
-    const response = await fetch(
-      `https://api.lifx.com/v1/lights/${lightId}/state`,
-      {
-        method: "PUT",
-        headers: {
-          Authorization: `Bearer ${LIFX_TOKEN}`,
-          "Content-Type": "application/json",
+    try {
+      const response = await fetch(
+        `https://api.lifx.com/v1/lights/${lightId}/state`,
+        {
+          method: "PUT",
+          headers: {
+            Authorization: `Bearer ${LIFX_TOKEN}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(body),
         },
-        body: JSON.stringify(body),
-      },
-    );
+      );
 
-    if (response.status === 202) {
-      return true;
+      if (response.status === 202) {
+        return true;
+      }
+
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      console.error("[LightService] setState failed:", error.message);
+      return null;
     }
-
-    const data = await response.json();
-    return data;
   }
 
   static async setStateDelta(state, lightId = "all") {
@@ -71,38 +86,48 @@ export default class LightService {
       kelvin: state?.kelvin || 2500,
       fast: state?.fast || false,
     };
-    const response = await fetch(
-      `https://api.lifx.com/v1/lights/${lightId}/state/delta`,
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${LIFX_TOKEN}`,
-          "Content-Type": "application/json",
+    try {
+      const response = await fetch(
+        `https://api.lifx.com/v1/lights/${lightId}/state/delta`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${LIFX_TOKEN}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(body),
         },
-        body: JSON.stringify(body),
-      },
-    );
-    const data = await response.json();
-    return data;
+      );
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      console.error("[LightService] setStateDelta failed:", error.message);
+      return null;
+    }
   }
 
   static async togglePower(lightId = "all", duration = 1) {
     const body = {
       duration: duration,
     };
-    const response = await fetch(
-      `https://api.lifx.com/v1/lights/${lightId}/toggle`,
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${LIFX_TOKEN}`,
-          "Content-Type": "application/json",
+    try {
+      const response = await fetch(
+        `https://api.lifx.com/v1/lights/${lightId}/toggle`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${LIFX_TOKEN}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(body),
         },
-        body: JSON.stringify(body),
-      },
-    );
-    const data = await response.json();
-    return data;
+      );
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      console.error("[LightService] togglePower failed:", error.message);
+      return null;
+    }
   }
 
   static async randomizeColor(lightId = "all", duration = 1) {
