@@ -1,19 +1,19 @@
 import config from "#root/config.js";
 
-const { LIGHT_API_URL } = config;
+const { LIGHTS_URL } = config;
 
-export default class LightApiService {
+export default class LightsService {
   static currentColor = null;
   static colorIndex = 0;
   static currentStyle = null;
 
   static async getLights(lightId = "all") {
     try {
-      const response = await fetch(`${LIGHT_API_URL}/lights/${lightId}`);
+      const response = await fetch(`${LIGHTS_URL}/lights/${lightId}`);
       const data = await response.json();
       return data;
     } catch (error) {
-      console.error("[LightApiService] getLights failed:", error.message);
+      console.error("[LightsService] getLights failed:", error.message);
       return null;
     }
   }
@@ -21,12 +21,12 @@ export default class LightApiService {
   static async validateColor(color) {
     try {
       const response = await fetch(
-        `${LIGHT_API_URL}/color/validate?color=${encodeURIComponent(color)}`,
+        `${LIGHTS_URL}/color/validate?color=${encodeURIComponent(color)}`,
       );
       const data = await response.json();
       return data;
     } catch (error) {
-      console.error("[LightApiService] validateColor failed:", error.message);
+      console.error("[LightsService] validateColor failed:", error.message);
       return null;
     }
   }
@@ -41,7 +41,7 @@ export default class LightApiService {
     };
     try {
       const response = await fetch(
-        `${LIGHT_API_URL}/lights/${lightId}/state`,
+        `${LIGHTS_URL}/lights/${lightId}/state`,
         {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
@@ -51,7 +51,7 @@ export default class LightApiService {
       const data = await response.json();
       return data;
     } catch (error) {
-      console.error("[LightApiService] setState failed:", error.message);
+      console.error("[LightsService] setState failed:", error.message);
       return null;
     }
   }
@@ -68,7 +68,7 @@ export default class LightApiService {
     };
     try {
       const response = await fetch(
-        `${LIGHT_API_URL}/lights/${lightId}/state/delta`,
+        `${LIGHTS_URL}/lights/${lightId}/state/delta`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -78,7 +78,7 @@ export default class LightApiService {
       const data = await response.json();
       return data;
     } catch (error) {
-      console.error("[LightApiService] setStateDelta failed:", error.message);
+      console.error("[LightsService] setStateDelta failed:", error.message);
       return null;
     }
   }
@@ -86,7 +86,7 @@ export default class LightApiService {
   static async togglePower(lightId = "all", duration = 1) {
     try {
       const response = await fetch(
-        `${LIGHT_API_URL}/lights/${lightId}/toggle`,
+        `${LIGHTS_URL}/lights/${lightId}/toggle`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -96,7 +96,7 @@ export default class LightApiService {
       const data = await response.json();
       return data;
     } catch (error) {
-      console.error("[LightApiService] togglePower failed:", error.message);
+      console.error("[LightsService] togglePower failed:", error.message);
       return null;
     }
   }
@@ -104,7 +104,7 @@ export default class LightApiService {
   static async randomizeColor(lightId = "all", duration = 1) {
     try {
       const response = await fetch(
-        `${LIGHT_API_URL}/lights/${lightId}/color/randomize`,
+        `${LIGHTS_URL}/lights/${lightId}/color/randomize`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -114,7 +114,7 @@ export default class LightApiService {
       const data = await response.json();
       return data;
     } catch (error) {
-      console.error("[LightApiService] randomizeColor failed:", error.message);
+      console.error("[LightsService] randomizeColor failed:", error.message);
       return null;
     }
   }
@@ -122,7 +122,7 @@ export default class LightApiService {
   static async cycleColor(lightId = "all", style = "rainbow", duration = 0.3) {
     try {
       const response = await fetch(
-        `${LIGHT_API_URL}/lights/${lightId}/color/cycle`,
+        `${LIGHTS_URL}/lights/${lightId}/color/cycle`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -132,7 +132,7 @@ export default class LightApiService {
       const data = await response.json();
       return data;
     } catch (error) {
-      console.error("[LightApiService] cycleColor failed:", error.message);
+      console.error("[LightsService] cycleColor failed:", error.message);
       return null;
     }
   }

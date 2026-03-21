@@ -59,7 +59,7 @@ export default {
 	"ASSISTANT_MESSAGE": "",
 	"FLAGGED_WORDS": "beaner, c00n, c0on, chink, co0n, coon, f a g g o t, f\\.ag, f@g, f@gg0t, f@ggot, fag, fagg0t, faggatron, faggit, faggot, faggy, fagit, faglord, fagot, fags, fgrt, fgtrtd, FGTRTD, fgts, frociaggine, g00k, g0ok, go0k, gook, honkey, https://imgur.com/aRYkT2C, kike, kys, n!g, n!ger, n!gg3r, n!gger, ni🅱️ 🅱️ a, nibba, nig, nigg3r, nigga, nigger, niglet, pajeet, sassygao, sassygao:, spic, trannies, trannny, tranny, trannys, wetback, www.wowgoldgo.com",
 	
-	"LIGHT_API_URL": "http://localhost:4444",
+	"LIGHTS_URL": "http://localhost:4444",
 	"TREND_API_URL": "http://localhost:5570",
 	"PRODUCT_API_URL": "http://localhost:5560",
 	"EVENT_API_URL": "http://localhost:5556",
