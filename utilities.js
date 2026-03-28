@@ -425,6 +425,63 @@ const utilities = {
     }
     return combinedDateInformation;
   },
+  /**
+   * Build a Discord CDN avatar URL.
+   * Handles animated avatars (a_ prefix → .gif) vs static (.png).
+   * @param {string} userId
+   * @param {string} avatarHash
+   * @param {number} [size=512]
+   * @returns {string|null}
+   */
+  getDiscordAvatarUrl(userId, avatarHash, size = 512) {
+    if (!userId || !avatarHash) return null;
+    const ext = avatarHash.startsWith("a_") ? "gif" : "png";
+    return `https://cdn.discordapp.com/avatars/${userId}/${avatarHash}.${ext}?size=${size}`;
+  },
+  /**
+   * Build a Discord CDN banner URL.
+   * Handles animated banners (a_ prefix → .gif) vs static (.png).
+   * @param {string} userId
+   * @param {string} bannerHash
+   * @param {number} [size=512]
+   * @returns {string|null}
+   */
+  getDiscordBannerUrl(userId, bannerHash, size = 512) {
+    if (!userId || !bannerHash) return null;
+    const ext = bannerHash.startsWith("a_") ? "gif" : "png";
+    return `https://cdn.discordapp.com/banners/${userId}/${bannerHash}.${ext}?size=${size}`;
+  },
+  /**
+   * Format a millisecond duration into a human-readable string.
+   * @param {number} ms - Duration in milliseconds.
+   * @returns {string} e.g. "2d 5h 30m", "1h 15m 30s", "45s"
+   */
+  formatTimeSpan(ms) {
+    const seconds = Math.floor(ms / 1000);
+    const minutes = Math.floor(seconds / 60);
+    const hours = Math.floor(minutes / 60);
+    const days = Math.floor(hours / 24);
+
+    if (days > 0) {
+      return `${days}d ${hours % 24}h ${minutes % 60}m`;
+    } else if (hours > 0) {
+      return `${hours}h ${minutes % 60}m ${seconds % 60}s`;
+    } else if (minutes > 0) {
+      return `${minutes}m ${seconds % 60}s`;
+    } else {
+      return `${seconds}s`;
+    }
+  },
+  /**
+   * Build a Discord message URL.
+   * @param {string} guildId
+   * @param {string} channelId
+   * @param {string} messageId
+   * @returns {string}
+   */
+  getDiscordMessageUrl(guildId, channelId, messageId) {
+    return `https://discord.com/channels/${guildId}/${channelId}/${messageId}`;
+  },
 };
 
 export default utilities;

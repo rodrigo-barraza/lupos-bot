@@ -1,26 +1,24 @@
-let sicknessLevel = 0;
+import StatService from "#root/services/StatService.js";
+
+const sicknessStat = StatService.create("sickness", {
+  min: 0,
+  max: 100,
+  initial: 0,
+  step: 10,
+});
 
 const SicknessService = {
   getSicknessLevel() {
-    return sicknessLevel;
+    return sicknessStat.getLevel();
   },
   setSicknessLevel(level) {
-    sicknessLevel = level;
+    return sicknessStat.setLevel(level);
   },
   increaseSicknessLevel() {
-    let currentSicknessLevel = SicknessService.getSicknessLevel() + 10;
-    currentSicknessLevel =
-      currentSicknessLevel > 100 ? 100 : currentSicknessLevel;
-    SicknessService.setSicknessLevel(currentSicknessLevel);
-    console.log(`Sickness level increased to: ${currentSicknessLevel}`);
-    return currentSicknessLevel;
+    return sicknessStat.increase();
   },
   decreaseSicknessLevel() {
-    let currentSicknessLevel = SicknessService.getSicknessLevel() - 10;
-    currentSicknessLevel = currentSicknessLevel < 0 ? 0 : currentSicknessLevel;
-    SicknessService.setSicknessLevel(currentSicknessLevel);
-    console.log(`Sickness level decreased to: ${currentSicknessLevel}`);
-    return currentSicknessLevel;
+    return sicknessStat.decrease();
   },
 };
 
