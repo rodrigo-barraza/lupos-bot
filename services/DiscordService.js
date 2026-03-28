@@ -47,8 +47,14 @@ import utilities from "#root/utilities.js";
 // FORMATTERS
 import LogFormatter from "#root/formatters/LogFormatter.js";
 // CONSTANTS
-import { MessageConstant } from "#root/constants.js";
+import {
+  MessageConstant,
+  GAME_ROLE_MAPPINGS,
+  EXPLOSION_GIFS,
+  YOUTUBE_BUTTON_ACTIONS,
+} from "#root/constants.js";
 import CensorService from "#root/services/CensorService.js";
+import { kickIfTooNew } from "#root/services/AccountGuardService.js";
 
 const args = process.argv.slice(2);
 const mode = args.find((arg) => arg.startsWith("mode="))?.split("=")[1];
@@ -1983,7 +1989,7 @@ async function extractContentFromMessages(
         timeSpanMs: timeSpanMs,
         timeSpanMinutes: timeSpanMinutes.toFixed(2),
         timeSpanHours: timeSpanHours.toFixed(2),
-        timeSpanFormatted: formatTimeSpan(timeSpanMs),
+        timeSpanFormatted: utilities.formatTimeSpan(timeSpanMs),
         averageTimeBetweenMessages:
           (timeSpanMs / (count - 1) / 1000).toFixed(2) + " seconds",
         messagesPerHour: (count / timeSpanHours).toFixed(2),
@@ -1997,23 +2003,7 @@ async function extractContentFromMessages(
     }
   }
 
-  // Helper function to format time span nicely
-  function formatTimeSpan(ms) {
-    const seconds = Math.floor(ms / 1000);
-    const minutes = Math.floor(seconds / 60);
-    const hours = Math.floor(minutes / 60);
-    const days = Math.floor(hours / 24);
 
-    if (days > 0) {
-      return `${days}d ${hours % 24}h ${minutes % 60}m`;
-    } else if (hours > 0) {
-      return `${hours}h ${minutes % 60}m ${seconds % 60}s`;
-    } else if (minutes > 0) {
-      return `${minutes}m ${seconds % 60}s`;
-    } else {
-      return `${seconds}s`;
-    }
-  }
 
   // Get some useful insights
   const _stats = {
@@ -2118,11 +2108,8 @@ async function extractContentFromMessages(
   const messagesTranscriptionsCollection = new Collection();
   const messagesEmojisCollection = new Collection();
   const conversationsCollection = new Collection();
-  const _attachmentsCollection = new Collection();
-
   const conversation = [];
   const newSystemPrompt = "";
-  const _promptForImagePromptGeneration = "";
 
   // Prepare all async operations
   const allPromises = {
@@ -2284,19 +2271,15 @@ async function extractContentFromMessages(
           // Queue avatar/banner fetching
           let avatarUrl, bannerUrl;
           if (user) {
-            if (user.avatar) {
-              avatarUrl = `https://cdn.discordapp.com/avatars/${user.id}/${user.avatar}.jpg?size=512`;
-            }
-            if (user.banner) {
-              bannerUrl = `https://cdn.discordapp.com/banners/${user.id}/${user.banner}.jpg?size=512`;
-            }
+            avatarUrl = utilities.getDiscordAvatarUrl(user.id, user.avatar);
+            bannerUrl = utilities.getDiscordBannerUrl(user.id, user.banner);
           }
           if (member) {
             if (member.avatar) {
-              avatarUrl = `https://cdn.discordapp.com/avatars/${member.id}/${member.avatar}.jpg?size=512`;
+              avatarUrl = utilities.getDiscordAvatarUrl(member.id, member.avatar);
             }
             if (member.banner) {
-              bannerUrl = `https://cdn.discordapp.com/banners/${member.id}/${member.banner}.jpg?size=512`;
+              bannerUrl = utilities.getDiscordBannerUrl(member.id, member.banner);
             }
           }
 
@@ -2991,7 +2974,7 @@ async function luposOnReady(client, { mongo }) {
   } else if (mode === "messages") {
     // Reset bot nickname to "Lupos" in specific guild on startup
     try {
-      const targetGuild = client.guilds.cache.get("1388329197260505262");
+      const targetGuild = client.guilds.cache.get(config.GUILD_ID_GROBBULUS);
       if (targetGuild) {
         const botMember = await targetGuild.members.fetch(client.user.id);
         if (botMember) {
@@ -3074,7 +3057,7 @@ async function luposOnReadyCloneMessages(client, { localMongo }) {
   await DiscordUtilityService.fetchAndSaveAllServerMessages(
     client,
     localMongo,
-    "609471635308937237",
+    config.GUILD_ID_PRIMARY,
   );
 }
 
@@ -3092,37 +3075,14 @@ async function luposOnReadyDeleteNewAccounts(client) {
 
   console.log(`[${functionName}] Fetching all members...`);
   const members = await guild.members.fetch();
-  const twoWeeks = 14 * 24 * 60 * 60 * 1000;
-  const now = Date.now();
   let kickedCount = 0;
-  let skippedCount = 0;
 
-  for (const [id, member] of members) {
-    if (member.user.bot) continue;
-    const accountAge = now - member.user.createdAt.getTime();
-    const isWhitelisted = config.USER_IDS_NEW_ACCOUNT_WHITELIST?.includes(id);
-    if (accountAge < twoWeeks && !isWhitelisted) {
-      const ageDays = Math.floor(accountAge / (24 * 60 * 60 * 1000));
-      console.log(
-        `[${functionName}] Kicking: ${member.user.username} (${id}), account age: ${ageDays} days`,
-      );
-      try {
-        await member.kick(`Account too new (${ageDays} days old)`);
-        kickedCount++;
-      } catch (error) {
-        console.error(
-          `[${functionName}] Failed to kick ${member.user.username}:`,
-          error,
-        );
-      }
-    } else if (accountAge < twoWeeks && isWhitelisted) {
-      skippedCount++;
-    }
+  for (const [, member] of members) {
+    const wasKicked = await kickIfTooNew(member, functionName);
+    if (wasKicked) kickedCount++;
   }
 
-  console.log(
-    `[${functionName}] Done. Kicked: ${kickedCount}, Skipped (whitelisted): ${skippedCount}`,
-  );
+  console.log(`[${functionName}] Done. Kicked: ${kickedCount}`);
 }
 
 async function processMessage(
@@ -3141,33 +3101,11 @@ async function processMessage(
   const isGuildWhitemane = message?.guildId === config.GUILD_ID_PRIMARY;
   const isMentioningBot = isDirectMessage || message.mentions.has(client.user);
 
-  // const allowedUsers = [
-  //     "110985818159489024",  // exuu
-  //     "470691659320000514",  // kimpackabowl
-  //     "196691344859725824",  // grim
-  //     "793352645217615893",   // nikki
-  //     "166745313258897409",   // Rodrigo
-  //     "791136120472600646",   // adira
-  //     "1249923990026326107",  //papiputin9_92613
-  // ];
-
-  const disallowedGuilds = [
-    "1388329197260505262", // Grobbulus
-  ];
-
-  // if (disallowedGuilds.includes(message.guildId) && !allowedUsers.includes(message.author.id)) {
-  //     return;
-  // }
-  if (disallowedGuilds.includes(message.guildId)) {
+  if (message.guildId === config.GUILD_ID_GROBBULUS) {
     return;
   }
 
-  const disallowedUsers = [
-    "108079833283604480", // dementrius.
-    "150025324095209472", // borgrar
-  ];
-
-  if (disallowedUsers.includes(message.author.id)) {
+  if (config.USER_IDS_DISALLOWED.includes(message.author.id)) {
     return;
   }
 
@@ -3263,8 +3201,7 @@ URL: https://discord.com/channels/${message.guild?.id}/${message.channel.id}/${m
     await YouTubeService.setVolume(client, message);
   }
 
-  // if it's not in this channel: '835237008691560528' or this channel: '835237008691560528'
-  if (message.channelId !== "835237008691560528") {
+  if (message.channelId !== config.CHANNEL_ID_JUKEBOX_EXCEPTION) {
     LightsService.cycleColor(config.PRIMARY_LIGHT_ID, "rainbow");
   }
 
@@ -3312,26 +3249,9 @@ URL: https://discord.com/channels/${message.guild?.id}/${message.channel.id}/${m
     DiscordUtilityService.setUserStatus(client, "idle");
     if (message.guild.id === config.GUILD_ID_PRIMARY) {
       let secondsRemaining = 10;
-      const explosionGifs = [
-        "https://tenor.com/view/house-explosion-explode-boom-kaboom-gif-19506150",
-        "https://tenor.com/view/bingbangboom-will-ferrell-anchorman-gif-27377989",
-        "https://tenor.com/view/explosion-cat-gif-5858640239144030160",
-        "https://tenor.com/view/aunt-may-may-parker-spider-man-explosion-reversed-gif-14580976912125554154",
-        "https://tenor.com/view/explosion-gif-18109706",
-        "https://tenor.com/view/running-explosion-gif-21340471",
-        "https://tenor.com/view/explosion-explode-clouds-of-smoke-gif-17216934",
-        "https://tenor.com/view/explosion-missile-cat-dancing-yippe-gif-3015672001210922862",
-        "https://tenor.com/view/cat-brick-nuke-explosion-gif-10450514456976550076",
-        "https://tenor.com/view/cat-explosion-gif-25536604",
-        "https://tenor.com/view/splooge-sploosh-take-that-gif-24820474",
-        "https://tenor.com/view/this-is-my-kingdom-come-gif-22105215",
-        "https://tenor.com/view/lazy-eye-gif-8849457",
-        "https://tenor.com/view/house-monster-gif-22761469",
-      ];
-
       // Randomly select an explosion GIF
       const randomExplosionGif =
-        explosionGifs[Math.floor(Math.random() * explosionGifs.length)];
+        EXPLOSION_GIFS[Math.floor(Math.random() * EXPLOSION_GIFS.length)];
 
       try {
         // Send initial message and store it
@@ -3538,15 +3458,12 @@ async function luposOnMessageDelete(client, message) {
   });
   if (!name) return;
 
-  const avatar = message.author?.avatar;
-  const avatarUrl = avatar
-    ? `https://cdn.discordapp.com/avatars/${message.author.id}/${avatar}.${avatar.startsWith("a_") ? "gif" : "png"}?size=512`
-    : null;
+  const avatarUrl = utilities.getDiscordAvatarUrl(message.author?.id, message.author?.avatar);
   const channelName = DiscordUtilityService.getChannelName(
     client,
     message.channelId,
   );
-  const messageURL = `https://discord.com/channels/${message.guildId}/${message.channelId}/${message.id}`;
+  const messageURL = utilities.getDiscordMessageUrl(message.guildId, message.channelId, message.id);
 
   // Build main embed
   const embed = new EmbedBuilder()
@@ -3707,10 +3624,7 @@ async function processCreateReaction(client, queuedReaction) {
       member: reaction.message.member,
       user: reaction.message.author,
     });
-    const avatar = reaction.message.author?.avatar;
-    const avatarUrl = avatar
-      ? `https://cdn.discordapp.com/avatars/${userId}/${avatar}.jpg?size=512`
-      : "";
+    const avatarUrl = utilities.getDiscordAvatarUrl(reaction.message.author?.id, reaction.message.author?.avatar) || "";
 
     const emojiId = reaction._emoji.id;
     const emojiName = reaction._emoji.name;
@@ -3880,26 +3794,8 @@ async function luposOnGuildMemberAdd(client, mongo, member) {
   console.log(...LogFormatter.memberJoinedGuild(functionName, member));
 
   // Kick accounts less than 2 weeks old (unless whitelisted)
-  const accountAge = Date.now() - member.user.createdAt.getTime();
-  const twoWeeks = 14 * 24 * 60 * 60 * 1000;
-  const isWhitelisted = config.USER_IDS_NEW_ACCOUNT_WHITELIST?.includes(
-    member.id,
-  );
-  if (accountAge < twoWeeks && !isWhitelisted) {
-    const ageDays = Math.floor(accountAge / (24 * 60 * 60 * 1000));
-    console.log(
-      `[${functionName}] Kicking new account: ${member.user.username} (${member.id}), account age: ${ageDays} days`,
-    );
-    try {
-      await member.kick(`Account too new (${ageDays} days old)`);
-    } catch (error) {
-      console.error(
-        `[${functionName}] Failed to kick new account ${member.user.username}:`,
-        error,
-      );
-    }
-    return;
-  }
+  const wasKicked = await kickIfTooNew(member, functionName);
+  if (wasKicked) return;
 
   // Assign politics mute role if user is in the muted list
   if (config.USER_IDS_POLITICS_MUTED?.includes(member.id)) {
@@ -3916,7 +3812,7 @@ async function luposOnGuildMemberUpdate(client, mongo, oldMember, newMember) {
 
   // Revert bot nickname if changed in specific server
   if (
-    newMember.guild.id === "1388329197260505262" &&
+    newMember.guild.id === config.GUILD_ID_GROBBULUS &&
     newMember.id === client.user.id
   ) {
     const expectedNickname = "Lupos";
@@ -4006,29 +3902,10 @@ async function luposOnInteractionCreate(client, mongo, interaction) {
       }
     }
 
-    if (interaction.customId === "volumeUp") {
+    const youtubeAction = YOUTUBE_BUTTON_ACTIONS[interaction.customId];
+    if (youtubeAction) {
       const reply = await interaction.deferReply();
-      YouTubeService.setVolumeByAmount(5);
-      await reply.delete();
-      return;
-    } else if (interaction.customId === "volumeDown") {
-      const reply = await interaction.deferReply();
-      YouTubeService.setVolumeByAmount(-5);
-      await reply.delete();
-      return;
-    } else if (interaction.customId === "pause") {
-      const reply = await interaction.deferReply();
-      YouTubeService.buttonPause();
-      await reply.delete();
-      return;
-    } else if (interaction.customId === "resume") {
-      const reply = await interaction.deferReply();
-      YouTubeService.buttonResume();
-      await reply.delete();
-      return;
-    } else if (interaction.customId === "next") {
-      const reply = await interaction.deferReply();
-      YouTubeService.buttonNext();
+      YouTubeService[youtubeAction.method](...youtubeAction.args);
       await reply.delete();
       return;
     }
@@ -4107,25 +3984,7 @@ async function luposOnPresenceUpdate(client, oldPresence, newPresence) {
           );
         }
 
-        const gameRoleMappings = [
-          { activityName: "apex legends", roleName: "apex legends" },
-          { activityName: "ashes of creation", roleName: "ashes of creation" },
-          { activityName: "counter-strike", roleName: "counter-strike" },
-          { activityName: "deadlock", roleName: "deadlock" },
-          { activityName: "diablo", roleName: "diablo" },
-          { activityName: "dota", roleName: "dota 2" },
-          { activityName: "fortnite", roleName: "fortnite" },
-          { activityName: "league of legends", roleName: "league of legends" },
-          { activityName: "marvel rivals", roleName: "marvel rivals" },
-          { activityName: "minecraft", roleName: "minecraft" },
-          { activityName: "overwatch", roleName: "overwatch" },
-          { activityName: "runelite", roleName: "runescape" },
-          { activityName: "the sims", roleName: "the sims" },
-          { activityName: "valorant", roleName: "valorant" },
-          { activityName: "warhammer", roleName: "warhammer" },
-        ];
-
-        for (const mapping of gameRoleMappings) {
+        for (const mapping of GAME_ROLE_MAPPINGS) {
           if (activity.name.toLowerCase().includes(mapping.activityName)) {
             const roleId = rolesVideogames.find(
               (role) => role.name.toLowerCase() === mapping.roleName,
@@ -4146,8 +4005,7 @@ async function luposOnPresenceUpdate(client, oldPresence, newPresence) {
       // listening
       if (activity.type === 2) {
         activityName = activity.name;
-        const roleId = "1392632930957918239";
-        await DiscordUtilityService.addRoleToMember(newPresence.member, roleId);
+        await DiscordUtilityService.addRoleToMember(newPresence.member, config.ROLE_ID_SPOTIFY_LISTENER);
         // console.log(`${newPresence.user.tag} is listening to ${activity.name}.`);
       }
       // watching
