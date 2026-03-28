@@ -1,3 +1,71 @@
+# Lupos — Discord Bot
+
+A highly personalized, AI-powered Discord bot that serves as the backbone of a gaming community server. Beyond standard chat, Lupos generates context-aware responses and creates images from prompts. It relies on the Prism gateway for AI capabilities and the Tools API for context pulling. It features complex, simulated personality traits (like mood, hunger, energy) that influence its active chat behavior, handles roles, tracks the most active chatters, moderates content, and plays media.
+
+## ✨ Features
+
+- **Context-Aware Responses** — generates highly personalized responses using the Prism gateway.
+- **Image Generation & Vision** — creates images from prompts and can 'see' uploaded images.
+- **Simulated Personality** — dynamic traits like mood, hunger, and energy which influence its chat behavior.
+- **Community Management** — handles roles, tracks the most active chatters, moderates content, and plays media.
+
+## ⚙️ Prerequisites
+
+- **Node.js** v20+ (ES Modules)
+- **Discord Bot Token**
+- **MongoDB** (for tracking users, messages, and personality state)
+- **Prism** & **Tools API** accessible.
+
+## 🛠️ Tech Stack
+
+| Dependency | Purpose |
+| --- | --- |
+| Node.js | Runtime |
+| Discord.js | Interaction with Discord API |
+| @discordjs/voice | Voice channel integration (music, TTS) |
+| MongoDB | Core persistent storage |
+| Puppeteer | Rendering web views for images |
+| Sharp / Jimp | Image manipulation |
+
+## 🚀 Setup
+
+### 1️⃣ Install dependencies
+
+```bash
+npm install
+```
+
+### 2️⃣ Configure secrets
+
+```bash
+cp secrets.example.js secrets.js
+```
+
+### 3️⃣ Start the server
+
+```bash
+npm run dev        # Development (Lupos starts in messages mode)
+```
+
+## 📜 Scripts
+
+```bash
+npm run dev        # Run Lupos (starts in messages mode)
+npm test           # Run tests (Jest)
+npm run lint       # Run ESLint
+npm run lint:fix   # Auto-fix lint issues
+npm run format     # Format with Prettier
+npm run format:check # Check formatting
+```
+
+## ☀️ Part of [Sun](https://github.com/rodrigo-barraza)
+
+Lupos is one service in the Sun ecosystem — a collection of composable backend services and frontends designed to be mixed and matched.
+
+---
+
+## 📝 Development Notes & Logs
+
 === Channel Activity Report (Past 36 months) ===
 === Sorted by Average Messages Per Day ===
 
