@@ -1,9 +1,4 @@
-import {
-  jest,
-  describe,
-  test,
-  expect,
-} from "@jest/globals";
+import { jest, describe, test, expect } from "@jest/globals";
 jest.unstable_mockModule(
   "../../config.json",
   () => ({

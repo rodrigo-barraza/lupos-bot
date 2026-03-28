@@ -100,7 +100,9 @@ describe("services.js (Express Routes)", () => {
       json: jest.fn(),
     };
 
-    const consoleSpy = jest.spyOn(console, "error").mockImplementation(() => {});
+    const consoleSpy = jest
+      .spyOn(console, "error")
+      .mockImplementation(() => {});
 
     await routeHandler(mockReq, mockRes);
 

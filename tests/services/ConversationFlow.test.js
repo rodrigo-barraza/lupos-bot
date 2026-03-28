@@ -1,11 +1,4 @@
-import {
-  jest,
-  describe,
-  it,
-  expect,
-  beforeAll,
-  afterAll,
-} from "@jest/globals";
+import { jest, describe, it, expect, beforeAll, afterAll } from "@jest/globals";
 
 // ── Mocks ────────────────────────────────────────────────────────────────────
 // Mock heavyweight dependencies that AIService transitively depends on
@@ -118,11 +111,10 @@ describe("Image Generation Detection", () => {
       it(
         `"${prompt}" → should return true`,
         async () => {
-          const result =
-            await AIService.generateTextIsAskingToGenerateImage(
-              prompt,
-              mockMessage,
-            );
+          const result = await AIService.generateTextIsAskingToGenerateImage(
+            prompt,
+            mockMessage,
+          );
           expect(result).toBe(true);
         },
         AI_TIMEOUT,
@@ -160,11 +152,10 @@ describe("Image Generation Detection", () => {
       it(
         `"${prompt}" → should return false`,
         async () => {
-          const result =
-            await AIService.generateTextIsAskingToGenerateImage(
-              prompt,
-              mockMessage,
-            );
+          const result = await AIService.generateTextIsAskingToGenerateImage(
+            prompt,
+            mockMessage,
+          );
           expect(result).toBe(false);
         },
         AI_TIMEOUT,
@@ -191,11 +182,10 @@ describe("Draw-Self Detection", () => {
       it(
         `"${prompt}" → should return true`,
         async () => {
-          const result =
-            await AIService.generateTextIsAskingToDrawThemselves(
-              prompt,
-              mockMessage,
-            );
+          const result = await AIService.generateTextIsAskingToDrawThemselves(
+            prompt,
+            mockMessage,
+          );
           expect(result).toBe(true);
         },
         AI_TIMEOUT,
@@ -216,11 +206,10 @@ describe("Draw-Self Detection", () => {
       it(
         `"${prompt}" → should return false`,
         async () => {
-          const result =
-            await AIService.generateTextIsAskingToDrawThemselves(
-              prompt,
-              mockMessage,
-            );
+          const result = await AIService.generateTextIsAskingToDrawThemselves(
+            prompt,
+            mockMessage,
+          );
           expect(result).toBe(false);
         },
         AI_TIMEOUT,
@@ -246,11 +235,10 @@ describe("NSFW Detection", () => {
       it(
         `"${prompt}" → should return true`,
         async () => {
-          const result =
-            await AIService.generateTextIsAskingLewdOrNSFW(
-              prompt,
-              mockMessage,
-            );
+          const result = await AIService.generateTextIsAskingLewdOrNSFW(
+            prompt,
+            mockMessage,
+          );
           expect(result).toBe(true);
         },
         AI_TIMEOUT,
@@ -271,11 +259,10 @@ describe("NSFW Detection", () => {
       it(
         `"${prompt}" → should return false`,
         async () => {
-          const result =
-            await AIService.generateTextIsAskingLewdOrNSFW(
-              prompt,
-              mockMessage,
-            );
+          const result = await AIService.generateTextIsAskingLewdOrNSFW(
+            prompt,
+            mockMessage,
+          );
           expect(result).toBe(false);
         },
         AI_TIMEOUT,
@@ -477,8 +464,7 @@ describe("NSFW Prompt Sanitization", () => {
   it(
     "should sanitize prompts depicting real-world atrocities or hate",
     async () => {
-      const atrocityPrompt =
-        "Draw a realistic depiction of a school shooting";
+      const atrocityPrompt = "Draw a realistic depiction of a school shooting";
       const sanitized = await AIService.sanitizeImagePrompt(
         atrocityPrompt,
         mockMessage,
@@ -531,13 +517,12 @@ describe("Image Prompt Generation", () => {
       ];
       const systemPrompt = "You are Lupos, a helpful AI bot.";
 
-      const result =
-        await AIService.generateTextPromptForImagePromptGeneration(
-          conversation,
-          systemPrompt,
-          false, // shouldRedrawImage
-          "", // edittedMessageCleanContent
-        );
+      const result = await AIService.generateTextPromptForImagePromptGeneration(
+        conversation,
+        systemPrompt,
+        false, // shouldRedrawImage
+        "", // edittedMessageCleanContent
+      );
 
       expect(result).toBeDefined();
       expect(result.length).toBeGreaterThan(20);
@@ -574,13 +559,12 @@ describe("Image Prompt Generation", () => {
 # Output:
 Change the background to a beach`;
 
-      const result =
-        await AIService.generateTextPromptForImagePromptGeneration(
-          conversation,
-          systemPrompt,
-          true, // shouldRedrawImage
-          edittedContent,
-        );
+      const result = await AIService.generateTextPromptForImagePromptGeneration(
+        conversation,
+        systemPrompt,
+        true, // shouldRedrawImage
+        edittedContent,
+      );
 
       expect(result).toBeDefined();
       expect(result.length).toBeGreaterThan(20);
@@ -613,13 +597,12 @@ Change the background to a beach`;
 # Output:
 Draw JohnDoe as a samurai warrior`;
 
-      const result =
-        await AIService.generateTextPromptForImagePromptGeneration(
-          conversation,
-          systemPrompt,
-          true, // shouldRedrawImage (avatar provided)
-          edittedContent,
-        );
+      const result = await AIService.generateTextPromptForImagePromptGeneration(
+        conversation,
+        systemPrompt,
+        true, // shouldRedrawImage (avatar provided)
+        edittedContent,
+      );
 
       expect(result).toBeDefined();
       expect(result.length).toBeGreaterThan(20);
@@ -650,9 +633,7 @@ describe("Fast-Path Fetch Count (Rule-Based)", () => {
   it(
     "standalone 'draw X' request should return 5 without calling AI",
     async () => {
-      const spy = jest
-        .spyOn(AIService, "generateText")
-        .mockResolvedValue("50");
+      const spy = jest.spyOn(AIService, "generateText").mockResolvedValue("50");
 
       const result =
         await AIService.generateTextDetermineHowManyMessagesToFetch(
@@ -673,9 +654,7 @@ describe("Fast-Path Fetch Count (Rule-Based)", () => {
   it(
     "draw request WITH conversation reference should NOT hit fast-path",
     async () => {
-      const spy = jest
-        .spyOn(AIService, "generateText")
-        .mockResolvedValue("50");
+      const spy = jest.spyOn(AIService, "generateText").mockResolvedValue("50");
 
       const result =
         await AIService.generateTextDetermineHowManyMessagesToFetch(
@@ -697,9 +676,7 @@ describe("Fast-Path Fetch Count (Rule-Based)", () => {
   it(
     "non-image request should NOT hit fast-path",
     async () => {
-      const spy = jest
-        .spyOn(AIService, "generateText")
-        .mockResolvedValue("20");
+      const spy = jest.spyOn(AIService, "generateText").mockResolvedValue("20");
 
       const result =
         await AIService.generateTextDetermineHowManyMessagesToFetch(

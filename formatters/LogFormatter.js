@@ -62,7 +62,6 @@ const LogFormatter = {
     imageUrl,
     caption,
   }) {
-
     let theClient;
     let theUser;
     let theMember;

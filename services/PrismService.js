@@ -28,7 +28,10 @@ export default class PrismService {
    * @param {string} [options.username="lupos"]
    * @returns {Promise<any>}
    */
-  static async _request(endpoint, { method = "POST", body, username = "lupos" } = {}) {
+  static async _request(
+    endpoint,
+    { method = "POST", body, username = "lupos" } = {},
+  ) {
     let res;
     try {
       res = await fetch(`${API_BASE}${endpoint}`, {
@@ -37,7 +40,10 @@ export default class PrismService {
         ...(body && { body: JSON.stringify(body) }),
       });
     } catch (error) {
-      console.error(`[PrismService] Network error on ${endpoint}:`, error.message);
+      console.error(
+        `[PrismService] Network error on ${endpoint}:`,
+        error.message,
+      );
       throw new Error(`Prism unreachable: ${error.message}`);
     }
 
@@ -95,7 +101,10 @@ export default class PrismService {
     if (userMessage) body.userMessage = userMessage;
     if (conversationMeta) body.conversationMeta = conversationMeta;
 
-    const data = await PrismService._request("/chat?stream=false", { body, username });
+    const data = await PrismService._request("/chat?stream=false", {
+      body,
+      username,
+    });
 
     return {
       text: data.text,
@@ -152,7 +161,10 @@ export default class PrismService {
     if (userMessage) body.userMessage = userMessage;
     if (conversationMeta) body.conversationMeta = conversationMeta;
 
-    const result = await PrismService._request("/chat?stream=false", { body, username });
+    const result = await PrismService._request("/chat?stream=false", {
+      body,
+      username,
+    });
 
     const firstImage = result.images?.[0];
     return {
@@ -236,7 +248,6 @@ export default class PrismService {
 
     return PrismService._request("/audio-to-text", { body });
   }
-
 
   // ---------------------------------------------------------------------------
   // Memory

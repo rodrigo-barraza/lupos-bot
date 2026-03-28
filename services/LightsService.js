@@ -40,14 +40,11 @@ export default class LightsService {
       fast: state?.fast || true,
     };
     try {
-      const response = await fetch(
-        `${LIGHTS_URL}/lights/${lightId}/state`,
-        {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(body),
-        },
-      );
+      const response = await fetch(`${LIGHTS_URL}/lights/${lightId}/state`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
       const data = await response.json();
       return data;
     } catch (error) {
@@ -85,14 +82,11 @@ export default class LightsService {
 
   static async togglePower(lightId = "all", duration = 1) {
     try {
-      const response = await fetch(
-        `${LIGHTS_URL}/lights/${lightId}/toggle`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ duration }),
-        },
-      );
+      const response = await fetch(`${LIGHTS_URL}/lights/${lightId}/toggle`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ duration }),
+      });
       const data = await response.json();
       return data;
     } catch (error) {

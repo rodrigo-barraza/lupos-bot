@@ -124,7 +124,9 @@ async function fetchNeo() {
 async function fetchSpaceWeather() {
   if (isCacheValid("spaceWeather")) return cache.spaceWeather.data;
   try {
-    const data = await fetchWithTimeout(`${WEATHER_API_BASE_URL}/space-weather`);
+    const data = await fetchWithTimeout(
+      `${WEATHER_API_BASE_URL}/space-weather`,
+    );
     if (data) {
       cache.spaceWeather = { data, fetchedAt: Date.now() };
       return data;
@@ -155,9 +157,7 @@ async function fetchWildfires() {
     const data = await fetchWithTimeout(`${WEATHER_API_BASE_URL}/wildfires`);
     if (data?.events?.length) {
       // Filter to significant fires (>1000 acres)
-      const major = data.events.filter(
-        (f) => (f.magnitudeValue || 0) >= 1000,
-      );
+      const major = data.events.filter((f) => (f.magnitudeValue || 0) >= 1000);
       cache.wildfires = { data: major, fetchedAt: Date.now() };
       return major;
     }
@@ -175,9 +175,7 @@ function formatTrends(trends) {
     "\n\n# What's trending right now\nTop trending topics across Google Trends, Google News, Reddit, Wikipedia, Hacker News, and Mastodon.";
   for (const trend of trends) {
     const source = trend.source || "unknown";
-    const volume = trend.volume
-      ? ` (${trend.volume.toLocaleString()})`
-      : "";
+    const volume = trend.volume ? ` (${trend.volume.toLocaleString()})` : "";
     s += `\n- ${trend.name}${volume} [${source}]`;
   }
   return s;
@@ -228,8 +226,7 @@ function formatNeo(neos) {
   const closest = [...neos]
     .sort(
       (a, b) =>
-        parseFloat(a.missDistanceKm || 0) -
-        parseFloat(b.missDistanceKm || 0),
+        parseFloat(a.missDistanceKm || 0) - parseFloat(b.missDistanceKm || 0),
     )
     .slice(0, 5);
   let s = `\n\n# Near-Earth objects today\n${neos.length} asteroids passing near Earth today, ${hazardous.length} classified as potentially hazardous.`;
@@ -325,20 +322,35 @@ export default class TrendsService {
    * @returns {Promise<string|null>}
    */
   static async getTrendingSummary() {
-    const [trends, products, events, earthquakes, neo, spaceWeather, iss, wildfires] =
-      await Promise.all([
-        fetchTrends(),
-        fetchProducts(),
-        fetchEvents(),
-        fetchEarthquakes(),
-        fetchNeo(),
-        fetchSpaceWeather(),
-        fetchIss(),
-        fetchWildfires(),
-      ]);
+    const [
+      trends,
+      products,
+      events,
+      earthquakes,
+      neo,
+      spaceWeather,
+      iss,
+      wildfires,
+    ] = await Promise.all([
+      fetchTrends(),
+      fetchProducts(),
+      fetchEvents(),
+      fetchEarthquakes(),
+      fetchNeo(),
+      fetchSpaceWeather(),
+      fetchIss(),
+      fetchWildfires(),
+    ]);
 
     const hasAny =
-      trends || products || events || earthquakes || neo || spaceWeather || iss || wildfires;
+      trends ||
+      products ||
+      events ||
+      earthquakes ||
+      neo ||
+      spaceWeather ||
+      iss ||
+      wildfires;
     if (!hasAny) return null;
 
     let summary = "";

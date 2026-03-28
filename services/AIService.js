@@ -23,762 +23,765 @@ let sharp;
 let Jimp;
 
 try {
-    sharp = (await import("sharp")).default;
-    console.log("Using sharp for image processing");
+  sharp = (await import("sharp")).default;
+  console.log("Using sharp for image processing");
 } catch {
-    const jimp = await import("jimp");
-    Jimp = jimp.Jimp;
-    console.log("sharp unavailable, using Jimp for image processing");
+  const jimp = await import("jimp");
+  Jimp = jimp.Jimp;
+  console.log("sharp unavailable, using Jimp for image processing");
 }
 
 async function convertGifToPng(imageBuffer) {
-    if (sharp) {
-        const pngBuffer = await sharp(imageBuffer, { animated: false })
-            .png()
-            .toBuffer();
-        return pngBuffer;
-    } else {
-        const image = await Jimp.read(imageBuffer);
-        const pngBuffer = await image.getBuffer("image/png");
-        return pngBuffer;
-    }
+  if (sharp) {
+    const pngBuffer = await sharp(imageBuffer, { animated: false })
+      .png()
+      .toBuffer();
+    return pngBuffer;
+  } else {
+    const image = await Jimp.read(imageBuffer);
+    const pngBuffer = await image.getBuffer("image/png");
+    return pngBuffer;
+  }
 }
 
 function assembleConversation(systemMessage, userMessage, message) {
-    const conversation = [
-        {
-            role: "system",
-            content: systemMessage,
-        },
-        {
-            role: "user",
-            name: DiscordUtilityService.getUsernameNoSpaces(message) || "Default",
-            content: userMessage,
-        },
-    ];
-    return conversation;
+  const conversation = [
+    {
+      role: "system",
+      content: systemMessage,
+    },
+    {
+      role: "user",
+      name: DiscordUtilityService.getUsernameNoSpaces(message) || "Default",
+      content: userMessage,
+    },
+  ];
+  return conversation;
 }
 
 const AIService = {
-    // Base Text-to-Text Generation (Completion)
-    async generateText({
-        conversation,
-        type = config.LANGUAGE_MODEL_TYPE,
-        modelPerformance = config.LANGUAGE_MODEL_PERFORMANCE,
-        temperature = config.LANGUAGE_MODEL_TEMPERATURE,
-        tokens = config.LANGUAGE_MODEL_MAX_TOKENS,
-        model = null,
-        label = null,
-    }) {
-        const functionName = "generateText";
-        let textResponse;
-        let generateTextModel;
-        let prismUsage = null;
-        let prismEstimatedCost = null;
-        const start = performance.now();
-        const localMongo = MongoService.getClient("local");
+  // Base Text-to-Text Generation (Completion)
+  async generateText({
+    conversation,
+    type = config.LANGUAGE_MODEL_TYPE,
+    modelPerformance = config.LANGUAGE_MODEL_PERFORMANCE,
+    temperature = config.LANGUAGE_MODEL_TEMPERATURE,
+    tokens = config.LANGUAGE_MODEL_MAX_TOKENS,
+    model = null,
+    label = null,
+  }) {
+    const functionName = "generateText";
+    let textResponse;
+    let generateTextModel;
+    let prismUsage = null;
+    let prismEstimatedCost = null;
+    const start = performance.now();
+    const localMongo = MongoService.getClient("local");
 
-        // Determine initial model based on type and performance
-        if (type === "OPENAI") {
-            if (model) {
-                generateTextModel = model;
-            } else if (modelPerformance === "LOW") {
-                generateTextModel = config.LANGUAGE_MODEL_OPENAI_LOW;
+    // Determine initial model based on type and performance
+    if (type === "OPENAI") {
+      if (model) {
+        generateTextModel = model;
+      } else if (modelPerformance === "LOW") {
+        generateTextModel = config.LANGUAGE_MODEL_OPENAI_LOW;
+      } else {
+        generateTextModel =
+          modelPerformance === "POWERFUL"
+            ? config.LANGUAGE_MODEL_OPENAI
+            : modelPerformance === "FAST"
+              ? config.FAST_LANGUAGE_MODEL_OPENAI
+              : config.LANGUAGE_MODEL_OPENAI;
+      }
+    } else if (type === "ANTHROPIC") {
+      generateTextModel =
+        modelPerformance === "FAST"
+          ? config.ANTHROPIC_LANGUAGE_MODEL_FAST
+          : config.ANTHROPIC_LANGUAGE_MODEL_SMART;
+
+      // Handle empty content for Anthropic
+      if (conversation[conversation.length - 1].content === "") {
+        conversation[conversation.length - 1].content = "hey";
+      }
+    } else if (type === "LOCAL") {
+      generateTextModel =
+        modelPerformance === "FAST"
+          ? config.FAST_LANGUAGE_MODEL_LOCAL
+          : config.LANGUAGE_MODEL_LOCAL;
+    }
+
+    // Route through Prism API gateway
+    let usedModel = model || generateTextModel;
+
+    // Pre-create conversation for server-side accumulation
+    const discordMessage = CurrentService.getMessage();
+    const discordUsername = discordMessage?.author?.username || "lupos";
+    const channelName = discordMessage?.channel?.name || "direct-message";
+    const convGuildName = discordMessage?.guild?.name || "DM";
+    const convLabel = label || "Text Generation";
+    const convTitle = `${convLabel} · ${convGuildName} / #${channelName}`;
+    const systemMsg = conversation.find((m) => m.role === "system");
+    const systemPrompt = systemMsg?.content || "";
+    const nonSystemMessages = conversation.filter((m) => m.role !== "system");
+
+    const conversationId = crypto.randomUUID();
+    CurrentService.addConversationId(conversationId);
+    const conversationMeta = {
+      title: convTitle,
+      systemPrompt,
+      settings: { model: usedModel, provider: type?.toLowerCase() },
+    };
+
+    // Build user message for auto-append
+    const lastUserMsg = nonSystemMessages.findLast((m) => m.role === "user");
+    const userMessage = lastUserMsg
+      ? {
+          role: "user",
+          content: lastUserMsg.content,
+          name: lastUserMsg.name || discordUsername,
+          timestamp: new Date().toISOString(),
+        }
+      : null;
+
+    try {
+      const prismResult = await PrismService.generateText({
+        messages: conversation,
+        type,
+        model: usedModel,
+        maxTokens: tokens,
+        temperature,
+        username: discordUsername,
+        conversationId,
+        userMessage,
+        conversationMeta,
+      });
+
+      textResponse = prismResult.text;
+      prismUsage = prismResult.usage || null;
+      prismEstimatedCost = prismResult.estimatedCost || null;
+      if (prismResult.model) {
+        usedModel = prismResult.model;
+      }
+    } catch (prismError) {
+      console.error(
+        `Prism API error for ${type}/${usedModel}:`,
+        prismError.message,
+      );
+      return null;
+    }
+
+    const end = performance.now();
+    const duration = end - start;
+
+    CurrentService.addModel(usedModel);
+    CurrentService.addModelType(type);
+    CurrentService.addStep({
+      model: usedModel,
+      type,
+      label: label || "Text Generation",
+      duration: parseFloat(duration.toFixed(3)),
+      inputType: "text",
+      outputType: "text",
+      systemPrompt: systemPrompt || null,
+      input: lastUserMsg?.content || null,
+      output: textResponse || null,
+    });
+
+    if (localMongo) {
+      const message = CurrentService.getMessage();
+      const messageId = message?.id;
+      const user = message.author;
+      const userId = user.id;
+      const userName = user.username;
+      const guildId = message.guild?.id;
+
+      // Save the generated text and its metadata to the database
+      const db = localMongo.db("lupos");
+      const collection = db.collection("MetricsTextGeneration");
+      await collection.insertOne({
+        model: usedModel,
+        modelType: type,
+        promptType: "TEXT",
+        input: conversation,
+        output: textResponse,
+        guildId: guildId || "DM",
+        guildName: convGuildName || "DM",
+        userId: userId,
+        userName: userName,
+        messageId: messageId || null,
+      });
+    }
+
+    console.log(
+      ...LogFormatter.generateTextSuccess({
+        functionName,
+        duration,
+        modelName: usedModel,
+        modelType: type,
+      }),
+    );
+
+    return textResponse;
+  },
+  // Base Text-to-Image Generation (Diffusion)
+  async generateImage(type, prompt, client, imageUrls = [], username = null) {
+    let generatedImage;
+    const localMongo = MongoService.getClient("local");
+    let usedModel;
+    let generatedText;
+    let imageEstimatedCost = null;
+    let imageMinioRef = null;
+    let userInputImageDataUrls = [];
+    const start = performance.now();
+
+    // Pre-create conversation for server-side accumulation
+    const imgDiscordMessage = CurrentService.getMessage();
+    const imgDiscordUsername =
+      imgDiscordMessage?.author?.username || username || "lupos";
+    const imgGuildName = imgDiscordMessage?.guild?.name || "DM";
+    const imgChannelName = imgDiscordMessage?.channel?.name || "direct-message";
+
+    const imgProviderName =
+      type === "LOCAL"
+        ? "local"
+        : type === "GOOGLE"
+          ? "google"
+          : type === "OPENAI"
+            ? "openai"
+            : type?.toLowerCase() || "unknown";
+    const imgTitle = `🖼️ Image Generation · ${imgGuildName} / #${imgChannelName}`;
+
+    const conversationId = crypto.randomUUID();
+    CurrentService.addConversationId(conversationId);
+    const imgConversationMeta = {
+      title: imgTitle,
+      systemPrompt: "",
+      settings: { provider: imgProviderName },
+    };
+
+    // Build user message for auto-append
+    const imgUserMsg = {
+      role: "user",
+      content: prompt,
+      name: imgDiscordUsername,
+      timestamp: new Date(start).toISOString(),
+    };
+
+    if (type === "LOCAL") {
+      try {
+        console.log(...LogFormatter.generateImageStart({ prompt }));
+        await ComfyUIService.checkComfyUIWebsocketStatus();
+        if (prompt) {
+          usedModel = "FLUX.1-dev";
+          generatedImage = await ComfyUIService.generateComfyUIImage(
+            prompt,
+            client,
+          );
+        }
+      } catch (error) {
+        console.error(...LogFormatter.error("generateImage", error));
+      }
+    } else if (type === "GOOGLE") {
+      let hasError = false;
+      try {
+        // Convert image URLs to { imageData, mimeType } objects for Prism's Google provider
+        const imageObjects = [];
+        if (imageUrls.length) {
+          for (const url of imageUrls) {
+            const fetchImageUrlResponse = await fetch(url);
+            const imageAsBuffer = await fetchImageUrlResponse.arrayBuffer();
+            const imageType = fetchImageUrlResponse.headers.get("content-type");
+
+            // Convert GIF to PNG (first frame) since Gemini doesn't support GIFs
+            if (imageType === "image/gif") {
+              const pngBuffer = await convertGifToPng(
+                Buffer.from(imageAsBuffer),
+              );
+              const imageAsBase64 = pngBuffer.toString("base64");
+              imageObjects.push({
+                imageData: imageAsBase64,
+                mimeType: "image/png",
+              });
             } else {
-                generateTextModel =
-                    modelPerformance === "POWERFUL"
-                        ? config.LANGUAGE_MODEL_OPENAI
-                        : modelPerformance === "FAST"
-                            ? config.FAST_LANGUAGE_MODEL_OPENAI
-                            : config.LANGUAGE_MODEL_OPENAI;
+              const imageAsBase64 =
+                Buffer.from(imageAsBuffer).toString("base64");
+              imageObjects.push({
+                imageData: imageAsBase64,
+                mimeType: imageType,
+              });
             }
-        } else if (type === "ANTHROPIC") {
-            generateTextModel =
-                modelPerformance === "FAST"
-                    ? config.ANTHROPIC_LANGUAGE_MODEL_FAST
-                    : config.ANTHROPIC_LANGUAGE_MODEL_SMART;
+          }
+        }
+        userInputImageDataUrls = imageObjects.map(
+          (img) => `data:${img.mimeType};base64,${img.imageData}`,
+        );
 
-            // Handle empty content for Anthropic
-            if (conversation[conversation.length - 1].content === "") {
-                conversation[conversation.length - 1].content = "hey";
-            }
-        } else if (type === "LOCAL") {
-            generateTextModel =
-                modelPerformance === "FAST"
-                    ? config.FAST_LANGUAGE_MODEL_LOCAL
-                    : config.LANGUAGE_MODEL_LOCAL;
+        // Include user input images in the user message for conversation display
+        if (userInputImageDataUrls.length > 0) {
+          imgUserMsg.images = userInputImageDataUrls;
         }
 
-        // Route through Prism API gateway
-        let usedModel = model || generateTextModel;
-
-        // Pre-create conversation for server-side accumulation
+        usedModel = "gemini-3.1-flash-image-preview";
         const discordMessage = CurrentService.getMessage();
         const discordUsername = discordMessage?.author?.username || "lupos";
-        const channelName = discordMessage?.channel?.name || "direct-message";
-        const convGuildName = discordMessage?.guild?.name || "DM";
-        const convLabel = label || "Text Generation";
-        const convTitle = `${convLabel} · ${convGuildName} / #${channelName}`;
-        const systemMsg = conversation.find((m) => m.role === "system");
-        const systemPrompt = systemMsg?.content || "";
-        const nonSystemMessages = conversation.filter((m) => m.role !== "system");
 
-        const conversationId = crypto.randomUUID();
-        CurrentService.addConversationId(conversationId);
-        const conversationMeta = {
-            title: convTitle,
-            systemPrompt,
-            settings: { model: usedModel, provider: type?.toLowerCase() },
-        };
-
-        // Build user message for auto-append
-        const lastUserMsg = nonSystemMessages.findLast((m) => m.role === "user");
-        const userMessage = lastUserMsg
-            ? {
-                role: "user",
-                content: lastUserMsg.content,
-                name: lastUserMsg.name || discordUsername,
-                timestamp: new Date().toISOString(),
-            }
-            : null;
-
-        try {
-            const prismResult = await PrismService.generateText({
-                messages: conversation,
-                type,
-                model: usedModel,
-                maxTokens: tokens,
-                temperature,
-                username: discordUsername,
-                conversationId,
-                userMessage,
-                conversationMeta,
-            });
-
-            textResponse = prismResult.text;
-            prismUsage = prismResult.usage || null;
-            prismEstimatedCost = prismResult.estimatedCost || null;
-            if (prismResult.model) {
-                usedModel = prismResult.model;
-            }
-        } catch (prismError) {
-            console.error(
-                `Prism API error for ${type}/${usedModel}:`,
-                prismError.message,
-            );
-            return null;
-        }
-
-        const end = performance.now();
-        const duration = end - start;
-
-        CurrentService.addModel(usedModel);
-        CurrentService.addModelType(type);
-        CurrentService.addStep({
-            model: usedModel,
-            type,
-            label: label || "Text Generation",
-            duration: parseFloat(duration.toFixed(3)),
-            inputType: "text",
-            outputType: "text",
-            systemPrompt: systemPrompt || null,
-            input: lastUserMsg?.content || null,
-            output: textResponse || null,
+        const prismResult = await PrismService.generateImage({
+          prompt,
+          provider: "google",
+          model: usedModel,
+          images: imageObjects,
+          username: discordUsername,
+          conversationId,
+          userMessage: imgUserMsg,
+          conversationMeta: imgConversationMeta,
         });
 
-        if (localMongo) {
-            const message = CurrentService.getMessage();
-            const messageId = message?.id;
-            const user = message.author;
-            const userId = user.id;
-            const userName = user.username;
-            const guildId = message.guild?.id;
-
-            // Save the generated text and its metadata to the database
-            const db = localMongo.db("lupos");
-            const collection = db.collection("MetricsTextGeneration");
-            await collection.insertOne({
-                model: usedModel,
-                modelType: type,
-                promptType: "TEXT",
-                input: conversation,
-                output: textResponse,
-                guildId: guildId || "DM",
-                guildName: convGuildName || "DM",
-                userId: userId,
-                userName: userName,
-                messageId: messageId || null,
-            });
-        }
-
-        console.log(
-            ...LogFormatter.generateTextSuccess({
-                functionName,
-                duration,
-                modelName: usedModel,
-                modelType: type,
-            }),
-        );
-
-        return textResponse;
-    },
-    // Base Text-to-Image Generation (Diffusion)
-    async generateImage(type, prompt, client, imageUrls = [], username = null) {
-        let generatedImage;
-        const localMongo = MongoService.getClient("local");
-        let usedModel;
-        let generatedText;
-        let imageEstimatedCost = null;
-        let imageMinioRef = null;
-        let userInputImageDataUrls = [];
-        const start = performance.now();
-
-        // Pre-create conversation for server-side accumulation
-        const imgDiscordMessage = CurrentService.getMessage();
-        const imgDiscordUsername = imgDiscordMessage?.author?.username || username || "lupos";
-        const imgGuildName = imgDiscordMessage?.guild?.name || "DM";
-        const imgChannelName = imgDiscordMessage?.channel?.name || "direct-message";
-
-        const imgProviderName =
-            type === "LOCAL" ? "local"
-                : type === "GOOGLE" ? "google"
-                    : type === "OPENAI" ? "openai"
-                        : type?.toLowerCase() || "unknown";
-        const imgTitle = `🖼️ Image Generation · ${imgGuildName} / #${imgChannelName}`;
-
-        const conversationId = crypto.randomUUID();
-        CurrentService.addConversationId(conversationId);
-        const imgConversationMeta = {
-            title: imgTitle,
-            systemPrompt: "",
-            settings: { provider: imgProviderName },
-        };
-
-        // Build user message for auto-append
-        const imgUserMsg = {
-            role: "user",
-            content: prompt,
-            name: imgDiscordUsername,
-            timestamp: new Date(start).toISOString(),
-        };
-
-        if (type === "LOCAL") {
-            try {
-                console.log(...LogFormatter.generateImageStart({ prompt }));
-                await ComfyUIService.checkComfyUIWebsocketStatus();
-                if (prompt) {
-                    usedModel = "FLUX.1-dev";
-                    generatedImage = await ComfyUIService.generateComfyUIImage(
-                        prompt,
-                        client,
-                    );
-                }
-            } catch (error) {
-                console.error(...LogFormatter.error("generateImage", error));
-            }
-        } else if (type === "GOOGLE") {
-            let hasError = false;
-            try {
-                // Convert image URLs to { imageData, mimeType } objects for Prism's Google provider
-                const imageObjects = [];
-                if (imageUrls.length) {
-                    for (const url of imageUrls) {
-                        const fetchImageUrlResponse = await fetch(url);
-                        const imageAsBuffer = await fetchImageUrlResponse.arrayBuffer();
-                        const imageType = fetchImageUrlResponse.headers.get("content-type");
-
-                        // Convert GIF to PNG (first frame) since Gemini doesn't support GIFs
-                        if (imageType === "image/gif") {
-                            const pngBuffer = await convertGifToPng(
-                                Buffer.from(imageAsBuffer),
-                            );
-                            const imageAsBase64 = pngBuffer.toString("base64");
-                            imageObjects.push({
-                                imageData: imageAsBase64,
-                                mimeType: "image/png",
-                            });
-                        } else {
-                            const imageAsBase64 =
-                                Buffer.from(imageAsBuffer).toString("base64");
-                            imageObjects.push({
-                                imageData: imageAsBase64,
-                                mimeType: imageType,
-                            });
-                        }
-                    }
-                }
-                userInputImageDataUrls = imageObjects.map(
-                    (img) => `data:${img.mimeType};base64,${img.imageData}`,
-                );
-
-                // Include user input images in the user message for conversation display
-                if (userInputImageDataUrls.length > 0) {
-                    imgUserMsg.images = userInputImageDataUrls;
-                }
-
-                usedModel = "gemini-3.1-flash-image-preview";
-                const discordMessage = CurrentService.getMessage();
-                const discordUsername = discordMessage?.author?.username || "lupos";
-
-                const prismResult = await PrismService.generateImage({
-                    prompt,
-                    provider: "google",
-                    model: usedModel,
-                    images: imageObjects,
-                    username: discordUsername,
-                    conversationId,
-                    userMessage: imgUserMsg,
-                    conversationMeta: imgConversationMeta,
-                });
-
-                if (prismResult.imageData) {
-                    generatedImage = prismResult.imageData;
-                    generatedText = prismResult.text;
-                    imageEstimatedCost = prismResult.estimatedCost || null;
-                    imageMinioRef = prismResult.minioRef || null;
-                } else {
-                    // No image in response, fall back to LOCAL
-                    console.log(
-                        "Google AI Image Generation returned no image, falling back to LOCAL.",
-                    );
-                    usedModel = "FLUX.1-dev";
-                    const generatedImageResponseLocal = await AIService.generateImage(
-                        "LOCAL",
-                        prompt,
-                        client,
-                        imageUrls,
-                        username,
-                    );
-                    generatedImage = generatedImageResponseLocal;
-                }
-            } catch (error) {
-                console.error(...LogFormatter.error("generateImage", error));
-                hasError = true;
-            }
-            if (hasError) {
-                console.error("Falling back to LOCAL image generation.");
-                const generatedImageResponseLocal = await AIService.generateImage(
-                    "LOCAL",
-                    prompt,
-                    client,
-                    imageUrls,
-                    username,
-                );
-                generatedImage = generatedImageResponseLocal;
-            }
-        } else if (type === "OPENAI") {
-            // Route OpenAI image generation through Prism
-            try {
-                const discordMessage = CurrentService.getMessage();
-                const discordUsername = discordMessage?.author?.username || "lupos";
-
-                // Convert image URLs to { imageData, mimeType } objects for Prism
-                const imageObjects = [];
-                if (imageUrls.length) {
-                    for (const url of imageUrls) {
-                        const fetchImageUrlResponse = await fetch(url);
-                        const imageAsBuffer = await fetchImageUrlResponse.arrayBuffer();
-                        const imageType = fetchImageUrlResponse.headers.get("content-type");
-                        const imageAsBase64 = Buffer.from(imageAsBuffer).toString("base64");
-                        imageObjects.push({
-                            imageData: imageAsBase64,
-                            mimeType: imageType,
-                        });
-                    }
-                }
-                userInputImageDataUrls = imageObjects.map(
-                    (img) => `data:${img.mimeType};base64,${img.imageData}`,
-                );
-
-                // Include user input images in the user message for conversation display
-                if (userInputImageDataUrls.length > 0) {
-                    imgUserMsg.images = userInputImageDataUrls;
-                }
-
-                usedModel = "gpt-image-1.5";
-                const prismResult = await PrismService.generateImage({
-                    prompt,
-                    provider: "openai",
-                    model: usedModel,
-                    images: imageObjects,
-                    username: discordUsername,
-                    conversationId,
-                    userMessage: imgUserMsg,
-                    conversationMeta: imgConversationMeta,
-                });
-
-                generatedImage = prismResult.imageData;
-                generatedText = prismResult.text;
-                imageEstimatedCost = prismResult.estimatedCost || null;
-                imageMinioRef = prismResult.minioRef || null;
-            } catch (error) {
-                console.error(...LogFormatter.error("generateImage", error));
-            }
-        }
-
-        const end = performance.now();
-        const duration = end - start;
-
-        if (localMongo && generatedImage) {
-            const message = CurrentService.getMessage();
-            const messageId = message?.id;
-            const user = message.author;
-            const userId = user.id;
-            const userName = user.username;
-            const guildId = message.guild?.id;
-            const guildName = message.guild?.name;
-
-            // Save the generated image and its metadata to the database
-            const db = localMongo.db("lupos");
-            const collection = db.collection("MetricsImageGeneration");
-            await collection.insertOne({
-                model: usedModel,
-                inputText: prompt,
-                outputText: generatedText,
-                inputImages: imageUrls.length,
-                guildId: guildId || "DM",
-                guildName: guildName || "DM",
-                userId: userId,
-                userName: userName,
-                messageId: messageId || null,
-                duration: parseFloat(duration.toFixed(3)),
-            });
-        }
-
-        if (generatedImage) {
-            const imgDuration = parseFloat(duration.toFixed(3));
-            CurrentService.addModel(usedModel);
-            CurrentService.addModelType(type);
-            CurrentService.addStep({
-                model: usedModel,
-                type,
-                label: "Image Generation",
-                duration: imgDuration,
-                inputType: imageUrls.length > 0 ? "text+image" : "text",
-                outputType: "image",
-                input: prompt || null,
-                output: generatedText || "[image]",
-                outputImageRef: imageMinioRef || null,
-            });
-        }
-
-        // Image is now stored in MinIO via Prism's text-to-image route
-
-        console.log(
-            ...LogFormatter.generateImageSuccess({
-                duration,
-                prompt,
-            }),
-        );
-
-        return generatedImage;
-    },
-    // Base Image-to-Text Generation (Captioning) — via Prism
-    async generateVision(imageUrl, text) {
-        const start = performance.now();
-        try {
-            const discordMessage = CurrentService.getMessage();
-            const discordUsername = discordMessage?.author?.username || "lupos";
-
-            const guildName = discordMessage?.guild?.name || "DM";
-            const channelName = discordMessage?.channel?.name || "direct-message";
-            const captionTitle = `👁️ Image Captioning · ${guildName} / #${channelName}`;
-
-            // Pre-create conversation for server-side accumulation
-            const visionConvId = crypto.randomUUID();
-            CurrentService.addConversationId(visionConvId);
-            const captionConvMeta = {
-                title: captionTitle,
-                systemPrompt: "",
-                settings: { provider: "openai" },
-            };
-
-            // Build user message for auto-append
-            const captionUserMsg = {
-                role: "user",
-                content: text || "What's in this image?",
-                images: [imageUrl],
-                name: discordUsername,
-                timestamp: new Date(start).toISOString(),
-            };
-
-            const result = await PrismService.captionImage({
-                images: imageUrl,
-                prompt: text || "What's in this image?",
-                provider: "openai",
-                username: discordUsername,
-                conversationId: visionConvId,
-                userMessage: captionUserMsg,
-                conversationMeta: captionConvMeta,
-            });
-
-            return {
-                response: { choices: [{ message: { content: result.text } }] },
-                error: null,
-            };
-        } catch (error) {
-            return { response: null, error };
-        }
-    },
-    // Base Speech-to-Text Generation (Transcription) — via Prism
-    async transcribeSpeech(audioUrl, messageId, index) {
-        // Parse the URL to get just the filename without query parameters
-        const url = new URL(audioUrl);
-        const filename = path.basename(url.pathname);
-        const voicesDir = path.join(import.meta.dirname, "../voices");
-        // Create the voices directory if it doesn't exist
-        if (!fs.existsSync(voicesDir)) {
-            fs.mkdirSync(voicesDir, { recursive: true });
-        }
-        let audioFilePath;
-        // Download the audio file
-        if (messageId && index) {
-            audioFilePath = path.join(voicesDir, `${messageId}-${index}-${filename}`);
+        if (prismResult.imageData) {
+          generatedImage = prismResult.imageData;
+          generatedText = prismResult.text;
+          imageEstimatedCost = prismResult.estimatedCost || null;
+          imageMinioRef = prismResult.minioRef || null;
         } else {
-            function generateRandomId() {
-                return Math.random().toString(36).substring(2, 10);
-            }
-            audioFilePath = path.join(voicesDir, `${generateRandomId()}-${filename}`);
+          // No image in response, fall back to LOCAL
+          console.log(
+            "Google AI Image Generation returned no image, falling back to LOCAL.",
+          );
+          usedModel = "FLUX.1-dev";
+          const generatedImageResponseLocal = await AIService.generateImage(
+            "LOCAL",
+            prompt,
+            client,
+            imageUrls,
+            username,
+          );
+          generatedImage = generatedImageResponseLocal;
         }
-        const audioFile = await fetch(audioUrl);
-        const audioBuffer = Buffer.from(await audioFile.arrayBuffer());
-        fs.writeFileSync(audioFilePath, audioBuffer);
-
-        // Determine MIME type from file extension
-        const ext = path.extname(filename).toLowerCase().replace(".", "");
-        const mimeMap = {
-            mp3: "audio/mpeg",
-            wav: "audio/wav",
-            ogg: "audio/ogg",
-            webm: "audio/webm",
-            m4a: "audio/mp4",
-            flac: "audio/flac",
-        };
-        const mimeType = mimeMap[ext] || "audio/wav";
-
-        // Get Discord username for tracking
+      } catch (error) {
+        console.error(...LogFormatter.error("generateImage", error));
+        hasError = true;
+      }
+      if (hasError) {
+        console.error("Falling back to LOCAL image generation.");
+        const generatedImageResponseLocal = await AIService.generateImage(
+          "LOCAL",
+          prompt,
+          client,
+          imageUrls,
+          username,
+        );
+        generatedImage = generatedImageResponseLocal;
+      }
+    } else if (type === "OPENAI") {
+      // Route OpenAI image generation through Prism
+      try {
         const discordMessage = CurrentService.getMessage();
         const discordUsername = discordMessage?.author?.username || "lupos";
 
-        // Transcribe via Prism
-        const result = await PrismService.transcribeAudio({
-            audioBuffer,
-            mimeType,
-            provider: "openai",
-            username: discordUsername,
-        });
-        const transcription = (result.text || "").trim().replace(/\n+/g, " ");
-        return transcription;
-    },
-    // Caption images and store data in MongoDB
-    async captionImages(imageUrls, localMongo, type) {
-        // type = ['image', 'emoji', 'sticker', video']
-        const images = [];
-        const imagesMap = new Map();
-        if (
-            type === "IMAGE" ||
-            type === "EMOJI" ||
-            type === "STICKER" ||
-            type === "VIDEO" ||
-            type === "AVATAR" ||
-            type === "BANNER" ||
-            type === "SMALL"
-        ) {
-            const db = localMongo.db("lupos");
-            let collection;
-            let prompt = `Describe this ${type.toLowerCase()}. Make no mention about the quality, resolution, or pixelation.`;
-
-            if (type === "IMAGE") {
-                collection = db.collection("ImageCaptions");
-            } else if (type === "EMOJI") {
-                collection = db.collection("EmojiCaptions");
-            } else if (type === "STICKER") {
-                collection = db.collection("StickerCaptions");
-            } else if (type === "VIDEO") {
-                collection = db.collection("VideoCaptions");
-            } else if (type === "AVATAR") {
-                collection = db.collection("AvatarCaptions");
-            } else if (type === "BANNER") {
-                collection = db.collection("BannerCaptions");
-            } else if (type === "SMALL") {
-                collection = db.collection("SmallCaptions");
-                prompt = `Describe this image in a short sentence, 10 words or less. Make no mention about the quality, resolution, or pixelation.`;
-            }
-
-            if (imageUrls?.length) {
-                const isObject = imageUrls[0]?.url;
-                for (const imageUrl of imageUrls) {
-                    const realImageUrl = isObject ? imageUrl.url : imageUrl;
-                    const userId = isObject ? imageUrl.userId : null;
-
-                    const { hash, fileType } =
-                        await utilities.generateFileHash(realImageUrl);
-                    const existingImage = await collection.findOne({ hash });
-                    if (!existingImage) {
-                        const { response } = await AIService.generateVision(
-                            realImageUrl,
-                            prompt,
-                        );
-                        if (response?.choices[0]?.message?.content) {
-                            const caption = response.choices[0].message.content;
-                            const mapObject = {
-                                hash,
-                                url: realImageUrl,
-                                caption,
-                                fileType,
-                                userId,
-                                cached: false,
-                            };
-                            images.push(caption);
-                            imagesMap.set(hash, mapObject);
-                            await collection.insertOne({
-                                hash,
-                                type,
-                                url: realImageUrl,
-                                caption,
-                                fileType,
-                                userId,
-                                createdAt: new Date(),
-                            });
-                        }
-                    } else {
-                        images.push(existingImage.caption);
-                        const mapObject = {
-                            hash,
-                            url: realImageUrl,
-                            caption: existingImage.caption,
-                            fileType,
-                            userId: existingImage.userId,
-                            cached: true,
-                        };
-                        imagesMap.set(hash, mapObject);
-                    }
-                }
-            }
+        // Convert image URLs to { imageData, mimeType } objects for Prism
+        const imageObjects = [];
+        if (imageUrls.length) {
+          for (const url of imageUrls) {
+            const fetchImageUrlResponse = await fetch(url);
+            const imageAsBuffer = await fetchImageUrlResponse.arrayBuffer();
+            const imageType = fetchImageUrlResponse.headers.get("content-type");
+            const imageAsBase64 = Buffer.from(imageAsBuffer).toString("base64");
+            imageObjects.push({
+              imageData: imageAsBase64,
+              mimeType: imageType,
+            });
+          }
         }
-        return { images, imagesMap };
-    },
-    // Transcribe audio files from URLs and store data in MongoDB
-    async transcribeAudioUrls(audioUrls, messageId, localMongo) {
-        const transcriptionsMap = new Map();
-        const db = localMongo.db("lupos");
-        const collection = db.collection("AudioTranscriptions");
-        let existingAudio;
-        if (audioUrls?.length) {
-            let index = 0;
-            for (const audioUrl of audioUrls) {
-                index++;
-                const { hash, fileType } =
-                    await utilities.generateFileHash(audioUrl);
-                existingAudio = await collection.findOne({ hash });
-
-                if (!existingAudio) {
-                    const transcription = await AIService.transcribeSpeech(
-                        audioUrl,
-                        messageId,
-                        index,
-                    );
-                    await collection.insertOne({
-                        hash,
-                        url: audioUrl,
-                        transcription: transcription,
-                        type: fileType,
-                        createdAt: new Date(),
-                    });
-                    const mapObject = {
-                        hash,
-                        url: audioUrl,
-                        transcription: transcription,
-                        type: fileType,
-                        cached: false,
-                    };
-                    transcriptionsMap.set(hash, mapObject);
-                } else {
-                    const mapObject = {
-                        hash,
-                        url: audioUrl,
-                        transcription: existingAudio.transcription,
-                        type: fileType,
-                        cached: true,
-                    };
-                    transcriptionsMap.set(hash, mapObject);
-                }
-            }
-        }
-        return { transcriptionsMap };
-    },
-    // async generateImageToImage(text, imageUrl, denoisingStrength) {
-    //     consoleLog('<');
-    //     consoleLog('=', `PROMPT:\n\n${text}`);
-    //     let generatedImage;
-    //     try {
-    //         await ComfyUIService.checkComfyUIWebsocketStatus();
-    //         let currentTime = new Date().getTime();
-    //         if (text) {
-    //             generatedImage = await ComfyUIService.generateComfyUIImageToImage(text, imageUrl, denoisingStrength);
-    //             let timeTakenInSeconds = (new Date().getTime() - currentTime) / 1000;
-    //             consoleLog('=', `Type: FLUX`);
-    //             consoleLog('=', `Time: ${timeTakenInSeconds}`);
-    //             consoleLog('=', `RESPONSE:\n\n🖼️`);
-    //             consoleLog('>');
-    //         }
-    //     } catch (error) {
-    //         consoleLog('=', `RESPONSE:\n\n${error}`);
-    //         consoleLog('>!');
-    //     }
-    //     return generatedImage;
-    // },
-    // "mini-brains" for specific tasks
-    async generateTextSummaryFromMessage(message, messageContent) {
-        let summary = "";
-        const systemContent = `You are an expert at summarizing the text that is given to you in two to three words. Start with an emoji. Do not use any other formatting, just give the emoji and the two to three words.`;
-        const conversation = assembleConversation(
-            systemContent,
-            messageContent,
-            message,
+        userInputImageDataUrls = imageObjects.map(
+          (img) => `data:${img.mimeType};base64,${img.imageData}`,
         );
-        const generatedText = await AIService.generateText({
-            conversation: conversation,
-            type: config.LANGUAGE_MODEL_TYPE,
-            modelPerformance: "POWERFUL",
-            tokens: config.LANGUAGE_MODEL_MAX_TOKENS,
-            temperature: config.LANGUAGE_MODEL_TEMPERATURE,
-            label: "🧠 Summary",
-            // model,
-            // localMongo,
-            // replyMessageStartTime,
-            // guildId,
-            // userId,
-            // userName,
-        });
-        if (!generatedText) return "";
-        // trim generatedText to 128 characters
-        summary = generatedText.substring(0, 128);
-        return summary;
-    },
-    async generateTextCustomEmojiReactFromMessage(message, localMongo) {
-        const client = message.client;
-        const guild = message.guild;
-        const bot = client.user;
-        const content = message.content;
-        const modifiedMessageContent = content.replace(`<@${bot.id}>`, "");
 
-        let guildEmojiList;
-        let serverEmojisArray = [];
-
-        if (guild) {
-            const serverEmojis = client.guilds.cache.get(guild.id).emojis.cache;
-            serverEmojisArray = Array.from(serverEmojis.values());
-            if (serverEmojisArray.length) {
-                guildEmojiList = `# CUSTOM EMOJIS AVAILABLE:\n`;
-                guildEmojiList += serverEmojisArray
-                    .map((emoji) => emoji.name)
-                    .join(", ");
-                guildEmojiList += `\n\n`;
-            }
+        // Include user input images in the user message for conversation display
+        if (userInputImageDataUrls.length > 0) {
+          imgUserMsg.images = userInputImageDataUrls;
         }
 
-        const systemContent = `You are an expert at generating emoji reactions to text messages. 
+        usedModel = "gpt-image-1.5";
+        const prismResult = await PrismService.generateImage({
+          prompt,
+          provider: "openai",
+          model: usedModel,
+          images: imageObjects,
+          username: discordUsername,
+          conversationId,
+          userMessage: imgUserMsg,
+          conversationMeta: imgConversationMeta,
+        });
+
+        generatedImage = prismResult.imageData;
+        generatedText = prismResult.text;
+        imageEstimatedCost = prismResult.estimatedCost || null;
+        imageMinioRef = prismResult.minioRef || null;
+      } catch (error) {
+        console.error(...LogFormatter.error("generateImage", error));
+      }
+    }
+
+    const end = performance.now();
+    const duration = end - start;
+
+    if (localMongo && generatedImage) {
+      const message = CurrentService.getMessage();
+      const messageId = message?.id;
+      const user = message.author;
+      const userId = user.id;
+      const userName = user.username;
+      const guildId = message.guild?.id;
+      const guildName = message.guild?.name;
+
+      // Save the generated image and its metadata to the database
+      const db = localMongo.db("lupos");
+      const collection = db.collection("MetricsImageGeneration");
+      await collection.insertOne({
+        model: usedModel,
+        inputText: prompt,
+        outputText: generatedText,
+        inputImages: imageUrls.length,
+        guildId: guildId || "DM",
+        guildName: guildName || "DM",
+        userId: userId,
+        userName: userName,
+        messageId: messageId || null,
+        duration: parseFloat(duration.toFixed(3)),
+      });
+    }
+
+    if (generatedImage) {
+      const imgDuration = parseFloat(duration.toFixed(3));
+      CurrentService.addModel(usedModel);
+      CurrentService.addModelType(type);
+      CurrentService.addStep({
+        model: usedModel,
+        type,
+        label: "Image Generation",
+        duration: imgDuration,
+        inputType: imageUrls.length > 0 ? "text+image" : "text",
+        outputType: "image",
+        input: prompt || null,
+        output: generatedText || "[image]",
+        outputImageRef: imageMinioRef || null,
+      });
+    }
+
+    // Image is now stored in MinIO via Prism's text-to-image route
+
+    console.log(
+      ...LogFormatter.generateImageSuccess({
+        duration,
+        prompt,
+      }),
+    );
+
+    return generatedImage;
+  },
+  // Base Image-to-Text Generation (Captioning) — via Prism
+  async generateVision(imageUrl, text) {
+    const start = performance.now();
+    try {
+      const discordMessage = CurrentService.getMessage();
+      const discordUsername = discordMessage?.author?.username || "lupos";
+
+      const guildName = discordMessage?.guild?.name || "DM";
+      const channelName = discordMessage?.channel?.name || "direct-message";
+      const captionTitle = `👁️ Image Captioning · ${guildName} / #${channelName}`;
+
+      // Pre-create conversation for server-side accumulation
+      const visionConvId = crypto.randomUUID();
+      CurrentService.addConversationId(visionConvId);
+      const captionConvMeta = {
+        title: captionTitle,
+        systemPrompt: "",
+        settings: { provider: "openai" },
+      };
+
+      // Build user message for auto-append
+      const captionUserMsg = {
+        role: "user",
+        content: text || "What's in this image?",
+        images: [imageUrl],
+        name: discordUsername,
+        timestamp: new Date(start).toISOString(),
+      };
+
+      const result = await PrismService.captionImage({
+        images: imageUrl,
+        prompt: text || "What's in this image?",
+        provider: "openai",
+        username: discordUsername,
+        conversationId: visionConvId,
+        userMessage: captionUserMsg,
+        conversationMeta: captionConvMeta,
+      });
+
+      return {
+        response: { choices: [{ message: { content: result.text } }] },
+        error: null,
+      };
+    } catch (error) {
+      return { response: null, error };
+    }
+  },
+  // Base Speech-to-Text Generation (Transcription) — via Prism
+  async transcribeSpeech(audioUrl, messageId, index) {
+    // Parse the URL to get just the filename without query parameters
+    const url = new URL(audioUrl);
+    const filename = path.basename(url.pathname);
+    const voicesDir = path.join(import.meta.dirname, "../voices");
+    // Create the voices directory if it doesn't exist
+    if (!fs.existsSync(voicesDir)) {
+      fs.mkdirSync(voicesDir, { recursive: true });
+    }
+    let audioFilePath;
+    // Download the audio file
+    if (messageId && index) {
+      audioFilePath = path.join(voicesDir, `${messageId}-${index}-${filename}`);
+    } else {
+      function generateRandomId() {
+        return Math.random().toString(36).substring(2, 10);
+      }
+      audioFilePath = path.join(voicesDir, `${generateRandomId()}-${filename}`);
+    }
+    const audioFile = await fetch(audioUrl);
+    const audioBuffer = Buffer.from(await audioFile.arrayBuffer());
+    fs.writeFileSync(audioFilePath, audioBuffer);
+
+    // Determine MIME type from file extension
+    const ext = path.extname(filename).toLowerCase().replace(".", "");
+    const mimeMap = {
+      mp3: "audio/mpeg",
+      wav: "audio/wav",
+      ogg: "audio/ogg",
+      webm: "audio/webm",
+      m4a: "audio/mp4",
+      flac: "audio/flac",
+    };
+    const mimeType = mimeMap[ext] || "audio/wav";
+
+    // Get Discord username for tracking
+    const discordMessage = CurrentService.getMessage();
+    const discordUsername = discordMessage?.author?.username || "lupos";
+
+    // Transcribe via Prism
+    const result = await PrismService.transcribeAudio({
+      audioBuffer,
+      mimeType,
+      provider: "openai",
+      username: discordUsername,
+    });
+    const transcription = (result.text || "").trim().replace(/\n+/g, " ");
+    return transcription;
+  },
+  // Caption images and store data in MongoDB
+  async captionImages(imageUrls, localMongo, type) {
+    // type = ['image', 'emoji', 'sticker', video']
+    const images = [];
+    const imagesMap = new Map();
+    if (
+      type === "IMAGE" ||
+      type === "EMOJI" ||
+      type === "STICKER" ||
+      type === "VIDEO" ||
+      type === "AVATAR" ||
+      type === "BANNER" ||
+      type === "SMALL"
+    ) {
+      const db = localMongo.db("lupos");
+      let collection;
+      let prompt = `Describe this ${type.toLowerCase()}. Make no mention about the quality, resolution, or pixelation.`;
+
+      if (type === "IMAGE") {
+        collection = db.collection("ImageCaptions");
+      } else if (type === "EMOJI") {
+        collection = db.collection("EmojiCaptions");
+      } else if (type === "STICKER") {
+        collection = db.collection("StickerCaptions");
+      } else if (type === "VIDEO") {
+        collection = db.collection("VideoCaptions");
+      } else if (type === "AVATAR") {
+        collection = db.collection("AvatarCaptions");
+      } else if (type === "BANNER") {
+        collection = db.collection("BannerCaptions");
+      } else if (type === "SMALL") {
+        collection = db.collection("SmallCaptions");
+        prompt = `Describe this image in a short sentence, 10 words or less. Make no mention about the quality, resolution, or pixelation.`;
+      }
+
+      if (imageUrls?.length) {
+        const isObject = imageUrls[0]?.url;
+        for (const imageUrl of imageUrls) {
+          const realImageUrl = isObject ? imageUrl.url : imageUrl;
+          const userId = isObject ? imageUrl.userId : null;
+
+          const { hash, fileType } =
+            await utilities.generateFileHash(realImageUrl);
+          const existingImage = await collection.findOne({ hash });
+          if (!existingImage) {
+            const { response } = await AIService.generateVision(
+              realImageUrl,
+              prompt,
+            );
+            if (response?.choices[0]?.message?.content) {
+              const caption = response.choices[0].message.content;
+              const mapObject = {
+                hash,
+                url: realImageUrl,
+                caption,
+                fileType,
+                userId,
+                cached: false,
+              };
+              images.push(caption);
+              imagesMap.set(hash, mapObject);
+              await collection.insertOne({
+                hash,
+                type,
+                url: realImageUrl,
+                caption,
+                fileType,
+                userId,
+                createdAt: new Date(),
+              });
+            }
+          } else {
+            images.push(existingImage.caption);
+            const mapObject = {
+              hash,
+              url: realImageUrl,
+              caption: existingImage.caption,
+              fileType,
+              userId: existingImage.userId,
+              cached: true,
+            };
+            imagesMap.set(hash, mapObject);
+          }
+        }
+      }
+    }
+    return { images, imagesMap };
+  },
+  // Transcribe audio files from URLs and store data in MongoDB
+  async transcribeAudioUrls(audioUrls, messageId, localMongo) {
+    const transcriptionsMap = new Map();
+    const db = localMongo.db("lupos");
+    const collection = db.collection("AudioTranscriptions");
+    let existingAudio;
+    if (audioUrls?.length) {
+      let index = 0;
+      for (const audioUrl of audioUrls) {
+        index++;
+        const { hash, fileType } = await utilities.generateFileHash(audioUrl);
+        existingAudio = await collection.findOne({ hash });
+
+        if (!existingAudio) {
+          const transcription = await AIService.transcribeSpeech(
+            audioUrl,
+            messageId,
+            index,
+          );
+          await collection.insertOne({
+            hash,
+            url: audioUrl,
+            transcription: transcription,
+            type: fileType,
+            createdAt: new Date(),
+          });
+          const mapObject = {
+            hash,
+            url: audioUrl,
+            transcription: transcription,
+            type: fileType,
+            cached: false,
+          };
+          transcriptionsMap.set(hash, mapObject);
+        } else {
+          const mapObject = {
+            hash,
+            url: audioUrl,
+            transcription: existingAudio.transcription,
+            type: fileType,
+            cached: true,
+          };
+          transcriptionsMap.set(hash, mapObject);
+        }
+      }
+    }
+    return { transcriptionsMap };
+  },
+  // async generateImageToImage(text, imageUrl, denoisingStrength) {
+  //     consoleLog('<');
+  //     consoleLog('=', `PROMPT:\n\n${text}`);
+  //     let generatedImage;
+  //     try {
+  //         await ComfyUIService.checkComfyUIWebsocketStatus();
+  //         let currentTime = new Date().getTime();
+  //         if (text) {
+  //             generatedImage = await ComfyUIService.generateComfyUIImageToImage(text, imageUrl, denoisingStrength);
+  //             let timeTakenInSeconds = (new Date().getTime() - currentTime) / 1000;
+  //             consoleLog('=', `Type: FLUX`);
+  //             consoleLog('=', `Time: ${timeTakenInSeconds}`);
+  //             consoleLog('=', `RESPONSE:\n\n🖼️`);
+  //             consoleLog('>');
+  //         }
+  //     } catch (error) {
+  //         consoleLog('=', `RESPONSE:\n\n${error}`);
+  //         consoleLog('>!');
+  //     }
+  //     return generatedImage;
+  // },
+  // "mini-brains" for specific tasks
+  async generateTextSummaryFromMessage(message, messageContent) {
+    let summary = "";
+    const systemContent = `You are an expert at summarizing the text that is given to you in two to three words. Start with an emoji. Do not use any other formatting, just give the emoji and the two to three words.`;
+    const conversation = assembleConversation(
+      systemContent,
+      messageContent,
+      message,
+    );
+    const generatedText = await AIService.generateText({
+      conversation: conversation,
+      type: config.LANGUAGE_MODEL_TYPE,
+      modelPerformance: "POWERFUL",
+      tokens: config.LANGUAGE_MODEL_MAX_TOKENS,
+      temperature: config.LANGUAGE_MODEL_TEMPERATURE,
+      label: "🧠 Summary",
+      // model,
+      // localMongo,
+      // replyMessageStartTime,
+      // guildId,
+      // userId,
+      // userName,
+    });
+    if (!generatedText) return "";
+    // trim generatedText to 128 characters
+    summary = generatedText.substring(0, 128);
+    return summary;
+  },
+  async generateTextCustomEmojiReactFromMessage(message, localMongo) {
+    const client = message.client;
+    const guild = message.guild;
+    const bot = client.user;
+    const content = message.content;
+    const modifiedMessageContent = content.replace(`<@${bot.id}>`, "");
+
+    let guildEmojiList;
+    let serverEmojisArray = [];
+
+    if (guild) {
+      const serverEmojis = client.guilds.cache.get(guild.id).emojis.cache;
+      serverEmojisArray = Array.from(serverEmojis.values());
+      if (serverEmojisArray.length) {
+        guildEmojiList = `# CUSTOM EMOJIS AVAILABLE:\n`;
+        guildEmojiList += serverEmojisArray
+          .map((emoji) => emoji.name)
+          .join(", ");
+        guildEmojiList += `\n\n`;
+      }
+    }
+
+    const systemContent = `You are an expert at generating emoji reactions to text messages. 
 
 # INSTRUCTIONS:
 - Analyze the message and respond with a single, relevant emoji reaction
@@ -793,57 +796,66 @@ ${guildEmojiList}
 - Return ONLY the emoji or emoji name, nothing else
 - No explanations, no punctuation, no extra text`;
 
-        const conversation = assembleConversation(
-            systemContent,
-            modifiedMessageContent,
-            message,
-        );
+    const conversation = assembleConversation(
+      systemContent,
+      modifiedMessageContent,
+      message,
+    );
 
-        const generatedText = await AIService.generateText({
-            localMongo: localMongo,
-            conversation: conversation,
-            type: "ANTHROPIC",
-            model: config.ANTHROPIC_LANGUAGE_MODEL_CLAUDE_SONNET_4,
-            label: "🧠 Emoji React",
-        });
+    const generatedText = await AIService.generateText({
+      localMongo: localMongo,
+      conversation: conversation,
+      type: "ANTHROPIC",
+      model: config.ANTHROPIC_LANGUAGE_MODEL_CLAUDE_SONNET_4,
+      label: "🧠 Emoji React",
+    });
 
-        if (!generatedText) return null;
+    if (!generatedText) return null;
 
-        // Clean up the response - remove any extra whitespace, newlines, or formatting
-        let cleanedResponse = generatedText.trim().replace(/[\n\r]/g, "");
+    // Clean up the response - remove any extra whitespace, newlines, or formatting
+    let cleanedResponse = generatedText.trim().replace(/[\n\r]/g, "");
 
-        if (serverEmojisArray.length) {
-            // check if its emoji or custom emoji
-            const isCustomEmoji = serverEmojisArray.some(
-                (emoji) => emoji.name === cleanedResponse,
-            );
-            if (isCustomEmoji) {
-                // <:blobreach:123456789012345678>
-                // if its custom, wrap it in <:
-                cleanedResponse = `${serverEmojisArray.find((emoji) => emoji.name === cleanedResponse).id}`;
-            }
-        }
+    if (serverEmojisArray.length) {
+      // check if its emoji or custom emoji
+      const isCustomEmoji = serverEmojisArray.some(
+        (emoji) => emoji.name === cleanedResponse,
+      );
+      if (isCustomEmoji) {
+        // <:blobreach:123456789012345678>
+        // if its custom, wrap it in <:
+        cleanedResponse = `${serverEmojisArray.find((emoji) => emoji.name === cleanedResponse).id}`;
+      }
+    }
 
-        return cleanedResponse;
-    },
-    async generateTextDetermineHowManyMessagesToFetch(
-        content,
-        message,
-        messageCountText,
-    ) {
-        // Rule-based fast-path: standalone image requests need minimal context
-        const strippedContent = content.replace(/<@\d+>/g, "").trim().toLowerCase();
-        const isImageRequest = /\b(draw|paint|sketch|create|generate|make|illustrate)\b/i.test(strippedContent);
-        const refersToConversation = /\b(conversation|we talked|earlier|before|what was|what did|summarize|recap|context|going on|been discussing|you said|he said|she said|they said)\b/i.test(strippedContent);
+    return cleanedResponse;
+  },
+  async generateTextDetermineHowManyMessagesToFetch(
+    content,
+    message,
+    messageCountText,
+  ) {
+    // Rule-based fast-path: standalone image requests need minimal context
+    const strippedContent = content
+      .replace(/<@\d+>/g, "")
+      .trim()
+      .toLowerCase();
+    const isImageRequest =
+      /\b(draw|paint|sketch|create|generate|make|illustrate)\b/i.test(
+        strippedContent,
+      );
+    const refersToConversation =
+      /\b(conversation|we talked|earlier|before|what was|what did|summarize|recap|context|going on|been discussing|you said|he said|she said|they said)\b/i.test(
+        strippedContent,
+      );
 
-        if (isImageRequest && !refersToConversation) {
-            return 5;
-        }
+    if (isImageRequest && !refersToConversation) {
+      return 5;
+    }
 
-        const conversation = [
-            {
-                role: "system",
-                content: `You are a message fetch optimizer for a multi-modal Discord AI bot. Your role is to determine the optimal number of historical messages to fetch based on the user's request.
+    const conversation = [
+      {
+        role: "system",
+        content: `You are a message fetch optimizer for a multi-modal Discord AI bot. Your role is to determine the optimal number of historical messages to fetch based on the user's request.
 
 The following shows how far back each message count reaches (oldest message in range):
 ${messageCountText}
@@ -891,53 +903,53 @@ Return ONLY a number between 5-100 in increments of 5.
 Analyze the user's intent, not just keywords.
 Take into account the timing data provided as closely as possible.
 Only output the number, nothing else. No explanations. No punctuation. No extra text.`,
-            },
-            {
-                role: "user",
-                name: DiscordUtilityService.getUsernameNoSpaces(message),
-                content: content,
-            },
-        ];
-        const response = await AIService.generateText({
-            conversation,
-            type: "ANTHROPIC",
-            model: config.ANTHROPIC_LANGUAGE_MODEL_CLAUDE_SONNET_4,
-            label: "🧠 Fetch Count",
-        });
+      },
+      {
+        role: "user",
+        name: DiscordUtilityService.getUsernameNoSpaces(message),
+        content: content,
+      },
+    ];
+    const response = await AIService.generateText({
+      conversation,
+      type: "ANTHROPIC",
+      model: config.ANTHROPIC_LANGUAGE_MODEL_CLAUDE_SONNET_4,
+      label: "🧠 Fetch Count",
+    });
 
-        // Helper function to validate the number
-        const isValidFetchCount = (num) =>
-            !isNaN(num) && num >= 5 && num <= 100 && num % 5 === 0;
+    // Helper function to validate the number
+    const isValidFetchCount = (num) =>
+      !isNaN(num) && num >= 5 && num <= 100 && num % 5 === 0;
 
-        // Try direct parse first
-        let fetchCount = parseInt(response);
+    // Try direct parse first
+    let fetchCount = parseInt(response);
 
-        // If direct parse fails, try extracting a number from the string
-        if (!isValidFetchCount(fetchCount)) {
-            // More specific regex: looks for numbers between 5-100
-            const numberMatch = response.match(/\b(\d{1,2}|100)\b/);
-            if (numberMatch) {
-                fetchCount = parseInt(numberMatch[1]);
-                console.log("Extracted number from response:", fetchCount);
-            }
-        }
+    // If direct parse fails, try extracting a number from the string
+    if (!isValidFetchCount(fetchCount)) {
+      // More specific regex: looks for numbers between 5-100
+      const numberMatch = response.match(/\b(\d{1,2}|100)\b/);
+      if (numberMatch) {
+        fetchCount = parseInt(numberMatch[1]);
+        console.log("Extracted number from response:", fetchCount);
+      }
+    }
 
-        // Validate and return
-        if (isValidFetchCount(fetchCount)) {
-            return fetchCount;
-        }
+    // Validate and return
+    if (isValidFetchCount(fetchCount)) {
+      return fetchCount;
+    }
 
-        console.error(
-            "Invalid response from AI for message fetch count:",
-            response,
-        );
-        return 20; // default to moderate fetch
-    },
-    async generateTextIsAskingToGenerateImage(content, message) {
-        const conversation = [
-            {
-                role: "system",
-                content: `You are an expert at detecting image generation/editing requests. Respond ONLY with a valid JSON object.
+    console.error(
+      "Invalid response from AI for message fetch count:",
+      response,
+    );
+    return 20; // default to moderate fetch
+  },
+  async generateTextIsAskingToGenerateImage(content, message) {
+    const conversation = [
+      {
+        role: "system",
+        content: `You are an expert at detecting image generation/editing requests. Respond ONLY with a valid JSON object.
 
 Output {"result": true} if the message:
 - Asks to draw, create, generate, or illustrate something
@@ -971,36 +983,36 @@ Implicit editing (common in replies):
 - "Change this"
 - "Add text saying hello"
 - "Show me this image"`,
-            },
-            {
-                role: "user",
-                name: DiscordUtilityService.getUsernameNoSpaces(message),
-                content: content,
-            },
-        ];
+      },
+      {
+        role: "user",
+        name: DiscordUtilityService.getUsernameNoSpaces(message),
+        content: content,
+      },
+    ];
 
-        const response = await AIService.generateText({
-            conversation,
-            type: "OPENAI",
-            model: config.OPENAI_LANGUAGE_MODEL_GPT5_NANO,
-            label: "🧠 Image Request Detection",
-        });
+    const response = await AIService.generateText({
+      conversation,
+      type: "OPENAI",
+      model: config.OPENAI_LANGUAGE_MODEL_GPT5_NANO,
+      label: "🧠 Image Request Detection",
+    });
 
-        if (!response) return false;
+    if (!response) return false;
 
-        try {
-            const parsed = JSON.parse(response.trim());
-            return parsed.result === true;
-        } catch {
-            console.error("Unexpected response from AI (expected JSON):", response);
-            return false;
-        }
-    },
-    async generateTextIsAskingToDrawThemselves(content, message) {
-        const conversation = [
-            {
-                role: "system",
-                content: `You are an expert at detecting if a message is asking to draw, create, generate, or illustrate the user themselves. Respond ONLY with a valid JSON object.
+    try {
+      const parsed = JSON.parse(response.trim());
+      return parsed.result === true;
+    } catch {
+      console.error("Unexpected response from AI (expected JSON):", response);
+      return false;
+    }
+  },
+  async generateTextIsAskingToDrawThemselves(content, message) {
+    const conversation = [
+      {
+        role: "system",
+        content: `You are an expert at detecting if a message is asking to draw, create, generate, or illustrate the user themselves. Respond ONLY with a valid JSON object.
 
 Output {"result": true} if the message is asking to draw, create, generate, or illustrate the user themselves.
 Output {"result": false} if the message is not asking to draw, create, generate, or illustrate the user themselves.
@@ -1017,36 +1029,36 @@ Examples that should return {"result": false}:
 "Can you create an image of a cat?"
 "Make an image of a landscape"
 "Make me a logo"`,
-            },
-            {
-                role: "user",
-                name: DiscordUtilityService.getUsernameNoSpaces(message),
-                content: content,
-            },
-        ];
+      },
+      {
+        role: "user",
+        name: DiscordUtilityService.getUsernameNoSpaces(message),
+        content: content,
+      },
+    ];
 
-        const response = await AIService.generateText({
-            conversation,
-            type: "OPENAI",
-            model: config.OPENAI_LANGUAGE_MODEL_GPT5_NANO,
-            label: "🧠 Self-Portrait Detection",
-        });
+    const response = await AIService.generateText({
+      conversation,
+      type: "OPENAI",
+      model: config.OPENAI_LANGUAGE_MODEL_GPT5_NANO,
+      label: "🧠 Self-Portrait Detection",
+    });
 
-        if (!response) return false;
+    if (!response) return false;
 
-        try {
-            const parsed = JSON.parse(response.trim());
-            return parsed.result === true;
-        } catch {
-            console.error("Unexpected response from AI (expected JSON):", response);
-            return false;
-        }
-    },
-    async generateTextIsAskingLewdOrNSFW(content, message) {
-        const conversation = [
-            {
-                role: "system",
-                content: `You are an expert at detecting if a message is lewd, NSFW, or inappropriate for image generation. Respond ONLY with a valid JSON object.
+    try {
+      const parsed = JSON.parse(response.trim());
+      return parsed.result === true;
+    } catch {
+      console.error("Unexpected response from AI (expected JSON):", response);
+      return false;
+    }
+  },
+  async generateTextIsAskingLewdOrNSFW(content, message) {
+    const conversation = [
+      {
+        role: "system",
+        content: `You are an expert at detecting if a message is lewd, NSFW, or inappropriate for image generation. Respond ONLY with a valid JSON object.
 
 Output {"result": true} if the message is lewd, NSFW, or inappropriate for image generation.
 Output {"result": false} if the message is not lewd, NSFW, or inappropriate for image generation.
@@ -1054,50 +1066,57 @@ Output {"result": false} if the message is not lewd, NSFW, or inappropriate for 
 Examples that should return {"result": true}:
 "Draw me a naked person"
 "Can you create an image of two people fucking?"`,
-            },
-            {
-                role: "user",
-                name: DiscordUtilityService.getUsernameNoSpaces(message),
-                content: content,
-            },
-        ];
+      },
+      {
+        role: "user",
+        name: DiscordUtilityService.getUsernameNoSpaces(message),
+        content: content,
+      },
+    ];
 
-        const response = await AIService.generateText({
-            conversation,
-            type: "OPENAI",
-            model: config.OPENAI_LANGUAGE_MODEL_GPT5_NANO,
-            label: "🧠 NSFW Detection",
-        });
+    const response = await AIService.generateText({
+      conversation,
+      type: "OPENAI",
+      model: config.OPENAI_LANGUAGE_MODEL_GPT5_NANO,
+      label: "🧠 NSFW Detection",
+    });
 
-        if (!response) return false;
+    if (!response) return false;
 
-        try {
-            const parsed = JSON.parse(response.trim());
-            return parsed.result === true;
-        } catch {
-            console.error("Unexpected response from AI (expected JSON):", response);
-            return false;
-        }
-    },
-    /**
-     * Extract person names from a message and match them to known participants.
-     * Returns an array of matched user IDs.
-     * @param {string} messageContent - The message text (e.g. "draw Rodrigo and Alex fighting")
-     * @param {Array<{id: string, username: string, displayName: string}>} participants - Known participants
-     * @param {object} message - Discord message object
-     * @returns {Promise<string[]>} - Array of matched user IDs
-     */
-    async generateTextExtractMentionedNames(messageContent, participants, message) {
-        if (!participants || participants.length === 0) return [];
+    try {
+      const parsed = JSON.parse(response.trim());
+      return parsed.result === true;
+    } catch {
+      console.error("Unexpected response from AI (expected JSON):", response);
+      return false;
+    }
+  },
+  /**
+   * Extract person names from a message and match them to known participants.
+   * Returns an array of matched user IDs.
+   * @param {string} messageContent - The message text (e.g. "draw Rodrigo and Alex fighting")
+   * @param {Array<{id: string, username: string, displayName: string}>} participants - Known participants
+   * @param {object} message - Discord message object
+   * @returns {Promise<string[]>} - Array of matched user IDs
+   */
+  async generateTextExtractMentionedNames(
+    messageContent,
+    participants,
+    message,
+  ) {
+    if (!participants || participants.length === 0) return [];
 
-        const participantList = participants
-            .map((p) => `  {"id":"${p.id}","username":"${p.username}","displayName":"${p.displayName}"}`)
-            .join(",\n");
+    const participantList = participants
+      .map(
+        (p) =>
+          `  {"id":"${p.id}","username":"${p.username}","displayName":"${p.displayName}"}`,
+      )
+      .join(",\n");
 
-        const conversation = [
-            {
-                role: "system",
-                content: `You identify people mentioned BY NAME in a message and match them to a list of known users.
+    const conversation = [
+      {
+        role: "system",
+        content: `You identify people mentioned BY NAME in a message and match them to a list of known users.
 
 # RULES:
 1. Only match names that clearly refer to a SPECIFIC PERSON the user wants drawn/depicted
@@ -1111,50 +1130,50 @@ Examples that should return {"result": true}:
 [
 ${participantList}
 ]`,
-            },
-            {
-                role: "user",
-                name: DiscordUtilityService.getUsernameNoSpaces(message),
-                content: messageContent,
-            },
-        ];
+      },
+      {
+        role: "user",
+        name: DiscordUtilityService.getUsernameNoSpaces(message),
+        content: messageContent,
+      },
+    ];
 
-        const response = await AIService.generateText({
-            conversation,
-            type: "OPENAI",
-            model: config.OPENAI_LANGUAGE_MODEL_GPT5_NANO,
-            label: "🧠 Extract Mentioned Names",
-        });
+    const response = await AIService.generateText({
+      conversation,
+      type: "OPENAI",
+      model: config.OPENAI_LANGUAGE_MODEL_GPT5_NANO,
+      label: "🧠 Extract Mentioned Names",
+    });
 
-        if (!response) return [];
+    if (!response) return [];
 
-        try {
-            // Extract JSON array from response (handle markdown code blocks)
-            const jsonMatch = response.match(/\[.*\]/s);
-            if (!jsonMatch) return [];
-            const parsed = JSON.parse(jsonMatch[0]);
-            if (!Array.isArray(parsed)) return [];
-            // Filter to only valid participant IDs
-            const validIds = new Set(participants.map((p) => p.id));
-            return parsed.filter((id) => validIds.has(String(id))).map(String);
-        } catch {
-            console.error("Failed to parse mentioned names response:", response);
-            return [];
-        }
-    },
-    /**
-     * Detect if a draw request references a GROUP of people without naming them.
-     * e.g. "draw the top 5 people here", "draw everyone", "draw the boys"
-     * Returns the number of people to include (0 = not a group reference).
-     * @param {string} messageContent - The message text
-     * @param {object} message - Discord message object
-     * @returns {Promise<number>} - Number of people to include (0 if not a group ref)
-     */
-    async generateTextDetectGroupReference(messageContent, message) {
-        const conversation = [
-            {
-                role: "system",
-                content: `You determine if a message is asking to draw/depict a GROUP of people from the chat.
+    try {
+      // Extract JSON array from response (handle markdown code blocks)
+      const jsonMatch = response.match(/\[.*\]/s);
+      if (!jsonMatch) return [];
+      const parsed = JSON.parse(jsonMatch[0]);
+      if (!Array.isArray(parsed)) return [];
+      // Filter to only valid participant IDs
+      const validIds = new Set(participants.map((p) => p.id));
+      return parsed.filter((id) => validIds.has(String(id))).map(String);
+    } catch {
+      console.error("Failed to parse mentioned names response:", response);
+      return [];
+    }
+  },
+  /**
+   * Detect if a draw request references a GROUP of people without naming them.
+   * e.g. "draw the top 5 people here", "draw everyone", "draw the boys"
+   * Returns the number of people to include (0 = not a group reference).
+   * @param {string} messageContent - The message text
+   * @param {object} message - Discord message object
+   * @returns {Promise<number>} - Number of people to include (0 if not a group ref)
+   */
+  async generateTextDetectGroupReference(messageContent, message) {
+    const conversation = [
+      {
+        role: "system",
+        content: `You determine if a message is asking to draw/depict a GROUP of people from the chat.
 
 # RULES:
 1. If the message references a generic group (e.g. "the top 5 people here", "everyone", "all of us", "the boys", "the squad", "the chat", "everyone else"), return the NUMBER of people implied.
@@ -1175,31 +1194,31 @@ ${participantList}
 - "draw me and @someone" → 0 (specific people only, no group reference)
 - "draw a sunset" → 0 (no people referenced)
 - "draw kvz as a knight" → 0 (specific person named, no group reference)`,
-            },
-            {
-                role: "user",
-                name: DiscordUtilityService.getUsernameNoSpaces(message),
-                content: messageContent,
-            },
-        ];
+      },
+      {
+        role: "user",
+        name: DiscordUtilityService.getUsernameNoSpaces(message),
+        content: messageContent,
+      },
+    ];
 
-        const response = await AIService.generateText({
-            conversation,
-            type: "ANTHROPIC",
-            model: config.ANTHROPIC_LANGUAGE_MODEL_FAST,
-            label: "🧠 Detect Group Reference",
-        });
+    const response = await AIService.generateText({
+      conversation,
+      type: "ANTHROPIC",
+      model: config.ANTHROPIC_LANGUAGE_MODEL_FAST,
+      label: "🧠 Detect Group Reference",
+    });
 
-        if (!response) return 0;
+    if (!response) return 0;
 
-        const num = parseInt(response.trim(), 10);
-        return isNaN(num) ? 0 : num;
-    },
-    async sanitizeImagePrompt(prompt, message) {
-        const conversation = [
-            {
-                role: "system",
-                content: `You are an expert at rephrasing prompts for image generation APIs (like Google Gemini) that have strict content policies. Your job is to rephrase prompts that would be REJECTED by these APIs.
+    const num = parseInt(response.trim(), 10);
+    return isNaN(num) ? 0 : num;
+  },
+  async sanitizeImagePrompt(prompt, message) {
+    const conversation = [
+      {
+        role: "system",
+        content: `You are an expert at rephrasing prompts for image generation APIs (like Google Gemini) that have strict content policies. Your job is to rephrase prompts that would be REJECTED by these APIs.
 
 # CONTENT THAT IMAGE APIs WILL REJECT (you MUST rephrase these):
 1. **Historical atrocity figures**: Hitler, Stalin, Mussolini, Bin Laden, serial killers, dictators associated with genocide/mass murder
@@ -1227,59 +1246,59 @@ ${participantList}
 - Return ONLY the rephrased prompt text as a single paragraph
 - NO explanations, commentary, prefixes, or meta-text
 - If the prompt has NO problematic content, return it EXACTLY as-is with zero changes`,
-            },
-            {
-                role: "user",
-                name: DiscordUtilityService.getUsernameNoSpaces(message),
-                content: prompt,
-            },
-        ];
+      },
+      {
+        role: "user",
+        name: DiscordUtilityService.getUsernameNoSpaces(message),
+        content: prompt,
+      },
+    ];
 
-        const response = await AIService.generateText({
-            conversation,
-            type: "OPENAI",
-            model: config.OPENAI_LANGUAGE_MODEL_GPT5_MINI,
-            label: "🧠 Prompt Sanitization",
-        });
+    const response = await AIService.generateText({
+      conversation,
+      type: "OPENAI",
+      model: config.OPENAI_LANGUAGE_MODEL_GPT5_MINI,
+      label: "🧠 Prompt Sanitization",
+    });
 
-        if (!response) return prompt;
-        return response.trim();
-    },
-    async generateTextFromUserConversation(
-        userName,
-        cleanUserName,
-        userMessagesAsText,
-    ) {
-        const conversation = [
-            {
-                role: "system",
-                content: `You are an expert at providing concise, accurate descriptions of messages. Analyze the content sent to you and create a detailed summary of what ${userName} is discussing. Focus on being precise and direct while capturing all key points and context from their message.
+    if (!response) return prompt;
+    return response.trim();
+  },
+  async generateTextFromUserConversation(
+    userName,
+    cleanUserName,
+    userMessagesAsText,
+  ) {
+    const conversation = [
+      {
+        role: "system",
+        content: `You are an expert at providing concise, accurate descriptions of messages. Analyze the content sent to you and create a detailed summary of what ${userName} is discussing. Focus on being precise and direct while capturing all key points and context from their message.
                 
 As the output, I want you to provide the descriptions in dash list form, without using any bold, italics, or any other formatting. You can have nested lists, but no more than 3 levels deep. Do not announce that you are generating a response, just provide the descriptions. Seperate each line with a new line, not two new lines.`,
-            },
-            {
-                role: "user",
-                name: cleanUserName,
-                content: `Recent messages from ${userName}: ${userMessagesAsText}`,
-            },
-        ];
-        const generatedText = await AIService.generateText({
-            conversation: conversation,
-            type: "OPENAI",
-            model: config.OPENAI_LANGUAGE_MODEL_GPT4_1_NANO,
-            label: "🧠 User Analysis",
-        });
-        return generatedText;
-    },
-    async generateTextReplyNoImageGenerated(
-        conversationForTextGeneration,
-        assistantMessage,
-        systemPrompt,
-    ) {
-        const conversation = [
-            {
-                role: "system",
-                content: `# Image Generation Status
+      },
+      {
+        role: "user",
+        name: cleanUserName,
+        content: `Recent messages from ${userName}: ${userMessagesAsText}`,
+      },
+    ];
+    const generatedText = await AIService.generateText({
+      conversation: conversation,
+      type: "OPENAI",
+      model: config.OPENAI_LANGUAGE_MODEL_GPT4_1_NANO,
+      label: "🧠 User Analysis",
+    });
+    return generatedText;
+  },
+  async generateTextReplyNoImageGenerated(
+    conversationForTextGeneration,
+    assistantMessage,
+    systemPrompt,
+  ) {
+    const conversation = [
+      {
+        role: "system",
+        content: `# Image Generation Status
 No image was generated for this message. You did NOT draw, paint, create, or produce any image.
 CRITICAL: Do NOT claim or imply that you drew, created, or generated any image. You did not. No image is attached.
 If the user asked you to draw something, you should detect that intent and respond conversationally, but an image WILL be generated separately by the system — do NOT describe what the image looks like or pretend you already made it.
@@ -1287,30 +1306,30 @@ If the user asked you to draw something, you should detect that intent and respo
 ${assistantMessage}
 
 ${systemPrompt}`,
-            },
-        ];
+      },
+    ];
 
-        conversation.push(...conversationForTextGeneration);
+    conversation.push(...conversationForTextGeneration);
 
-        const generatedText = await AIService.generateText({
-            conversation: conversation,
-            type: config.LANGUAGE_MODEL_TYPE,
-            modelPerformance: "POWERFUL",
-            tokens: config.LANGUAGE_MODEL_MAX_TOKENS,
-            temperature: config.LANGUAGE_MODEL_TEMPERATURE,
-            label: "💬 Reply",
-        });
-        return generatedText;
-    },
-    async generateTextReplyImageFailed(
-        conversationForTextGeneration,
-        assistantMessage,
-        systemPrompt,
-    ) {
-        const conversation = [
-            {
-                role: "system",
-                content: `# Image Generation Status
+    const generatedText = await AIService.generateText({
+      conversation: conversation,
+      type: config.LANGUAGE_MODEL_TYPE,
+      modelPerformance: "POWERFUL",
+      tokens: config.LANGUAGE_MODEL_MAX_TOKENS,
+      temperature: config.LANGUAGE_MODEL_TEMPERATURE,
+      label: "💬 Reply",
+    });
+    return generatedText;
+  },
+  async generateTextReplyImageFailed(
+    conversationForTextGeneration,
+    assistantMessage,
+    systemPrompt,
+  ) {
+    const conversation = [
+      {
+        role: "system",
+        content: `# Image Generation Status
 The user asked you to generate/draw an image, but it didn't work this time. No image was produced or attached.
 ## Your Task
 Respond as if you're perfectly CAPABLE of drawing it, but get distracted roasting or bantering with the user first. Do NOT say "image generation failed" or anything technical.
@@ -1324,36 +1343,37 @@ RULES:
 ${assistantMessage}
 
 ${systemPrompt}`,
-            },
-        ];
+      },
+    ];
 
-        conversation.push(...conversationForTextGeneration);
+    conversation.push(...conversationForTextGeneration);
 
-        const generatedText = await AIService.generateText({
-            conversation: conversation,
-            type: config.LANGUAGE_MODEL_TYPE,
-            modelPerformance: "POWERFUL",
-            tokens: 150,
-            temperature: config.LANGUAGE_MODEL_TEMPERATURE,
-            label: "💬 Reply (Image Failed)",
-        });
-        return generatedText;
-    },
-    async generateTextReplyImageGenerated(
-        conversationForTextGeneration,
-        assistantMessage,
-        systemPrompt,
-        promptForImagePromptGeneration,
-        drawnUserMentions = [],
-    ) {
-        const mentionsList = drawnUserMentions.length > 0
-            ? `\n## MANDATORY: Tag these users in your response\nYou MUST start your response by tagging these users: ${drawnUserMentions.join(" ")}\nExample: "${drawnUserMentions.join(" ")} [your one-sentence remark]"`
-            : "";
+    const generatedText = await AIService.generateText({
+      conversation: conversation,
+      type: config.LANGUAGE_MODEL_TYPE,
+      modelPerformance: "POWERFUL",
+      tokens: 150,
+      temperature: config.LANGUAGE_MODEL_TEMPERATURE,
+      label: "💬 Reply (Image Failed)",
+    });
+    return generatedText;
+  },
+  async generateTextReplyImageGenerated(
+    conversationForTextGeneration,
+    assistantMessage,
+    systemPrompt,
+    promptForImagePromptGeneration,
+    drawnUserMentions = [],
+  ) {
+    const mentionsList =
+      drawnUserMentions.length > 0
+        ? `\n## MANDATORY: Tag these users in your response\nYou MUST start your response by tagging these users: ${drawnUserMentions.join(" ")}\nExample: "${drawnUserMentions.join(" ")} [your one-sentence remark]"`
+        : "";
 
-        const conversation = [
-            {
-                role: "system",
-                content: `# Generated Image Context
+    const conversation = [
+      {
+        role: "system",
+        content: `# Generated Image Context
 An image was generated and attached to this message based on the following prompt: "${promptForImagePromptGeneration}"
 ## Your Task
 The image is already attached — DO NOT describe what's in it. The user can see it.
@@ -1365,28 +1385,28 @@ ${mentionsList}
 ${assistantMessage}
 
 ${systemPrompt}`,
-            },
-        ];
+      },
+    ];
 
-        conversation.push(...conversationForTextGeneration);
+    conversation.push(...conversationForTextGeneration);
 
-        const generatedText = await AIService.generateText({
-            conversation: conversation,
-            type: config.LANGUAGE_MODEL_TYPE,
-            modelPerformance: "POWERFUL",
-            tokens: 100,
-            temperature: config.LANGUAGE_MODEL_TEMPERATURE,
-            label: "💬 Reply (Image)",
-        });
-        return generatedText;
-    },
-    async generateTextPromptForImagePromptGeneration(
-        conversationForTextGeneration,
-        systemPrompt,
-        shouldRedrawImage,
-        edittedMessageCleanContent,
-    ) {
-        const systemPromptForImagePromptGeneration = `# Image Prompt Generation
+    const generatedText = await AIService.generateText({
+      conversation: conversation,
+      type: config.LANGUAGE_MODEL_TYPE,
+      modelPerformance: "POWERFUL",
+      tokens: 100,
+      temperature: config.LANGUAGE_MODEL_TEMPERATURE,
+      label: "💬 Reply (Image)",
+    });
+    return generatedText;
+  },
+  async generateTextPromptForImagePromptGeneration(
+    conversationForTextGeneration,
+    systemPrompt,
+    shouldRedrawImage,
+    edittedMessageCleanContent,
+  ) {
+    const systemPromptForImagePromptGeneration = `# Image Prompt Generation
 - You are part of a multi-modal AI bot that can generate and edit images.
 - Your job is to generate an image from a text prompt only.
 - Your specific task here is to create detailed prompts for image generation or editing.
@@ -1414,7 +1434,7 @@ Generate the editing prompt now.
 
 ${systemPrompt}`;
 
-        const systemPromptForImageToImagePromptGeneration = `# Image Edit Prompt Generator
+    const systemPromptForImageToImagePromptGeneration = `# Image Edit Prompt Generator
 - You are part of a multi-modal AI bot that can generate and edit images.
 - Your job is to generate an image edit prompt from a text prompt and an existing image.
 - You have at least 1 existing image to reference and edit.
@@ -1447,42 +1467,42 @@ Generate the editing prompt now.
 
 ${systemPrompt}`;
 
-        const conversation = [
-            {
-                role: "system",
-                content: "",
-            },
-        ];
+    const conversation = [
+      {
+        role: "system",
+        content: "",
+      },
+    ];
 
-        if (shouldRedrawImage) {
-            conversation[0].content = systemPromptForImageToImagePromptGeneration;
-        } else {
-            conversation[0].content = systemPromptForImagePromptGeneration;
-        }
-        // conversation.push(conversationForTextGeneration[conversationForTextGeneration.length - 1]);
-        // Instead of pushing the reference directly
-        // This creates a shallow copy of the object
-        conversation.push({
-            ...conversationForTextGeneration[
-            conversationForTextGeneration.length - 1
-            ],
-        });
+    if (shouldRedrawImage) {
+      conversation[0].content = systemPromptForImageToImagePromptGeneration;
+    } else {
+      conversation[0].content = systemPromptForImagePromptGeneration;
+    }
+    // conversation.push(conversationForTextGeneration[conversationForTextGeneration.length - 1]);
+    // Instead of pushing the reference directly
+    // This creates a shallow copy of the object
+    conversation.push({
+      ...conversationForTextGeneration[
+        conversationForTextGeneration.length - 1
+      ],
+    });
 
-        if (edittedMessageCleanContent) {
-            conversation[1].content = `${edittedMessageCleanContent}`;
-        }
+    if (edittedMessageCleanContent) {
+      conversation[1].content = `${edittedMessageCleanContent}`;
+    }
 
-        const generatedText = await AIService.generateText({
-            conversation: conversation,
-            type: config.LANGUAGE_MODEL_TYPE,
-            modelPerformance: "POWERFUL",
-            tokens: config.LANGUAGE_MODEL_MAX_TOKENS,
-            temperature: config.LANGUAGE_MODEL_TEMPERATURE,
-            label: "🧠 Image Prompt",
-        });
+    const generatedText = await AIService.generateText({
+      conversation: conversation,
+      type: config.LANGUAGE_MODEL_TYPE,
+      modelPerformance: "POWERFUL",
+      tokens: config.LANGUAGE_MODEL_MAX_TOKENS,
+      temperature: config.LANGUAGE_MODEL_TEMPERATURE,
+      label: "🧠 Image Prompt",
+    });
 
-        return generatedText;
-    },
+    return generatedText;
+  },
 };
 
 export default AIService;

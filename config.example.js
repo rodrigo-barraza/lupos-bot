@@ -1,92 +1,88 @@
 export default {
-	"VENDER_TOKEN": "xxx",
+  VENDER_TOKEN: "xxx",
 
-	"PRISM_API_URL": "http://localhost:7777",
+  PRISM_API_URL: "http://localhost:7777",
 
-	"SERVER_PORT": 1337,
-	"DATABASE_URL": "mongodb+srv://user:password@cluster.mongodb.net/?retryWrites=true&w=majority&appName=lupos",
-	"LOCAL_DATABASE_URL": "mongodb://localhost:27017/?directConnection=true",
-	"LUPOS_TOKEN": "your-discord-bot-token",
-	"GOOGLE_KEY": "your-google-key",
+  SERVER_PORT: 1337,
+  DATABASE_URL:
+    "mongodb+srv://user:password@cluster.mongodb.net/?retryWrites=true&w=majority&appName=lupos",
+  LOCAL_DATABASE_URL: "mongodb://localhost:27017/?directConnection=true",
+  LUPOS_TOKEN: "your-discord-bot-token",
+  GOOGLE_KEY: "your-google-key",
 
-	"ROLES_IDS_IGNORE": [
-		"1394148043153997935"
-	],
-	"USER_IDS_IGNORE": [
-		"123456789012345678",
-		"1387618309071048745",
-		"679626713310691358",
-		"274558094896529408",
-		"189874811240054785"
-	],
-	"CHANNEL_IDS_JUKEBOX": [
-		"1389725795869786284"
-	],
+  ROLES_IDS_IGNORE: ["1394148043153997935"],
+  USER_IDS_IGNORE: [
+    "123456789012345678",
+    "1387618309071048745",
+    "679626713310691358",
+    "274558094896529408",
+    "189874811240054785",
+  ],
+  CHANNEL_IDS_JUKEBOX: ["1389725795869786284"],
 
-	"GUILD_ID_PRIMARY": "609471635308937237",
+  GUILD_ID_PRIMARY: "609471635308937237",
 
-	"GUILD_ID_TESTING": "1357934319879979170",
-	"EMOJI_ID_FLAG": "1377425518520959067",
-	"ROLE_ID_BIRTHDAY_MONTH": "733730630935904276",
-	"ROLE_ID_YAPPER": "1250937112493035561",
-	"ROLE_ID_REACTOR": "1256806802465493022",
-	"ROLE_ID_BOT_CHATTER": "1353101921681936456",
-	"ROLE_ID_STREAMER": "1392951318951231629",
-	"ROLE_ID_VOICE_CHATTER": "1392631838521954335",
-	"ROLE_ID_FLAG": "1354926676714328154",
-    "ROLE_ID_POLITICS_MUTE": "765201362358239252",
-	"CHANNEL_ID_POLITICS": "762734438375096380",
-	"CHANNEL_ID_SELF_ROLES": "1392993431172681848",
-	"CHANNEL_ID_LEAVERS": "1392636842645520415",
-	"CHANNEL_ID_HIGHLIGHTS": "1295184997006708807",
-	"CHANNEL_ID_BOOTY_BAE": "718520315721810030",
-	"CHANNEL_ID_STREAMERS": "609498307626008576",
+  GUILD_ID_TESTING: "1357934319879979170",
+  EMOJI_ID_FLAG: "1377425518520959067",
+  ROLE_ID_BIRTHDAY_MONTH: "733730630935904276",
+  ROLE_ID_YAPPER: "1250937112493035561",
+  ROLE_ID_REACTOR: "1256806802465493022",
+  ROLE_ID_BOT_CHATTER: "1353101921681936456",
+  ROLE_ID_STREAMER: "1392951318951231629",
+  ROLE_ID_VOICE_CHATTER: "1392631838521954335",
+  ROLE_ID_FLAG: "1354926676714328154",
+  ROLE_ID_POLITICS_MUTE: "765201362358239252",
+  CHANNEL_ID_POLITICS: "762734438375096380",
+  CHANNEL_ID_SELF_ROLES: "1392993431172681848",
+  CHANNEL_ID_LEAVERS: "1392636842645520415",
+  CHANNEL_ID_HIGHLIGHTS: "1295184997006708807",
+  CHANNEL_ID_BOOTY_BAE: "718520315721810030",
+  CHANNEL_ID_STREAMERS: "609498307626008576",
 
-	"DEATHROLL_SEASON": 1,
-	"USER_IDS_TIMED_OUT": [
-		"523687983417786379",
-		"243173972743553024",
-		"450668181359427584",
-		"183511447924375552",
-		"1021825192923779193"
-	],
-    "USER_IDS_POLITICS_MUTED": [
-        "1349125934506053722"
-    ],
-	"USER_IDS_NEW_ACCOUNT_WHITELIST": [],
+  DEATHROLL_SEASON: 1,
+  USER_IDS_TIMED_OUT: [
+    "523687983417786379",
+    "243173972743553024",
+    "450668181359427584",
+    "183511447924375552",
+    "1021825192923779193",
+  ],
+  USER_IDS_POLITICS_MUTED: ["1349125934506053722"],
+  USER_IDS_NEW_ACCOUNT_WHITELIST: [],
 
-	"GENERATE_IMAGE": true,
-	"ASSISTANT_MESSAGE": "",
-	"FLAGGED_WORDS": "beaner, c00n, c0on, chink, co0n, coon, f a g g o t, f\\.ag, f@g, f@gg0t, f@ggot, fag, fagg0t, faggatron, faggit, faggot, faggy, fagit, faglord, fagot, fags, fgrt, fgtrtd, FGTRTD, fgts, frociaggine, g00k, g0ok, go0k, gook, honkey, https://imgur.com/aRYkT2C, kike, kys, n!g, n!ger, n!gg3r, n!gger, ni🅱️ 🅱️ a, nibba, nig, nigg3r, nigga, nigger, niglet, pajeet, sassygao, sassygao:, spic, trannies, trannny, tranny, trannys, wetback, www.wowgoldgo.com",
-	
-	"LIGHTS_URL": "http://localhost:4444",
-	"TREND_API_URL": "http://localhost:5570",
-	"PRODUCT_API_URL": "http://localhost:5560",
-	"EVENT_API_URL": "http://localhost:5556",
-	"WEATHER_API_URL": "http://localhost:5555",
-	"PRIMARY_LIGHT_ID": "d073d523f763",
+  GENERATE_IMAGE: true,
+  ASSISTANT_MESSAGE: "",
+  FLAGGED_WORDS:
+    "beaner, c00n, c0on, chink, co0n, coon, f a g g o t, f\\.ag, f@g, f@gg0t, f@ggot, fag, fagg0t, faggatron, faggit, faggot, faggy, fagit, faglord, fagot, fags, fgrt, fgtrtd, FGTRTD, fgts, frociaggine, g00k, g0ok, go0k, gook, honkey, https://imgur.com/aRYkT2C, kike, kys, n!g, n!ger, n!gg3r, n!gger, ni🅱️ 🅱️ a, nibba, nig, nigg3r, nigga, nigger, niglet, pajeet, sassygao, sassygao:, spic, trannies, trannny, tranny, trannys, wetback, www.wowgoldgo.com",
 
-	"LANGUAGE_MODEL_PERFORMANCE": "POWERFUL",
+  LIGHTS_URL: "http://localhost:4444",
+  TREND_API_URL: "http://localhost:5570",
+  PRODUCT_API_URL: "http://localhost:5560",
+  EVENT_API_URL: "http://localhost:5556",
+  WEATHER_API_URL: "http://localhost:5555",
+  PRIMARY_LIGHT_ID: "d073d523f763",
 
-	"ANTHROPIC_LANGUAGE_MODEL_SMART": "claude-sonnet-4-6",
-	"ANTHROPIC_LANGUAGE_MODEL_FAST": "claude-haiku-4-5-20251001",
+  LANGUAGE_MODEL_PERFORMANCE: "POWERFUL",
 
-	"ANTHROPIC_LANGUAGE_MODEL_CLAUDE_SONNET_4": "claude-sonnet-4-6",
-	"OPENAI_LANGUAGE_MODEL_GPT5_MINI": "gpt-5-mini",
-	"OPENAI_LANGUAGE_MODEL_GPT5_NANO": "gpt-5-nano",
-	"OPENAI_LANGUAGE_MODEL_GPT4_1_NANO": "gpt-4.1-nano",
-	
-	"LANGUAGE_MODEL_OPENAI": "gpt-4",
-	"LANGUAGE_MODEL_LOCAL": "deepseek-r1-distill-qwen-32b-abliterated@q3_k_s",
-	"LANGUAGE_MODEL_TYPE": "ANTHROPIC",
-	"LANGUAGE_MODEL_MAX_TOKENS": 1000,
-	"LANGUAGE_MODEL_TEMPERATURE": 0.55,
+  ANTHROPIC_LANGUAGE_MODEL_SMART: "claude-sonnet-4-6",
+  ANTHROPIC_LANGUAGE_MODEL_FAST: "claude-haiku-4-5-20251001",
 
-	"LANGUAGE_MODEL_OPENAI_LOW": "gpt-4.1-nano",
+  ANTHROPIC_LANGUAGE_MODEL_CLAUDE_SONNET_4: "claude-sonnet-4-6",
+  OPENAI_LANGUAGE_MODEL_GPT5_MINI: "gpt-5-mini",
+  OPENAI_LANGUAGE_MODEL_GPT5_NANO: "gpt-5-nano",
+  OPENAI_LANGUAGE_MODEL_GPT4_1_NANO: "gpt-4.1-nano",
 
-	"FAST_LANGUAGE_MODEL_OPENAI": "gpt-4o",
-	"FAST_LANGUAGE_MODEL_LOCAL": "deepseek-r1-distill-qwen-32b-abliterated@q3_k_s",
+  LANGUAGE_MODEL_OPENAI: "gpt-4",
+  LANGUAGE_MODEL_LOCAL: "deepseek-r1-distill-qwen-32b-abliterated@q3_k_s",
+  LANGUAGE_MODEL_TYPE: "ANTHROPIC",
+  LANGUAGE_MODEL_MAX_TOKENS: 1000,
+  LANGUAGE_MODEL_TEMPERATURE: 0.55,
 
-	"COMFY_UI_IMAGE_MODEL_API_URL": "http://192.168.86.179:8188",
-	"COMFY_UI_IMAGE_MODEL_WEBSOCKET_URL": "ws://192.168.86.179:8188"
+  LANGUAGE_MODEL_OPENAI_LOW: "gpt-4.1-nano",
+
+  FAST_LANGUAGE_MODEL_OPENAI: "gpt-4o",
+  FAST_LANGUAGE_MODEL_LOCAL: "deepseek-r1-distill-qwen-32b-abliterated@q3_k_s",
+
+  COMFY_UI_IMAGE_MODEL_API_URL: "http://192.168.86.179:8188",
+  COMFY_UI_IMAGE_MODEL_WEBSOCKET_URL: "ws://192.168.86.179:8188",
 };
