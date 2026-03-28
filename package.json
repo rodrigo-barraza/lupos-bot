@@ -10,8 +10,10 @@
   "scripts": {
     "dev": "node lupos.js mode=messages",
     "test": "node --experimental-vm-modules node_modules/.bin/jest",
-    "lint": "eslint . --quiet",
-    "format": "prettier --write ."
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write \"**/*.js\"",
+    "format:check": "prettier --check \"**/*.js\""
   },
   "keywords": [],
   "author": "",
