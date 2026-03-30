@@ -82,6 +82,8 @@ export default class PrismService {
     conversationId,
     userMessage,
     conversationMeta,
+    createSession,
+    sessionId,
   }) {
     const provider = PROVIDER_MAP[type];
     if (!provider) {
@@ -100,6 +102,8 @@ export default class PrismService {
     if (conversationId) body.conversationId = conversationId;
     if (userMessage) body.userMessage = userMessage;
     if (conversationMeta) body.conversationMeta = conversationMeta;
+    if (createSession) body.createSession = true;
+    if (sessionId) body.sessionId = sessionId;
 
 
     const data = await PrismService._request("/chat?stream=false", {
@@ -113,6 +117,7 @@ export default class PrismService {
       model: data.model,
       provider: data.provider,
       estimatedCost: data.estimatedCost || null,
+      sessionId: data.sessionId || null,
     };
   }
 
@@ -139,6 +144,8 @@ export default class PrismService {
     userMessage,
     conversationMeta,
     systemPrompt,
+    createSession,
+    sessionId,
   }) {
     const imageDataUrls = images.map((img) => {
       if (typeof img === "string") return img;
@@ -161,6 +168,8 @@ export default class PrismService {
     if (conversationId) body.conversationId = conversationId;
     if (userMessage) body.userMessage = userMessage;
     if (conversationMeta) body.conversationMeta = conversationMeta;
+    if (createSession) body.createSession = true;
+    if (sessionId) body.sessionId = sessionId;
 
 
     const result = await PrismService._request("/chat?stream=false", {
@@ -178,6 +187,7 @@ export default class PrismService {
       estimatedCost: result.estimatedCost ?? null,
       model: result.model,
       provider: result.provider,
+      sessionId: result.sessionId || null,
     };
   }
 
@@ -204,6 +214,8 @@ export default class PrismService {
     userMessage,
     conversationMeta,
     systemPrompt,
+    createSession,
+    sessionId,
   }) {
     const normalizedImages = Array.isArray(images) ? images : [images];
 
@@ -217,9 +229,15 @@ export default class PrismService {
     if (conversationId) body.conversationId = conversationId;
     if (userMessage) body.userMessage = userMessage;
     if (conversationMeta) body.conversationMeta = conversationMeta;
+    if (createSession) body.createSession = true;
+    if (sessionId) body.sessionId = sessionId;
 
 
-    return PrismService._request("/chat?stream=false", { body, username });
+    const result = await PrismService._request("/chat?stream=false", { body, username });
+    return {
+      ...result,
+      sessionId: result.sessionId || null,
+    };
   }
 
   /**

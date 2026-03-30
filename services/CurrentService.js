@@ -2,6 +2,7 @@ let user = null;
 let message = null;
 let startTime = null;
 let endTime = null;
+let sessionId = null;
 
 let models = new Set();
 let modelTypes = new Set();
@@ -49,6 +50,15 @@ const CurrentService = {
   },
   clearModelTypes() {
     modelTypes = new Set();
+  },
+  setSessionId(newSessionId) {
+    sessionId = newSessionId;
+  },
+  getSessionId() {
+    return sessionId;
+  },
+  clearSessionId() {
+    sessionId = null;
   },
 
 };

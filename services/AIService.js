@@ -60,6 +60,26 @@ function assembleConversation(systemMessage, userMessage, message) {
 }
 
 const AIService = {
+  /**
+   * Returns session params for PrismService calls.
+   * First call in a message cycle: { createSession: true }
+   * Subsequent calls: { sessionId: "<existing-id>" }
+   */
+  _getSessionParams() {
+    const existingSessionId = CurrentService.getSessionId();
+    if (existingSessionId) {
+      return { sessionId: existingSessionId };
+    }
+    return { createSession: true };
+  },
+  /**
+   * Capture sessionId from a Prism response into CurrentService.
+   */
+  _captureSessionId(prismResult) {
+    if (prismResult?.sessionId && !CurrentService.getSessionId()) {
+      CurrentService.setSessionId(prismResult.sessionId);
+    }
+  },
   // Base Text-to-Text Generation (Completion)
   async generateText({
     conversation,
@@ -151,8 +171,10 @@ const AIService = {
         conversationId,
         userMessage,
         conversationMeta,
+        ...AIService._getSessionParams(),
       });
 
+      AIService._captureSessionId(prismResult);
       textResponse = prismResult.text;
 
       if (prismResult.model) {
@@ -319,8 +341,10 @@ const AIService = {
           conversationId,
           userMessage: imgUserMsg,
           conversationMeta: imgConversationMeta,
-
+          ...AIService._getSessionParams(),
         });
+
+        AIService._captureSessionId(prismResult);
 
         if (prismResult.imageData) {
           generatedImage = prismResult.imageData;
@@ -395,8 +419,10 @@ const AIService = {
           conversationId,
           userMessage: imgUserMsg,
           conversationMeta: imgConversationMeta,
-
+          ...AIService._getSessionParams(),
         });
+
+        AIService._captureSessionId(prismResult);
 
         generatedImage = prismResult.imageData;
         generatedText = prismResult.text;
@@ -487,8 +513,10 @@ const AIService = {
         conversationId: visionConvId,
         userMessage: captionUserMsg,
         conversationMeta: captionConvMeta,
-
+        ...AIService._getSessionParams(),
       });
+
+      AIService._captureSessionId(result);
 
       return {
         response: { choices: [{ message: { content: result.text } }] },
