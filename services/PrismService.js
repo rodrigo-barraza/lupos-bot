@@ -82,6 +82,8 @@ export default class PrismService {
     conversationId,
     userMessage,
     conversationMeta,
+    sessionId,
+    createSession,
   }) {
     const provider = PROVIDER_MAP[type];
     if (!provider) {
@@ -100,6 +102,8 @@ export default class PrismService {
     if (conversationId) body.conversationId = conversationId;
     if (userMessage) body.userMessage = userMessage;
     if (conversationMeta) body.conversationMeta = conversationMeta;
+    if (sessionId) body.sessionId = sessionId;
+    if (createSession) body.createSession = true;
 
     const data = await PrismService._request("/chat?stream=false", {
       body,
@@ -112,6 +116,7 @@ export default class PrismService {
       model: data.model,
       provider: data.provider,
       estimatedCost: data.estimatedCost || null,
+      sessionId: data.sessionId || null,
     };
   }
 
@@ -138,6 +143,7 @@ export default class PrismService {
     userMessage,
     conversationMeta,
     systemPrompt,
+    sessionId,
   }) {
     const imageDataUrls = images.map((img) => {
       if (typeof img === "string") return img;
@@ -160,6 +166,7 @@ export default class PrismService {
     if (conversationId) body.conversationId = conversationId;
     if (userMessage) body.userMessage = userMessage;
     if (conversationMeta) body.conversationMeta = conversationMeta;
+    if (sessionId) body.sessionId = sessionId;
 
     const result = await PrismService._request("/chat?stream=false", {
       body,
@@ -202,6 +209,7 @@ export default class PrismService {
     userMessage,
     conversationMeta,
     systemPrompt,
+    sessionId,
   }) {
     const normalizedImages = Array.isArray(images) ? images : [images];
 
@@ -215,6 +223,7 @@ export default class PrismService {
     if (conversationId) body.conversationId = conversationId;
     if (userMessage) body.userMessage = userMessage;
     if (conversationMeta) body.conversationMeta = conversationMeta;
+    if (sessionId) body.sessionId = sessionId;
 
     return PrismService._request("/chat?stream=false", { body, username });
   }

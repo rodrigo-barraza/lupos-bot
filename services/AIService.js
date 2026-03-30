@@ -142,6 +142,9 @@ const AIService = {
         }
       : null;
 
+    // Session: reuse existing or trigger creation on first call
+    const existingSessionId = CurrentService.getSessionId();
+
     try {
       const prismResult = await PrismService.generateText({
         messages: conversation,
@@ -153,6 +156,11 @@ const AIService = {
         conversationId,
         userMessage,
         conversationMeta,
+        // First call: no sessionId yet → ask Prism to create one
+        // Subsequent calls: pass the sessionId we got back
+        ...(existingSessionId
+          ? { sessionId: existingSessionId }
+          : { createSession: true }),
       });
 
       textResponse = prismResult.text;
@@ -160,6 +168,10 @@ const AIService = {
       prismEstimatedCost = prismResult.estimatedCost || null;
       if (prismResult.model) {
         usedModel = prismResult.model;
+      }
+      // Capture sessionId from Prism on first call
+      if (!existingSessionId && prismResult.sessionId) {
+        CurrentService.setSessionId(prismResult.sessionId);
       }
     } catch (prismError) {
       console.error(
@@ -409,6 +421,7 @@ const AIService = {
           conversationId,
           userMessage: imgUserMsg,
           conversationMeta: imgConversationMeta,
+          sessionId: CurrentService.getSessionId(),
         });
 
         generatedImage = prismResult.imageData;
@@ -514,6 +527,7 @@ const AIService = {
         conversationId: visionConvId,
         userMessage: captionUserMsg,
         conversationMeta: captionConvMeta,
+        sessionId: CurrentService.getSessionId(),
       });
 
       return {

@@ -7,6 +7,7 @@ let models = new Set();
 let modelTypes = new Set();
 let steps = [];
 let conversationIds = new Set();
+let sessionId = null;
 
 const CurrentService = {
   setUser(newUser) {
@@ -80,6 +81,19 @@ const CurrentService = {
   },
   clearSteps() {
     steps = [];
+  },
+  /**
+   * Set the session ID for the current processing run.
+   * @param {string} id
+   */
+  setSessionId(id) {
+    sessionId = id;
+  },
+  getSessionId() {
+    return sessionId;
+  },
+  clearSessionId() {
+    sessionId = null;
   },
 };
 

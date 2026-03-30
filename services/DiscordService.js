@@ -1825,6 +1825,7 @@ ${combinedGuildInformation && combinedChannelInformation ? `URL: https://discord
     });
     CurrentService.clearSteps();
     CurrentService.clearConversationIds();
+    CurrentService.clearSessionId();
   }
 
   LightsService.cycleColor(config.PRIMARY_LIGHT_ID, "purples");
