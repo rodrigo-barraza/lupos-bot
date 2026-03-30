@@ -345,6 +345,7 @@ const AIService = {
           conversationId,
           userMessage: imgUserMsg,
           conversationMeta: imgConversationMeta,
+          sessionId: CurrentService.getSessionId(),
         });
 
         if (prismResult.imageData) {
