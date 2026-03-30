@@ -82,8 +82,6 @@ export default class PrismService {
     conversationId,
     userMessage,
     conversationMeta,
-    sessionId,
-    createSession,
   }) {
     const provider = PROVIDER_MAP[type];
     if (!provider) {
@@ -102,8 +100,7 @@ export default class PrismService {
     if (conversationId) body.conversationId = conversationId;
     if (userMessage) body.userMessage = userMessage;
     if (conversationMeta) body.conversationMeta = conversationMeta;
-    if (sessionId) body.sessionId = sessionId;
-    if (createSession) body.createSession = true;
+
 
     const data = await PrismService._request("/chat?stream=false", {
       body,
@@ -116,7 +113,6 @@ export default class PrismService {
       model: data.model,
       provider: data.provider,
       estimatedCost: data.estimatedCost || null,
-      sessionId: data.sessionId || null,
     };
   }
 
@@ -143,7 +139,6 @@ export default class PrismService {
     userMessage,
     conversationMeta,
     systemPrompt,
-    sessionId,
   }) {
     const imageDataUrls = images.map((img) => {
       if (typeof img === "string") return img;
@@ -166,7 +161,7 @@ export default class PrismService {
     if (conversationId) body.conversationId = conversationId;
     if (userMessage) body.userMessage = userMessage;
     if (conversationMeta) body.conversationMeta = conversationMeta;
-    if (sessionId) body.sessionId = sessionId;
+
 
     const result = await PrismService._request("/chat?stream=false", {
       body,
@@ -209,7 +204,6 @@ export default class PrismService {
     userMessage,
     conversationMeta,
     systemPrompt,
-    sessionId,
   }) {
     const normalizedImages = Array.isArray(images) ? images : [images];
 
@@ -223,7 +217,7 @@ export default class PrismService {
     if (conversationId) body.conversationId = conversationId;
     if (userMessage) body.userMessage = userMessage;
     if (conversationMeta) body.conversationMeta = conversationMeta;
-    if (sessionId) body.sessionId = sessionId;
+
 
     return PrismService._request("/chat?stream=false", { body, username });
   }
@@ -320,30 +314,4 @@ export default class PrismService {
     return PrismService._request("/embed", { body });
   }
 
-  // ---------------------------------------------------------------------------
-  // Workflows
-  // ---------------------------------------------------------------------------
-
-  /**
-   * Save a workflow document via Prism's /workflows endpoint.
-   * @param {object} workflow - Full workflow document
-   * @returns {Promise<object>}
-   */
-  static async saveWorkflow(workflow) {
-    return PrismService._request("/workflows", { body: workflow });
-  }
-
-  /**
-   * Patch conversation IDs onto a workflow.
-   * Triggers totalCost recomputation from linked conversations in Prism.
-   * @param {string} workflowId
-   * @param {string[]} conversationIds
-   * @returns {Promise<object>}
-   */
-  static async patchWorkflowConversations(workflowId, conversationIds) {
-    return PrismService._request(`/workflows/${workflowId}/conversations`, {
-      method: "PATCH",
-      body: { conversationIds },
-    });
-  }
 }

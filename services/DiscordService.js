@@ -1796,38 +1796,6 @@ ${combinedGuildInformation && combinedChannelInformation ? `URL: https://discord
   CurrentService.clearModels();
   CurrentService.clearModelTypes();
 
-  // Save workflow document for admin visualization
-  // Prism assembles the visual graph (nodes/connections/viewers) server-side
-  const workflowSteps = CurrentService.getSteps();
-  const workflowConvIds = CurrentService.getConversationIds();
-  if (workflowSteps.length > 0) {
-    const totalDuration = workflowSteps.reduce(
-      (sum, s) => sum + (s.duration || 0),
-      0,
-    );
-    PrismService.saveWorkflow({
-      messageId: message.id,
-      guildId: message.guild?.id || "DM",
-      guildName: message.guild?.name || "DM",
-      channelId: message.channel?.id || "DM",
-      channelName: message.channel?.name || "DM",
-      userId: message.author?.id,
-      userName: message.author?.username,
-      userContent: message.cleanContent?.substring(0, 500) || "",
-      steps: workflowSteps,
-      conversationIds: workflowConvIds,
-      totalDuration: parseFloat(totalDuration.toFixed(3)),
-      stepCount: workflowSteps.length,
-    }).catch((err) => {
-      console.warn(
-        `⚠️ [DiscordService] Failed to save workflow: ${err.message}`,
-      );
-    });
-    CurrentService.clearSteps();
-    CurrentService.clearConversationIds();
-    CurrentService.clearSessionId();
-  }
-
   LightsService.cycleColor(config.PRIMARY_LIGHT_ID, "purples");
   return;
 }

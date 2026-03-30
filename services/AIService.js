@@ -73,8 +73,7 @@ const AIService = {
     const functionName = "generateText";
     let textResponse;
     let generateTextModel;
-    let prismUsage = null;
-    let prismEstimatedCost = null;
+
     const start = performance.now();
     const localMongo = MongoService.getClient("local");
 
@@ -124,7 +123,6 @@ const AIService = {
     const nonSystemMessages = conversation.filter((m) => m.role !== "system");
 
     const conversationId = crypto.randomUUID();
-    CurrentService.addConversationId(conversationId);
     const conversationMeta = {
       title: convTitle,
       systemPrompt,
@@ -142,9 +140,6 @@ const AIService = {
         }
       : null;
 
-    // Session: reuse existing or trigger creation on first call
-    const existingSessionId = CurrentService.getSessionId();
-
     try {
       const prismResult = await PrismService.generateText({
         messages: conversation,
@@ -156,23 +151,14 @@ const AIService = {
         conversationId,
         userMessage,
         conversationMeta,
-        // First call: no sessionId yet → ask Prism to create one
-        // Subsequent calls: pass the sessionId we got back
-        ...(existingSessionId
-          ? { sessionId: existingSessionId }
-          : { createSession: true }),
       });
 
       textResponse = prismResult.text;
-      prismUsage = prismResult.usage || null;
-      prismEstimatedCost = prismResult.estimatedCost || null;
+
       if (prismResult.model) {
         usedModel = prismResult.model;
       }
-      // Capture sessionId from Prism on first call
-      if (!existingSessionId && prismResult.sessionId) {
-        CurrentService.setSessionId(prismResult.sessionId);
-      }
+
     } catch (prismError) {
       console.error(
         `Prism API error for ${type}/${usedModel}:`,
@@ -186,17 +172,7 @@ const AIService = {
 
     CurrentService.addModel(usedModel);
     CurrentService.addModelType(type);
-    CurrentService.addStep({
-      model: usedModel,
-      type,
-      label: label || "Text Generation",
-      duration: parseFloat(duration.toFixed(3)),
-      inputType: "text",
-      outputType: "text",
-      systemPrompt: systemPrompt || null,
-      input: lastUserMsg?.content || null,
-      output: textResponse || null,
-    });
+
 
     if (localMongo) {
       const message = CurrentService.getMessage();
@@ -240,8 +216,7 @@ const AIService = {
     const localMongo = MongoService.getClient("local");
     let usedModel;
     let generatedText;
-    let imageEstimatedCost = null;
-    let imageMinioRef = null;
+
     let userInputImageDataUrls = [];
     const start = performance.now();
 
@@ -263,7 +238,6 @@ const AIService = {
     const imgTitle = `🖼️ Image Generation · ${imgGuildName} / #${imgChannelName}`;
 
     const conversationId = crypto.randomUUID();
-    CurrentService.addConversationId(conversationId);
     const imgConversationMeta = {
       title: imgTitle,
       systemPrompt: "",
@@ -345,14 +319,13 @@ const AIService = {
           conversationId,
           userMessage: imgUserMsg,
           conversationMeta: imgConversationMeta,
-          sessionId: CurrentService.getSessionId(),
+
         });
 
         if (prismResult.imageData) {
           generatedImage = prismResult.imageData;
           generatedText = prismResult.text;
-          imageEstimatedCost = prismResult.estimatedCost || null;
-          imageMinioRef = prismResult.minioRef || null;
+
         } else {
           // No image in response, fall back to LOCAL
           console.log(
@@ -422,13 +395,12 @@ const AIService = {
           conversationId,
           userMessage: imgUserMsg,
           conversationMeta: imgConversationMeta,
-          sessionId: CurrentService.getSessionId(),
+
         });
 
         generatedImage = prismResult.imageData;
         generatedText = prismResult.text;
-        imageEstimatedCost = prismResult.estimatedCost || null;
-        imageMinioRef = prismResult.minioRef || null;
+
       } catch (error) {
         console.error(...LogFormatter.error("generateImage", error));
       }
@@ -464,20 +436,8 @@ const AIService = {
     }
 
     if (generatedImage) {
-      const imgDuration = parseFloat(duration.toFixed(3));
       CurrentService.addModel(usedModel);
       CurrentService.addModelType(type);
-      CurrentService.addStep({
-        model: usedModel,
-        type,
-        label: "Image Generation",
-        duration: imgDuration,
-        inputType: imageUrls.length > 0 ? "text+image" : "text",
-        outputType: "image",
-        input: prompt || null,
-        output: generatedText || "[image]",
-        outputImageRef: imageMinioRef || null,
-      });
     }
 
     // Image is now stored in MinIO via Prism's text-to-image route
@@ -504,7 +464,6 @@ const AIService = {
 
       // Pre-create conversation for server-side accumulation
       const visionConvId = crypto.randomUUID();
-      CurrentService.addConversationId(visionConvId);
       const captionConvMeta = {
         title: captionTitle,
         systemPrompt: "",
@@ -528,7 +487,7 @@ const AIService = {
         conversationId: visionConvId,
         userMessage: captionUserMsg,
         conversationMeta: captionConvMeta,
-        sessionId: CurrentService.getSessionId(),
+
       });
 
       return {
