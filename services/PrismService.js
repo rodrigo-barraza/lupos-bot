@@ -241,14 +241,19 @@ export default class PrismService {
   }
 
   /**
-   * Transcribe audio via Prism's /chat endpoint.
+   * Transcribe audio via Prism's /audio-to-text endpoint.
    * @param {object} payload
-   * @param {Buffer} payload.audioBuffer - Audio file buffer
+   * @param {Buffer|string} payload.audio - Audio file buffer or base64 string
    * @param {string} payload.mimeType - MIME type of the audio
    * @param {string} [payload.provider="openai"]
    * @param {string} [payload.model]
+   * @param {string} [payload.language]
    * @param {string} [payload.username="lupos"]
-   * @returns {Promise<{ text: string, usage: object }>}
+   * @param {string} [payload.conversationId]
+   * @param {object} [payload.conversationMeta]
+   * @param {boolean} [payload.createSession]
+   * @param {string} [payload.sessionId]
+   * @returns {Promise<{ text: string, usage: object, estimatedCost: number|null, totalTime: number|null, sessionId: string|null }>}
    */
   static async transcribeAudio({
     audio,
@@ -256,6 +261,11 @@ export default class PrismService {
     provider = "openai",
     model,
     language,
+    username = "lupos",
+    conversationId,
+    conversationMeta,
+    createSession,
+    sessionId,
   }) {
     // Accept Buffer or base64 string
     const base64Audio = Buffer.isBuffer(audio)
@@ -266,8 +276,23 @@ export default class PrismService {
     const body = { provider, audio: dataUrl };
     if (model) body.model = model;
     if (language) body.language = language;
+    if (conversationId) body.conversationId = conversationId;
+    if (conversationMeta) body.conversationMeta = conversationMeta;
+    if (createSession) body.createSession = true;
+    if (sessionId) body.sessionId = sessionId;
 
-    return PrismService._request("/audio-to-text", { body });
+    const result = await PrismService._request("/audio-to-text", {
+      body,
+      username,
+    });
+
+    return {
+      text: result.text,
+      usage: result.usage || {},
+      estimatedCost: result.estimatedCost ?? null,
+      totalTime: result.totalTime ?? null,
+      sessionId: result.sessionId || null,
+    };
   }
 
   // ---------------------------------------------------------------------------

@@ -1,5 +1,5 @@
 // Packages
-import fs from "fs";
+
 import path from "path";
 import crypto from "crypto";
 
@@ -527,28 +527,14 @@ const AIService = {
     }
   },
   // Base Speech-to-Text Generation (Transcription) — via Prism
-  async transcribeSpeech(audioUrl, messageId, index) {
+  async transcribeSpeech(audioUrl, _messageId, _index) {
     // Parse the URL to get just the filename without query parameters
     const url = new URL(audioUrl);
     const filename = path.basename(url.pathname);
-    const voicesDir = path.join(import.meta.dirname, "../voices");
-    // Create the voices directory if it doesn't exist
-    if (!fs.existsSync(voicesDir)) {
-      fs.mkdirSync(voicesDir, { recursive: true });
-    }
-    let audioFilePath;
-    // Download the audio file
-    if (messageId && index) {
-      audioFilePath = path.join(voicesDir, `${messageId}-${index}-${filename}`);
-    } else {
-      function generateRandomId() {
-        return Math.random().toString(36).substring(2, 10);
-      }
-      audioFilePath = path.join(voicesDir, `${generateRandomId()}-${filename}`);
-    }
+
+    // Download the audio file into memory (no disk write needed)
     const audioFile = await fetch(audioUrl);
     const audioBuffer = Buffer.from(await audioFile.arrayBuffer());
-    fs.writeFileSync(audioFilePath, audioBuffer);
 
     // Determine MIME type from file extension
     const ext = path.extname(filename).toLowerCase().replace(".", "");
@@ -562,17 +548,33 @@ const AIService = {
     };
     const mimeType = mimeMap[ext] || "audio/wav";
 
-    // Get Discord username for tracking
+    // Get Discord context for tracking
     const discordMessage = CurrentService.getMessage();
     const discordUsername = discordMessage?.author?.username || "lupos";
+    const guildName = discordMessage?.guild?.name || "DM";
+    const channelName = discordMessage?.channel?.name || "direct-message";
+
+    // Build conversation metadata for Prism persistence
+    const conversationId = crypto.randomUUID();
+    const conversationMeta = {
+      title: `🎙️ Audio Transcription · ${guildName} / #${channelName}`,
+      systemPrompt: "",
+      settings: { provider: "openai" },
+    };
 
     // Transcribe via Prism
     const result = await PrismService.transcribeAudio({
-      audioBuffer,
+      audio: audioBuffer,
       mimeType,
       provider: "openai",
       username: discordUsername,
+      conversationId,
+      conversationMeta,
+      ...AIService._getSessionParams(),
     });
+
+    AIService._captureSessionId(result);
+
     const transcription = (result.text || "").trim().replace(/\n+/g, " ");
     return transcription;
   },
