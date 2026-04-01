@@ -2892,7 +2892,7 @@ async function generateRolesEmbedMessage(client) {
 async function luposOnReady(client, { mongo }) {
   console.log(...LogFormatter.botReady(client));
   consoleLogAllGuilds(client);
-  DiscordUtilityService.setUserActivity(client, `Don't @ me...`);
+  DiscordUtilityService.setUserActivity(client, `:3`);
 
   if (mode === "services" || !mode) {
     await generateRolesEmbedMessage(client);
