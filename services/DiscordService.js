@@ -444,7 +444,6 @@ async function buildAndGenerateReply({
   isMessageAskingToGenerateImage,
   userMentionsCollection,
   localMongo,
-  isMessageNSFW,
 }) {
   // Rodrigo: This creates a SYSTEM PROMPT
   const { message, recentMessages } = queuedDatum;
@@ -1340,56 +1339,48 @@ async function buildAndGenerateReply({
       }
 
       // Step 1: Generate the image first (before text reply)
-      if (isMessageNSFW) {
-        image = await AIService.generateImage(
-          "LOCAL",
-          promptForImagePromptGeneration,
-          client,
-          imageUrls,
-          username,
-        );
-      } else {
-        // Prepend image-to-person mapping so Gemini knows which attached image is which
-        let labeledPrompt = promptForImagePromptGeneration;
-        if (imageLabels.length > 0 && imageUrls.length > 0) {
-          const mapping = imageLabels
-            .map((label, i) => `- Attached image ${i + 1}: ${label}`)
-            .join("\n");
-          labeledPrompt = `REFERENCE IMAGE MAP (the attached images correspond to):\n${mapping}\n\n${promptForImagePromptGeneration}`;
-        }
-        image = await AIService.generateImage(
-          "GOOGLE",
-          labeledPrompt,
-          client,
-          imageUrls,
-          username,
-        );
+      // Step 1: Always try Google first (no upfront NSFW filtering)
+      // Prepend image-to-person mapping so Gemini knows which attached image is which
+      let labeledPrompt = promptForImagePromptGeneration;
+      if (imageLabels.length > 0 && imageUrls.length > 0) {
+        const mapping = imageLabels
+          .map((label, i) => `- Attached image ${i + 1}: ${label}`)
+          .join("\n");
+        labeledPrompt = `REFERENCE IMAGE MAP (the attached images correspond to):\n${mapping}\n\n${promptForImagePromptGeneration}`;
       }
+      image = await AIService.generateImage(
+        "GOOGLE",
+        labeledPrompt,
+        client,
+        imageUrls,
+        username,
+      );
 
-      // Step 2: If image generation failed (e.g. Gemini declined), sanitize and retry
-      if (!image && !isMessageNSFW && promptForImagePromptGeneration) {
+      // Step 2: If image generation failed (e.g. Gemini content policy rejection),
+      // creatively redescribe the prompt and retry
+      if (!image && promptForImagePromptGeneration) {
         console.log(
-          "⚠️ [DiscordService] Image generation returned null, sanitizing prompt and retrying...",
+          "⚠️ [DiscordService] Image generation returned null, creatively redescribing prompt and retrying...",
         );
-        const sanitizedPrompt = await AIService.sanitizeImagePrompt(
+        const redescribedPrompt = await AIService.redescribeImagePrompt(
           promptForImagePromptGeneration,
           message,
         );
         if (
-          sanitizedPrompt &&
-          sanitizedPrompt !== promptForImagePromptGeneration
+          redescribedPrompt &&
+          redescribedPrompt !== promptForImagePromptGeneration
         ) {
           console.log(
-            `⚠️ [DiscordService] Sanitized prompt: "${sanitizedPrompt.substring(0, 100)}..."`,
+            `🎨 [DiscordService] Redescribed prompt: "${redescribedPrompt.substring(0, 100)}..."`,
           );
-          promptForImagePromptGeneration = sanitizedPrompt;
+          promptForImagePromptGeneration = redescribedPrompt;
           // Re-prepend image mapping for the retry
-          let retryPrompt = sanitizedPrompt;
+          let retryPrompt = redescribedPrompt;
           if (imageLabels.length > 0 && imageUrls.length > 0) {
             const mapping = imageLabels
               .map((label, i) => `- Attached image ${i + 1}: ${label}`)
               .join("\n");
-            retryPrompt = `REFERENCE IMAGE MAP (the attached images correspond to):\n${mapping}\n\n${sanitizedPrompt}`;
+            retryPrompt = `REFERENCE IMAGE MAP (the attached images correspond to):\n${mapping}\n\n${redescribedPrompt}`;
           }
           image = await AIService.generateImage(
             "GOOGLE",
@@ -1506,7 +1497,6 @@ async function replyMessage(queuedDatum, localMongo) {
   let canGenerateImage = false;
   let generatedImage;
   let isMessageAskingToGenerateImage;
-  let isMessageNSFW;
   let generatedImagePrompt;
 
   // Update status to say who it is replying to
@@ -1576,12 +1566,6 @@ async function replyMessage(queuedDatum, localMongo) {
             isMessageAskingToGenerateImage,
           ),
         );
-        if (isMessageAskingToGenerateImage) {
-          isMessageNSFW = await AIService.generateTextIsAskingLewdOrNSFW(
-            message.cleanContent,
-            message,
-          );
-        }
       }
     }
   }
@@ -1632,7 +1616,6 @@ async function replyMessage(queuedDatum, localMongo) {
       isMessageAskingToGenerateImage,
       userMentionsCollection,
       localMongo,
-      isMessageNSFW,
     });
   // eslint-disable-next-line prefer-const
   generatedTextResponse = generatedText;

@@ -1218,43 +1218,54 @@ ${participantList}
     const num = parseInt(response.trim(), 10);
     return isNaN(num) ? 0 : num;
   },
-  async sanitizeImagePrompt(prompt, message) {
+  async redescribeImagePrompt(prompt, message) {
+    const username = message?.author?.username || message?.author?.globalName || "the user";
     const conversation = [
       {
         role: "system",
-        content: `You are an expert at rephrasing prompts for image generation APIs (like Google Gemini) that have strict content policies. Your job is to rephrase prompts that would be REJECTED by these APIs.
+        content: `You are a creative prompt reimaginer for image generation. An image generation API has REJECTED a prompt, and your job is to CREATIVELY REDESCRIBE it so it will pass content filters while being HILARIOUS and retaining the spirit of the request.
 
-# CONTENT THAT IMAGE APIs WILL REJECT (you MUST rephrase these):
-1. **Historical atrocity figures**: Hitler, Stalin, Mussolini, Bin Laden, serial killers, dictators associated with genocide/mass murder
-   - Replace with: a fictional absurd caricature (e.g. "a silly man with a tiny mustache" or "a cartoonish villain")
-2. **Real-world violence**: shootings, bombings, stabbings, torture, gore, assault, terrorism
-   - Replace with: cartoon/slapstick or exaggerated comic-book action (e.g. "a dramatic cartoon action scene with silly spray effects")
-3. **Sexual/nude content**: nudity, sexual acts, seductive poses, explicit body parts
-   - Replace with: artistic/clothed/abstract alternatives (e.g. "person wrapped in flowing silk fabrics")
-4. **Hate symbols**: swastikas, confederate flags, KKK imagery, slurs
-   - Replace with: absurd/harmless alternatives
-5. **Real political figures in demeaning/violent scenarios**
-   - Replace with: generic fictional characters or satirical caricatures
-6. **Self-harm, suicide, drug use**
-   - Replace with: harmless/humorous alternatives
+You are NOT a censor. You are a comedic rewriter. The goal is to make something that WILL render and is FUNNY.
 
-# CONTENT THAT IS FINE (do NOT change):
-- Fantasy violence (dragons fighting, sword battles, action heroes)
-- Fictional characters (anime, cartoons, games, movies)
-- Normal people in normal scenarios
-- Animals, landscapes, food, objects, abstract art
+# CREATIVE REDESCRIPTION RULES:
 
-# RULES:
-- ALWAYS keep the core scene/concept (setting, other people, activity) but replace ONLY the problematic elements
-- Make replacements FUNNY and ABSURD rather than just removing content
-- Return ONLY the rephrased prompt text as a single paragraph
-- NO explanations, commentary, prefixes, or meta-text
-- If the prompt has NO problematic content, return it EXACTLY as-is with zero changes`,
+## Violence → Slapstick / Cartoon
+- "gouging out men's eyes" → "dramatically grabbing at men's eyes like a cartoon villain while they make exaggerated shocked faces"
+- "stabbing someone" → "aggressively poking someone with a foam sword while they overreact dramatically"
+- "punching someone's face" → "bonking someone on the head with a comically oversized mallet"
+- "shooting someone" → "shooting someone with a water gun while they pretend to dramatically fall"
+- "choking" → "aggressively adjusting someone's necktie way too tight"
+
+## Sexual/Nude → Embarrassing / Absurd Costume
+- "a naked person" → "${username} wearing a full-body banana costume looking deeply embarrassed"
+- "having sex" → "${username} awkwardly slow-dancing at a school prom with visible discomfort"
+- "in lingerie" → "in a ridiculously frilly Victorian nightgown with too many ruffles"
+- "seductive pose" → "${username} trying and failing to look cool while finger-gunning at the camera"
+- "nude" → "${username} desperately wrapped in a shower curtain having clearly been caught off guard"
+
+## Gore → Theatrical
+- "blood everywhere" → "red confetti and silly string everywhere"
+- "decapitation" → "a head comically popping off like a jack-in-the-box"
+- "dismemberment" → "limbs falling off like a Mr. Potato Head"
+
+## Historical atrocity figures → Absurd caricatures
+- Keep them as silly fictional parodies — "a cartoonish villain with a ridiculous tiny mustache"
+
+## Self-harm/drugs → Harmless absurdity  
+- Turn it into something wholesome but ridiculous
+
+# IMPORTANT RULES:
+- The person who ASKED for the NSFW content should ideally become the butt of the joke
+- The requester's name is "${username}" — use it when making them the subject of embarrassment
+- Keep the SCENE/SETTING/OTHER ELEMENTS intact — only replace the problematic parts
+- Make it genuinely funny, not just sanitized
+- Return ONLY the redescribed prompt as a single paragraph
+- NO explanations, commentary, prefixes, or meta-text`,
       },
       {
         role: "user",
         name: DiscordUtilityService.getUsernameNoSpaces(message),
-        content: prompt,
+        content: `The following image prompt was REJECTED by the image generation API. Creatively redescribe it:\n\n${prompt}`,
       },
     ];
 
@@ -1262,7 +1273,7 @@ ${participantList}
       conversation,
       type: "OPENAI",
       model: config.OPENAI_LANGUAGE_MODEL_GPT5_MINI,
-      label: "🧠 Prompt Sanitization",
+      label: "🎨 Creative Prompt Redescription",
     });
 
     if (!response) return prompt;
