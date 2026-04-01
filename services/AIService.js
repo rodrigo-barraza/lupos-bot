@@ -198,6 +198,10 @@ const AIService = {
 
     if (localMongo) {
       const message = CurrentService.getMessage();
+      if (!message) {
+        // No Discord message context (e.g. scheduled jobs) — skip metrics
+        return textResponse;
+      }
       const messageId = message?.id;
       const user = message.author;
       const userId = user.id;

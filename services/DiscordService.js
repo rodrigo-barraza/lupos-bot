@@ -41,6 +41,7 @@ import BirthdayJob from "#root/jobs/scheduled/BirthdayJob.js";
 import ActivityRoleAssignmentJob from "#root/jobs/scheduled/ActivityRoleAssignmentJob.js";
 // const RemindersJob = require('../jobs/scheduled/RemindersJob.js');
 import PermanentTimeOutJob from "#root/jobs/scheduled/PermanentTimeOutJob.js";
+import RandomTagJob from "#root/jobs/scheduled/RandomTagJob.js";
 import EventReactJob from "#root/jobs/event-driven/ReactJob.js";
 // LIBRARIES
 import utilities from "#root/utilities.js";
@@ -2940,6 +2941,14 @@ async function luposOnReady(client, { mongo }) {
     } catch (error) {
       console.error("Failed to reset bot nickname on startup:", error);
     }
+
+    // April Fools: Random tag job
+    RandomTagJob.startJob({
+      client,
+      guildId: "609471635308937237",
+      channelId: "762734438375096380",
+    });
+
     // Check the last 100 messages in the channel politics, and if there is a message that mentions me that I haven't replied to in the last 5 minutes, reply to it
     // const politicsChannel = DiscordUtilityService.getChannelById(client, config.CHANNEL_ID_POLITICS);
     // // console.log('Politics channel found:', !!politicsChannel);
