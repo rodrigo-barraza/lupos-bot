@@ -51,6 +51,7 @@ import LogFormatter from "#root/formatters/LogFormatter.js";
 // CONSTANTS
 import {
   MessageConstant,
+  APRIL_FOOLS_MODE,
   GAME_ROLE_MAPPINGS,
   EXPLOSION_GIFS,
   YOUTUBE_BUTTON_ACTIONS,
@@ -2894,7 +2895,7 @@ async function generateRolesEmbedMessage(client) {
 async function luposOnReady(client, { mongo }) {
   console.log(...LogFormatter.botReady(client));
   consoleLogAllGuilds(client);
-  DiscordUtilityService.setUserActivity(client, `:3`);
+  DiscordUtilityService.setUserActivity(client, APRIL_FOOLS_MODE ? `:3` : `Don't @ me...`);
 
   if (mode === "services" || !mode) {
     await generateRolesEmbedMessage(client);
@@ -2944,17 +2945,19 @@ async function luposOnReady(client, { mongo }) {
     }
 
     // April Fools: Random tag job
-    RandomTagJob.startJob({
-      client,
-      guildId: "609471635308937237",
-      channelId: "762734438375096380",
-    });
+    if (APRIL_FOOLS_MODE) {
+      RandomTagJob.startJob({
+        client,
+        guildId: "609471635308937237",
+        channelId: "762734438375096380",
+      });
 
-    // April Fools: Server icon rotation
-    ServerIconJob.startJob({
-      client,
-      guildId: "609471635308937237",
-    });
+      // April Fools: Server icon rotation
+      ServerIconJob.startJob({
+        client,
+        guildId: "609471635308937237",
+      });
+    }
 
     // Check the last 100 messages in the channel politics, and if there is a message that mentions me that I haven't replied to in the last 5 minutes, reply to it
     // const politicsChannel = DiscordUtilityService.getChannelById(client, config.CHANNEL_ID_POLITICS);

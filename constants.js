@@ -1,5 +1,5 @@
 export { default as ClockCrewConstants } from "./constants/ClockCrewConstants.js";
-export { default as MessageConstant } from "./constants/MessageConstants.js";
+export { default as MessageConstant, APRIL_FOOLS_MODE } from "./constants/MessageConstants.js";
 export {
   MOODS,
   MOOD_TEMPERATURE_THRESHOLDS,

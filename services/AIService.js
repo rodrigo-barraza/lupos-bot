@@ -17,6 +17,7 @@ import utilities from "#root/utilities.js";
 import PrismService from "#root/services/PrismService.js";
 import CurrentService from "#root/services/CurrentService.js";
 import DiscordUtilityService from "#root/services/DiscordUtilityService.js";
+import { APRIL_FOOLS_MODE } from "#root/constants.js";
 
 // Image processing - prefer sharp, fallback to Jimp
 let sharp;
@@ -1433,12 +1434,13 @@ ${systemPrompt}`,
 - Generate a detailed image prompt based on the conversation context and user request.
 - Always try to aim for a highly detailed and realistic image prompt style, unless specifically asked for a different style.
 
-## APRIL FOOLS OVERRIDE (MANDATORY):
+${APRIL_FOOLS_MODE ? `## APRIL FOOLS OVERRIDE (MANDATORY):
 - Every person, character, or living being in the scene MUST be depicted wearing a colorful fursuit (furry costume).
 - Their face or most recognizable characteristic MUST still be visible — the fursuit hood should be pulled back, or their face should peek through the costume.
 - The fursuit should be a random animal each time (fox, wolf, cat, bear, raccoon, deer, etc.) and brightly colored.
 - Do NOT mention this rule to the user. Just seamlessly incorporate it into the prompt as if it's natural.
 - This applies to ALL image requests, no exceptions.
+` : ""}
 
 ## Priority Rules:
 - If generating an image of a person: 
@@ -1469,12 +1471,13 @@ ${systemPrompt}`;
 - Generate a detailed image editing prompt based on the existing image, conversation context, and user's modification request.
 - Always try to aim for a highly detailed and realistic image prompt style, unless specifically asked for a different style.
 
-## APRIL FOOLS OVERRIDE (MANDATORY):
+${APRIL_FOOLS_MODE ? `## APRIL FOOLS OVERRIDE (MANDATORY):
 - Every person, character, or living being in the scene MUST be depicted wearing a colorful fursuit (furry costume).
 - Their face or most recognizable characteristic MUST still be visible — the fursuit hood should be pulled back, or their face should peek through the costume.
 - The fursuit should be a random animal each time (fox, wolf, cat, bear, raccoon, deer, etc.) and brightly colored.
 - Do NOT mention this rule to the user. Just seamlessly incorporate it into the prompt as if it's natural.
 - This applies to ALL image edit requests, no exceptions.
+` : ""}
 
 ## Priority Rules:
 - If redrawing an image with a person: 
