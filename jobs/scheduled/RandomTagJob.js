@@ -64,19 +64,30 @@ async function randomTag({ client, guildId, channelId }) {
       return;
     }
 
-    // Pick a random active member
+    // Pick 3 random active members (or fewer if pool is small)
     const membersArray = Array.from(activeAuthors.values());
-    const randomMember =
-      membersArray[Math.floor(Math.random() * membersArray.length)];
-    const displayName =
-      randomMember.displayName ||
-      randomMember.user.globalName ||
-      randomMember.user.username;
-    const username = randomMember.user.username;
+    const TARGET_COUNT = Math.min(3, membersArray.length);
+    const selectedMembers = [];
+    const usedIndices = new Set();
 
+    while (selectedMembers.length < TARGET_COUNT) {
+      const idx = Math.floor(Math.random() * membersArray.length);
+      if (usedIndices.has(idx)) continue;
+      usedIndices.add(idx);
+      const m = membersArray[idx];
+      selectedMembers.push({
+        member: m,
+        displayName:
+          m.displayName || m.user.globalName || m.user.username,
+        username: m.user.username,
+        id: m.user.id,
+      });
+    }
+
+    const namesStr = selectedMembers.map((s) => s.displayName).join(", ");
     consoleLog(
       "=",
-      `[RandomTagJob] 🎯 Targeting: ${displayName} (${username}) [pool: ${activeAuthors.size} active users]`,
+      `[RandomTagJob] 🎯 Targeting: ${namesStr} [pool: ${activeAuthors.size} active users]`,
     );
 
     // Fetch recent messages from the channel for context
@@ -114,49 +125,58 @@ async function randomTag({ client, guildId, channelId }) {
       }
     }
 
-    // Look up custom context for this user from MessageConstants
-    let customContext = "";
-    const usernameLower = username.toLowerCase();
-    const displayNameLower = displayName.toLowerCase();
-    const matchedContext = MessageConstant.customContextWhitemane?.find(
-      (ctx) => {
-        const keywords = ctx.keywords
-          .split(",")
-          .map((k) => k.trim().toLowerCase());
-        return (
-          keywords.includes(usernameLower) ||
-          keywords.includes(displayNameLower)
+    // Gather custom context and memories for each tagged person
+    let peopleContext = "";
+    for (const person of selectedMembers) {
+      // Custom context from MessageConstants
+      const usernameLower = person.username.toLowerCase();
+      const displayNameLower = person.displayName.toLowerCase();
+      const matchedContext = MessageConstant.customContextWhitemane?.find(
+        (ctx) => {
+          const keywords = ctx.keywords
+            .split(",")
+            .map((k) => k.trim().toLowerCase());
+          return (
+            keywords.includes(usernameLower) ||
+            keywords.includes(displayNameLower)
+          );
+        },
+      );
+      if (matchedContext) {
+        peopleContext += `\n### KNOWN INFO ABOUT ${person.displayName.toUpperCase()}:\n${matchedContext.description}`;
+      }
+
+      // Memories from Prism
+      try {
+        const memoryResult = await PrismService.searchMemories({
+          guildId,
+          userIds: [person.id],
+          queryText: person.displayName,
+          limit: 3,
+        });
+        if (memoryResult?.memories?.length > 0) {
+          peopleContext += `\n### YOUR MEMORIES ABOUT ${person.displayName.toUpperCase()}:`;
+          for (const memory of memoryResult.memories) {
+            const createdDate = new Date(memory.createdAt);
+            const timeAgo = DateTime.fromJSDate(createdDate).toRelative();
+            peopleContext += `\n- ${memory.fact} (remembered ${timeAgo})`;
+          }
+        }
+      } catch (memoryErr) {
+        consoleLog(
+          "!",
+          `[RandomTagJob] Memory retrieval for ${person.displayName} failed: ${memoryErr.message}`,
         );
-      },
-    );
-    if (matchedContext) {
-      customContext = `\n## KNOWN INFO ABOUT ${displayName.toUpperCase()}:\n${matchedContext.description}`;
+      }
     }
 
-    // Retrieve memories about this user from Prism
-    let memoriesContext = "";
-    try {
-      const memoryResult = await PrismService.searchMemories({
-        guildId,
-        userIds: [randomMember.id],
-        queryText: displayName,
-        limit: 5,
-      });
-      if (memoryResult?.memories?.length > 0) {
-        memoriesContext = `\n## YOUR MEMORIES ABOUT ${displayName.toUpperCase()}:`;
-        memoriesContext += `\nUse these naturally — don't force all of them.`;
-        for (const memory of memoryResult.memories) {
-          const createdDate = new Date(memory.createdAt);
-          const timeAgo = DateTime.fromJSDate(createdDate).toRelative();
-          memoriesContext += `\n- ${memory.fact} (remembered ${timeAgo})`;
-        }
-      }
-    } catch (memoryErr) {
-      consoleLog(
-        "!",
-        `[RandomTagJob] Memory retrieval failed: ${memoryErr.message}`,
-      );
-    }
+    // Build tag strings
+    const tagsList = selectedMembers
+      .map((s) => `<@${s.id}>`)
+      .join(" ");
+    const namesList = selectedMembers
+      .map((s) => `${s.displayName} (<@${s.id}>)`)
+      .join(", ");
 
     // Build the system prompt using the existing personality
     const assistantMessage = MessageService.assembleAssistantMessage(
@@ -166,24 +186,29 @@ async function randomTag({ client, guildId, channelId }) {
 
     const systemPrompt = `${assistantMessage}
 
-# SPECIAL TASK: INITIATE CONVERSATION
+# SPECIAL TASK: INITIATE GROUP CONVERSATION
 You are NOT replying to someone — YOU are starting the conversation.
-You are tagging a specific person and pulling them into whatever is being discussed.
-The person you are tagging is: ${displayName} (<@${randomMember.id}>)
-${customContext}${memoriesContext}
+You are tagging MULTIPLE people and pulling ALL of them into whatever is being discussed.
+The people you are tagging are: ${namesList}
+
+## PEOPLE CONTEXT:${peopleContext || "\nNo specific info available."}
 
 ## RULES:
-- You MUST start your message by tagging them: <@${randomMember.id}>
+- You MUST tag ALL of them in your message: ${tagsList}
 - STAY ON TOPIC with the ongoing conversation. Read the recent chat context carefully and make your message RELEVANT to what people are currently discussing.
-- Pull the tagged person INTO the current topic — ask their opinion, roast their take, or drag them into the discussion
+- Pull ALL tagged people INTO the current topic — pit them against each other, ask them to weigh in, start a debate, or drag them all into it together
+- Address them as a GROUP but also call out individuals by name for maximum engagement
 - If there IS an active conversation, your message MUST relate to it. Do NOT change the subject randomly.
 - If there is NO recent conversation, THEN you can be random and chaotic
-- Keep it to ONE sentence, maximum TWO
+- Keep it to TWO to THREE sentences max
 - Be in-character: sassy, high, cat-cosplaying wolf energy
-- If you have memories or known info about them, USE IT to make the tag personal and specific
+- If you have memories or known info about them, USE IT to make the tags personal and specific
 - DO NOT explain why you're tagging them — just do it like it's the most natural thing in the world
 
 ${conversationContext ? `## RECENT CHAT CONTEXT (STAY ON THIS TOPIC):\n${conversationContext}` : "## No recent messages — just vibe and be chaotic."}`;
+
+    // Start typing indicator while generating
+    const typingInterval = await DiscordUtilityService.startTypingInterval(channel);
 
     const conversation = [
       {
@@ -192,7 +217,7 @@ ${conversationContext ? `## RECENT CHAT CONTEXT (STAY ON THIS TOPIC):\n${convers
       },
       {
         role: "user",
-        content: `Generate a message tagging <@${randomMember.id}> (${displayName}). Remember: you're initiating, not replying. Be chaotic and in-character.`,
+        content: `Generate a message tagging ${namesList}. You're initiating a group conversation. Be chaotic and in-character. Make sure you involve all of them.`,
       },
     ];
 
@@ -200,28 +225,32 @@ ${conversationContext ? `## RECENT CHAT CONTEXT (STAY ON THIS TOPIC):\n${convers
       conversation,
       type: config.LANGUAGE_MODEL_TYPE,
       modelPerformance: "POWERFUL",
-      tokens: 150,
+      tokens: 250,
       temperature: 1.0,
       label: "🎯 Random Tag",
     });
 
     if (!generatedText) {
+      DiscordUtilityService.clearTypingInterval(typingInterval);
       consoleLog("!", `[RandomTagJob] No text generated, skipping`);
       return;
     }
 
-    // Ensure the message actually contains the mention
+    // Ensure the message actually contains all mentions
     let finalMessage = generatedText.trim();
-    if (!finalMessage.includes(`<@${randomMember.id}>`)) {
-      finalMessage = `<@${randomMember.id}> ${finalMessage}`;
+    for (const person of selectedMembers) {
+      if (!finalMessage.includes(`<@${person.id}>`)) {
+        finalMessage = `<@${person.id}> ${finalMessage}`;
+      }
     }
 
     // Send the message to the channel
     await channel.send(finalMessage);
     consoleLog(
       "=",
-      `[RandomTagJob] ✅ Sent message tagging ${displayName}: ${finalMessage.substring(0, 100)}...`,
+      `[RandomTagJob] ✅ Sent message tagging ${namesStr}: ${finalMessage.substring(0, 120)}...`,
     );
+    DiscordUtilityService.clearTypingInterval(typingInterval);
   } catch (error) {
     consoleLog("!", `[RandomTagJob] Error: ${error.message}`);
     console.error(error);

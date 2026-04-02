@@ -42,6 +42,7 @@ import ActivityRoleAssignmentJob from "#root/jobs/scheduled/ActivityRoleAssignme
 // const RemindersJob = require('../jobs/scheduled/RemindersJob.js');
 import PermanentTimeOutJob from "#root/jobs/scheduled/PermanentTimeOutJob.js";
 import RandomTagJob from "#root/jobs/scheduled/RandomTagJob.js";
+import ServerIconJob from "#root/jobs/scheduled/ServerIconJob.js";
 import EventReactJob from "#root/jobs/event-driven/ReactJob.js";
 // LIBRARIES
 import utilities from "#root/utilities.js";
@@ -2947,6 +2948,12 @@ async function luposOnReady(client, { mongo }) {
       client,
       guildId: "609471635308937237",
       channelId: "762734438375096380",
+    });
+
+    // April Fools: Server icon rotation
+    ServerIconJob.startJob({
+      client,
+      guildId: "609471635308937237",
     });
 
     // Check the last 100 messages in the channel politics, and if there is a message that mentions me that I haven't replied to in the last 5 minutes, reply to it
