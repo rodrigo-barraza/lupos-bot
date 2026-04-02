@@ -170,6 +170,7 @@ export default class PrismService {
     if (conversationMeta) body.conversationMeta = conversationMeta;
     if (createSession) body.createSession = true;
     if (sessionId) body.sessionId = sessionId;
+    body.forceImageGeneration = true;
 
 
     const result = await PrismService._request("/chat?stream=false", {
