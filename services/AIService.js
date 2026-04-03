@@ -833,11 +833,40 @@ Only output the number, nothing else. No explanations. No punctuation. No extra 
     );
     return 20; // default to moderate fetch
   },
-  async generateTextIsAskingToGenerateImage(content, message) {
+  /**
+   * Shared helper for boolean detection via AI. Sends a system prompt + user content
+   * to a lightweight model and parses a JSON {result: true/false} response.
+   */
+  async generateBooleanDetection({ systemPrompt, content, message, label }) {
     const conversation = [
+      { role: "system", content: systemPrompt },
       {
-        role: "system",
-        content: `You are an expert at detecting image generation/editing requests. Respond ONLY with a valid JSON object.
+        role: "user",
+        name: DiscordUtilityService.getUsernameNoSpaces(message),
+        content,
+      },
+    ];
+
+    const response = await AIService.generateText({
+      conversation,
+      type: "OPENAI",
+      model: config.OPENAI_LANGUAGE_MODEL_GPT5_NANO,
+      label,
+    });
+
+    if (!response) return false;
+
+    try {
+      const parsed = JSON.parse(response.trim());
+      return parsed.result === true;
+    } catch {
+      console.error("Unexpected response from AI (expected JSON):", response);
+      return false;
+    }
+  },
+  async generateTextIsAskingToGenerateImage(content, message) {
+    return AIService.generateBooleanDetection({
+      systemPrompt: `You are an expert at detecting image generation/editing requests. Respond ONLY with a valid JSON object.
 
 Output {"result": true} if the message:
 - Asks to draw, create, generate, or illustrate something
@@ -871,36 +900,14 @@ Implicit editing (common in replies):
 - "Change this"
 - "Add text saying hello"
 - "Show me this image"`,
-      },
-      {
-        role: "user",
-        name: DiscordUtilityService.getUsernameNoSpaces(message),
-        content: content,
-      },
-    ];
-
-    const response = await AIService.generateText({
-      conversation,
-      type: "OPENAI",
-      model: config.OPENAI_LANGUAGE_MODEL_GPT5_NANO,
+      content,
+      message,
       label: "🧠 Image Request Detection",
     });
-
-    if (!response) return false;
-
-    try {
-      const parsed = JSON.parse(response.trim());
-      return parsed.result === true;
-    } catch {
-      console.error("Unexpected response from AI (expected JSON):", response);
-      return false;
-    }
   },
   async generateTextIsAskingToDrawThemselves(content, message) {
-    const conversation = [
-      {
-        role: "system",
-        content: `You are an expert at detecting if a message is asking to draw, create, generate, or illustrate the user themselves. Respond ONLY with a valid JSON object.
+    return AIService.generateBooleanDetection({
+      systemPrompt: `You are an expert at detecting if a message is asking to draw, create, generate, or illustrate the user themselves. Respond ONLY with a valid JSON object.
 
 Output {"result": true} if the message is asking to draw, create, generate, or illustrate the user themselves.
 Output {"result": false} if the message is not asking to draw, create, generate, or illustrate the user themselves.
@@ -917,36 +924,14 @@ Examples that should return {"result": false}:
 "Can you create an image of a cat?"
 "Make an image of a landscape"
 "Make me a logo"`,
-      },
-      {
-        role: "user",
-        name: DiscordUtilityService.getUsernameNoSpaces(message),
-        content: content,
-      },
-    ];
-
-    const response = await AIService.generateText({
-      conversation,
-      type: "OPENAI",
-      model: config.OPENAI_LANGUAGE_MODEL_GPT5_NANO,
+      content,
+      message,
       label: "🧠 Self-Portrait Detection",
     });
-
-    if (!response) return false;
-
-    try {
-      const parsed = JSON.parse(response.trim());
-      return parsed.result === true;
-    } catch {
-      console.error("Unexpected response from AI (expected JSON):", response);
-      return false;
-    }
   },
   async generateTextIsAskingLewdOrNSFW(content, message) {
-    const conversation = [
-      {
-        role: "system",
-        content: `You are an expert at detecting if a message is lewd, NSFW, or inappropriate for image generation. Respond ONLY with a valid JSON object.
+    return AIService.generateBooleanDetection({
+      systemPrompt: `You are an expert at detecting if a message is lewd, NSFW, or inappropriate for image generation. Respond ONLY with a valid JSON object.
 
 Output {"result": true} if the message is lewd, NSFW, or inappropriate for image generation.
 Output {"result": false} if the message is not lewd, NSFW, or inappropriate for image generation.
@@ -954,30 +939,10 @@ Output {"result": false} if the message is not lewd, NSFW, or inappropriate for 
 Examples that should return {"result": true}:
 "Draw me a naked person"
 "Can you create an image of two people fucking?"`,
-      },
-      {
-        role: "user",
-        name: DiscordUtilityService.getUsernameNoSpaces(message),
-        content: content,
-      },
-    ];
-
-    const response = await AIService.generateText({
-      conversation,
-      type: "OPENAI",
-      model: config.OPENAI_LANGUAGE_MODEL_GPT5_NANO,
+      content,
+      message,
       label: "🧠 NSFW Detection",
     });
-
-    if (!response) return false;
-
-    try {
-      const parsed = JSON.parse(response.trim());
-      return parsed.result === true;
-    } catch {
-      console.error("Unexpected response from AI (expected JSON):", response);
-      return false;
-    }
   },
   /**
    * Extract person names from a message and match them to known participants.

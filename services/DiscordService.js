@@ -1643,7 +1643,7 @@ async function replyMessage(queuedDatum, localMongo) {
 ${member ? `Member: ${combinedNames}` : `User: ${combinedNames}`}
 ${combinedGuildInformation ? `Guild: ${combinedGuildInformation}` : "Direct Message"}
 ${combinedChannelInformation ? `Channel: ${combinedChannelInformation}` : ""}
-${combinedGuildInformation && combinedChannelInformation ? `URL: https://discord.com/channels/${guild.id}/${channel.id}/${message.id}` : ""}`);
+${combinedGuildInformation && combinedChannelInformation ? `URL: ${utilities.getDiscordMessageUrl(guild.id, channel.id, message.id)}` : ""}`);
     return;
   }
   // SEND THE REPLY
@@ -1673,7 +1673,7 @@ ${combinedGuildInformation && combinedChannelInformation ? `URL: https://discord
     ${member ? `Member: ${combinedNames}` : `User: ${combinedNames}`}
     ${combinedGuildInformation ? `Guild: ${combinedGuildInformation}` : "Direct Message"}
     ${combinedChannelInformation ? `Channel: ${combinedChannelInformation}` : ""}
-    ${combinedGuildInformation && combinedChannelInformation ? `URL: https://discord.com/channels/${guild.id}/${channel.id}/${message.id}` : ""}`);
+    ${combinedGuildInformation && combinedChannelInformation ? `URL: ${utilities.getDiscordMessageUrl(guild.id, channel.id, message.id)}` : ""}`);
     LightsService.setState({ color: "red" }, config.PRIMARY_LIGHT_ID);
     return;
   }
@@ -2948,14 +2948,14 @@ async function luposOnReady(client, { mongo }) {
     if (APRIL_FOOLS_MODE) {
       RandomTagJob.startJob({
         client,
-        guildId: "609471635308937237",
-        channelId: "762734438375096380",
+        guildId: config.GUILD_ID_PRIMARY,
+        channelId: config.CHANNEL_ID_POLITICS,
       });
 
       // April Fools: Server icon rotation
       ServerIconJob.startJob({
         client,
-        guildId: "609471635308937237",
+        guildId: config.GUILD_ID_PRIMARY,
       });
     }
 
@@ -3156,7 +3156,7 @@ Message: ${message.cleanContent}`;
 Guild: ${message.guild?.name}
 Channel: #${message.channel?.name}
 Author: ${utilities.getCombinedNamesFromUserOrMember({ member: message.member, user: message.author })}
-URL: https://discord.com/channels/${message.guild?.id}/${message.channel.id}/${message.id}`;
+URL: ${utilities.getDiscordMessageUrl(message.guild?.id, message.channel.id, message.id)}`;
 
       console.log(logMessage);
     }
@@ -3637,7 +3637,7 @@ async function processCreateReaction(client, queuedReaction) {
       highlightsChannel,
     );
 
-    const messageURL = `https://discord.com/channels/${guildId}/${channelId}/${messageId}`;
+    const messageURL = utilities.getDiscordMessageUrl(guildId, channelId, messageId);
 
     const embed = new EmbedBuilder()
       .setTitle(`#${channelName}`)

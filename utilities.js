@@ -1,6 +1,6 @@
 import _moment from "moment";
 import { DateTime } from "luxon";
-import config from "#root/config.js";
+import CensorService from "#root/services/CensorService.js";
 import crypto from "crypto";
 
 const utilities = {
@@ -31,16 +31,9 @@ const utilities = {
       return string.charAt(0).toUpperCase() + string.slice(1);
     }
   },
+  // Deprecated: Use CensorService.removeFlaggedWords() instead
   removeFlaggedWords(string) {
-    const flaggedWordsArray = config.FLAGGED_WORDS.split(", ");
-    for (const word of flaggedWordsArray) {
-      const regex = new RegExp(`\\b${word}\\b`, "gi");
-      string = string.replace(
-        regex,
-        (match) => `||${"*".repeat(match.length)}||`,
-      );
-    }
-    return string;
+    return CensorService.removeFlaggedWords(string);
   },
   removeMentions(string) {
     return string

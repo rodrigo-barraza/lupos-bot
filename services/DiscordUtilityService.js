@@ -1050,51 +1050,7 @@ const DiscordUtilityService = {
       { upsert: false },
     );
   },
-  // UNUSED FUNCTION
-  // async extractAllAttachmentTypesFromMessage(message) {
-  //     const audioCollection = new Collection();
-  //     const imageCollection = new Collection();
-  //     const videoCollection = new Collection();
-  //     const applicationCollection = new Collection();
-  //     const textCollection = new Collection();
-  //     const fontCollection = new Collection();
-  //     const otherCollection = new Collection();
-  //     if (message?.attachments?.size) {
-  //         for (const attachment of message.attachments.values()) {
-  //             const isAudio = attachment.contentType.includes('audio/');
-  //             const isImage = attachment.contentType.includes('image/');
-  //             const isVideo = attachment.contentType.includes('video/');
-  //             const isApplication = attachment.contentType.includes('application/');
-  //             const isText = attachment.contentType.includes('text/');
-  //             const isFont = attachment.contentType.includes('font/');
-  //             const isOther = !isAudio && !isImage && !isVideo && !isApplication && !isText && !isFont;
-  //             if (isAudio) {
-  //                 audioCollection.set(attachment.id, attachment);
-  //             } else if (isImage) {
-  //                 imageCollection.set(attachment.id, attachment);
-  //             } else if (isVideo) {
-  //                 videoCollection.set(attachment.id, attachment);
-  //             } else if (isApplication) {
-  //                 applicationCollection.set(attachment.id, attachment);
-  //             } else if (isText) {
-  //                 textCollection.set(attachment.id, attachment);
-  //             } else if (isFont) {
-  //                 fontCollection.set(attachment.id, attachment);
-  //             } else if (isOther) {
-  //                 otherCollection.set(attachment.id, attachment);
-  //             }
-  //         }
-  //     }
-  //     return {
-  //         audioCollection,
-  //         imageCollection,
-  //         videoCollection,
-  //         applicationCollection,
-  //         textCollection,
-  //         fontCollection,
-  //         otherCollection,
-  //     };
-  // },
+
   async extractAudioUrlsFromMessage(message) {
     const audioUrls = [];
     if (message?.attachments?.size) {
@@ -1266,43 +1222,12 @@ const DiscordUtilityService = {
       return member;
     }
   },
-  async retrieveUserFromClientAndUserId(client, userId) {
-    let user = client.users.cache.get(userId);
-    if (!user) {
-      try {
-        user = await client.users.fetch(userId);
-      } catch {
-        // console.warn(...LogFormatter.userNotFound('getMemberFromMessageAndId', userId));
-        return null;
-      }
-    }
-    return user;
-  },
-  getUserByClientAndId(client, userId) {
-    return client.users.cache.get(userId);
-  },
-  async getUserFromMessage(message, force = false) {
-    const client = message.client;
-    const usersId = message.author.id;
-    let user = client.users.cache.get(usersId);
-    if (!user) {
-      try {
-        user = await client.users.fetch(usersId, { force: force });
-      } catch (error) {
-        consoleLog(
-          "!",
-          `Could not fetch user with ID ${usersId}. Error: ${error.message}`,
-        );
-        return null;
-      }
-    }
-    return user;
-  },
+  // Canonical user-fetch: cache → fetch with optional force
   async getUserFromClientAndId(client, userId, force = false) {
     let user = client.users.cache.get(userId);
     if (!user) {
       try {
-        user = await client.users.fetch(userId, { force: force });
+        user = await client.users.fetch(userId, { force });
       } catch (error) {
         consoleLog(
           "!",
@@ -1312,6 +1237,22 @@ const DiscordUtilityService = {
       }
     }
     return user;
+  },
+  // Delegates to getUserFromClientAndId
+  async retrieveUserFromClientAndUserId(client, userId) {
+    return DiscordUtilityService.getUserFromClientAndId(client, userId);
+  },
+  // Sync cache-only lookup (no fetch)
+  getUserByClientAndId(client, userId) {
+    return client.users.cache.get(userId);
+  },
+  // Convenience wrapper for message context
+  async getUserFromMessage(message, force = false) {
+    return DiscordUtilityService.getUserFromClientAndId(
+      message.client,
+      message.author.id,
+      force,
+    );
   },
   // Event Handlers
   onEventClientReady(client, { mongo, localMongo }, customFunction) {

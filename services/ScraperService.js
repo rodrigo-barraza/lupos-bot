@@ -155,13 +155,7 @@ class ScraperService {
       // ignore
       return {};
     }
-    async function isImageURL(url) {
-      const res = await fetch(url, { method: "HEAD" });
-      const type = res.headers.get("content-type");
-      return type && type.startsWith("image/");
-    }
-
-    const isImage = await isImageURL(url);
+    const isImage = await _utilities.isImageUrl(url);
     if (isImage) {
       return {};
     }
@@ -311,99 +305,7 @@ class ScraperService {
     return result;
   }
 
-  static async scrapeURL2(url) {
-    async function isImageURL(url) {
-      const res = await fetch(url, { method: "HEAD" });
-      const type = res.headers.get("content-type");
-      return type && type.startsWith("image/");
-    }
 
-    const isImage = await isImageURL(url);
-    if (isImage) return {};
-
-    const browser = await puppeteer.launch(puppeteerOptions);
-    const page = await browser.newPage();
-    await page.goto(url, { waitUntil: "networkidle2", timeout: 0 });
-
-    const selectors = [
-      { selector: "head title", property: "title" },
-      { selector: "p", property: "text" },
-      { selector: "h1", property: "header" },
-      { selector: 'meta[name="description"]', property: "description" },
-      { selector: 'meta[name="keywords"]', property: "keywords" },
-      { selector: 'meta[property="og:image"]', property: "image" },
-    ];
-
-    const youtubeWatchRegex =
-      /(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]{11})/;
-    const result = {};
-
-    if (youtubeWatchRegex.test(url)) {
-      selectors.push(
-        {
-          selector: "div#below div#description yt-formatted-string",
-          property: "description",
-        },
-        {
-          selector: "ytd-compact-video-renderer a#video-title",
-          property: "relatedVideos",
-        },
-      );
-
-      const expandDescriptionSelector = "tp-yt-paper-button#expand";
-      try {
-        await page.waitForSelector(expandDescriptionSelector, {
-          timeout: 5000,
-        });
-        await page.click(expandDescriptionSelector);
-      } catch {
-        /* Ignored */
-      }
-
-      const showTranscriptSelector = 'button[aria-label="Show transcript"]';
-      try {
-        await page.waitForSelector(showTranscriptSelector, { timeout: 5000 });
-        await page.click(showTranscriptSelector);
-        await page.waitForSelector("ytd-transcript-segment-renderer", {
-          timeout: 5000,
-        });
-
-        const transcriptData = await page.evaluate(() => {
-          const segments = Array.from(
-            document.querySelectorAll("ytd-transcript-segment-renderer"),
-          );
-          return segments.map((s) => {
-            const timestamp = s.querySelector(".segment-timestamp")?.innerText;
-            const text = s.querySelector("yt-formatted-string")?.innerText;
-            return `${timestamp}: ${text}`;
-          });
-        });
-        result.transcript = transcriptData.join("\n");
-      } catch {
-        /* Ignored */
-      }
-    }
-
-    await Promise.all(
-      selectors.map(async ({ selector, property }) => {
-        const elements = await page.$$(selector);
-        if (!elements.length) return;
-        const values = await Promise.all(
-          elements.map(async (el) => {
-            if (selector.startsWith("meta")) {
-              return await el.evaluate((node) => node.getAttribute("content"));
-            } else {
-              return await el.evaluate((node) => node.innerText);
-            }
-          }),
-        );
-        result[property] = values.filter((v) => v && v.trim());
-      }),
-    );
-
-    await browser.close();
-    return result;
-  }
 
   static async scrapeTenor(url) {
     let browser;
