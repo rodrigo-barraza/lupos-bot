@@ -1,7 +1,6 @@
 // Packages
 
 import path from "path";
-import crypto from "crypto";
 
 // import { DateTime } from 'luxon';
 // Config
@@ -89,7 +88,7 @@ const AIService = {
     temperature = config.LANGUAGE_MODEL_TEMPERATURE,
     tokens = config.LANGUAGE_MODEL_MAX_TOKENS,
     model = null,
-    label = null,
+    _label = null,
   }) {
     const functionName = "generateText";
     let textResponse;
@@ -132,34 +131,8 @@ const AIService = {
     // Route through Prism API gateway
     let usedModel = model || generateTextModel;
 
-    // Pre-create conversation for server-side accumulation
     const discordMessage = CurrentService.getMessage();
     const discordUsername = discordMessage?.author?.username || "lupos";
-    const channelName = discordMessage?.channel?.name || "direct-message";
-    const convGuildName = discordMessage?.guild?.name || "DM";
-    const convLabel = label || "Text Generation";
-    const convTitle = `${convLabel} · ${convGuildName} / #${channelName}`;
-    const systemMsg = conversation.find((m) => m.role === "system");
-    const systemPrompt = systemMsg?.content || "";
-    const nonSystemMessages = conversation.filter((m) => m.role !== "system");
-
-    const conversationId = crypto.randomUUID();
-    const conversationMeta = {
-      title: convTitle,
-      systemPrompt,
-      settings: { model: usedModel, provider: type?.toLowerCase() },
-    };
-
-    // Build user message for auto-append
-    const lastUserMsg = nonSystemMessages.findLast((m) => m.role === "user");
-    const userMessage = lastUserMsg
-      ? {
-          role: "user",
-          content: lastUserMsg.content,
-          name: lastUserMsg.name || discordUsername,
-          timestamp: new Date().toISOString(),
-        }
-      : null;
 
     try {
       const prismResult = await PrismService.generateText({
@@ -169,9 +142,6 @@ const AIService = {
         maxTokens: tokens,
         temperature,
         username: discordUsername,
-        conversationId,
-        userMessage,
-        conversationMeta,
         ...AIService._getSessionParams(),
       });
 
@@ -219,7 +189,7 @@ const AIService = {
         input: conversation,
         output: textResponse,
         guildId: guildId || "DM",
-        guildName: convGuildName || "DM",
+        guildName: discordMessage?.guild?.name || "DM",
         userId: userId,
         userName: userName,
         messageId: messageId || null,
@@ -244,40 +214,8 @@ const AIService = {
     let usedModel;
     let generatedText;
 
-    let userInputImageDataUrls = [];
     const start = performance.now();
 
-    // Pre-create conversation for server-side accumulation
-    const imgDiscordMessage = CurrentService.getMessage();
-    const imgDiscordUsername =
-      imgDiscordMessage?.author?.username || username || "lupos";
-    const imgGuildName = imgDiscordMessage?.guild?.name || "DM";
-    const imgChannelName = imgDiscordMessage?.channel?.name || "direct-message";
-
-    const imgProviderName =
-      type === "LOCAL"
-        ? "local"
-        : type === "GOOGLE"
-          ? "google"
-          : type === "OPENAI"
-            ? "openai"
-            : type?.toLowerCase() || "unknown";
-    const imgTitle = `🖼️ Image Generation · ${imgGuildName} / #${imgChannelName}`;
-
-    const conversationId = crypto.randomUUID();
-    const imgConversationMeta = {
-      title: imgTitle,
-      systemPrompt: "",
-      settings: { provider: imgProviderName },
-    };
-
-    // Build user message for auto-append
-    const imgUserMsg = {
-      role: "user",
-      content: prompt,
-      name: imgDiscordUsername,
-      timestamp: new Date(start).toISOString(),
-    };
 
     if (type === "LOCAL") {
       try {
@@ -324,14 +262,6 @@ const AIService = {
             }
           }
         }
-        userInputImageDataUrls = imageObjects.map(
-          (img) => `data:${img.mimeType};base64,${img.imageData}`,
-        );
-
-        // Include user input images in the user message for conversation display
-        if (userInputImageDataUrls.length > 0) {
-          imgUserMsg.images = userInputImageDataUrls;
-        }
 
         usedModel = "gemini-3.1-flash-image-preview";
         const discordMessage = CurrentService.getMessage();
@@ -343,9 +273,6 @@ const AIService = {
           model: usedModel,
           images: imageObjects,
           username: discordUsername,
-          conversationId,
-          userMessage: imgUserMsg,
-          conversationMeta: imgConversationMeta,
           ...AIService._getSessionParams(),
         });
 
@@ -405,14 +332,6 @@ const AIService = {
             });
           }
         }
-        userInputImageDataUrls = imageObjects.map(
-          (img) => `data:${img.mimeType};base64,${img.imageData}`,
-        );
-
-        // Include user input images in the user message for conversation display
-        if (userInputImageDataUrls.length > 0) {
-          imgUserMsg.images = userInputImageDataUrls;
-        }
 
         usedModel = "gpt-image-1.5";
         const prismResult = await PrismService.generateImage({
@@ -421,9 +340,6 @@ const AIService = {
           model: usedModel,
           images: imageObjects,
           username: discordUsername,
-          conversationId,
-          userMessage: imgUserMsg,
-          conversationMeta: imgConversationMeta,
           ...AIService._getSessionParams(),
         });
 
@@ -484,40 +400,15 @@ const AIService = {
   },
   // Base Image-to-Text Generation (Captioning) — via Prism
   async generateVision(imageUrl, text) {
-    const start = performance.now();
     try {
       const discordMessage = CurrentService.getMessage();
       const discordUsername = discordMessage?.author?.username || "lupos";
-
-      const guildName = discordMessage?.guild?.name || "DM";
-      const channelName = discordMessage?.channel?.name || "direct-message";
-      const captionTitle = `👁️ Image Captioning · ${guildName} / #${channelName}`;
-
-      // Pre-create conversation for server-side accumulation
-      const visionConvId = crypto.randomUUID();
-      const captionConvMeta = {
-        title: captionTitle,
-        systemPrompt: "",
-        settings: { provider: "openai" },
-      };
-
-      // Build user message for auto-append
-      const captionUserMsg = {
-        role: "user",
-        content: text || "What's in this image?",
-        images: [imageUrl],
-        name: discordUsername,
-        timestamp: new Date(start).toISOString(),
-      };
 
       const result = await PrismService.captionImage({
         images: imageUrl,
         prompt: text || "What's in this image?",
         provider: "openai",
         username: discordUsername,
-        conversationId: visionConvId,
-        userMessage: captionUserMsg,
-        conversationMeta: captionConvMeta,
         ...AIService._getSessionParams(),
       });
 
@@ -556,16 +447,6 @@ const AIService = {
     // Get Discord context for tracking
     const discordMessage = CurrentService.getMessage();
     const discordUsername = discordMessage?.author?.username || "lupos";
-    const guildName = discordMessage?.guild?.name || "DM";
-    const channelName = discordMessage?.channel?.name || "direct-message";
-
-    // Build conversation metadata for Prism persistence
-    const conversationId = crypto.randomUUID();
-    const conversationMeta = {
-      title: `🎙️ Audio Transcription · ${guildName} / #${channelName}`,
-      systemPrompt: "",
-      settings: { provider: "openai" },
-    };
 
     // Transcribe via Prism
     const result = await PrismService.transcribeAudio({
@@ -573,8 +454,6 @@ const AIService = {
       mimeType,
       provider: "openai",
       username: discordUsername,
-      conversationId,
-      conversationMeta,
       ...AIService._getSessionParams(),
     });
 

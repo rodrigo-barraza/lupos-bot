@@ -68,8 +68,8 @@ export default class PrismService {
    * @param {number} [payload.maxTokens] - Max tokens
    * @param {number} [payload.temperature] - Temperature
    * @param {string} [payload.username="lupos"] - Username for tracking
-   * @param {string} [payload.conversationId] - Conversation ID for server-side accumulation
-   * @param {object} [payload.userMessage] - User message for auto-append
+   * @param {boolean} [payload.createSession] - Create a new session
+   * @param {string} [payload.sessionId] - Existing session ID
    * @returns {Promise<{ text: string, usage: object, model: string, provider: string, estimatedCost: number|null }>}
    */
   static async generateText({
@@ -79,9 +79,6 @@ export default class PrismService {
     maxTokens,
     temperature,
     username = "lupos",
-    conversationId,
-    userMessage,
-    conversationMeta,
     createSession,
     sessionId,
   }) {
@@ -95,13 +92,11 @@ export default class PrismService {
       model,
       messages,
       options: {},
+      skipConversation: true,
     };
 
     if (maxTokens) body.options.maxTokens = maxTokens;
     if (temperature !== undefined) body.options.temperature = temperature;
-    if (conversationId) body.conversationId = conversationId;
-    if (userMessage) body.userMessage = userMessage;
-    if (conversationMeta) body.conversationMeta = conversationMeta;
     if (createSession) body.createSession = true;
     if (sessionId) body.sessionId = sessionId;
 
@@ -129,9 +124,9 @@ export default class PrismService {
    * @param {string} payload.model - Model name
    * @param {Array}  [payload.images=[]] - Array of base64 data URLs or { imageData, mimeType } objects
    * @param {string} [payload.username="lupos"] - Username for tracking
-   * @param {string} [payload.conversationId]
-   * @param {object} [payload.userMessage]
    * @param {string} [payload.systemPrompt]
+   * @param {boolean} [payload.createSession] - Create a new session
+   * @param {string} [payload.sessionId] - Existing session ID
    * @returns {Promise<{ imageData: string, mimeType: string, text: string, minioRef: string|null, usage: object|null, estimatedCost: number|null, model: string, provider: string }>}
    */
   static async generateImage({
@@ -140,9 +135,6 @@ export default class PrismService {
     model,
     images = [],
     username = "lupos",
-    conversationId,
-    userMessage,
-    conversationMeta,
     systemPrompt,
     createSession,
     sessionId,
@@ -162,12 +154,10 @@ export default class PrismService {
           ...(imageDataUrls.length > 0 && { images: imageDataUrls }),
         },
       ],
+      skipConversation: true,
     };
 
     if (systemPrompt) body.systemPrompt = systemPrompt;
-    if (conversationId) body.conversationId = conversationId;
-    if (userMessage) body.userMessage = userMessage;
-    if (conversationMeta) body.conversationMeta = conversationMeta;
     if (createSession) body.createSession = true;
     if (sessionId) body.sessionId = sessionId;
     body.forceImageGeneration = true;
@@ -200,9 +190,9 @@ export default class PrismService {
    * @param {string} [payload.provider="openai"] - Provider name
    * @param {string} [payload.model]
    * @param {string} [payload.username="lupos"]
-   * @param {string} [payload.conversationId]
-   * @param {object} [payload.userMessage]
    * @param {string} [payload.systemPrompt]
+   * @param {boolean} [payload.createSession] - Create a new session
+   * @param {string} [payload.sessionId] - Existing session ID
    * @returns {Promise<{ text: string }>}
    */
   static async captionImage({
@@ -211,9 +201,6 @@ export default class PrismService {
     provider = "openai",
     model,
     username = "lupos",
-    conversationId,
-    userMessage,
-    conversationMeta,
     systemPrompt,
     createSession,
     sessionId,
@@ -223,13 +210,11 @@ export default class PrismService {
     const body = {
       provider,
       messages: [{ role: "user", content: prompt, images: normalizedImages }],
+      skipConversation: true,
     };
 
     if (model) body.model = model;
     if (systemPrompt) body.systemPrompt = systemPrompt;
-    if (conversationId) body.conversationId = conversationId;
-    if (userMessage) body.userMessage = userMessage;
-    if (conversationMeta) body.conversationMeta = conversationMeta;
     if (createSession) body.createSession = true;
     if (sessionId) body.sessionId = sessionId;
 
@@ -250,8 +235,6 @@ export default class PrismService {
    * @param {string} [payload.model]
    * @param {string} [payload.language]
    * @param {string} [payload.username="lupos"]
-   * @param {string} [payload.conversationId]
-   * @param {object} [payload.conversationMeta]
    * @param {boolean} [payload.createSession]
    * @param {string} [payload.sessionId]
    * @returns {Promise<{ text: string, usage: object, estimatedCost: number|null, totalTime: number|null, sessionId: string|null }>}
@@ -263,8 +246,6 @@ export default class PrismService {
     model,
     language,
     username = "lupos",
-    conversationId,
-    conversationMeta,
     createSession,
     sessionId,
   }) {
@@ -274,11 +255,9 @@ export default class PrismService {
       : audio;
     const dataUrl = `data:${mimeType};base64,${base64Audio}`;
 
-    const body = { provider, audio: dataUrl };
+    const body = { provider, audio: dataUrl, skipConversation: true };
     if (model) body.model = model;
     if (language) body.language = language;
-    if (conversationId) body.conversationId = conversationId;
-    if (conversationMeta) body.conversationMeta = conversationMeta;
     if (createSession) body.createSession = true;
     if (sessionId) body.sessionId = sessionId;
 
