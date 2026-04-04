@@ -59,4 +59,4 @@ export const YOUTUBE_BUTTON_ACTIONS = {
 /**
  * Account guard constants.
  */
-export const ACCOUNT_AGE_THRESHOLD_MS = 14 * 24 * 60 * 60 * 1000; // 2 weeks
+export const ACCOUNT_AGE_THRESHOLD_MS = 28 * 24 * 60 * 60 * 1000; // 4 weeks

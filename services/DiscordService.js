@@ -3765,7 +3765,7 @@ async function luposOnGuildMemberAdd(client, mongo, member) {
   if (member.guild.id !== config.GUILD_ID_PRIMARY) return;
   console.log(...LogFormatter.memberJoinedGuild(functionName, member));
 
-  // Kick accounts less than 2 weeks old (unless whitelisted)
+  // Kick accounts less than 4 weeks old (unless whitelisted)
   const wasKicked = await kickIfTooNew(member, functionName);
   if (wasKicked) return;
 

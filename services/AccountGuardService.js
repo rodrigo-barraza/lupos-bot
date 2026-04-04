@@ -9,7 +9,7 @@ import config from "#root/config.js";
 import { ACCOUNT_AGE_THRESHOLD_MS } from "#root/constants.js";
 
 /**
- * Kick a member if their Discord account is too new (< 2 weeks old)
+ * Kick a member if their Discord account is too new (< 4 weeks old)
  * and they are not on the whitelist.
  *
  * @param {GuildMember} member - The Discord guild member.
