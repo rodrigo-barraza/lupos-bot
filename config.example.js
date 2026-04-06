@@ -6,7 +6,7 @@ export default {
   SERVER_PORT: 1337,
   DATABASE_URL:
     "mongodb+srv://user:password@cluster.mongodb.net/?retryWrites=true&w=majority&appName=lupos",
-  LOCAL_DATABASE_URL: "mongodb://localhost:27017/?directConnection=true",
+  LOCAL_DATABASE_URL: "mongodb://192.168.86.2:27017/?directConnection=true&replicaSet=rs0",
   LUPOS_TOKEN: "your-discord-bot-token",
   GOOGLE_KEY: "your-google-key",
 
