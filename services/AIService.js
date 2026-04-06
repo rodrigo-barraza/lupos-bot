@@ -805,6 +805,8 @@ Only output the number, nothing else. No explanations. No punctuation. No extra 
       label: "🧠 Fetch Count",
     });
 
+    if (!response) return 20; // default to moderate fetch on API failure
+
     // Helper function to validate the number
     const isValidFetchCount = (num) =>
       !isNaN(num) && num >= 5 && num <= 100 && num % 5 === 0;
