@@ -1334,9 +1334,11 @@ async function buildAndGenerateReply({
     }
 
     // ── Tools the agent is allowed to use ────────────────────────
+    // Note: describe_image is intentionally NOT included — avatar images
+    // are already attached as labeled base64 to the user message, so the
+    // agent can see them directly via multimodal vision.
     const LUPOS_ENABLED_TOOLS = [
       "generate_image",
-      "describe_image",
       "web_search",
       "fetch_url",
       "get_trends",
@@ -1390,6 +1392,16 @@ async function buildAndGenerateReply({
       if (lastUserMsg) {
         if (!lastUserMsg.images) lastUserMsg.images = [];
         lastUserMsg.images.push(...imageUrls);
+
+        // Add image index so the agent knows which image is which
+        // (without this, the agent sees unlabeled base64 blobs and
+        // wastes tool calls trying to describe_image them)
+        if (imageLabels.length > 0) {
+          const labelIndex = imageLabels
+            .map((label, i) => `  ${i + 1}. ${label}`)
+            .join("\n");
+          lastUserMsg.content += `\n\n[ATTACHED REFERENCE IMAGES]\n${labelIndex}`;
+        }
       }
     }
 
