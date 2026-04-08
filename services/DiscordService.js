@@ -452,11 +452,6 @@ async function buildAndGenerateReply({
   const bot = client.user;
   let systemPrompt = newSystemPrompt;
 
-  let systemPromptForImagePromptGeneration;
-  let promptForImagePromptGeneration;
-  let _systemPromptForTextGeneration;
-
-  // let imagePrompt;
   let generatedText;
   const serverContext = [];
   let image;
@@ -733,11 +728,31 @@ async function buildAndGenerateReply({
       }
 
       if (knownParticipants.length > 0) {
-        const matchedIds = await AIService.generateTextExtractMentionedNames(
-          message.cleanContent || message.content,
-          knownParticipants,
-          message,
-        );
+        // Deterministic name matching — word-boundary check against the pre-filtered list.
+        // knownParticipants already only contains names that appear in the message text,
+        // so this is a refinement pass using word boundaries to avoid false positives.
+        const messageTextForMatch = (message.cleanContent || message.content || "").toLowerCase();
+        const matchedIds = [];
+        for (const participant of knownParticipants) {
+          const names = [participant.username, participant.displayName]
+            .filter((n) => n && n.length >= 3)
+            .map((n) => n.toLowerCase());
+          for (const name of names) {
+            // Use word-boundary-aware check: the name must not be inside another word
+            const idx = messageTextForMatch.indexOf(name);
+            if (idx === -1) continue;
+            const charBefore = idx > 0 ? messageTextForMatch[idx - 1] : " ";
+            const charAfter = idx + name.length < messageTextForMatch.length
+              ? messageTextForMatch[idx + name.length]
+              : " ";
+            const isBoundaryBefore = !/\w/.test(charBefore);
+            const isBoundaryAfter = !/\w/.test(charAfter);
+            if (isBoundaryBefore && isBoundaryAfter) {
+              matchedIds.push(participant.id);
+              break; // One match per participant is enough
+            }
+          }
+        }
 
         for (const matchedId of matchedIds) {
           untaggedMatchedUserIds.add(matchedId);
@@ -780,13 +795,26 @@ async function buildAndGenerateReply({
     }
 
     // Detect GROUP references (e.g. "draw the top 5 people here", "draw everyone")
-    // Always check for group references in image requests — the AI returns 0 for non-group cases.
+    // Deterministic keyword/regex matching replaces the old AI classification call.
     // This handles mixed cases like "draw @Rodrigo surrounded by everyone" correctly.
     if (mightBeImageRequest) { // Only detect group refs when image generation is likely
-      const groupCount = await AIService.generateTextDetectGroupReference(
-        message.cleanContent || message.content,
-        message,
-      );
+      const groupText = (message.cleanContent || message.content || "").toLowerCase();
+
+      // Check for "top N" pattern first (returns the specific number)
+      const topNMatch = groupText.match(/\btop\s+(\d+)\b/);
+      // Check for "the N of us" pattern
+      const nOfUsMatch = groupText.match(/\bthe\s+(\d+)\s+of\s+us\b/);
+      // Check for "everyone" / "all" / "everybody" / group slang
+      const isEveryoneRef = /\b(everyone|everybody|every\s*one|all\s+of\s+us|everyone\s+else|the\s+boys|the\s+squad|the\s+gang|the\s+chat|the\s+server|us\s+all)\b/i.test(groupText);
+
+      let groupCount = 0;
+      if (topNMatch) {
+        groupCount = parseInt(topNMatch[1], 10);
+      } else if (nOfUsMatch) {
+        groupCount = parseInt(nOfUsMatch[1], 10);
+      } else if (isEveryoneRef) {
+        groupCount = 99; // Capped downstream
+      }
 
       if (groupCount > 0) {
         console.log(
@@ -1016,7 +1044,10 @@ async function buildAndGenerateReply({
           .join("\n");
         const queryText =
           recentUserConvo || message.cleanContent || message.content || "";
-        if (queryText.length > 3) {
+        // Skip memory search for trivial messages (pure emoji, single words, noise)
+        // that would produce low-quality embedding matches
+        const strippedQuery = queryText.replace(/[\s\p{Emoji_Presentation}\p{Extended_Pictographic}]/gu, "").trim();
+        if (strippedQuery.length > 8) {
           const memoryResult = await PrismService.searchMemories({
             guildId: message.guildId,
             userIds: participantUserIds,
@@ -1054,7 +1085,6 @@ async function buildAndGenerateReply({
       );
     }
 
-    let _shouldRedrawImage = false;
     const imageUrls = [];
     const imageLabels = []; // Tracks what each image in imageUrls represents
     const mentionsImageUrls = [];
@@ -1074,7 +1104,6 @@ async function buildAndGenerateReply({
         return key.startsWith(message.id);
       });
       if (attachmentImages.size > 0) {
-        _shouldRedrawImage = true;
         for (const imageObject of attachmentImages.first().values()) {
           const imageUrl = imageObject.url;
           imageLabels.push("Attached image from message");
@@ -1102,7 +1131,6 @@ async function buildAndGenerateReply({
       // If the referenced message has an image in the collection, use that
       // (Only user messages are stored, not bot messages)
       if (referencedMessageImages.size > 0) {
-        _shouldRedrawImage = true;
         const imageUrl = referencedMessageImages.first().values().next()
           .value.url;
         imageLabels.push("Replied-to message image");
@@ -1130,7 +1158,6 @@ async function buildAndGenerateReply({
             },
           );
           if (imageAttachment) {
-            _shouldRedrawImage = true;
             const imageUrl = imageAttachment.proxyURL || imageAttachment.url;
             imageLabels.push("Replied-to message image");
             imageUrls.push(imageUrl);
@@ -1190,7 +1217,6 @@ async function buildAndGenerateReply({
 
       if (mentionedMembersOrUsersWithAvatars.size > 0) {
         for (const memberOrUser of mentionedMembersOrUsersWithAvatars.values()) {
-          _shouldRedrawImage = true;
           const avatarUrl = memberOrUser.displayAvatarURL({
             format: "png",
             size: 512,
@@ -1208,7 +1234,6 @@ async function buildAndGenerateReply({
           }
           let index = 0;
           for (const [_hash, mapObject] of imagesMap.entries()) {
-            _shouldRedrawImage = true;
             const userDisplayName = await DiscordUtilityService.getDisplayName(
               message,
               mapObject.userId,
@@ -1251,7 +1276,6 @@ async function buildAndGenerateReply({
         const avatarSource = matchedMember || matchedUser;
 
         if (avatarSource && avatarSource.displayAvatarURL) {
-          _shouldRedrawImage = true;
           const avatarUrl = avatarSource.displayAvatarURL({
             format: "png",
             size: 512,
@@ -1275,7 +1299,6 @@ async function buildAndGenerateReply({
             edittedMessageCleanContent += `# Input Reference Images:`;
           }
           for (const [_hash, mapObject] of imagesMap.entries()) {
-            _shouldRedrawImage = true;
             const userDisplayName = await DiscordUtilityService.getDisplayName(
               message,
               mapObject.userId,
@@ -1434,9 +1457,7 @@ async function buildAndGenerateReply({
   }
   return {
     generatedText,
-    systemPromptForImagePromptGeneration,
     image,
-    promptForImagePromptGeneration,
   };
 }
 
@@ -1474,7 +1495,6 @@ async function replyMessage(queuedDatum, localMongo) {
   let combinedChannelInformation;
   let generatedTextResponse;
   let generatedImage;
-  let generatedImagePrompt;
 
   // Update status to say who it is replying to
   DiscordUtilityService.setUserActivity(
@@ -1546,7 +1566,7 @@ async function replyMessage(queuedDatum, localMongo) {
     return;
   }
 
-  const { generatedText, image, promptForImagePromptGeneration } =
+  const { generatedText, image } =
     await buildAndGenerateReply({
       conversation,
       conversationsCollection,
@@ -1566,16 +1586,14 @@ async function replyMessage(queuedDatum, localMongo) {
   // eslint-disable-next-line prefer-const
   generatedTextResponse = generatedText;
   generatedImage = image; // eslint-disable-line prefer-const
-  generatedImagePrompt = promptForImagePromptGeneration; // eslint-disable-line prefer-const
 
   // (Image conversations are already saved per-call inside generateImage)
 
   LightsService.cycleColor(config.PRIMARY_LIGHT_ID, "purples");
-  // GENERATE SUMMARY
-  const textSummary = await AIService.generateTextSummaryFromMessage(
-    message,
-    generatedTextResponse,
-  );
+  // GENERATE SUMMARY — use first ~5 words of the agent response instead of a separate LLM call
+  const textSummary = generatedTextResponse
+    ? `💬 ${generatedTextResponse.replace(/[*_~`#>]/g, "").split(/\s+/).slice(0, 5).join(" ").substring(0, 100)}…`
+    : "";
   DiscordUtilityService.setUserActivity(client, textSummary);
   LightsService.cycleColor(config.PRIMARY_LIGHT_ID, "purples");
   if (!generatedTextResponse) {
@@ -1606,7 +1624,6 @@ ${combinedGuildInformation && combinedChannelInformation ? `URL: ${utilities.get
       message,
       generatedTextResponse,
       generatedImage,
-      generatedImagePrompt,
     );
     repliedMessagesCollection.set(message.id, messageSent.id);
     LightsService.cycleColor(config.PRIMARY_LIGHT_ID, "purples");
