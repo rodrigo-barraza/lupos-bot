@@ -57,7 +57,7 @@ import {
   YOUTUBE_BUTTON_ACTIONS,
 } from "#root/constants.js";
 import CensorService from "#root/services/CensorService.js";
-import { kickIfTooNew } from "#root/services/AccountGuardService.js";
+import { kickIfTooNew, kickIfForbiddenCombo } from "#root/services/AccountGuardService.js";
 
 const args = process.argv.slice(2);
 const mode = args.find((arg) => arg.startsWith("mode="))?.split("=")[1];
@@ -922,19 +922,81 @@ async function buildAndGenerateReply({
       }
     }
 
-    // Rodrigo: Detect self-referential pronouns in image requests ("draw me", "myself", etc.)
+    // Rodrigo: Detect self-referential requests in image generation messages.
     // The author is excluded from knownParticipants name matching (line 700), and
-    // isn't in message.mentions when they only @mention the bot — so "draw me" would
-    // produce zero attached reference images without this block.
-    if (mightBeImageRequest) {
+    // isn't in message.mentions when they only @mention the bot — so self-referential
+    // requests would produce zero attached reference images without this block.
+    //
+    // Two-tier detection:
+    //   1. Fast-path regex for common English patterns (zero latency, no API cost)
+    //   2. Lightweight LLM fallback for everything regex can't cover:
+    //      other languages, indirect refs, creative phrasings, slang
+    //      (~200ms Haiku call — negligible against the ~50s total flow)
+    if (mightBeImageRequest && !untaggedMatchedUserIds.has(message.author.id)) {
       const selfText = (message.cleanContent || message.content || "").toLowerCase();
-      const hasSelfRef = /\b(draw|paint|sketch|illustrate|render|depict|generate|create|make|design|reimagine|redraw)\b.*\b(me|myself)\b/i.test(selfText)
-        || /\b(my)\s+(portrait|face|avatar|picture|photo|image|drawing|painting|illustration|likeness|selfie|caricature)\b/i.test(selfText);
-      if (hasSelfRef && !untaggedMatchedUserIds.has(message.author.id)) {
+
+      // ── Tier 1: Fast-path regex (English) ──────────────────────
+      const hasSelfRefRegex =
+        // "draw me", "paint myself", "create me as...", etc.
+        /\b(draw|paint|sketch|illustrate|render|depict|generate|create|make|design|reimagine|redraw|turn|put|do)\b.*\b(me|myself)\b/i.test(selfText)
+        // "my profile picture", "my pfp", "my cool avatar", etc.
+        // Allows up to 3 intermediate words between "my" and the visual noun
+        || /\b(my)\s+(?:\w+\s+){0,3}(portrait|face|avatar|picture|photo|image|drawing|painting|illustration|likeness|selfie|caricature|pfp|dp|pic|profile)\b/i.test(selfText)
+        // "how would I look as...", "what would I look like..."
+        || /\b(how|what)\s+would\s+I\s+look\b/i.test(selfText)
+        // "a portrait/painting/picture of me"
+        || /\b(portrait|painting|picture|photo|image|illustration|drawing|version|rendition|interpretation)\s+of\s+me\b/i.test(selfText);
+
+      if (hasSelfRefRegex) {
         untaggedMatchedUserIds.add(message.author.id);
         console.log(
-          `🪞 [DiscordService] Self-referential pronoun detected — adding author ${message.author.id} to image references`,
+          `🪞 [DiscordService] Self-referential detected (regex fast-path) — adding author ${message.author.id} to image references`,
         );
+      } else {
+        // ── Tier 2: LLM fallback (multilingual, indirect refs) ───
+        // Only runs when regex didn't match but image request is likely.
+        // Uses the fastest model (~200ms) with a simple yes/no classification.
+        try {
+          const classificationConversation = [
+            {
+              role: "system",
+              content: `You are a classifier. Determine if the user's message is asking for an image that involves THEMSELVES — their own appearance, their own profile picture, their own avatar, or any visual depiction of themselves.
+
+This includes:
+- Direct self-references in ANY language: "draw me", "dibújame", "dessine-moi", "画我", "나를 그려줘", "нарисуй меня", etc.
+- Possessive references to their own image: "my profile picture", "mi foto de perfil", "mein Profilbild", etc.
+- Indirect self-references: "how would I look as...", "turn my pic into...", "make that a renaissance version" (when referring to their own image)
+- Hypothetical self-references: "what would I look like as a knight"
+- Shorthand: "my pfp", "my dp", "my avi"
+
+Respond with ONLY "yes" or "no". Nothing else.`,
+            },
+            {
+              role: "user",
+              content: message.cleanContent || message.content || "",
+            },
+          ];
+
+          const classificationResult = await AIService.generateText({
+            conversation: classificationConversation,
+            type: "ANTHROPIC",
+            model: config.ANTHROPIC_LANGUAGE_MODEL_FAST,
+            temperature: 0,
+            tokens: 4,
+          });
+
+          const isSelfRef = classificationResult?.trim().toLowerCase() === "yes";
+          if (isSelfRef) {
+            untaggedMatchedUserIds.add(message.author.id);
+            console.log(
+              `🪞 [DiscordService] Self-referential detected (LLM fallback) — adding author ${message.author.id} to image references`,
+            );
+          }
+        } catch (classifyErr) {
+          console.warn(
+            `🪞 [DiscordService] Self-referential LLM classification failed: ${classifyErr.message}`,
+          );
+        }
       }
     }
 
@@ -3668,6 +3730,12 @@ async function luposOnGuildMemberUpdate(client, mongo, oldMember, newMember) {
 
   // console.log(...LogFormatter.memberUpdate(functionName, oldMember, newMember));
   if (oldMember.guild.id !== config.GUILD_ID_PRIMARY) return;
+
+  // Kick if member now holds the forbidden role combo (Horde + Apex Legends)
+  if (newMember.roles.cache.size > oldMember.roles.cache.size) {
+    await kickIfForbiddenCombo(newMember, functionName);
+  }
+
   // Whenever a user completes onboarding
   const hasOldMemberCompletedOnboarding = oldMember.flags & (1 << 1);
   const hasNewMemberCompletedOnboarding = newMember.flags & (1 << 1);
@@ -3720,6 +3788,18 @@ async function luposOnInteractionCreate(client, mongo, interaction) {
           flags: MessageFlags.Ephemeral,
         });
         await DiscordUtilityService.addRoleToMember(member, roleId);
+
+        // Re-fetch member so role cache reflects the newly added role
+        const freshMember = await interaction.guild.members.fetch(member.id);
+        const wasKicked = await kickIfForbiddenCombo(freshMember, functionName);
+        if (wasKicked) {
+          await interaction.editReply({
+            content: "Forbidden role combination detected. You have been removed from the server.",
+            flags: MessageFlags.Ephemeral,
+          });
+          return;
+        }
+
         // update reply message to say role added
         await interaction.editReply({
           content: `Added <@&${roleId}>!`,
