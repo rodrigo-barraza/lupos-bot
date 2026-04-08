@@ -116,6 +116,84 @@ export default class PrismService {
     };
   }
 
+  // ---------------------------------------------------------------------------
+  // Agent — autonomous agentic loop with tool calling
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Generate a response via Prism's /agent endpoint.
+   * The agent autonomously decides which tools to call (e.g. generate_image, web_search)
+   * and returns the final response after executing the full agentic loop.
+   *
+   * @param {object} payload
+   * @param {Array}  payload.messages      - Conversation messages [{ role, name?, content, images? }]
+   * @param {string} payload.type          - Provider type: "OPENAI" | "ANTHROPIC" | "LOCAL" | "GOOGLE"
+   * @param {string} payload.model         - Model name
+   * @param {Array}  [payload.enabledTools] - Tool names the agent is allowed to use
+   * @param {number} [payload.maxTokens]   - Max output tokens
+   * @param {number} [payload.temperature] - Temperature
+   * @param {string} [payload.username="lupos"] - Username for tracking
+   * @param {boolean} [payload.createSession] - Create a new session
+   * @param {string} [payload.sessionId]   - Existing session ID
+   * @returns {Promise<{
+   *   text: string|null,
+   *   images: Array<{ data: string, mimeType: string, minioRef: string|null }>,
+   *   toolCalls: Array<object>,
+   *   usage: object,
+   *   model: string,
+   *   provider: string,
+   *   estimatedCost: number|null,
+   *   sessionId: string|null,
+   * }>}
+   */
+  static async generateAgentResponse({
+    messages,
+    type,
+    model,
+    enabledTools,
+    maxTokens,
+    temperature,
+    username = "lupos",
+    createSession,
+    sessionId,
+  }) {
+    const provider = PROVIDER_MAP[type];
+    if (!provider) {
+      throw new Error(`Unknown provider type: ${type}`);
+    }
+
+    const body = {
+      provider,
+      model,
+      messages,
+      skipConversation: true,
+      autoApprove: true, // Discord bot can't wait for human approval
+      customSystemPrompt: true, // Lupos provides its own personality system prompt
+    };
+
+    if (enabledTools) body.enabledTools = enabledTools;
+    if (maxTokens) body.maxTokens = maxTokens;
+    if (temperature !== undefined) body.temperature = temperature;
+    if (createSession) body.createSession = true;
+    if (sessionId) body.sessionId = sessionId;
+
+    const data = await PrismService._request("/agent?stream=false", {
+      body,
+      username,
+    });
+
+    return {
+      text: data.text || null,
+      images: data.images || [],
+      toolCalls: data.toolCalls || [],
+      usage: data.usage || { inputTokens: 0, outputTokens: 0 },
+      model: data.model,
+      provider: data.provider,
+      estimatedCost: data.estimatedCost || null,
+      sessionId: data.sessionId || null,
+    };
+  }
+
   /**
    * Generate an image via Prism's /chat endpoint.
    * @param {object} payload

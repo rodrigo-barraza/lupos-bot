@@ -28,7 +28,7 @@ import ScraperService from "#root/services/ScraperService.js";
 import DiscordWrapper from "#root/wrappers/DiscordWrapper.js";
 import YouTubeService from "#root/services/YouTubeService.js";
 import LightsService from "#root/services/LightsService.js";
-import ComfyUIService from "#root/services/ComfyUIService.js";
+// ComfyUIService removed — Lupos now uses the agent endpoint with generate_image tool
 import MongoService from "#root/services/MongoService.js";
 import PrismService from "#root/services/PrismService.js";
 import DiscordUtilityService from "#root/services/DiscordUtilityService.js";
@@ -431,7 +431,6 @@ async function generateDescription(
 }
 
 async function buildAndGenerateReply({
-  canGenerateImage,
   conversation,
   conversationsCollection,
   memberMentionsCollection,
@@ -444,7 +443,6 @@ async function buildAndGenerateReply({
   participantsMembersCollection,
   participantsUsersCollection,
   queuedDatum,
-  isMessageAskingToGenerateImage,
   userMentionsCollection,
   localMongo,
 }) {
@@ -456,7 +454,7 @@ async function buildAndGenerateReply({
 
   let systemPromptForImagePromptGeneration;
   let promptForImagePromptGeneration;
-  let systemPromptForTextGeneration;
+  let _systemPromptForTextGeneration;
 
   // let imagePrompt;
   let generatedText;
@@ -643,10 +641,23 @@ async function buildAndGenerateReply({
       );
     }
 
+    // Cheap heuristic: might the user be asking for image generation?
+    // This avoids two expensive AI calls (name extraction + group detection)
+    // on every message. The agent still decides autonomously — this just
+    // controls whether we pre-fetch avatars and detect group refs.
+    const messageText = (message.cleanContent || message.content || "").toLowerCase();
+    const hasImageAttachments = message.attachments?.some((a) =>
+      a.contentType?.startsWith("image/"),
+    );
+    const mightBeImageRequest =
+      hasImageAttachments ||
+      /\b(draw|paint|sketch|illustrate|render|generate|create|make|design|depict|redraw|reimagine)\b.*\b(image|picture|painting|illustration|art|artwork|portrait|scene|drawing|me|us|everyone|him|her|them)\b/i.test(messageText) ||
+      /\b(draw|paint|sketch|illustrate|render|depict)\b/i.test(messageText);
+
     // Rodrigo: Detect untagged user names in image generation requests
     // e.g. "draw Rodrigo as a samurai" without @Rodrigo
     const untaggedMatchedUserIds = new Set();
-    if (isMessageAskingToGenerateImage) {
+    if (mightBeImageRequest) {
       // Build list of known participants (exclude bot, already-mentioned users, and message author)
       // The author is excluded because "draw your X" shouldn't match the author's name.
       // If the author wants to draw themselves, they should use "draw me" or @mention themselves.
@@ -771,7 +782,7 @@ async function buildAndGenerateReply({
     // Detect GROUP references (e.g. "draw the top 5 people here", "draw everyone")
     // Always check for group references in image requests — the AI returns 0 for non-group cases.
     // This handles mixed cases like "draw @Rodrigo surrounded by everyone" correctly.
-    if (isMessageAskingToGenerateImage) {
+    if (mightBeImageRequest) { // Only detect group refs when image generation is likely
       const groupCount = await AIService.generateTextDetectGroupReference(
         message.cleanContent || message.content,
         message,
@@ -1042,7 +1053,7 @@ async function buildAndGenerateReply({
       );
     }
 
-    let shouldRedrawImage = false;
+    let _shouldRedrawImage = false;
     const imageUrls = [];
     const imageLabels = []; // Tracks what each image in imageUrls represents
     const mentionsImageUrls = [];
@@ -1062,7 +1073,7 @@ async function buildAndGenerateReply({
         return key.startsWith(message.id);
       });
       if (attachmentImages.size > 0) {
-        shouldRedrawImage = true;
+        _shouldRedrawImage = true;
         for (const imageObject of attachmentImages.first().values()) {
           const imageUrl = imageObject.url;
           imageLabels.push("Attached image from message");
@@ -1090,7 +1101,7 @@ async function buildAndGenerateReply({
       // If the referenced message has an image in the collection, use that
       // (Only user messages are stored, not bot messages)
       if (referencedMessageImages.size > 0) {
-        shouldRedrawImage = true;
+        _shouldRedrawImage = true;
         const imageUrl = referencedMessageImages.first().values().next()
           .value.url;
         imageLabels.push("Replied-to message image");
@@ -1118,7 +1129,7 @@ async function buildAndGenerateReply({
             },
           );
           if (imageAttachment) {
-            shouldRedrawImage = true;
+            _shouldRedrawImage = true;
             const imageUrl = imageAttachment.proxyURL || imageAttachment.url;
             imageLabels.push("Replied-to message image");
             imageUrls.push(imageUrl);
@@ -1144,7 +1155,6 @@ async function buildAndGenerateReply({
     }
     // If it mentions a user with an avatar, use that avatar as the image
     if (
-      isMessageAskingToGenerateImage &&
       message.mentions &&
       message.mentions.users.size > 0
     ) {
@@ -1179,7 +1189,7 @@ async function buildAndGenerateReply({
 
       if (mentionedMembersOrUsersWithAvatars.size > 0) {
         for (const memberOrUser of mentionedMembersOrUsersWithAvatars.values()) {
-          shouldRedrawImage = true;
+          _shouldRedrawImage = true;
           const avatarUrl = memberOrUser.displayAvatarURL({
             format: "png",
             size: 512,
@@ -1197,7 +1207,7 @@ async function buildAndGenerateReply({
           }
           let index = 0;
           for (const [_hash, mapObject] of imagesMap.entries()) {
-            shouldRedrawImage = true;
+            _shouldRedrawImage = true;
             const userDisplayName = await DiscordUtilityService.getDisplayName(
               message,
               mapObject.userId,
@@ -1214,7 +1224,7 @@ async function buildAndGenerateReply({
       }
     }
     // Rodrigo: Handle avatars for untagged matched users (detected by name, not @tag)
-    if (isMessageAskingToGenerateImage && untaggedMatchedUserIds.size > 0) {
+    if (untaggedMatchedUserIds.size > 0) { // Agent-era: always resolve avatar images
       const messageReference =
         await DiscordUtilityService.retrieveMessageReferenceFromMessage(
           message,
@@ -1240,7 +1250,7 @@ async function buildAndGenerateReply({
         const avatarSource = matchedMember || matchedUser;
 
         if (avatarSource && avatarSource.displayAvatarURL) {
-          shouldRedrawImage = true;
+          _shouldRedrawImage = true;
           const avatarUrl = avatarSource.displayAvatarURL({
             format: "png",
             size: 512,
@@ -1264,7 +1274,7 @@ async function buildAndGenerateReply({
             edittedMessageCleanContent += `# Input Reference Images:`;
           }
           for (const [_hash, mapObject] of imagesMap.entries()) {
-            shouldRedrawImage = true;
+            _shouldRedrawImage = true;
             const userDisplayName = await DiscordUtilityService.getDisplayName(
               message,
               mapObject.userId,
@@ -1304,136 +1314,101 @@ async function buildAndGenerateReply({
       }
     }
 
-    edittedMessageCleanContent += `\n\n# Composition Guidelines:`;
-    edittedMessageCleanContent += `\n- The attached images are references for style, colors, mood, and elements to include in the composition.`;
-    edittedMessageCleanContent += `\n- The persons should be clearly recognizable but artistically adapted to match a unified scene`;
-    edittedMessageCleanContent += `\n- The emojis should be integrated into the scene in a natural and cohesive way`;
-    edittedMessageCleanContent += `\n- Maintain the core visual identity from the profile (colors, shapes, patterns) while allowing creative interpretation for scene cohesion`;
-    edittedMessageCleanContent += `\n\n# Output:`;
-    edittedMessageCleanContent += `\n${composition}`;
+    // ── Tools the agent is allowed to use ────────────────────────
+    const LUPOS_ENABLED_TOOLS = [
+      "generate_image",
+      "web_search",
+      "fetch_url",
+      "get_trends",
+      "get_hot_trends",
+      "get_top_trends",
+    ];
 
-    const conversationForTextGeneration = [...conversation];
+    // ── Assemble personality & capabilities into system prompt ───
     const assistantMessage = MessageService.assembleAssistantMessage(
-      canGenerateImage,
+      true, // always capable — agent has generate_image tool
       message.guildId,
     );
 
-    if (isMessageAskingToGenerateImage) {
-      promptForImagePromptGeneration =
-        await AIService.generateTextPromptForImagePromptGeneration(
-          conversationForTextGeneration,
-          systemPrompt,
-          shouldRedrawImage,
-          edittedMessageCleanContent,
-        );
+    // Inject generative capabilities guidance for the agent
+    let agentSystemPrompt = systemPrompt;
+    agentSystemPrompt += `\n${assistantMessage}`;
+    agentSystemPrompt += `\n\n# Agent Tool Guidelines`;
+    agentSystemPrompt += `\n- You have access to tools that you can use autonomously to help the user.`;
+    agentSystemPrompt += `\n- When the user asks you to draw, create, generate, or produce an image, painting, illustration, or artwork, use the generate_image tool with a very detailed prompt.`;
+    agentSystemPrompt += `\n- For image generation, write rich prompts that describe style, composition, subjects, colors, mood, lighting, perspective, and artistic direction.`;
+    agentSystemPrompt += `\n- When reference images are available in the conversation, the generate_image tool will automatically use them for editing/redrawing.`;
+    agentSystemPrompt += `\n- For factual questions about current events, trends, or real-time information, use web_search or the trends tools.`;
+    agentSystemPrompt += `\n- Only use tools when they genuinely add value — simple conversation doesn't need tools.`;
+    agentSystemPrompt += `\n\n# Image Composition Guidelines`;
+    agentSystemPrompt += `\n- When generating images that include reference images (avatars, attached images), the attached images are references for style, colors, mood, and elements to include in the composition.`;
+    agentSystemPrompt += `\n- Persons should be clearly recognizable but artistically adapted to match a unified scene.`;
+    agentSystemPrompt += `\n- Emojis should be integrated into the scene in a natural and cohesive way.`;
+    agentSystemPrompt += `\n- Maintain the core visual identity from the profile (colors, shapes, patterns) while allowing creative interpretation for scene cohesion.`;
+    agentSystemPrompt += `\n- If the image generation tool fails due to content safety, try rephrasing the prompt creatively — describe the same scene differently, avoiding potentially flagged terms while preserving the artistic intent.`;
 
-      const username = message.author?.username || "unknown";
-
-      // Check if message was deleted before starting expensive image generation
-      if (isMessageCancelled(message.id)) {
-        console.log(
-          `🗑️ [DiscordService] Message ${message.id} was deleted before image generation, aborting.`,
-        );
-        return {
-          generatedText: null,
-          image: null,
-          promptForImagePromptGeneration: null,
-        };
-      }
-
-      // Step 1: Generate the image first (before text reply)
-      // Step 1: Always try Google first (no upfront NSFW filtering)
-      // Prepend image-to-person mapping so Gemini knows which attached image is which
-      let labeledPrompt = promptForImagePromptGeneration;
-      if (imageLabels.length > 0 && imageUrls.length > 0) {
-        const mapping = imageLabels
-          .map((label, i) => `- Attached image ${i + 1}: ${label}`)
-          .join("\n");
-        labeledPrompt = `REFERENCE IMAGE MAP (the attached images correspond to):\n${mapping}\n\n${promptForImagePromptGeneration}`;
-      }
-      image = await AIService.generateImage(
-        "GOOGLE",
-        labeledPrompt,
-        client,
-        imageUrls,
-        username,
-      );
-
-      // Step 2: If image generation failed (e.g. Gemini content policy rejection),
-      // creatively redescribe the prompt and retry
-      if (!image && promptForImagePromptGeneration) {
-        console.log(
-          "⚠️ [DiscordService] Image generation returned null, creatively redescribing prompt and retrying...",
-        );
-        const redescribedPrompt = await AIService.redescribeImagePrompt(
-          promptForImagePromptGeneration,
-          message,
-        );
-        if (
-          redescribedPrompt &&
-          redescribedPrompt !== promptForImagePromptGeneration
-        ) {
-          console.log(
-            `🎨 [DiscordService] Redescribed prompt: "${redescribedPrompt.substring(0, 100)}..."`,
-          );
-          promptForImagePromptGeneration = redescribedPrompt;
-          // Re-prepend image mapping for the retry
-          let retryPrompt = redescribedPrompt;
-          if (imageLabels.length > 0 && imageUrls.length > 0) {
-            const mapping = imageLabels
-              .map((label, i) => `- Attached image ${i + 1}: ${label}`)
-              .join("\n");
-            retryPrompt = `REFERENCE IMAGE MAP (the attached images correspond to):\n${mapping}\n\n${redescribedPrompt}`;
-          }
-          image = await AIService.generateImage(
-            "GOOGLE",
-            retryPrompt,
-            client,
-            imageUrls,
-            username,
-          );
-        }
-      }
-
-      // Step 3: Generate text reply BASED ON whether image was actually produced
-      if (image) {
-        // Collect mention syntax for all drawn users (from @mentions and untagged matches)
-        const drawnUserMentions = [];
-        const addedMentionIds = new Set();
-        for (const imgMention of mentionsImageUrls) {
-          if (imgMention.userId && !addedMentionIds.has(imgMention.userId)) {
-            addedMentionIds.add(imgMention.userId);
-            drawnUserMentions.push(`<@${imgMention.userId}>`);
-          }
-        }
-        // Also include the message author if they asked to draw themselves
-        // (they're already in the conversation context, no need to add here)
-
-        generatedText = await AIService.generateTextReplyImageGenerated(
-          conversationForTextGeneration,
-          assistantMessage,
-          systemPrompt,
-          promptForImagePromptGeneration,
-          drawnUserMentions,
-        );
-      } else {
-        // Image completely failed — don't pretend we drew something
-        console.log(
-          "⚠️ [DiscordService] Image generation failed after retry, generating text-only reply.",
-        );
-        generatedText = await AIService.generateTextReplyImageFailed(
-          conversationForTextGeneration,
-          assistantMessage,
-          systemPrompt,
-        );
-      }
-    } else {
-      generatedText = await AIService.generateTextReplyNoImageGenerated(
-        conversationForTextGeneration,
-        assistantMessage,
-        systemPrompt,
-      );
+    // If we collected image context (captions, labels, avatars), include it
+    if (edittedMessageCleanContent?.trim()) {
+      agentSystemPrompt += `\n\n${edittedMessageCleanContent}`;
     }
+
+    // ── Build agent conversation ─────────────────────────────────
+    const agentConversation = [...conversation];
+
+    // Inject the system prompt as the first message
+    agentConversation.unshift({
+      role: "system",
+      content: agentSystemPrompt,
+    });
+
+    // Attach collected image data URLs to the last user message
+    // so the agent (and the generate_image tool) can access them
+    if (imageUrls.length > 0) {
+      const lastUserMsg = [...agentConversation]
+        .reverse()
+        .find((m) => m.role === "user");
+      if (lastUserMsg) {
+        if (!lastUserMsg.images) lastUserMsg.images = [];
+        lastUserMsg.images.push(...imageUrls);
+      }
+    }
+
+    // Check if message was deleted before starting expensive agent call
+    if (isMessageCancelled(message.id)) {
+      console.log(
+        `🗑️ [DiscordService] Message ${message.id} was deleted before agent call, aborting.`,
+      );
+      return {
+        generatedText: null,
+        image: null,
+        promptForImagePromptGeneration: null,
+      };
+    }
+
+    // ── Single agent call replaces the entire multi-step pipeline ─
+    const agentResponse = await PrismService.generateAgentResponse({
+      messages: agentConversation,
+      type: config.LANGUAGE_MODEL_TYPE,
+      model: config.ANTHROPIC_LANGUAGE_MODEL_SMART,
+      enabledTools: LUPOS_ENABLED_TOOLS,
+      maxTokens: 4096, // Agent needs headroom for tool-call JSON + reasoning + final reply
+      temperature: config.LANGUAGE_MODEL_TEMPERATURE,
+      username: message.author?.username || "unknown",
+    });
+
+    generatedText = agentResponse.text || "";
+
+    // Extract any generated images from the agent response
+    if (agentResponse.images?.length > 0) {
+      const firstImage = agentResponse.images[0];
+      if (firstImage.data) {
+        image = Buffer.from(firstImage.data, "base64");
+      } else if (firstImage.minioRef) {
+        // If only minioRef, we can still use it
+        image = firstImage.minioRef;
+      }
+    }
+
     // Rodrigo: Cleans the response
     generatedText = utilities.removeMentions(generatedText);
     generatedText = utilities.removeFlaggedWords(generatedText);
@@ -1443,7 +1418,7 @@ async function buildAndGenerateReply({
 
     console.log(
       ...LogFormatter.replyBuildingAndGeneratingSuccess({
-        systemPrompt: systemPromptForTextGeneration,
+        systemPrompt: agentSystemPrompt,
         conversation,
         generatedText,
         message,
@@ -1452,7 +1427,6 @@ async function buildAndGenerateReply({
     );
   } catch (error) {
     ((generatedText = "..."),
-      // imagePrompt = 'an image of a beautiful purple wolf sleeping under the full moonlight, in the style of a watercolor painting. The text "Lupos sleeps under the full moonlight" is written in a beautiful cursive font at the bottom of the image.';
       console.error(...LogFormatter.error(error)));
   }
   return {
@@ -1495,11 +1469,8 @@ async function replyMessage(queuedDatum, localMongo) {
 
   let combinedGuildInformation;
   let combinedChannelInformation;
-  // Rodrigo: These are the image variables
   let generatedTextResponse;
-  let canGenerateImage = false;
   let generatedImage;
-  let isMessageAskingToGenerateImage;
   let generatedImagePrompt;
 
   // Update status to say who it is replying to
@@ -1541,37 +1512,8 @@ async function replyMessage(queuedDatum, localMongo) {
   }
   LightsService.cycleColor(config.PRIMARY_LIGHT_ID, "purples");
 
-  if (config.GENERATE_IMAGE) {
-    // Are we using Google Generative AI?
-    if (config.GOOGLE_KEY) {
-      canGenerateImage = true;
-      // Are we using a local ComfyUI instance?
-    } else {
-      try {
-        await ComfyUIService.checkComfyUIWebsocketStatus();
-        canGenerateImage = true;
-        // eslint-disable-next-line no-unused-vars
-      } catch (error) {
-        canGenerateImage = false;
-      }
-    }
-    const _isAskingToDrawSelf = false;
-    if (canGenerateImage) {
-      if (message.content) {
-        isMessageAskingToGenerateImage =
-          await AIService.generateTextIsAskingToGenerateImage(
-            message.cleanContent,
-            message,
-          );
-        console.log(
-          ...LogFormatter.isMessageAskingToGenerateImage(
-            message,
-            isMessageAskingToGenerateImage,
-          ),
-        );
-      }
-    }
-  }
+  // Image detection is no longer needed — the agent decides autonomously
+  // whether to generate images via the generate_image tool.
 
   // Rodrigo: This extracts the content from the messages
   const {
@@ -1603,7 +1545,6 @@ async function replyMessage(queuedDatum, localMongo) {
 
   const { generatedText, image, promptForImagePromptGeneration } =
     await buildAndGenerateReply({
-      canGenerateImage,
       conversation,
       conversationsCollection,
       memberMentionsCollection,
@@ -1616,7 +1557,6 @@ async function replyMessage(queuedDatum, localMongo) {
       participantsMembersCollection,
       participantsUsersCollection,
       queuedDatum,
-      isMessageAskingToGenerateImage,
       userMentionsCollection,
       localMongo,
     });
