@@ -1036,11 +1036,26 @@ async function buildAndGenerateReply({
           }
         }
 
-        // Build a search query from recent conversation context (not just the triggering message)
+        // Build a search query from recent conversation — extract clean text
+        // from <message_content> tags, preserving who said what (name: text).
+        // This avoids embedding noisy metadata (timestamps, IDs, format headers).
         const recentUserConvo = conversation
           .filter((m) => m.role === "user")
           .slice(-5)
-          .map((m) => m.content)
+          .map((m) => {
+            const content = m.content || "";
+            // Extract sender name from "From: Name • username • ..." metadata line
+            const fromMatch = content.match(/^From:\s*(.+?)(?:\s*•|$)/m);
+            const sender = fromMatch ? fromMatch[1].trim() : "";
+            // Extract all message text from <message_content> tags
+            const textMatches = [...content.matchAll(/<message_content>\n([\s\S]*?)\n<\/message_content>/g)];
+            if (textMatches.length > 0) {
+              const text = textMatches.map((m) => m[1].trim()).join(" ");
+              return sender ? `${sender}: ${text}` : text;
+            }
+            return "";
+          })
+          .filter((t) => t.length > 0)
           .join("\n");
         const queryText =
           recentUserConvo || message.cleanContent || message.content || "";
