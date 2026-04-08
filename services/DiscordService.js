@@ -168,6 +168,7 @@ async function generateDescription(
   conversation,
   member,
   user,
+  captionsMap, // pre-computed Map<url, caption> from batch captioning
 ) {
   if (!user) {
     // Rodrigo: We are currently passing both which is a bit redundant. See if it can be cleaned up,
@@ -217,14 +218,22 @@ async function generateDescription(
     // systemPrompt += `\n- SECONDARY TARGET: You're aware of others but ignore them (reply to me only)`;
   }
 
-  // Provide avatar/banner URLs so the agent can call describe_image if needed
+  // Inject avatar/banner URLs and pre-computed descriptions
   const avatarUrl = participantsAvatarsCollection.get(user.id);
   const bannerUrl = participantsBannersCollection.get(user.id);
   if (avatarUrl) {
+    const avatarCaption = captionsMap?.get(avatarUrl);
     systemPrompt += `\n- Avatar URL: ${avatarUrl}`;
+    if (avatarCaption) {
+      systemPrompt += `\n- Avatar description: ${avatarCaption}`;
+    }
   }
   if (bannerUrl) {
+    const bannerCaption = captionsMap?.get(bannerUrl);
     systemPrompt += `\n- Banner URL: ${bannerUrl}`;
+    if (bannerCaption) {
+      systemPrompt += `\n- Banner description: ${bannerCaption}`;
+    }
   }
 
   const totalMessages = messages.filter(
@@ -608,6 +617,34 @@ async function buildAndGenerateReply({
     let participantUser;
     let participantConversation;
 
+    // ── Batch caption ALL avatar and banner images in parallel ────
+    // Collect all URLs, caption them in one Promise.all, then inject
+    // descriptions into the system prompt per-participant.
+    const allVisionUrls = [];
+    for (const [, url] of participantsAvatarsCollection) {
+      allVisionUrls.push(url);
+    }
+    for (const [, url] of participantsBannersCollection) {
+      allVisionUrls.push(url);
+    }
+
+    // Build a Map<url, caption> from the batch result
+    const captionsMap = new Map();
+    if (allVisionUrls.length > 0) {
+      const { imagesMap } = await AIService.captionImages(
+        allVisionUrls,
+        localMongo,
+        "SMALL",
+      );
+      for (const [, mapObject] of imagesMap) {
+        captionsMap.set(mapObject.url, mapObject.caption);
+      }
+      console.log(
+        `🖼️ [DiscordService] Batch captioned ${captionsMap.size}/${allVisionUrls.length} ` +
+        `avatar/banner images in parallel`,
+      );
+    }
+
     // Rodrigo: Process primary participant (the message author)
     if (participantsCollection?.size) {
       const primaryParticipant = participantsCollection.get(message.author?.id);
@@ -632,6 +669,7 @@ async function buildAndGenerateReply({
         participantConversation,
         participantMember,
         participantUser,
+        captionsMap,
       );
     }
 
@@ -921,6 +959,7 @@ async function buildAndGenerateReply({
             participantConversation,
             participantMember,
             participantUser,
+            captionsMap,
           );
         }
       }
@@ -957,6 +996,7 @@ async function buildAndGenerateReply({
           participantConversation,
           participantMember,
           participantUser,
+          captionsMap,
         );
       }
     }
@@ -997,6 +1037,7 @@ async function buildAndGenerateReply({
           participantConversation,
           participantMember,
           participantUser,
+          captionsMap,
         );
       }
     }
@@ -1189,18 +1230,19 @@ async function buildAndGenerateReply({
       }
     }
 
-    // Caption images with SHORT and add the captions to the edittedMessageContent
+    // Caption attached/replied images and add descriptions to the message
     if (imageUrls.length > 0) {
       const { imagesMap } = await AIService.captionImages(
         imageUrls,
         localMongo,
         "SMALL",
       );
-      edittedMessageCleanContent += `# Input Reference Images:`;
+      // Build [ATTACHED REFERENCE IMAGES] block with indexed descriptions
+      edittedMessageCleanContent += `\n[ATTACHED REFERENCE IMAGES]`;
       let index = 0;
       for (const mapObject of imagesMap.values()) {
-        const captionToAdd = `${mapObject.caption}`;
-        edittedMessageCleanContent += `\n* Attached ${index + 1}: ${captionToAdd}`;
+        const label = imageLabels[index] || `Attachment ${index + 1}`;
+        edittedMessageCleanContent += `\n  ${index + 1}. ${label}: ${mapObject.caption}`;
         index++;
       }
     }
@@ -1314,21 +1356,13 @@ async function buildAndGenerateReply({
       "SMALL",
     );
     if (emojisInMessage && emojisInMessage.size > 0) {
-      if (!edittedMessageCleanContent.length) {
-        edittedMessageCleanContent += `# Input Reference Images:`;
-      }
-      let index = 0;
       for (const [emoji, emojiObject] of emojisInMessage.entries()) {
         if (emojiObject && emojiObject.url) {
-          imageLabels.push(`Emoji: ${emojiObject.name || emoji}`);
-          imageUrls.push(emojiObject.url);
-          const emojiCaption = emojiObject.caption
-            ? `(${emojiObject.caption})`
-            : "";
           const emojiData = await splitEmojiNameAndId(emoji);
-          const emojiName = emojiData ? emojiData.name : "";
-          edittedMessageCleanContent += `\n* Emoji ${index + 1}: ${emojiName} ${emojiCaption}`;
-          index++;
+          const emojiName = emojiData ? emojiData.name : (emojiObject.name || emoji);
+          const caption = emojiObject.caption || "";
+          imageLabels.push(`Emoji: ${emojiName}${caption ? ` — ${caption}` : ""}`);
+          imageUrls.push(emojiObject.url);
         }
       }
     }
@@ -1393,14 +1427,18 @@ async function buildAndGenerateReply({
         if (!lastUserMsg.images) lastUserMsg.images = [];
         lastUserMsg.images.push(...imageUrls);
 
-        // Add image index so the agent knows which image is which
-        // (without this, the agent sees unlabeled base64 blobs and
-        // wastes tool calls trying to describe_image them)
+        // Add image index with descriptions so the agent knows which
+        // image is which and what it looks like
         if (imageLabels.length > 0) {
-          const labelIndex = imageLabels
-            .map((label, i) => `  ${i + 1}. ${label}`)
+          const labelLines = imageLabels
+            .map((label, i) => {
+              const caption = captionsMap?.get(imageUrls[i]);
+              return caption
+                ? `  ${i + 1}. ${label}: ${caption}`
+                : `  ${i + 1}. ${label}`;
+            })
             .join("\n");
-          lastUserMsg.content += `\n\n[ATTACHED REFERENCE IMAGES]\n${labelIndex}`;
+          lastUserMsg.content += `\n\n[ATTACHED REFERENCE IMAGES]\n${labelLines}`;
         }
       }
     }
@@ -2422,7 +2460,7 @@ async function extractContentFromMessages(
               modifiedContent += `\n</message_content>`;
             }
 
-            modifiedContent = await generateAttachmentsResponse(
+            const repliedAttachmentResult = await generateAttachmentsResponse(
               repliedMessage,
               messagesTranscriptionsCollection,
               messagesImagesCollection,
@@ -2430,6 +2468,9 @@ async function extractContentFromMessages(
               modifiedContent,
               localMongo,
             );
+            modifiedContent = repliedAttachmentResult.modifiedContent;
+            // Reply image URLs will be collected but not attached separately
+            // — they belong to context, not the current message
 
             modifiedContent += await generateEmojiResponse(
               repliedMessage,
@@ -2461,7 +2502,7 @@ async function extractContentFromMessages(
           }
         }
 
-        modifiedContent = await generateAttachmentsResponse(
+        const attachmentResult = await generateAttachmentsResponse(
           recentMessage,
           messagesTranscriptionsCollection,
           messagesImagesCollection,
@@ -2469,6 +2510,7 @@ async function extractContentFromMessages(
           modifiedContent,
           localMongo,
         );
+        modifiedContent = attachmentResult.modifiedContent;
 
         // Add reactions
         const isCurrentMessage = recentMessage.id !== message.id;
@@ -2481,11 +2523,16 @@ async function extractContentFromMessages(
           modifiedContent += `\nReaction list: ${reactions.join(", ")}`;
         }
 
-        conversation.push({
+        const msgEntry = {
           role: "user",
           name: DiscordUtilityService.getUsernameNoSpaces(recentMessage),
           content: modifiedContent,
-        });
+        };
+        // Attach image URLs to this specific message for multimodal vision
+        if (attachmentResult.messageImageUrls.length > 0) {
+          msgEntry.images = attachmentResult.messageImageUrls;
+        }
+        conversation.push(msgEntry);
       }
     }
   }
@@ -3979,6 +4026,8 @@ async function generateAttachmentsResponse(
     userMessage.id,
   );
   const imagesCollection = messagesImagesCollection.get(userMessage.id);
+  const messageImageUrls = []; // Collect image URLs to attach to message
+
   if (!message.content) {
     if (transcriptionsCollection?.size > 0) {
       // iterate through the first one only
@@ -3992,35 +4041,33 @@ async function generateAttachmentsResponse(
     }
     if (!transcriptionsCollection?.size && imagesCollection?.size) {
       modifiedContent += `\nType: Image Message`;
-      for (const [_index, image] of imagesCollection.entries()) {
-        modifiedContent += `\nImage Content:`;
-        modifiedContent += `\n<image_caption>`;
-        modifiedContent += `\n  ${image.caption}`;
-        modifiedContent += `\n</image_caption>`;
+      modifiedContent += `\n\n[ATTACHED REFERENCE IMAGES]`;
+      let imgIndex = 0;
+      for (const [, image] of imagesCollection.entries()) {
+        imgIndex++;
+        modifiedContent += `\n  ${imgIndex}. Attachment: ${image.caption}`;
+        messageImageUrls.push(image.url);
       }
     }
   } else {
-    if (transcriptionsCollection?.size || imagesCollection?.size) {
-      modifiedContent += `\nAttachments (${imagesCollection.size}):`;
-    }
     if (transcriptionsCollection?.size) {
       const audioTranscriptions = transcriptionsCollection.values().next()
         .value.transcription;
       modifiedContent += `\nAudio Transcription: ${audioTranscriptions}`;
     }
     if (imagesCollection?.size) {
-      for (const [index, image] of imagesCollection.entries()) {
-        // index is a long hash, cut it down to the first 8 characters
-        modifiedContent += `\nImage ${index.substring(0, 8)} Content:`;
-        modifiedContent += `\n<image_caption>`;
-        modifiedContent += `\n  ${image.caption}`;
-        modifiedContent += `\n</image_caption>`;
+      modifiedContent += `\n\n[ATTACHED REFERENCE IMAGES]`;
+      let imgIndex = 0;
+      for (const [, image] of imagesCollection.entries()) {
+        imgIndex++;
+        modifiedContent += `\n  ${imgIndex}. Attachment: ${image.caption}`;
+        messageImageUrls.push(image.url);
       }
     }
   }
 
   modifiedContent += await generateStickerResponse(userMessage, localMongo);
-  return modifiedContent;
+  return { modifiedContent, messageImageUrls };
 }
 
 async function generateEmojiResponse(message, isReply = false) {

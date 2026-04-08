@@ -499,42 +499,18 @@ const AIService = {
 
       if (imageUrls?.length) {
         const isObject = imageUrls[0]?.url;
-        for (const imageUrl of imageUrls) {
+
+        // Process all images in parallel — each checks cache first,
+        // then fires vision call only for uncached images
+        const captionPromises = imageUrls.map(async (imageUrl) => {
           const realImageUrl = isObject ? imageUrl.url : imageUrl;
           const userId = isObject ? imageUrl.userId : null;
 
           const { hash, fileType } =
             await utilities.generateFileHash(realImageUrl);
           const existingImage = await collection.findOne({ hash });
-          if (!existingImage) {
-            const { response } = await AIService.generateVision(
-              realImageUrl,
-              prompt,
-            );
-            if (response?.choices[0]?.message?.content) {
-              const caption = response.choices[0].message.content;
-              const mapObject = {
-                hash,
-                url: realImageUrl,
-                caption,
-                fileType,
-                userId,
-                cached: false,
-              };
-              images.push(caption);
-              imagesMap.set(hash, mapObject);
-              await collection.insertOne({
-                hash,
-                type,
-                url: realImageUrl,
-                caption,
-                fileType,
-                userId,
-                createdAt: new Date(),
-              });
-            }
-          } else {
-            images.push(existingImage.caption);
+
+          if (existingImage) {
             const mapObject = {
               hash,
               url: realImageUrl,
@@ -543,7 +519,43 @@ const AIService = {
               userId: existingImage.userId,
               cached: true,
             };
-            imagesMap.set(hash, mapObject);
+            return { caption: existingImage.caption, mapObject, hash };
+          }
+
+          // Uncached — fire vision call
+          const { response } = await AIService.generateVision(
+            realImageUrl,
+            prompt,
+          );
+          if (response?.choices[0]?.message?.content) {
+            const caption = response.choices[0].message.content;
+            const mapObject = {
+              hash,
+              url: realImageUrl,
+              caption,
+              fileType,
+              userId,
+              cached: false,
+            };
+            await collection.insertOne({
+              hash,
+              type,
+              url: realImageUrl,
+              caption,
+              fileType,
+              userId,
+              createdAt: new Date(),
+            });
+            return { caption, mapObject, hash };
+          }
+          return null;
+        });
+
+        const results = await Promise.all(captionPromises);
+        for (const result of results) {
+          if (result) {
+            images.push(result.caption);
+            imagesMap.set(result.hash, result.mapObject);
           }
         }
       }
