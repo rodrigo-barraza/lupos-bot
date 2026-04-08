@@ -1389,13 +1389,17 @@ async function buildAndGenerateReply({
     // Inject generative capabilities guidance for the agent
     let agentSystemPrompt = systemPrompt;
     agentSystemPrompt += `\n${assistantMessage}`;
+    agentSystemPrompt += `\n\n# Tool Use Policy`;
+    agentSystemPrompt += `\n- ONLY call tools when the user's CURRENT (most recent) message explicitly requests it.`;
+    agentSystemPrompt += `\n- NEVER call tools based on previous messages or conversation history.`;
+    agentSystemPrompt += `\n- Greetings, questions, casual conversation, and follow-ups NEVER require tools — respond with text only.`;
+    agentSystemPrompt += `\n- When in doubt, respond with text only.`;
     agentSystemPrompt += `\n\n# Agent Tool Guidelines`;
     agentSystemPrompt += `\n- You have access to tools that you can use autonomously to help the user.`;
-    agentSystemPrompt += `\n- When the user asks you to draw, create, generate, or produce an image, painting, illustration, or artwork, use the generate_image tool with a very detailed prompt.`;
+    agentSystemPrompt += `\n- When the user's current message asks you to draw, create, generate, or produce an image, painting, illustration, or artwork, use the generate_image tool with a very detailed prompt.`;
     agentSystemPrompt += `\n- For image generation, write rich prompts that describe style, composition, subjects, colors, mood, lighting, perspective, and artistic direction.`;
     agentSystemPrompt += `\n- When reference images are available in the conversation, the generate_image tool will automatically use them for editing/redrawing.`;
     agentSystemPrompt += `\n- For factual questions about current events, trends, or real-time information, use web_search or the trends tools.`;
-    agentSystemPrompt += `\n- Only use tools when they genuinely add value — simple conversation doesn't need tools.`;
     agentSystemPrompt += `\n\n# Image Composition Guidelines`;
     agentSystemPrompt += `\n- When generating images that include reference images (avatars, attached images), the attached images are references for style, colors, mood, and elements to include in the composition.`;
     agentSystemPrompt += `\n- Persons should be clearly recognizable but artistically adapted to match a unified scene.`;
