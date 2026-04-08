@@ -398,7 +398,7 @@ const AIService = {
     return generatedImage;
   },
   // Base Image-to-Text Generation (Captioning) — via Prism
-  async generateVision(imageUrl, text) {
+  async generateVision(imageUrl, text, { model } = {}) {
     try {
       const discordMessage = CurrentService.getMessage();
       const discordUsername = discordMessage?.author?.username || "lupos";
@@ -407,6 +407,7 @@ const AIService = {
         images: imageUrl,
         prompt: text || "What's in this image?",
         provider: "openai",
+        model,
         username: discordUsername,
         ...AIService._getSessionParams(),
       });
@@ -496,6 +497,11 @@ const AIService = {
         prompt = `Describe this image in a short sentence, 10 words or less. Make no mention about the quality, resolution, or pixelation.`;
       }
 
+      // Use a cheaper model for trivial captioning tasks (avatars, banners, thumbnails)
+      const visionModel = (type === "AVATAR" || type === "BANNER" || type === "SMALL")
+        ? config.OPENAI_LANGUAGE_MODEL_GPT4_1_NANO
+        : undefined;
+
       if (imageUrls?.length) {
         const isObject = imageUrls[0]?.url;
         for (const imageUrl of imageUrls) {
@@ -509,6 +515,7 @@ const AIService = {
             const { response } = await AIService.generateVision(
               realImageUrl,
               prompt,
+              { model: visionModel },
             );
             if (response?.choices[0]?.message?.content) {
               const caption = response.choices[0].message.content;
@@ -718,14 +725,17 @@ ${guildEmojiList}
   },
   async generateTextDetermineHowManyMessagesToFetch(
     content,
-    message,
-    messageCountText,
+    _message,
+    _messageCountText,
   ) {
-    // Rule-based fast-path: standalone image requests need minimal context
+    // Fully deterministic — the old AI prompt's decision rules were keyword-based,
+    // so we replicate them exactly without an LLM call.
     const strippedContent = content
       .replace(/<@\d+>/g, "")
       .trim()
       .toLowerCase();
+
+    // MICRO/MINIMAL: standalone image requests need minimal context
     const isImageRequest =
       /\b(draw|paint|sketch|create|generate|make|illustrate)\b/i.test(
         strippedContent,
@@ -739,131 +749,36 @@ ${guildEmojiList}
       return 5;
     }
 
-    const conversation = [
-      {
-        role: "system",
-        content: `You are a message fetch optimizer for a multi-modal Discord AI bot. Your role is to determine the optimal number of historical messages to fetch based on the user's request.
-
-The following shows how far back each message count reaches (oldest message in range):
-${messageCountText}
-
-# DECISION RULES:
-
-## MICRO FETCH (5 messages):
-- Simple, direct questions
-- Requests for definitions or single facts
-- Basic image generation requests with no context
-
-## MINIMAL FETCH (5-15 messages):
-- Image generation with very basic context
-- Random questions unrelated to chat history
-- Standalone requests (jokes, facts, simple calculations)
-- Requests that explicitly don't need context
-
-## MODERATE FETCH (20-50 messages):
-- Questions about recent topics
-- Follow-up questions to recent discussion
-- Image generation with minor context clues ("that thing we discussed")
-- Requests mentioning "earlier" or "before" without specific timeframe
-
-## LARGE FETCH (55-95 messages):
-- Explicit requests to summarize conversation
-- Image generation based on conversation context
-- Questions about specific time ranges (look at message timing data)
-- Requests containing: "our conversation", "what we talked about", "everything", "all"
-- Complex context-dependent requests
-- When user mentions timeframes that span multiple hours based on the timing data
-
-## MAXIMAL FETCH (100 messages):
-- Requests for full conversation summaries
-- Image generation requiring full context
-- Requests mentioning "everything we've discussed", "the whole conversation"
-- Complex requests needing deep context
-
-# TIME-BASED GUIDANCE:
-- If request mentions "last hour": Check timing data, fetch messages within that timeframe
-- If request mentions "today" or similar: Lean toward higher counts (70-100)
-- If timing shows very sparse messages (>30 min gaps): Consider fetching more to get meaningful context
-
-# OUTPUT:
-Return ONLY a number between 5-100 in increments of 5.
-Analyze the user's intent, not just keywords.
-Take into account the timing data provided as closely as possible.
-Only output the number, nothing else. No explanations. No punctuation. No extra text.`,
-      },
-      {
-        role: "user",
-        name: DiscordUtilityService.getUsernameNoSpaces(message),
-        content: content,
-      },
-    ];
-    const response = await AIService.generateText({
-      conversation,
-      type: "ANTHROPIC",
-      model: config.ANTHROPIC_LANGUAGE_MODEL_CLAUDE_SONNET_4,
-      label: "🧠 Fetch Count",
-    });
-
-    if (!response) return 20; // default to moderate fetch on API failure
-
-    // Helper function to validate the number
-    const isValidFetchCount = (num) =>
-      !isNaN(num) && num >= 5 && num <= 100 && num % 5 === 0;
-
-    // Try direct parse first
-    let fetchCount = parseInt(response);
-
-    // If direct parse fails, try extracting a number from the string
-    if (!isValidFetchCount(fetchCount)) {
-      // More specific regex: looks for numbers between 5-100
-      const numberMatch = response.match(/\b(\d{1,2}|100)\b/);
-      if (numberMatch) {
-        fetchCount = parseInt(numberMatch[1]);
-        console.log("Extracted number from response:", fetchCount);
-      }
+    // MAXIMAL: explicit full-context requests
+    if (
+      /\b(everything we.*discussed|the whole conversation|full conversation|everything|entire chat|all messages)\b/i.test(
+        strippedContent,
+      )
+    ) {
+      return 100;
     }
 
-    // Validate and return
-    if (isValidFetchCount(fetchCount)) {
-      return fetchCount;
+    // LARGE: summary, "all", "our conversation", specific time ranges
+    if (
+      /\b(summarize|recap|our conversation|what we talked about|what.* been (saying|discussing|talking)|today|this morning|this afternoon|this evening|last few hours)\b/i.test(
+        strippedContent,
+      )
+    ) {
+      return 75;
     }
 
-    console.error(
-      "Invalid response from AI for message fetch count:",
-      response,
-    );
-    return 20; // default to moderate fetch
-  },
-  /**
-   * Shared helper for boolean detection via AI. Sends a system prompt + user content
-   * to a lightweight model and parses a JSON {result: true/false} response.
-   */
-  async generateBooleanDetection({ systemPrompt, content, message, label }) {
-    const conversation = [
-      { role: "system", content: systemPrompt },
-      {
-        role: "user",
-        name: DiscordUtilityService.getUsernameNoSpaces(message),
-        content,
-      },
-    ];
-
-    const response = await AIService.generateText({
-      conversation,
-      type: "OPENAI",
-      model: config.OPENAI_LANGUAGE_MODEL_GPT5_NANO,
-      label,
-    });
-
-    if (!response) return false;
-
-    try {
-      const parsed = JSON.parse(response.trim());
-      return parsed.result === true;
-    } catch {
-      console.error("Unexpected response from AI (expected JSON):", response);
-      return false;
+    // LARGE: mentions earlier/before with conversation reference
+    if (refersToConversation) {
+      return 50;
     }
+
+    // MODERATE: image with context, follow-ups, questions about recent topics
+    if (isImageRequest) {
+      return 20; // Image with some context reference
+    }
+
+    // DEFAULT: moderate fetch for general messages
+    return 20;
   },
   async generateTextFromUserConversation(
     userName,

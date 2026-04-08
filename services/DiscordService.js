@@ -1,4 +1,4 @@
-import { DateTime, Duration } from "luxon";
+import { DateTime } from "luxon";
 import crypto from "crypto";
 import {
   Collection,
@@ -1814,7 +1814,6 @@ async function extractContentFromMessages(
   const functionName = "extractContentFromMessages";
   LightsService.cycleColor(config.PRIMARY_LIGHT_ID, "purples");
   const { message, recentMessages } = queuedDatum;
-  const now = Date.now();
   const newestMessage = recentMessages.last();
 
   for (const recentMessage of recentMessages.values()) {
@@ -1854,175 +1853,19 @@ async function extractContentFromMessages(
   });
 
   const totalMessages = filteredRecentMessages.size;
-  const oldestMessageTime =
-    filteredRecentMessages.first()?.createdTimestamp || now;
-  // Calculate how many hours of data we actually have
-  const totalHoursOfData = (now - oldestMessageTime) / (1000 * 60 * 60);
-  // Create hourly buckets (always 24 hours)
-  const hourlyBreakdown = [];
-  // Convert collection to array for easier debugging
-  const messageArray = Array.from(filteredRecentMessages.values());
-  // Calculate average messages per hour based on actual data
-  const averageMessagesPerHour =
-    totalHoursOfData > 0 ? totalMessages / totalHoursOfData : 0;
 
-  // Count messages for each hour window (all 24 hours)
-  for (let hours = 1; hours <= 24; hours++) {
-    let messagesInWindow;
-    let isEstimated = false;
-
-    if (hours <= totalHoursOfData) {
-      // We have actual data for this time period
-      const cutoffTime = now - hours * 60 * 60 * 1000;
-
-      // console.log(`Hour ${hours}: Looking for messages after ${new Date(cutoffTime).toISOString()}`);
-
-      messagesInWindow = messageArray.filter((msg) => {
-        return msg.createdTimestamp >= cutoffTime;
-      }).length;
-
-      // console.log(`  Found ${messagesInWindow} actual messages in last ${hours} hour(s)`);
-    } else {
-      // We need to estimate based on the average
-      messagesInWindow = Math.round(averageMessagesPerHour * hours);
-      isEstimated = true;
-
-      // console.log(`  Estimated ${messagesInWindow} messages in last ${hours} hour(s) (based on ${averageMessagesPerHour.toFixed(2)} msgs/hour)`);
-    }
-
-    hourlyBreakdown.push({
-      hours: hours,
-      messages: messagesInWindow,
-      averagePerHour: messagesInWindow / hours,
-      averagePerPeriod: messagesInWindow,
-      isEstimated: isEstimated,
-    });
-  }
-
-  // NEW SECTION: Calculate time intervals for message groups
-  // Sort messages by timestamp (newest first)
-  const sortedMessages = messageArray.sort(
-    (a, b) => b.createdTimestamp - a.createdTimestamp,
-  );
-  const latestMessageTime = sortedMessages[0]?.createdTimestamp || now;
-
-  // Calculate time spans for every 10 messages up to 100
-  const messageIntervals = [];
-  for (let count = 10; count <= 100; count += 10) {
-    if (count <= sortedMessages.length) {
-      const targetMessage = sortedMessages[count - 1]; // -1 because array is 0-indexed
-      const timeSpanMs = latestMessageTime - targetMessage.createdTimestamp;
-      const timeSpanHours = timeSpanMs / (1000 * 60 * 60);
-      const timeSpanMinutes = timeSpanMs / (1000 * 60);
-
-      messageIntervals.push({
-        messageCount: count,
-        timeSpanMs: timeSpanMs,
-        timeSpanMinutes: timeSpanMinutes.toFixed(2),
-        timeSpanHours: timeSpanHours.toFixed(2),
-        timeSpanFormatted: utilities.formatTimeSpan(timeSpanMs),
-        averageTimeBetweenMessages:
-          (timeSpanMs / (count - 1) / 1000).toFixed(2) + " seconds",
-        messagesPerHour: (count / timeSpanHours).toFixed(2),
-      });
-    } else {
-      // Not enough messages for this interval
-      messageIntervals.push({
-        messageCount: count,
-        status: `Only ${sortedMessages.length} messages available`,
-      });
-    }
-  }
-
-
-
-  // Get some useful insights
-  const _stats = {
-    totalMessages: totalMessages,
-    actualTimeSpan: `${totalHoursOfData.toFixed(2)} hours`,
-    oldestMessageDate: new Date(oldestMessageTime).toISOString(),
-    currentTime: new Date(now).toISOString(),
-    averageMessagesPerHour: averageMessagesPerHour.toFixed(2),
-    hourlyBreakdown: hourlyBreakdown,
-
-    // Show where actual data ends and estimates begin
-    actualDataUpTo: `${Math.min(Math.ceil(totalHoursOfData), 24)} hours`,
-    estimatedAfter:
-      totalHoursOfData < 24
-        ? `${Math.ceil(totalHoursOfData)} hours`
-        : "No estimation needed",
-
-    // Recent activity for all 24 hours
-    ...Object.fromEntries(
-      Array.from({ length: 24 }, (_, i) => [
-        `last${i + 1}Hour${i > 0 ? "s" : ""}`,
-        hourlyBreakdown[i]?.messages || 0,
-      ]),
-    ),
-
-    // Activity acceleration/deceleration (only based on actual data)
-    recentTrend:
-      totalHoursOfData >= 3 && hourlyBreakdown[0] && hourlyBreakdown[2]
-        ? hourlyBreakdown[0].averagePerHour -
-            hourlyBreakdown[2].averagePerHour >
-          0
-          ? "increasing"
-          : "decreasing"
-        : "unknown",
-
-    // NEW: Message interval analysis
-    messageIntervals: messageIntervals,
-
-    // Quick access to specific intervals
-    last10Messages: messageIntervals[0],
-    last20Messages: messageIntervals[1],
-    last50Messages: messageIntervals[4],
-    last100Messages: messageIntervals[9],
-  };
-
-  // console.log(stats);
-  // console.log(messageIntervals);
-
-  let messageCountText = ``;
-  let currentDateTime = DateTime.fromMillis(now);
-  // Friday, October 14, 1983, 9:30:33 AM Eastern Daylight Time
-  currentDateTime = currentDateTime.toLocaleString(
-    DateTime.DATETIME_HUGE_WITH_SECONDS,
-  );
-  messageCountText += `As of ${currentDateTime}, I have analyzed the recent message activity in this channel. Here are some insights:\n\n`;
-
-  for (const interval of messageIntervals) {
-    if (!interval.status) {
-      // const messageSentAtRelative = DateTime.fromMillis(recentMessage.createdTimestamp).toRelative();
-      const oldestMessageDateTime = DateTime.fromMillis(
-        now - interval.timeSpanMs,
-      );
-      const oldestMessageHowLongAgo = oldestMessageDateTime.toRelative();
-      // convert interval.averageTimeBetweenMessages to number type
-      const averageTimeBetweenMessagesAsNumber = parseFloat(
-        interval.averageTimeBetweenMessages,
-      );
-      const secondsToHuman = Duration.fromObject({
-        seconds: averageTimeBetweenMessagesAsNumber,
-      }).toHuman();
-      messageCountText += `\n- Last ${interval.messageCount}: spanning ${interval.timeSpanFormatted} (oldest message ${oldestMessageHowLongAgo}) | Rate: ${interval.messagesPerHour} msgs/hour | Average gap: ${secondsToHuman})`;
-    }
-  }
-
-  // console.log(`Message Count Text: ${messageCountText}`);
-
+  // Determine how many messages to process — deterministic keyword heuristic
+  // (no longer needs timing data or hourly breakdowns)
   const messagesToFetch =
     await AIService.generateTextDetermineHowManyMessagesToFetch(
       message.content,
       message,
-      messageCountText,
+      "",
     );
 
-  // console.log('|-------------------------|');
   console.log(
     `PROCESSING ${messagesToFetch} MESSAGES (out of ${totalMessages} available)`,
   );
-  // console.log('|-------------------------|');
 
   const recentXMessages = filteredRecentMessages.last(messagesToFetch);
   const client = message.client;
