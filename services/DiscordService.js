@@ -1394,7 +1394,9 @@ async function buildAndGenerateReply({
       maxTokens: 4096, // Agent needs headroom for tool-call JSON + reasoning + final reply
       temperature: config.LANGUAGE_MODEL_TEMPERATURE,
       username: message.author?.username || "unknown",
+      ...AIService._getSessionParams(),
     });
+    AIService._captureSessionId(agentResponse);
 
     generatedText = agentResponse.text || "";
 
