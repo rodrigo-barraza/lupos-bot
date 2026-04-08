@@ -922,6 +922,22 @@ async function buildAndGenerateReply({
       }
     }
 
+    // Rodrigo: Detect self-referential pronouns in image requests ("draw me", "myself", etc.)
+    // The author is excluded from knownParticipants name matching (line 700), and
+    // isn't in message.mentions when they only @mention the bot — so "draw me" would
+    // produce zero attached reference images without this block.
+    if (mightBeImageRequest) {
+      const selfText = (message.cleanContent || message.content || "").toLowerCase();
+      const hasSelfRef = /\b(draw|paint|sketch|illustrate|render|depict|generate|create|make|design|reimagine|redraw)\b.*\b(me|myself)\b/i.test(selfText)
+        || /\b(my)\s+(portrait|face|avatar|picture|photo|image|drawing|painting|illustration|likeness|selfie|caricature)\b/i.test(selfText);
+      if (hasSelfRef && !untaggedMatchedUserIds.has(message.author.id)) {
+        untaggedMatchedUserIds.add(message.author.id);
+        console.log(
+          `🪞 [DiscordService] Self-referential pronoun detected — adding author ${message.author.id} to image references`,
+        );
+      }
+    }
+
     // Rodrigo: Process mentioned members
     if (memberMentionsCollection?.size) {
       // Skip the target user — they're already in "About me" above
@@ -1317,13 +1333,19 @@ async function buildAndGenerateReply({
         // Try to get the member from the guild for their avatar
         let matchedMember = participantsMembersCollection.get(matchedId);
         if (!matchedMember && message.guild) {
-          matchedMember =
-            await DiscordUtilityService.retrieveMemberFromGuildById(
-              message.guild,
-              matchedId,
-            );
+          // For self-referential requests, message.member is the most reliable source
+          if (matchedId === message.author?.id && message.member) {
+            matchedMember = message.member;
+          } else {
+            matchedMember =
+              await DiscordUtilityService.retrieveMemberFromGuildById(
+                message.guild,
+                matchedId,
+              );
+          }
         }
-        const matchedUser = participantsUsersCollection.get(matchedId);
+        const matchedUser = participantsUsersCollection.get(matchedId) ||
+          (matchedId === message.author?.id ? message.author : null);
         const avatarSource = matchedMember || matchedUser;
 
         if (avatarSource && avatarSource.displayAvatarURL) {
