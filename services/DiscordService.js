@@ -1022,6 +1022,7 @@ async function buildAndGenerateReply({
             userIds: participantUserIds,
             queryText,
             limit: 8,
+            sessionId: CurrentService.getSessionId(),
           });
 
           if (memoryResult?.memories?.length > 0) {

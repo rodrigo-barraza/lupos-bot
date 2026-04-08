@@ -389,9 +389,10 @@ export default class PrismService {
    * @param {number} [payload.limit=10]
    * @returns {Promise<{ memories: Array, count: number }>}
    */
-  static async searchMemories({ guildId, userIds, queryText, limit = 10 }) {
+  static async searchMemories({ guildId, userIds, queryText, limit = 10, sessionId }) {
     const body = { guildId, queryText, limit };
     if (userIds?.length > 0) body.userIds = userIds;
+    if (sessionId) body.sessionId = sessionId;
 
     return PrismService._request("/memory/search", { body });
   }
