@@ -398,7 +398,7 @@ const AIService = {
     return generatedImage;
   },
   // Base Image-to-Text Generation (Captioning) — via Prism
-  async generateVision(imageUrl, text, { model } = {}) {
+  async generateVision(imageUrl, text, { model, provider } = {}) {
     try {
       const discordMessage = CurrentService.getMessage();
       const discordUsername = discordMessage?.author?.username || "lupos";
@@ -406,8 +406,8 @@ const AIService = {
       const result = await PrismService.captionImage({
         images: imageUrl,
         prompt: text || "What's in this image?",
-        provider: "openai",
-        model,
+        provider: provider || "google",
+        model: model || "gemini-3-flash-preview",
         username: discordUsername,
         ...AIService._getSessionParams(),
       });
@@ -497,11 +497,6 @@ const AIService = {
         prompt = `Describe this image in a short sentence, 10 words or less. Make no mention about the quality, resolution, or pixelation.`;
       }
 
-      // Use a cheaper model for trivial captioning tasks (avatars, banners, thumbnails)
-      const visionModel = (type === "AVATAR" || type === "BANNER" || type === "SMALL")
-        ? config.OPENAI_LANGUAGE_MODEL_GPT4_1_NANO
-        : undefined;
-
       if (imageUrls?.length) {
         const isObject = imageUrls[0]?.url;
         for (const imageUrl of imageUrls) {
@@ -515,7 +510,6 @@ const AIService = {
             const { response } = await AIService.generateVision(
               realImageUrl,
               prompt,
-              { model: visionModel },
             );
             if (response?.choices[0]?.message?.content) {
               const caption = response.choices[0].message.content;

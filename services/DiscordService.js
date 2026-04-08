@@ -217,15 +217,14 @@ async function generateDescription(
     // systemPrompt += `\n- SECONDARY TARGET: You're aware of others but ignore them (reply to me only)`;
   }
 
-  // const avatarCaption =
-  const avatarCaption = participantsAvatarsCollection.get(user.id)?.caption;
-  const bannerCaption = participantsBannersCollection.get(user.id)?.caption;
-  if (avatarCaption) {
-    systemPrompt += `\n- Avatar description: ${avatarCaption}`;
+  // Provide avatar/banner URLs so the agent can call describe_image if needed
+  const avatarUrl = participantsAvatarsCollection.get(user.id);
+  const bannerUrl = participantsBannersCollection.get(user.id);
+  if (avatarUrl) {
+    systemPrompt += `\n- Avatar URL: ${avatarUrl}`;
   }
-
-  if (bannerCaption) {
-    systemPrompt += `\n- Banner description: ${bannerCaption}`;
+  if (bannerUrl) {
+    systemPrompt += `\n- Banner URL: ${bannerUrl}`;
   }
 
   const totalMessages = messages.filter(
@@ -887,37 +886,43 @@ async function buildAndGenerateReply({
 
     // Rodrigo: Process mentioned members
     if (memberMentionsCollection?.size) {
-      systemPrompt += `\n\n# Mentioned members in this server (${memberMentionsCollection.size})`;
-      let currentUserCount = 0;
-      for (const member of memberMentionsCollection.values()) {
-        currentUserCount++;
-        participantMember = participantsMembersCollection.get(member.id);
-        // Rodrigo: Sometimes the mentioned member has not sent any messages ...
-        // ... which means it's not in the cache ...
-        // ... so we need to fetch from the message
-        if (!participantMember) {
-          participantMember =
-            await DiscordUtilityService.retrieveMemberFromGuildById(
-              message.guild,
-              member.id,
-            );
-        }
-        participantUser = participantsUsersCollection.get(member.id);
-        participantConversation = conversationsCollection.get(member.id);
+      // Skip the target user — they're already in "About me" above
+      const filteredMemberMentions = memberMentionsCollection.filter(
+        (member) => member.id !== message.author.id,
+      );
+      if (filteredMemberMentions.size > 0) {
+        systemPrompt += `\n\n# Mentioned members in this server (${filteredMemberMentions.size})`;
+        let currentUserCount = 0;
+        for (const member of filteredMemberMentions.values()) {
+          currentUserCount++;
+          participantMember = participantsMembersCollection.get(member.id);
+          // Rodrigo: Sometimes the mentioned member has not sent any messages ...
+          // ... which means it's not in the cache ...
+          // ... so we need to fetch from the message
+          if (!participantMember) {
+            participantMember =
+              await DiscordUtilityService.retrieveMemberFromGuildById(
+                message.guild,
+                member.id,
+              );
+          }
+          participantUser = participantsUsersCollection.get(member.id);
+          participantConversation = conversationsCollection.get(member.id);
 
-        systemPrompt = await generateDescription(
-          systemPrompt,
-          message,
-          member,
-          "MENTIONED",
-          currentUserCount,
-          recentMessages,
-          participantsAvatarsCollection,
-          participantsBannersCollection,
-          participantConversation,
-          participantMember,
-          participantUser,
-        );
+          systemPrompt = await generateDescription(
+            systemPrompt,
+            message,
+            member,
+            "MENTIONED",
+            currentUserCount,
+            recentMessages,
+            participantsAvatarsCollection,
+            participantsBannersCollection,
+            participantConversation,
+            participantMember,
+            participantUser,
+          );
+        }
       }
     }
     // Rodrigo: Process mentioned users (which means they are not in the server)
@@ -958,17 +963,20 @@ async function buildAndGenerateReply({
     // Rodrigo: Process secondary participants
     // Rodrigo: Has to be greater than one, since it includes Lupos
     if (participantsCollection?.size > 1) {
-      systemPrompt += `\n\n# Secondary participants (${participantsCollection.size - 1})`;
-      systemPrompt += `\nYou are aware of other participants in this conversation, but you are only replying to me.`;
+      // Skip users already listed in "About me" or "Mentioned members" to avoid duplication
+      const filteredParticipants = participantsCollection.filter((participant) => {
+        if (!participant?.user?.id) return false;
+        if (participant.user.id === message.author.id) return false;
+        if (memberMentionsCollection?.has(participant.user.id)) return false;
+        if (userMentionsCollection?.has(participant.user.id)) return false;
+        return true;
+      });
+      if (filteredParticipants.size > 0) {
+        systemPrompt += `\n\n# Secondary participants (${filteredParticipants.size})`;
+        systemPrompt += `\nYou are aware of other participants in this conversation, but you are only replying to me.`;
+      }
       let currentUserCount = 0;
-      // Rodrigo: This filter is turned off for now, since removing them from this list might make the AI think they are not part of the conversation,
-      // and people that are mentioned, might not be part of the conversation.
-      // const filteredParticipants = participantsCollection.filter(participant => {
-      //     return !userMentionsCollection.has(participant.user.id) && !memberMentionsCollection.has(participant.user.id);
-      // });
-      for (const participant of participantsCollection.values()) {
-        if (!participant?.user?.id || participant.user.id === message.author.id)
-          continue;
+      for (const participant of filteredParticipants.values()) {
         participantConversation = conversationsCollection.get(
           participant.user.id,
         );
@@ -1238,29 +1246,15 @@ async function buildAndGenerateReply({
           });
           mentionsImageUrls.push({ userId: memberOrUser.id, url: avatarUrl });
         }
-        if (mentionsImageUrls.length > 0) {
-          const { imagesMap } = await AIService.captionImages(
-            mentionsImageUrls,
-            localMongo,
-            "SMALL",
+        // Attach avatar images as base64 references for generate_image
+        // (no text injection — avatar URLs are already per-participant in the system prompt)
+        for (const mentionImg of mentionsImageUrls) {
+          const userDisplayName = await DiscordUtilityService.getDisplayName(
+            message,
+            mentionImg.userId,
           );
-          if (!edittedMessageCleanContent.length) {
-            edittedMessageCleanContent += `# Input Reference Images:`;
-          }
-          let index = 0;
-          for (const [_hash, mapObject] of imagesMap.entries()) {
-            const userDisplayName = await DiscordUtilityService.getDisplayName(
-              message,
-              mapObject.userId,
-            );
-            // const mentionSyntax = `@${userDisplayName}`;
-            const captionToAdd = `(${mapObject.caption})`;
-            // composition = composition.replace(mentionSyntax, `${mentionSyntax} ${captionToAdd}`);
-            imageLabels.push(`${userDisplayName}'s avatar/profile picture`);
-            imageUrls.push(mapObject.url);
-            edittedMessageCleanContent += `\n* Person ${index + 1}: ${userDisplayName} ${captionToAdd}`;
-            index++;
-          }
+          imageLabels.push(`${userDisplayName}'s avatar/profile picture`);
+          imageUrls.push(mentionImg.url);
         }
       }
     }
@@ -1298,32 +1292,18 @@ async function buildAndGenerateReply({
           mentionsImageUrls.push({ userId: matchedId, url: avatarUrl });
         }
       }
-      // Caption any new untagged user avatars
-      if (mentionsImageUrls.length > 0) {
-        // Only caption the newly added ones (avoid re-captioning @mention avatars)
-        const uncaptionedUrls = mentionsImageUrls.filter(
-          (m) => !imageUrls.includes(m.url),
+      // Attach untagged user avatars as base64 references for generate_image
+      // (no text injection — avatar URLs are already per-participant in the system prompt)
+      const uncaptionedUrls = mentionsImageUrls.filter(
+        (m) => !imageUrls.includes(m.url),
+      );
+      for (const mentionImg of uncaptionedUrls) {
+        const userDisplayName = await DiscordUtilityService.getDisplayName(
+          message,
+          mentionImg.userId,
         );
-        if (uncaptionedUrls.length > 0) {
-          const { imagesMap } = await AIService.captionImages(
-            uncaptionedUrls,
-            localMongo,
-            "SMALL",
-          );
-          if (!edittedMessageCleanContent.length) {
-            edittedMessageCleanContent += `# Input Reference Images:`;
-          }
-          for (const [_hash, mapObject] of imagesMap.entries()) {
-            const userDisplayName = await DiscordUtilityService.getDisplayName(
-              message,
-              mapObject.userId,
-            );
-            const captionToAdd = `(${mapObject.caption})`;
-            imageLabels.push(`${userDisplayName}'s avatar/profile picture`);
-            imageUrls.push(mapObject.url);
-            edittedMessageCleanContent += `\n* Person (detected by name): ${userDisplayName} ${captionToAdd}`;
-          }
-        }
+        imageLabels.push(`${userDisplayName}'s avatar/profile picture`);
+        imageUrls.push(mentionImg.url);
       }
     }
 
@@ -1356,6 +1336,7 @@ async function buildAndGenerateReply({
     // ── Tools the agent is allowed to use ────────────────────────
     const LUPOS_ENABLED_TOOLS = [
       "generate_image",
+      "describe_image",
       "web_search",
       "fetch_url",
       "get_trends",
@@ -1888,8 +1869,6 @@ async function extractContentFromMessages(
   // Prepare all async operations
   const allPromises = {
     conversations: [],
-    avatars: [],
-    banners: [],
     urls: [],
     emojis: [],
     audio: [],
@@ -2042,7 +2021,8 @@ async function extractContentFromMessages(
             ),
           });
 
-          // Queue avatar/banner fetching
+          // Store avatar/banner URLs — the agent calls describe_image on-demand
+          // instead of pre-captioning every avatar on every message.
           let avatarUrl, bannerUrl;
           if (user) {
             avatarUrl = utilities.getDiscordAvatarUrl(user.id, user.avatar);
@@ -2058,24 +2038,10 @@ async function extractContentFromMessages(
           }
 
           if (avatarUrl) {
-            allPromises.avatars.push({
-              userId: user.id,
-              promise: AIService.captionImages(
-                [avatarUrl],
-                localMongo,
-                "AVATAR",
-              ),
-            });
+            participantsAvatarsCollection.set(user.id, avatarUrl);
           }
           if (bannerUrl) {
-            allPromises.banners.push({
-              userId: user.id,
-              promise: AIService.captionImages(
-                [bannerUrl],
-                localMongo,
-                "BANNER",
-              ),
-            });
+            participantsBannersCollection.set(user.id, bannerUrl);
           }
         } else if (userExists.time < recentMessage.createdTimestamp) {
           userExists.time = recentMessage.createdTimestamp;
@@ -2188,8 +2154,6 @@ async function extractContentFromMessages(
     // Execute all promises in parallel
     const results = await Promise.allSettled([
       ...allPromises.conversations.map((item) => item.promise),
-      ...allPromises.avatars.map((item) => item.promise),
-      ...allPromises.banners.map((item) => item.promise),
       ...allPromises.urls.flatMap((item) => item.promises),
       ...allPromises.emojis.map((item) => item.promise),
       ...allPromises.audio.map((item) => item.promise),
@@ -2205,24 +2169,6 @@ async function extractContentFromMessages(
       const result = results[resultIndex++];
       if (result.status === "fulfilled") {
         conversationsCollection.set(item.userId, result.value);
-      }
-    }
-
-    // Process avatars
-    for (const item of allPromises.avatars) {
-      const result = results[resultIndex++];
-      if (result.status === "fulfilled") {
-        const avatarsMap = result.value.imagesMap.values().next().value;
-        participantsAvatarsCollection.set(item.userId, avatarsMap);
-      }
-    }
-
-    // Process banners
-    for (const item of allPromises.banners) {
-      const result = results[resultIndex++];
-      if (result.status === "fulfilled") {
-        const bannersMap = result.value.imagesMap.values().next().value;
-        participantsBannersCollection.set(item.userId, bannersMap);
       }
     }
 
