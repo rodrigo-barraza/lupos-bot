@@ -2,8 +2,7 @@
 /images
 /recordings
 /voices
-config.js
-config.json
+secrets.js
 .env
 .vscode/settings.json
 *:Zone.Identifier

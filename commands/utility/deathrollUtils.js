@@ -12,7 +12,7 @@ import {
   EmbedBuilder,
 } from "discord.js";
 import MongoService from "#root/services/MongoService.js";
-import config from "#root/config.js";
+import config from "#root/secrets.js";
 
 // ─── Constants ────────────────────────────────────────────────────────
 

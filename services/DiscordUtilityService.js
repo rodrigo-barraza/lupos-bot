@@ -2,7 +2,7 @@ import "dotenv/config";
 import { DateTime } from "luxon";
 import utilities from "#root/utilities.js";
 const { consoleLog } = utilities;
-import config from "#root/config.js";
+import config from "#root/secrets.js";
 import { Collection, ChannelType, Events, ActivityType } from "discord.js";
 import ScraperService from "#root/services/ScraperService.js";
 import LightsService from "#root/services/LightsService.js";

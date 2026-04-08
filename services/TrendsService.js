@@ -1,4 +1,4 @@
-import config from "#root/config.js";
+import config from "#root/secrets.js";
 
 const TREND_API_BASE_URL = config.TREND_API_URL || "http://localhost:5570";
 const PRODUCT_API_BASE_URL = config.PRODUCT_API_URL || "http://localhost:5560";

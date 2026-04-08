@@ -4,7 +4,7 @@ import path from "path";
 
 // import { DateTime } from 'luxon';
 // Config
-import config from "#root/config.js";
+import config from "#root/secrets.js";
 // Formatters
 import LogFormatter from "#root/formatters/LogFormatter.js";
 // Wrappers

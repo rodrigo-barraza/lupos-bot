@@ -3,7 +3,7 @@ import crypto from "crypto";
 const clientId = crypto.randomBytes(20).toString("hex");
 import utilities from "#root/utilities.js";
 const { consoleLog } = utilities;
-import config from "#root/config.js";
+import config from "#root/secrets.js";
 // Formatter
 import LogFormatter from "#root/formatters/LogFormatter.js";
 import LightsService from "#root/services/LightsService.js";

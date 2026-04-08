@@ -1,6 +1,6 @@
 import DiscordUtilityService from "#root/services/DiscordUtilityService.js";
 import { birthdays } from "#root/arrays.js";
-import config from "#root/config.js";
+import config from "#root/secrets.js";
 
 async function getCurrentMonthBirthdays(client) {
   const months = [

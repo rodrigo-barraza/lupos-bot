@@ -1,4 +1,4 @@
-import config from "#root/config.js";
+import config from "#root/secrets.js";
 
 const API_BASE = config.PRISM_API_URL;
 

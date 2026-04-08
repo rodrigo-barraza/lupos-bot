@@ -3,7 +3,7 @@ import MessageService from "#root/services/MessageService.js";
 import AIService from "#root/services/AIService.js";
 import PrismService from "#root/services/PrismService.js";
 import { MessageConstant } from "#root/constants.js";
-import config from "#root/config.js";
+import config from "#root/secrets.js";
 import utilities from "#root/utilities.js";
 import { DateTime } from "luxon";
 

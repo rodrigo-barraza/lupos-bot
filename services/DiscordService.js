@@ -15,7 +15,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 // CONFIG
-import config from "#root/config.js";
+import config from "#root/secrets.js";
 // ARRAYS
 import {
   rolesVideogames,
@@ -83,7 +83,7 @@ const allUniqueUsers = {};
 const reactionMessages = {};
 const typingIntervals = {};
 
-const underMaintenance = false;
+
 
 function updateLastMessageSentTime() {
   setInterval(() => {
@@ -2838,6 +2838,17 @@ async function generateRolesEmbedMessage(client) {
 async function luposOnReady(client, { mongo }) {
   console.log(...LogFormatter.botReady(client));
   consoleLogAllGuilds(client);
+
+  // ─── Maintenance Gate ──────────────────────────────────────────
+  if (config.UNDER_MAINTENANCE) {
+    client.user.setPresence({
+      activities: [{ name: '🚧 Under maintenance 🚧', type: 4 }],
+      status: 'idle',
+    });
+    console.log('🚧 Lupos is under maintenance — skipping normal initialization.');
+    return;
+  }
+
   DiscordUtilityService.setUserActivity(client, APRIL_FOOLS_MODE ? `:3` : `Don't @ me...`);
 
   if (mode === "services" || !mode) {
@@ -3159,10 +3170,9 @@ URL: ${utilities.getDiscordMessageUrl(message.guild?.id, message.channel.id, mes
     return;
   }
 
-  if (underMaintenance) {
-    // Make bot appear offline
-    DiscordUtilityService.setUserStatus(client, "idle");
-    if (message.guild.id === config.GUILD_ID_PRIMARY) {
+  if (config.UNDER_MAINTENANCE && message.author.id !== '166745313258897409') {
+    // Only the owner can interact with Lupos during maintenance
+    if (message.guild?.id === config.GUILD_ID_PRIMARY) {
       let secondsRemaining = 10;
       // Randomly select an explosion GIF
       const randomExplosionGif =
@@ -3199,8 +3209,8 @@ URL: ${utilities.getDiscordMessageUrl(message.guild?.id, message.channel.id, mes
       } catch (error) {
         console.error(error);
       }
-      return;
     }
+    return;
   }
 
   // START TYPING
