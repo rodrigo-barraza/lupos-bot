@@ -11,6 +11,11 @@ const utilities = {
         throw new Error(`generateFileHash called with invalid URL: ${url}`);
       }
       const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error(
+          `generateFileHash received HTTP ${response.status} for URL: ${url}`,
+        );
+      }
       const bytes = await response.bytes();
       const buffer = Buffer.from(bytes);
       const fileType = response.headers.get("content-type");

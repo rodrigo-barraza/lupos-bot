@@ -32,7 +32,10 @@ import LightsService from "#root/services/LightsService.js";
 import MongoService from "#root/services/MongoService.js";
 import PrismService from "#root/services/PrismService.js";
 import DiscordUtilityService from "#root/services/DiscordUtilityService.js";
-import MessageService from "#root/services/MessageService.js";
+// MessageService is no longer used in the agent path — personality is
+// assembled by Prism's AgentPersonaRegistry. Kept as a comment for
+// reference in case the non-agent chat path still needs it.
+// import MessageService from "#root/services/MessageService.js";
 import AIService from "#root/services/AIService.js";
 import CurrentService from "#root/services/CurrentService.js";
 import TrendsService from "#root/services/TrendsService.js";
@@ -621,11 +624,11 @@ async function buildAndGenerateReply({
     // Collect all URLs, caption them in one Promise.all, then inject
     // descriptions into the system prompt per-participant.
     const allVisionUrls = [];
-    for (const [, url] of participantsAvatarsCollection) {
-      allVisionUrls.push(url);
+    for (const [userId, url] of participantsAvatarsCollection) {
+      allVisionUrls.push({ url, userId });
     }
-    for (const [, url] of participantsBannersCollection) {
-      allVisionUrls.push(url);
+    for (const [userId, url] of participantsBannersCollection) {
+      allVisionUrls.push({ url, userId });
     }
 
     // Build a Map<url, caption> from the batch result
@@ -842,7 +845,16 @@ async function buildAndGenerateReply({
       // Check for "the N of us" pattern
       const nOfUsMatch = groupText.match(/\bthe\s+(\d+)\s+of\s+us\b/);
       // Check for "everyone" / "all" / "everybody" / group slang
-      const isEveryoneRef = /\b(everyone|everybody|every\s*one|all\s+of\s+us|everyone\s+else|the\s+boys|the\s+squad|the\s+gang|the\s+chat|the\s+server|us\s+all)\b/i.test(groupText);
+      const isEveryoneRef =
+        /\b(everyone|everybody|every\s*one|all\s+of\s+us|everyone\s+else|the\s+boys|the\s+squad|the\s+gang|the\s+server|us\s+all)\b/i.test(groupText) ||
+        // "all the chatters", "the chatters", "all chatters", "all the people", "all participants", etc.
+        /\b(all\s+(?:the\s+)?)?(?:chatters|people|participants|members|peeps|folks|homies)\b/i.test(groupText) && /\b(draw|paint|sketch|illustrate|render|depict|generate|create|make|design)\b/i.test(groupText) ||
+        // "the chat" as a standalone group reference (word boundary prevents matching "chatters" above)
+        /\bthe\s+chat\b/i.test(groupText) ||
+        // "all of them" / "all of these people"
+        /\ball\s+of\s+(them|these)\b/i.test(groupText) ||
+        // bare "draw all" / "draw all ..." where "all" is the group quantifier
+        /\b(draw|paint|sketch|illustrate|render|depict)\s+all\b/i.test(groupText);
 
       let groupCount = 0;
       if (topNMatch) {
@@ -1130,14 +1142,8 @@ Respond with ONLY "yes" or "no". Nothing else.`,
       }
     }
 
-    if (serverContext?.length) {
-      systemPrompt += "\n\n# Relevant information for this conversation";
-      for (const context of serverContext) {
-        systemPrompt += `\n\n# ${context.title}`;
-        systemPrompt += `\n- Keywords: ${context.keywords}`;
-        systemPrompt += `\n- Description: ${context.description}`;
-      }
-    }
+    // Server-specific context (customContextWhitemane matches) is now
+    // injected via agentContext.serverContext in the agent path below.
 
     // Memory retrieval — search for relevant memories about participants
     if (message.guildId) {
@@ -1215,17 +1221,8 @@ Respond with ONLY "yes" or "no". Nothing else.`,
       }
     }
 
-    // Trending data — inject what's trending across Trends, Products, and Beacon
-    try {
-      const trendingSummary = await TrendsService.getTrendingSummary();
-      if (trendingSummary) {
-        systemPrompt += trendingSummary;
-      }
-    } catch (trendsErr) {
-      console.warn(
-        `📈 [DiscordService] Trends retrieval failed: ${trendsErr.message}`,
-      );
-    }
+    // Trending data is now fetched and injected via agentContext
+    // in the agent path below — no longer appended to systemPrompt here.
 
     const imageUrls = [];
     const imageLabels = []; // Tracks what each image in imageUrls represents
@@ -1451,59 +1448,83 @@ Respond with ONLY "yes" or "no". Nothing else.`,
       }
     }
 
-    // ── Tools the agent is allowed to use ────────────────────────
-    // Note: describe_image is intentionally NOT included — avatar images
-    // are already attached as labeled base64 to the user message, so the
-    // agent can see them directly via multimodal vision.
-    const LUPOS_ENABLED_TOOLS = [
-      "generate_image",
-      "web_search",
-      "fetch_url",
-      "get_trends",
-      "get_hot_trends",
-      "get_top_trends",
-    ];
+    // ── Build agentContext for Prism ─────────────────────────────
+    // Prism's SystemPromptAssembler handles personality, tool policy,
+    // and guidelines via AgentPersonaRegistry. Lupos only needs to
+    // pass the runtime context that only it can provide:
+    //   - Discord server/channel/participant info (systemPrompt)
+    //   - Trending data
+    //   - Server-specific context (customContextWhitemane matches)
+    //   - Image captions
+    //   - Clock Crew data (if applicable)
+    const agentContext = {
+      guildId: message.guildId || null,
+      aprilFoolsMode: APRIL_FOOLS_MODE,
+    };
 
-    // ── Assemble personality & capabilities into system prompt ───
-    const assistantMessage = MessageService.assembleAssistantMessage(
-      true, // always capable — agent has generate_image tool
-      message.guildId,
-    );
+    // Discord context — the systemPrompt variable contains server info,
+    // channel info, participant descriptions, emoji context, and memories
+    if (systemPrompt) {
+      agentContext.discordContext = systemPrompt;
+    }
 
-    // Inject generative capabilities guidance for the agent
-    let agentSystemPrompt = systemPrompt;
-    agentSystemPrompt += `\n${assistantMessage}`;
-    agentSystemPrompt += `\n\n# Tool Use Policy`;
-    agentSystemPrompt += `\n- ONLY call tools when the user's CURRENT (most recent) message explicitly requests it.`;
-    agentSystemPrompt += `\n- NEVER call tools based on previous messages or conversation history.`;
-    agentSystemPrompt += `\n- Greetings, questions, casual conversation, and follow-ups NEVER require tools — respond with text only.`;
-    agentSystemPrompt += `\n- When in doubt, respond with text only.`;
-    agentSystemPrompt += `\n\n# Agent Tool Guidelines`;
-    agentSystemPrompt += `\n- You have access to tools that you can use autonomously to help the user.`;
-    agentSystemPrompt += `\n- When the user's current message asks you to draw, create, generate, or produce an image, painting, illustration, or artwork, use the generate_image tool with a very detailed prompt.`;
-    agentSystemPrompt += `\n- For image generation, write rich prompts that describe style, composition, subjects, colors, mood, lighting, perspective, and artistic direction.`;
-    agentSystemPrompt += `\n- When reference images are available in the conversation, the generate_image tool will automatically use them for editing/redrawing.`;
-    agentSystemPrompt += `\n- For factual questions about current events, trends, or real-time information, use web_search or the trends tools.`;
-    agentSystemPrompt += `\n\n# Image Composition Guidelines`;
-    agentSystemPrompt += `\n- When generating images that include reference images (avatars, attached images), the attached images are references for style, colors, mood, and elements to include in the composition.`;
-    agentSystemPrompt += `\n- Persons should be clearly recognizable but artistically adapted to match a unified scene.`;
-    agentSystemPrompt += `\n- Emojis should be integrated into the scene in a natural and cohesive way.`;
-    agentSystemPrompt += `\n- Maintain the core visual identity from the profile (colors, shapes, patterns) while allowing creative interpretation for scene cohesion.`;
-    agentSystemPrompt += `\n- If the image generation tool fails due to content safety, try rephrasing the prompt creatively — describe the same scene differently, avoiding potentially flagged terms while preserving the artistic intent.`;
+    // Server-specific contextual knowledge (matched per-user descriptions)
+    if (serverContext?.length) {
+      let serverCtx = "\n\n# Relevant information for this conversation";
+      for (const context of serverContext) {
+        serverCtx += `\n\n# ${context.title}`;
+        serverCtx += `\n- Keywords: ${context.keywords}`;
+        serverCtx += `\n- Description: ${context.description}`;
+      }
+      agentContext.serverContext = serverCtx;
+    }
 
-    // If we collected image context (captions, labels, avatars), include it
+    // Trending data (trends, products, events, earthquakes, space)
+    try {
+      const trendingSummary = await TrendsService.getTrendingSummary();
+      if (trendingSummary) {
+        agentContext.trendingData = trendingSummary;
+      }
+    } catch (trendsErr) {
+      console.warn(
+        `📈 [DiscordService] Trends retrieval failed: ${trendsErr.message}`,
+      );
+    }
+
+    // Image context (captions, labels from attached/replied images)
     if (edittedMessageCleanContent?.trim()) {
-      agentSystemPrompt += `\n\n${edittedMessageCleanContent}`;
+      agentContext.imageContext = edittedMessageCleanContent;
+    }
+
+    // Clock Crew context — if this is the Clock Crew guild, build the
+    // clocks list for injection into the persona. The persona identity
+    // is handled by AgentPersonaRegistry based on guildId.
+    if (message.guildId === "249010731910037507") {
+      try {
+        const { ClockCrewConstants } = await import("#root/constants.js");
+        const clockWithoutProfiles = ClockCrewConstants.clocks_without_profiles;
+        const clocksWithProfiles = ClockCrewConstants.clocks_with_profiles;
+        const allClocks = [...clockWithoutProfiles, ...clocksWithProfiles];
+
+        if (allClocks.length) {
+          let clockCtx = `\n# List of Clocks`;
+          for (const clock of allClocks) {
+            clockCtx += `\n- ${clock.name}`;
+            if (clock.description) {
+              clockCtx += `\n  - Description: ${clock.description}`;
+            }
+          }
+          agentContext.clockCrewContext = clockCtx;
+        }
+      } catch (clockErr) {
+        console.warn(`⏰ [DiscordService] Clock Crew context failed: ${clockErr.message}`);
+      }
     }
 
     // ── Build agent conversation ─────────────────────────────────
+    // No system prompt injected here — Prism's SystemPromptAssembler
+    // builds the complete prompt (persona + agentContext blocks).
     const agentConversation = [...conversation];
-
-    // Inject the system prompt as the first message
-    agentConversation.unshift({
-      role: "system",
-      content: agentSystemPrompt,
-    });
 
     // Attach collected image data URLs to the last user message
     // so the agent (and the generate_image tool) can access them
@@ -1543,12 +1564,12 @@ Respond with ONLY "yes" or "no". Nothing else.`,
       };
     }
 
-    // ── Single agent call replaces the entire multi-step pipeline ─
+    // ── Single agent call — Prism handles personality + tools ─────
     const agentResponse = await PrismService.generateAgentResponse({
       messages: agentConversation,
       type: config.LANGUAGE_MODEL_TYPE,
       model: config.ANTHROPIC_LANGUAGE_MODEL_SMART,
-      enabledTools: LUPOS_ENABLED_TOOLS,
+      agentContext,
       maxTokens: 4096, // Agent needs headroom for tool-call JSON + reasoning + final reply
       temperature: config.LANGUAGE_MODEL_TEMPERATURE,
       username: message.author?.username || "unknown",
@@ -1578,7 +1599,7 @@ Respond with ONLY "yes" or "no". Nothing else.`,
 
     console.log(
       ...LogFormatter.replyBuildingAndGeneratingSuccess({
-        systemPrompt: agentSystemPrompt,
+        systemPrompt: agentContext.discordContext || systemPrompt,
         conversation,
         generatedText,
         message,

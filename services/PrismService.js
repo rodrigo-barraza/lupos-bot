@@ -125,11 +125,15 @@ export default class PrismService {
    * The agent autonomously decides which tools to call (e.g. generate_image, web_search)
    * and returns the final response after executing the full agentic loop.
    *
+   * Prism assembles the personality system prompt server-side via
+   * AgentPersonaRegistry — Lupos only sends structured runtime context
+   * (Discord info, participants, trending data, etc.) via agentContext.
+   *
    * @param {object} payload
    * @param {Array}  payload.messages      - Conversation messages [{ role, name?, content, images? }]
    * @param {string} payload.type          - Provider type: "OPENAI" | "ANTHROPIC" | "LOCAL" | "GOOGLE"
    * @param {string} payload.model         - Model name
-   * @param {Array}  [payload.enabledTools] - Tool names the agent is allowed to use
+   * @param {object} [payload.agentContext] - Runtime context for Prism's assembler (Discord info, trends, etc.)
    * @param {number} [payload.maxTokens]   - Max output tokens
    * @param {number} [payload.temperature] - Temperature
    * @param {string} [payload.username="lupos"] - Username for tracking
@@ -150,7 +154,7 @@ export default class PrismService {
     messages,
     type,
     model,
-    enabledTools,
+    agentContext,
     maxTokens,
     temperature,
     username = "lupos",
@@ -169,10 +173,10 @@ export default class PrismService {
       agent: "LUPOS",
       skipConversation: true,
       autoApprove: true, // Discord bot can't wait for human approval
-      customSystemPrompt: true, // Lupos provides its own personality system prompt
+      // enabledTools are now defined by the LUPOS persona in AgentPersonaRegistry
     };
 
-    if (enabledTools) body.enabledTools = enabledTools;
+    if (agentContext) body.agentContext = agentContext;
     if (maxTokens) body.maxTokens = maxTokens;
     if (temperature !== undefined) body.temperature = temperature;
     if (createSession) body.createSession = true;
