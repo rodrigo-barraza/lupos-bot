@@ -57,7 +57,7 @@ import {
   YOUTUBE_BUTTON_ACTIONS,
 } from "#root/constants.js";
 import CensorService from "#root/services/CensorService.js";
-import { kickIfTooNew, kickIfForbiddenCombo } from "#root/services/AccountGuardService.js";
+import { kickIfTooNew, kickIfForbiddenCombo, purgeByAccountAge } from "#root/services/AccountGuardService.js";
 
 const args = process.argv.slice(2);
 const mode = args.find((arg) => arg.startsWith("mode="))?.split("=")[1];
@@ -1819,6 +1819,7 @@ ${combinedGuildInformation && combinedChannelInformation ? `URL: ${utilities.get
         messages: recentUserMessages,
         participants: memoryParticipants,
         sourceMessageId: message.id,
+        sessionId: CurrentService.getSessionId(),
       })
         .then((result) => {
           if (result?.count > 0) {
@@ -2977,6 +2978,29 @@ async function luposOnReadyDeleteNewAccounts(client) {
   }
 
   console.log(`[${functionName}] Done. Kicked: ${kickedCount}`);
+}
+
+/**
+ * One-off purge: kick all members with accounts < 2 months old
+ * in a specific guild.
+ */
+const TWO_MONTHS_MS = 60 * 24 * 60 * 60 * 1000;
+const PURGE_TARGET_GUILD_ID = "609471635308937237";
+
+async function luposOnReadyPurgeYoungAccounts(client) {
+  const functionName = "luposOnReadyPurgeYoungAccounts";
+  const guild = client.guilds.cache.get(PURGE_TARGET_GUILD_ID);
+  if (!guild) {
+    console.error(
+      `[${functionName}] Guild ${PURGE_TARGET_GUILD_ID} not found in cache`,
+    );
+    return;
+  }
+
+  await purgeByAccountAge(guild, TWO_MONTHS_MS, {
+    dryRun: true,
+    callerName: functionName,
+  });
 }
 
 async function processMessage(
@@ -4450,6 +4474,17 @@ const DiscordService = {
       luposClient,
       {},
       luposOnReadyDeleteNewAccounts,
+    );
+  },
+  async purgeYoungAccounts() {
+    const luposClient = DiscordWrapper.createClient(
+      "lupos",
+      config.LUPOS_TOKEN,
+    );
+    DiscordUtilityService.onEventClientReady(
+      luposClient,
+      {},
+      luposOnReadyPurgeYoungAccounts,
     );
   },
   initializeBotLuposReports() {

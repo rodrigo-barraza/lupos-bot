@@ -30,6 +30,8 @@ function main() {
       DiscordService.deleteDuplicateMessages();
     } else if (mode === "delete:newAccounts") {
       DiscordService.deleteNewAccounts();
+    } else if (mode === "purge:youngAccounts") {
+      DiscordService.purgeYoungAccounts();
     } else if (mode === "reports") {
       DiscordService.initializeBotLuposReports();
     } else {

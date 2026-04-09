@@ -91,4 +91,79 @@ export async function kickIfForbiddenCombo(member, callerName = "AccountGuard") 
   return false;
 }
 
-export default { kickIfTooNew, kickIfForbiddenCombo };
+/**
+ * Bulk-purge members whose Discord account age is below a given threshold.
+ *
+ * @param {Guild}  guild          - The Discord guild to purge from.
+ * @param {number} thresholdMs    - Max account age in milliseconds; accounts younger get kicked.
+ * @param {object} [options]
+ * @param {boolean} [options.dryRun=false]  - If true, log who *would* be kicked without acting.
+ * @param {string}  [options.callerName]    - Label for log lines.
+ * @returns {{ kicked: number, skipped: number, errors: number }}
+ */
+export async function purgeByAccountAge(guild, thresholdMs, options = {}) {
+  const { dryRun = false, callerName = "purgeByAccountAge" } = options;
+  const thresholdDays = Math.floor(thresholdMs / (24 * 60 * 60 * 1000));
+
+  console.log(
+    `[${callerName}] Fetching all members for guild "${guild.name}" (${guild.id})...`,
+  );
+  const members = await guild.members.fetch();
+  console.log(
+    `[${callerName}] ${members.size} members loaded. Threshold: ${thresholdDays} days. Dry run: ${dryRun}`,
+  );
+
+  let kicked = 0;
+  let skipped = 0;
+  let errors = 0;
+
+  for (const [, member] of members) {
+    if (member.user.bot) continue;
+
+    const accountAge = Date.now() - member.user.createdAt.getTime();
+    if (accountAge >= thresholdMs) continue;
+
+    const ageDays = Math.floor(accountAge / (24 * 60 * 60 * 1000));
+    const isWhitelisted = config.USER_IDS_NEW_ACCOUNT_WHITELIST?.includes(
+      member.id,
+    );
+
+    if (isWhitelisted) {
+      skipped++;
+      console.log(
+        `[${callerName}] ⏭️  Skipping (whitelisted): ${member.user.username} (${member.id}), age: ${ageDays}d`,
+      );
+      continue;
+    }
+
+    if (dryRun) {
+      kicked++;
+      console.log(
+        `[${callerName}] 🔍 [DRY RUN] Would kick: ${member.user.username} (${member.id}), age: ${ageDays}d`,
+      );
+      continue;
+    }
+
+    try {
+      await member.kick(`Account too new (${ageDays} days old, threshold: ${thresholdDays} days)`);
+      kicked++;
+      console.log(
+        `[${callerName}] 🦶 Kicked: ${member.user.username} (${member.id}), age: ${ageDays}d`,
+      );
+    } catch (error) {
+      errors++;
+      console.error(
+        `[${callerName}] ❌ Failed to kick ${member.user.username} (${member.id}):`,
+        error.message,
+      );
+    }
+  }
+
+  console.log(
+    `[${callerName}] Done. Kicked: ${kicked}, Skipped: ${skipped}, Errors: ${errors}`,
+  );
+
+  return { kicked, skipped, errors };
+}
+
+export default { kickIfTooNew, kickIfForbiddenCombo, purgeByAccountAge };

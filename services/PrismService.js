@@ -373,9 +373,11 @@ export default class PrismService {
     messages,
     participants,
     sourceMessageId,
+    sessionId,
   }) {
     const body = { guildId, channelId, messages, participants };
     if (sourceMessageId) body.sourceMessageId = sourceMessageId;
+    if (sessionId) body.sessionId = sessionId;
 
     return PrismService._request("/memory/extract", { body });
   }

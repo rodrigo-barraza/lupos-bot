@@ -416,6 +416,8 @@ const AIService = {
 
       return {
         response: { choices: [{ message: { content: result.text } }] },
+        model: result.model || model || "gemini-3-flash-preview",
+        provider: result.provider || provider || "google",
         error: null,
       };
     } catch (error) {
@@ -517,16 +519,16 @@ const AIService = {
               caption: existingImage.caption,
               fileType,
               userId: existingImage.userId,
+              model: existingImage.model || null,
+              provider: existingImage.provider || null,
               cached: true,
             };
             return { caption: existingImage.caption, mapObject, hash };
           }
 
           // Uncached — fire vision call
-          const { response } = await AIService.generateVision(
-            realImageUrl,
-            prompt,
-          );
+          const { response, model: usedModel, provider: usedProvider } =
+            await AIService.generateVision(realImageUrl, prompt);
           if (response?.choices[0]?.message?.content) {
             const caption = response.choices[0].message.content;
             const mapObject = {
@@ -535,6 +537,8 @@ const AIService = {
               caption,
               fileType,
               userId,
+              model: usedModel,
+              provider: usedProvider,
               cached: false,
             };
             await collection.insertOne({
@@ -544,6 +548,8 @@ const AIService = {
               caption,
               fileType,
               userId,
+              model: usedModel,
+              provider: usedProvider,
               createdAt: new Date(),
             });
             return { caption, mapObject, hash };
