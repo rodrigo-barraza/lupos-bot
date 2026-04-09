@@ -416,9 +416,11 @@ export default class PrismService {
    * @param {string} [payload.model]
    * @returns {Promise<{ embedding: number[], dimensions: number }>}
    */
-  static async generateEmbedding({ text, provider = "openai", model }) {
+  static async generateEmbedding({ text, provider = "openai", model, sessionId, createSession }) {
     const body = { provider, text };
     if (model) body.model = model;
+    if (sessionId) body.sessionId = sessionId;
+    if (createSession) body.createSession = true;
 
     return PrismService._request("/embed", { body });
   }

@@ -1636,6 +1636,7 @@ async function replyMessage(queuedDatum, localMongo) {
   CurrentService.setUser(user);
   CurrentService.setMessage(message);
   CurrentService.setStartTime(Date.now());
+  CurrentService.clearSessionId();
 
   // Check if message was deleted before we start processing
   if (isMessageCancelled(message.id)) {
