@@ -70,7 +70,7 @@ export default class PrismService {
    * @param {string} [payload.username="lupos"] - Username for tracking
    * @param {boolean} [payload.createSession] - Create a new session
    * @param {string} [payload.sessionId] - Existing session ID
-   * @returns {Promise<{ text: string, usage: object, model: string, provider: string, estimatedCost: number|null }>}
+   * @returns {Promise<{ text: string, model: string, provider: string }>}
    */
   static async generateText({
     messages,
@@ -108,10 +108,8 @@ export default class PrismService {
 
     return {
       text: data.text,
-      usage: data.usage || { inputTokens: 0, outputTokens: 0 },
       model: data.model,
       provider: data.provider,
-      estimatedCost: data.estimatedCost || null,
       sessionId: data.sessionId || null,
     };
   }
@@ -143,10 +141,8 @@ export default class PrismService {
    *   text: string|null,
    *   images: Array<{ data: string, mimeType: string, minioRef: string|null }>,
    *   toolCalls: Array<object>,
-   *   usage: object,
    *   model: string,
    *   provider: string,
-   *   estimatedCost: number|null,
    *   sessionId: string|null,
    * }>}
    */
@@ -191,10 +187,8 @@ export default class PrismService {
       text: data.text || null,
       images: data.images || [],
       toolCalls: data.toolCalls || [],
-      usage: data.usage || { inputTokens: 0, outputTokens: 0 },
       model: data.model,
       provider: data.provider,
-      estimatedCost: data.estimatedCost || null,
       sessionId: data.sessionId || null,
     };
   }
@@ -210,7 +204,7 @@ export default class PrismService {
    * @param {string} [payload.systemPrompt]
    * @param {boolean} [payload.createSession] - Create a new session
    * @param {string} [payload.sessionId] - Existing session ID
-   * @returns {Promise<{ imageData: string, mimeType: string, text: string, minioRef: string|null, usage: object|null, estimatedCost: number|null, model: string, provider: string }>}
+   * @returns {Promise<{ imageData: string, mimeType: string, text: string, minioRef: string|null, model: string, provider: string }>}
    */
   static async generateImage({
     prompt,
@@ -257,8 +251,6 @@ export default class PrismService {
       mimeType: firstImage?.mimeType || "image/png",
       minioRef: firstImage?.minioRef || null,
       text: result.text || null,
-      usage: result.usage || null,
-      estimatedCost: result.estimatedCost ?? null,
       model: result.model,
       provider: result.provider,
       sessionId: result.sessionId || null,
@@ -320,7 +312,7 @@ export default class PrismService {
    * @param {string} [payload.username="lupos"]
    * @param {boolean} [payload.createSession]
    * @param {string} [payload.sessionId]
-   * @returns {Promise<{ text: string, usage: object, estimatedCost: number|null, totalTime: number|null, sessionId: string|null }>}
+   * @returns {Promise<{ text: string, sessionId: string|null }>}
    */
   static async transcribeAudio({
     audio,
@@ -351,9 +343,6 @@ export default class PrismService {
 
     return {
       text: result.text,
-      usage: result.usage || {},
-      estimatedCost: result.estimatedCost ?? null,
-      totalTime: result.totalTime ?? null,
       sessionId: result.sessionId || null,
     };
   }

@@ -9,7 +9,6 @@ import config from "#root/secrets.js";
 import LogFormatter from "#root/formatters/LogFormatter.js";
 // Wrappers
 import ComfyUIService from "#root/services/ComfyUIService.js";
-import MongoService from "#root/services/MongoService.js";
 // Libraries
 import utilities from "#root/utilities.js";
 // Services
@@ -115,28 +114,6 @@ const AIService = {
     }
     return imageObjects;
   },
-  /**
-   * Save generation metrics to MongoDB.
-   * @param {string} collectionName
-   * @param {object} extraFields - Additional fields to merge into the document
-   * @param {object} localMongo
-   */
-  async _saveMetrics(collectionName, extraFields, localMongo) {
-    if (!localMongo) return;
-    const message = CurrentService.getMessage();
-    if (!message) return;
-
-    const db = localMongo.db("lupos");
-    const collection = db.collection(collectionName);
-    await collection.insertOne({
-      guildId: message.guild?.id || "DM",
-      guildName: message.guild?.name || "DM",
-      userId: message.author?.id,
-      userName: message.author?.username,
-      messageId: message.id || null,
-      ...extraFields,
-    });
-  },
   // Base Text-to-Text Generation (Completion)
   async generateText({
     conversation,
@@ -147,12 +124,8 @@ const AIService = {
     model = null,
     _label = null,
   }) {
-    const functionName = "generateText";
     let textResponse;
     let generateTextModel;
-
-    const start = performance.now();
-    const localMongo = MongoService.getClient("local");
 
     // Determine initial model based on type and performance
     if (type === "OPENAI") {
@@ -215,40 +188,13 @@ const AIService = {
       return null;
     }
 
-    const end = performance.now();
-    const duration = end - start;
-
-    CurrentService.addModel(usedModel);
-    CurrentService.addModelType(type);
-
-
-    await AIService._saveMetrics("MetricsTextGeneration", {
-      model: usedModel,
-      modelType: type,
-      promptType: "TEXT",
-      input: conversation,
-      output: textResponse,
-    }, localMongo);
-
-    console.log(
-      ...LogFormatter.generateTextSuccess({
-        functionName,
-        duration,
-        modelName: usedModel,
-        modelType: type,
-      }),
-    );
-
     return textResponse;
   },
   // Base Text-to-Image Generation (Diffusion)
   async generateImage(type, prompt, client, imageUrls = [], username = null) {
     let generatedImage;
-    const localMongo = MongoService.getClient("local");
     let usedModel;
-    let generatedText;
 
-    const start = performance.now();
 
 
     if (type === "LOCAL") {
@@ -288,8 +234,6 @@ const AIService = {
 
         if (prismResult.imageData) {
           generatedImage = prismResult.imageData;
-          generatedText = prismResult.text;
-
         } else {
           // No image in response, fall back to LOCAL
           console.log(
@@ -341,39 +285,12 @@ const AIService = {
         AIService._captureSessionId(prismResult);
 
         generatedImage = prismResult.imageData;
-        generatedText = prismResult.text;
 
       } catch (error) {
         console.error(...LogFormatter.error("generateImage", error));
       }
     }
 
-    const end = performance.now();
-    const duration = end - start;
-
-    if (generatedImage) {
-      await AIService._saveMetrics("MetricsImageGeneration", {
-        model: usedModel,
-        inputText: prompt,
-        outputText: generatedText,
-        inputImages: imageUrls.length,
-        duration: parseFloat(duration.toFixed(3)),
-      }, localMongo);
-    }
-
-    if (generatedImage) {
-      CurrentService.addModel(usedModel);
-      CurrentService.addModelType(type);
-    }
-
-    // Image is now stored in MinIO via Prism's text-to-image route
-
-    console.log(
-      ...LogFormatter.generateImageSuccess({
-        duration,
-        prompt,
-      }),
-    );
 
     return generatedImage;
   },

@@ -33,10 +33,6 @@ const LogFormatter = {
     interaction,
     guilds,
     // Generative Text Info
-    systemPrompt,
-    prompt,
-    conversation,
-    generatedText,
     duration,
     // Specific
     roleId,
@@ -270,33 +266,7 @@ const LogFormatter = {
     const logParts = [];
 
     logParts.push(log);
-    if (systemPrompt) {
-      logParts.push("\n    System Prompt:");
-      logParts.push(styles.white);
-      logParts.push(`\n${systemPrompt}`);
-      logParts.push(styles.reset);
-      // logParts.push([{systemPrompt}]);
-    }
-    if (prompt) {
-      logParts.push("\n    Prompt:");
-      logParts.push(styles.white);
-      logParts.push(`\n${prompt}`);
-      logParts.push(styles.reset);
-      // logParts.push([{prompt}]);
-    }
-    if (conversation) {
-      logParts.push("\n    Conversation:");
-      logParts.push(styles.white);
-      logParts.push(conversation);
-      logParts.push(styles.reset);
-    }
-    if (generatedText) {
-      logParts.push("\n    Generated Text:");
-      // logParts.push([{generatedText}]);
-      logParts.push(styles.white);
-      logParts.push(`\n${generatedText}`);
-      logParts.push(styles.reset);
-    }
+
     if (theMessage) {
       if (theMessage.content) {
         logParts.push("\n    Message Content:");
@@ -360,36 +330,11 @@ const LogFormatter = {
     return logParts;
   },
   // GENERATE INFO
-  generateTextSuccess({ functionName, duration, modelName, modelType }) {
-    return LogFormatter.globalFormatter({
-      functionName,
-      logEmoji: "🧠",
-      logName: `${styles.yellowBackground}GENERATE TEXT SUCCESS${styles.reset}`,
-      modelType,
-      modelName,
-      duration,
-    });
-  },
-  // generateImageSuccess({
-  //     functionName,
-  //     duration,
-  //     inputCharacterCount,
-  //     outputCharacterCount,
-
-  // }),
   generateImageStart({ prompt }) {
     return LogFormatter.globalFormatter({
       logEmoji: "🖼️",
       logName: `${styles.yellowBackground}GENERATE IMAGE START${styles.reset}`,
       prompt,
-    });
-  },
-  generateImageSuccess({ prompt, duration }) {
-    return LogFormatter.globalFormatter({
-      logEmoji: "🖼️",
-      logName: `${styles.yellowBackground}GENERATE IMAGE SUCCESS${styles.reset}`,
-      prompt,
-      duration,
     });
   },
   // SCRAPE INFO
@@ -600,31 +545,6 @@ const LogFormatter = {
       logName: `${styles.yellowBackground}REACTION ADDED${styles.reset}`,
       reaction,
       user,
-    });
-  },
-  // MESSAGES
-  replyBuildingAndGenerating(message) {
-    return LogFormatter.globalFormatter({
-      logEmoji: "📝",
-      logName: `${styles.yellowBackground}REPLY BUILDING AND GENERATING${styles.reset}`,
-      message,
-    });
-  },
-  replyBuildingAndGeneratingSuccess({
-    systemPrompt,
-    conversation,
-    generatedText,
-    message,
-    duration,
-  }) {
-    return LogFormatter.globalFormatter({
-      logEmoji: "🧠",
-      logName: `${styles.yellowBackground}REPLY BUILT AND GENERATED${styles.reset}`,
-      systemPrompt,
-      conversation,
-      generatedText,
-      message,
-      duration,
     });
   },
   // INTERACTIONS

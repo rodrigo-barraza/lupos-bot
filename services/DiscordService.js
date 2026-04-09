@@ -512,7 +512,6 @@ async function buildAndGenerateReply({
   let generatedText;
   const serverContext = [];
   let image;
-  const start = performance.now();
   try {
     if (
       message.guildId === config.GUILD_ID_PRIMARY ||
@@ -1578,18 +1577,6 @@ Respond with ONLY "yes" or "no". Nothing else.`,
     generatedText = utilities.removeMentions(generatedText);
     generatedText = CensorService.removeFlaggedWords(generatedText);
 
-    const end = performance.now();
-    const duration = end - start;
-
-    console.log(
-      ...LogFormatter.replyBuildingAndGeneratingSuccess({
-        systemPrompt: agentContext.discordContext || systemPrompt,
-        conversation,
-        generatedText,
-        message,
-        duration,
-      }),
-    );
   } catch (error) {
     ((generatedText = "..."),
       console.error(...LogFormatter.error(error)));

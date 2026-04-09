@@ -6,7 +6,6 @@ import os from "os";
 const puppeteer = await import(
   process.platform === "win32" ? "puppeteer" : "puppeteer-core"
 );
-// const puppeteer = require('puppeteer-core');
 import { executablePath } from "puppeteer-core";
 import xml2js from "xml2js";
 // const AIService = require('../services/AIService.js');
@@ -43,7 +42,7 @@ function findCachedChrome() {
 let puppeteerOptions = {};
 
 if (process.platform === "win32") {
-  puppeteerOptions = { headless: true };
+  puppeteerOptions = { headless: "shell" };
 } else {
   // Find a usable Chromium/Chrome executable for Linux/WSL/Raspberry Pi
   const LINUX_CHROME_PATHS = [
@@ -68,7 +67,7 @@ if (process.platform === "win32") {
     }
   }
   puppeteerOptions = {
-    headless: true,
+    headless: "shell",
     executablePath: chromePath,
     args: ["--no-sandbox"],
   };
@@ -99,7 +98,7 @@ class ScraperService {
   static async scrapeRSSGoogleTrends() {
     const url =
       "https://trends.google.com/trends/trendingsearches/daily/rss?geo=US";
-    const browser = await puppeteer.launch({ headless: true });
+    const browser = await puppeteer.launch({ headless: "shell" });
     const page = await browser.newPage();
     await page.goto(url, { waitUntil: "networkidle0" });
 
