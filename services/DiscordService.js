@@ -1555,6 +1555,8 @@ Respond with ONLY "yes" or "no". Nothing else.`,
       agentContext,
       maxTokens: 4096, // Agent needs headroom for tool-call JSON + reasoning + final reply
       temperature: config.LANGUAGE_MODEL_TEMPERATURE,
+      thinkingEnabled: true,
+      thinkingBudget: 10_000,
       username: message.author?.username || "unknown",
       ...AIService._getSessionParams(),
     });

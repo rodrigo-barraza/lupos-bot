@@ -134,6 +134,8 @@ export default class PrismService {
    * @param {object} [payload.agentContext] - Runtime context for Prism's assembler (Discord info, trends, etc.)
    * @param {number} [payload.maxTokens]   - Max output tokens
    * @param {number} [payload.temperature] - Temperature
+   * @param {boolean} [payload.thinkingEnabled] - Enable extended thinking (chain-of-thought)
+   * @param {number} [payload.thinkingBudget] - Max thinking tokens budget
    * @param {string} [payload.username="lupos"] - Username for tracking
    * @param {boolean} [payload.createSession] - Create a new session
    * @param {string} [payload.sessionId]   - Existing session ID
@@ -153,6 +155,8 @@ export default class PrismService {
     agentContext,
     maxTokens,
     temperature,
+    thinkingEnabled,
+    thinkingBudget,
     username = "lupos",
     createSession,
     sessionId,
@@ -175,6 +179,8 @@ export default class PrismService {
     if (agentContext) body.agentContext = agentContext;
     if (maxTokens) body.maxTokens = maxTokens;
     if (temperature !== undefined) body.temperature = temperature;
+    if (thinkingEnabled !== undefined) body.thinkingEnabled = thinkingEnabled;
+    if (thinkingBudget) body.thinkingBudget = thinkingBudget;
     if (createSession) body.createSession = true;
     if (sessionId) body.sessionId = sessionId;
 
