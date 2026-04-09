@@ -15,7 +15,6 @@ function getHeaders(username = "lupos") {
     "Content-Type": "application/json",
     "x-project": "lupos",
     "x-username": username,
-    "x-agent": "LUPOS",
   };
 }
 
@@ -167,6 +166,7 @@ export default class PrismService {
       provider,
       model,
       messages,
+      agent: "LUPOS",
       skipConversation: true,
       autoApprove: true, // Discord bot can't wait for human approval
       customSystemPrompt: true, // Lupos provides its own personality system prompt
