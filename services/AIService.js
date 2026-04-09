@@ -79,6 +79,64 @@ const AIService = {
       CurrentService.setSessionId(prismResult.sessionId);
     }
   },
+  /**
+   * Get the current Discord username from CurrentService, with "lupos" fallback.
+   * @returns {string}
+   */
+  _getDiscordUsername() {
+    return CurrentService.getMessage()?.author?.username || "lupos";
+  },
+  /**
+   * Convert image URLs to { imageData, mimeType } objects for Prism.
+   * Optionally converts GIFs to PNG (first frame) for providers that don't support GIFs.
+   * @param {string[]} urls
+   * @param {{ convertGifs?: boolean }} [options]
+   * @returns {Promise<Array<{ imageData: string, mimeType: string }>>}
+   */
+  async _convertImageUrlsToBase64(urls, { convertGifs = false } = {}) {
+    const imageObjects = [];
+    for (const url of urls) {
+      const response = await fetch(url);
+      const buffer = await response.arrayBuffer();
+      const mimeType = response.headers.get("content-type");
+
+      if (convertGifs && mimeType === "image/gif") {
+        const pngBuffer = await convertGifToPng(Buffer.from(buffer));
+        imageObjects.push({
+          imageData: pngBuffer.toString("base64"),
+          mimeType: "image/png",
+        });
+      } else {
+        imageObjects.push({
+          imageData: Buffer.from(buffer).toString("base64"),
+          mimeType,
+        });
+      }
+    }
+    return imageObjects;
+  },
+  /**
+   * Save generation metrics to MongoDB.
+   * @param {string} collectionName
+   * @param {object} extraFields - Additional fields to merge into the document
+   * @param {object} localMongo
+   */
+  async _saveMetrics(collectionName, extraFields, localMongo) {
+    if (!localMongo) return;
+    const message = CurrentService.getMessage();
+    if (!message) return;
+
+    const db = localMongo.db("lupos");
+    const collection = db.collection(collectionName);
+    await collection.insertOne({
+      guildId: message.guild?.id || "DM",
+      guildName: message.guild?.name || "DM",
+      userId: message.author?.id,
+      userName: message.author?.username,
+      messageId: message.id || null,
+      ...extraFields,
+    });
+  },
   // Base Text-to-Text Generation (Completion)
   async generateText({
     conversation,
@@ -129,9 +187,7 @@ const AIService = {
 
     // Route through Prism API gateway
     let usedModel = model || generateTextModel;
-
-    const discordMessage = CurrentService.getMessage();
-    const discordUsername = discordMessage?.author?.username || "lupos";
+    const discordUsername = AIService._getDiscordUsername();
 
     try {
       const prismResult = await PrismService.generateText({
@@ -166,34 +222,13 @@ const AIService = {
     CurrentService.addModelType(type);
 
 
-    if (localMongo) {
-      const message = CurrentService.getMessage();
-      if (!message) {
-        // No Discord message context (e.g. scheduled jobs) — skip metrics
-        return textResponse;
-      }
-      const messageId = message?.id;
-      const user = message.author;
-      const userId = user.id;
-      const userName = user.username;
-      const guildId = message.guild?.id;
-
-      // Save the generated text and its metadata to the database
-      const db = localMongo.db("lupos");
-      const collection = db.collection("MetricsTextGeneration");
-      await collection.insertOne({
-        model: usedModel,
-        modelType: type,
-        promptType: "TEXT",
-        input: conversation,
-        output: textResponse,
-        guildId: guildId || "DM",
-        guildName: discordMessage?.guild?.name || "DM",
-        userId: userId,
-        userName: userName,
-        messageId: messageId || null,
-      });
-    }
+    await AIService._saveMetrics("MetricsTextGeneration", {
+      model: usedModel,
+      modelType: type,
+      promptType: "TEXT",
+      input: conversation,
+      output: textResponse,
+    }, localMongo);
 
     console.log(
       ...LogFormatter.generateTextSuccess({
@@ -233,38 +268,12 @@ const AIService = {
     } else if (type === "GOOGLE") {
       let hasError = false;
       try {
-        // Convert image URLs to { imageData, mimeType } objects for Prism's Google provider
-        const imageObjects = [];
-        if (imageUrls.length) {
-          for (const url of imageUrls) {
-            const fetchImageUrlResponse = await fetch(url);
-            const imageAsBuffer = await fetchImageUrlResponse.arrayBuffer();
-            const imageType = fetchImageUrlResponse.headers.get("content-type");
-
-            // Convert GIF to PNG (first frame) since Gemini doesn't support GIFs
-            if (imageType === "image/gif") {
-              const pngBuffer = await convertGifToPng(
-                Buffer.from(imageAsBuffer),
-              );
-              const imageAsBase64 = pngBuffer.toString("base64");
-              imageObjects.push({
-                imageData: imageAsBase64,
-                mimeType: "image/png",
-              });
-            } else {
-              const imageAsBase64 =
-                Buffer.from(imageAsBuffer).toString("base64");
-              imageObjects.push({
-                imageData: imageAsBase64,
-                mimeType: imageType,
-              });
-            }
-          }
-        }
+        const imageObjects = imageUrls.length
+          ? await AIService._convertImageUrlsToBase64(imageUrls, { convertGifs: true })
+          : [];
 
         usedModel = "gemini-3.1-flash-image-preview";
-        const discordMessage = CurrentService.getMessage();
-        const discordUsername = discordMessage?.author?.username || "lupos";
+        const discordUsername = AIService._getDiscordUsername();
 
         const prismResult = await PrismService.generateImage({
           prompt,
@@ -314,23 +323,10 @@ const AIService = {
     } else if (type === "OPENAI") {
       // Route OpenAI image generation through Prism
       try {
-        const discordMessage = CurrentService.getMessage();
-        const discordUsername = discordMessage?.author?.username || "lupos";
-
-        // Convert image URLs to { imageData, mimeType } objects for Prism
-        const imageObjects = [];
-        if (imageUrls.length) {
-          for (const url of imageUrls) {
-            const fetchImageUrlResponse = await fetch(url);
-            const imageAsBuffer = await fetchImageUrlResponse.arrayBuffer();
-            const imageType = fetchImageUrlResponse.headers.get("content-type");
-            const imageAsBase64 = Buffer.from(imageAsBuffer).toString("base64");
-            imageObjects.push({
-              imageData: imageAsBase64,
-              mimeType: imageType,
-            });
-          }
-        }
+        const discordUsername = AIService._getDiscordUsername();
+        const imageObjects = imageUrls.length
+          ? await AIService._convertImageUrlsToBase64(imageUrls)
+          : [];
 
         usedModel = "gpt-image-1.5";
         const prismResult = await PrismService.generateImage({
@@ -355,30 +351,14 @@ const AIService = {
     const end = performance.now();
     const duration = end - start;
 
-    if (localMongo && generatedImage) {
-      const message = CurrentService.getMessage();
-      const messageId = message?.id;
-      const user = message.author;
-      const userId = user.id;
-      const userName = user.username;
-      const guildId = message.guild?.id;
-      const guildName = message.guild?.name;
-
-      // Save the generated image and its metadata to the database
-      const db = localMongo.db("lupos");
-      const collection = db.collection("MetricsImageGeneration");
-      await collection.insertOne({
+    if (generatedImage) {
+      await AIService._saveMetrics("MetricsImageGeneration", {
         model: usedModel,
         inputText: prompt,
         outputText: generatedText,
         inputImages: imageUrls.length,
-        guildId: guildId || "DM",
-        guildName: guildName || "DM",
-        userId: userId,
-        userName: userName,
-        messageId: messageId || null,
         duration: parseFloat(duration.toFixed(3)),
-      });
+      }, localMongo);
     }
 
     if (generatedImage) {
@@ -400,8 +380,7 @@ const AIService = {
   // Base Image-to-Text Generation (Captioning) — via Prism
   async generateVision(imageUrl, text, { model, provider } = {}) {
     try {
-      const discordMessage = CurrentService.getMessage();
-      const discordUsername = discordMessage?.author?.username || "lupos";
+      const discordUsername = AIService._getDiscordUsername();
 
       const result = await PrismService.captionImage({
         images: imageUrl,
@@ -447,8 +426,7 @@ const AIService = {
     const mimeType = mimeMap[ext] || "audio/wav";
 
     // Get Discord context for tracking
-    const discordMessage = CurrentService.getMessage();
-    const discordUsername = discordMessage?.author?.username || "lupos";
+    const discordUsername = AIService._getDiscordUsername();
 
     // Transcribe via Prism
     const result = await PrismService.transcribeAudio({
@@ -616,27 +594,7 @@ const AIService = {
     }
     return { transcriptionsMap };
   },
-  // async generateImageToImage(text, imageUrl, denoisingStrength) {
-  //     consoleLog('<');
-  //     consoleLog('=', `PROMPT:\n\n${text}`);
-  //     let generatedImage;
-  //     try {
-  //         await ComfyUIService.checkComfyUIWebsocketStatus();
-  //         let currentTime = new Date().getTime();
-  //         if (text) {
-  //             generatedImage = await ComfyUIService.generateComfyUIImageToImage(text, imageUrl, denoisingStrength);
-  //             let timeTakenInSeconds = (new Date().getTime() - currentTime) / 1000;
-  //             consoleLog('=', `Type: FLUX`);
-  //             consoleLog('=', `Time: ${timeTakenInSeconds}`);
-  //             consoleLog('=', `RESPONSE:\n\n🖼️`);
-  //             consoleLog('>');
-  //         }
-  //     } catch (error) {
-  //         consoleLog('=', `RESPONSE:\n\n${error}`);
-  //         consoleLog('>!');
-  //     }
-  //     return generatedImage;
-  // },
+
   // "mini-brains" for specific tasks
   async generateTextSummaryFromMessage(message, messageContent) {
     let summary = "";

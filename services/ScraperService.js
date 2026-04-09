@@ -1,4 +1,4 @@
-import "dotenv/config";
+
 import _utilities from "#root/utilities.js";
 import fs from "fs";
 import path from "path";

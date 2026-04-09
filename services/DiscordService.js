@@ -10,7 +10,7 @@ import {
   MessageFlags,
 } from "discord.js";
 import { GetColorName } from "hex-color-to-color-name";
-import moment from "moment";
+
 import fs from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
@@ -42,7 +42,7 @@ import TrendsService from "#root/services/TrendsService.js";
 // JOBS
 import BirthdayJob from "#root/jobs/scheduled/BirthdayJob.js";
 import ActivityRoleAssignmentJob from "#root/jobs/scheduled/ActivityRoleAssignmentJob.js";
-// const RemindersJob = require('../jobs/scheduled/RemindersJob.js');
+
 import PermanentTimeOutJob from "#root/jobs/scheduled/PermanentTimeOutJob.js";
 import RandomTagJob from "#root/jobs/scheduled/RandomTagJob.js";
 import ServerIconJob from "#root/jobs/scheduled/ServerIconJob.js";
@@ -79,6 +79,52 @@ const botRepliedMessages = new Collection();
 function isMessageCancelled(messageId) {
   return cancelledMessageIds.has(messageId);
 }
+
+/**
+ * Resolve a userId into memberMentionsCollection or userMentionsCollection.
+ * Checks cache first, then falls back to guild API fetch.
+ * Deduplicates logic previously repeated in name-match and group-reference blocks.
+ */
+async function ensureMentionPopulated(userId, {
+  message, memberMentionsCollection, userMentionsCollection,
+  participantsMembersCollection, participantsUsersCollection,
+  logPrefix = "",
+}) {
+  if (memberMentionsCollection.has(userId)) return;
+  const member =
+    participantsMembersCollection.get(userId) ||
+    message.guild?.members?.cache?.get(userId);
+  const user = participantsUsersCollection.get(userId);
+  if (member) {
+    memberMentionsCollection.set(userId, member);
+  } else if (user) {
+    userMentionsCollection.set(userId, user);
+  } else if (message.guild) {
+    try {
+      const fetchedMember =
+        await DiscordUtilityService.retrieveMemberFromGuildById(
+          message.guild,
+          userId,
+        );
+      if (fetchedMember) {
+        memberMentionsCollection.set(userId, fetchedMember);
+      }
+    } catch {
+      console.warn(
+        `${logPrefix} [DiscordService] Could not fetch member ${userId} from guild`,
+      );
+    }
+  }
+}
+
+/**
+ * Resolve a Discord member/user to their avatar URL with consistent sizing.
+ * Returns null if the source doesn't support displayAvatarURL.
+ */
+function resolveAvatarUrl(source) {
+  return source?.displayAvatarURL?.({ format: "png", size: 512 }) || null;
+}
+
 // QUEUE: Reactions
 let isProcessingOnReactionQueue = false;
 const reactionQueue = [];
@@ -513,7 +559,7 @@ async function buildAndGenerateReply({
     systemPrompt = `# Discord client information`;
     systemPrompt += `\n- Your name: ${utilities.getCombinedNamesFromUserOrMember({ user: bot })}`;
     systemPrompt += `\n- Your discord user ID tag: <@${bot.id}>`;
-    systemPrompt += `\n- The current date and time is ${moment().format("dddd, MMMM Do, YYYY at h:mm A")} PST.`;
+    systemPrompt += `\n- The current date and time is ${DateTime.now().toFormat("cccc, LLLL dd, yyyy 'at' h:mm a")} PST.`;
     systemPrompt += `\n- To mention, tag or reply to someone, you do it by mentioning their Discord user ID tag. For example, to mention me, you would type <@${bot.id}>.`;
 
     if (message.guild) {
@@ -797,33 +843,11 @@ async function buildAndGenerateReply({
         for (const matchedId of matchedIds) {
           untaggedMatchedUserIds.add(matchedId);
           // Add to memberMentionsCollection so they get full generateDescription treatment
-          if (!memberMentionsCollection.has(matchedId)) {
-            const member =
-              participantsMembersCollection.get(matchedId) ||
-              message.guild?.members?.cache?.get(matchedId);
-            const user = participantsUsersCollection.get(matchedId);
-            if (member) {
-              memberMentionsCollection.set(matchedId, member);
-            } else if (user) {
-              userMentionsCollection.set(matchedId, user);
-            } else if (message.guild) {
-              // Last resort: fetch the member from the guild API
-              try {
-                const fetchedMember =
-                  await DiscordUtilityService.retrieveMemberFromGuildById(
-                    message.guild,
-                    matchedId,
-                  );
-                if (fetchedMember) {
-                  memberMentionsCollection.set(matchedId, fetchedMember);
-                }
-              } catch {
-                console.warn(
-                  `🏷️ [DiscordService] Could not fetch member ${matchedId} from guild`,
-                );
-              }
-            }
-          }
+          await ensureMentionPopulated(matchedId, {
+            message, memberMentionsCollection, userMentionsCollection,
+            participantsMembersCollection, participantsUsersCollection,
+            logPrefix: "🏷️",
+          });
         }
 
         if (untaggedMatchedUserIds.size > 0) {
@@ -898,32 +922,11 @@ async function buildAndGenerateReply({
 
         for (const userId of topUserIds) {
           untaggedMatchedUserIds.add(userId);
-          if (!memberMentionsCollection.has(userId)) {
-            const member =
-              participantsMembersCollection.get(userId) ||
-              message.guild?.members?.cache?.get(userId);
-            const user = participantsUsersCollection.get(userId);
-            if (member) {
-              memberMentionsCollection.set(userId, member);
-            } else if (user) {
-              userMentionsCollection.set(userId, user);
-            } else if (message.guild) {
-              try {
-                const fetchedMember =
-                  await DiscordUtilityService.retrieveMemberFromGuildById(
-                    message.guild,
-                    userId,
-                  );
-                if (fetchedMember) {
-                  memberMentionsCollection.set(userId, fetchedMember);
-                }
-              } catch {
-                console.warn(
-                  `👥 [DiscordService] Could not fetch member ${userId} from guild`,
-                );
-              }
-            }
-          }
+          await ensureMentionPopulated(userId, {
+            message, memberMentionsCollection, userMentionsCollection,
+            participantsMembersCollection, participantsUsersCollection,
+            logPrefix: "👥",
+          });
         }
 
         if (topUserIds.length > 0) {
@@ -1251,14 +1254,12 @@ Respond with ONLY "yes" or "no". Nothing else.`,
       }
     }
 
-    // if has emojis, add the emoji images to the imageUrls array
-    // if (emojisInMessage && emojisInMessage.size > 0) {
-    //     for (const emojiObject of emojisInMessage.values()) {
-    //         if (emojiObject && emojiObject.url) {
-    //             imageUrls.push(emojiObject.url);
-    //         }
-    //     }
-    // }
+
+
+    // Cache the message reference once — reused for avatar filtering below
+    const cachedMessageReference = message.reference?.messageId
+      ? await DiscordUtilityService.retrieveMessageReferenceFromMessage(message)
+      : null;
 
     // If it's replying to a message with an image
     if (message.reference && message.reference.messageId) {
@@ -1279,16 +1280,12 @@ Respond with ONLY "yes" or "no". Nothing else.`,
         // ... then we need to fetch the message and check if it has an attachment that is an image ...
         // ... this is a fallback in case the referenced message is not in the recent messages ...
         // ... along with bot messages
-        const messageReference =
-          await DiscordUtilityService.retrieveMessageReferenceFromMessage(
-            message,
-          );
         if (
-          messageReference &&
-          messageReference.attachments &&
-          messageReference.attachments.size > 0
+          cachedMessageReference &&
+          cachedMessageReference.attachments &&
+          cachedMessageReference.attachments.size > 0
         ) {
-          const imageAttachment = messageReference.attachments.find(
+          const imageAttachment = cachedMessageReference.attachments.find(
             (attachment) => {
               return (
                 attachment.contentType &&
@@ -1326,12 +1323,7 @@ Respond with ONLY "yes" or "no". Nothing else.`,
       message.mentions &&
       message.mentions.users.size > 0
     ) {
-      // Get the ID of the user being replied to (if this is a reply)
-      const messageReference =
-        await DiscordUtilityService.retrieveMessageReferenceFromMessage(
-          message,
-        );
-      const repliedUserId = messageReference?.author?.id;
+      const repliedUserId = cachedMessageReference?.author?.id;
 
       let mentionedMembersOrUsersWithAvatars = message.mentions.members.filter(
         (member) => {
@@ -1357,11 +1349,10 @@ Respond with ONLY "yes" or "no". Nothing else.`,
 
       if (mentionedMembersOrUsersWithAvatars.size > 0) {
         for (const memberOrUser of mentionedMembersOrUsersWithAvatars.values()) {
-          const avatarUrl = memberOrUser.displayAvatarURL({
-            format: "png",
-            size: 512,
-          });
-          mentionsImageUrls.push({ userId: memberOrUser.id, url: avatarUrl });
+          const avatarUrl = resolveAvatarUrl(memberOrUser);
+          if (avatarUrl) {
+            mentionsImageUrls.push({ userId: memberOrUser.id, url: avatarUrl });
+          }
         }
         // Attach avatar images as base64 references for generate_image
         // (no text injection — avatar URLs are already per-participant in the system prompt)
@@ -1377,11 +1368,7 @@ Respond with ONLY "yes" or "no". Nothing else.`,
     }
     // Rodrigo: Handle avatars for untagged matched users (detected by name, not @tag)
     if (untaggedMatchedUserIds.size > 0) { // Agent-era: always resolve avatar images
-      const messageReference =
-        await DiscordUtilityService.retrieveMessageReferenceFromMessage(
-          message,
-        );
-      const repliedUserId = messageReference?.author?.id;
+      const repliedUserId = cachedMessageReference?.author?.id;
 
       for (const matchedId of untaggedMatchedUserIds) {
         // Skip if already handled by @mention block above
@@ -1407,11 +1394,8 @@ Respond with ONLY "yes" or "no". Nothing else.`,
           (matchedId === message.author?.id ? message.author : null);
         const avatarSource = matchedMember || matchedUser;
 
-        if (avatarSource && avatarSource.displayAvatarURL) {
-          const avatarUrl = avatarSource.displayAvatarURL({
-            format: "png",
-            size: 512,
-          });
+        const avatarUrl = resolveAvatarUrl(avatarSource);
+        if (avatarUrl) {
           mentionsImageUrls.push({ userId: matchedId, url: avatarUrl });
         }
       }
@@ -1592,7 +1576,7 @@ Respond with ONLY "yes" or "no". Nothing else.`,
 
     // Rodrigo: Cleans the response
     generatedText = utilities.removeMentions(generatedText);
-    generatedText = utilities.removeFlaggedWords(generatedText);
+    generatedText = CensorService.removeFlaggedWords(generatedText);
 
     const end = performance.now();
     const duration = end - start;
@@ -2904,45 +2888,7 @@ async function luposOnReady(client, { mongo }) {
       });
     }
 
-    // Check the last 100 messages in the channel politics, and if there is a message that mentions me that I haven't replied to in the last 5 minutes, reply to it
-    // const politicsChannel = DiscordUtilityService.getChannelById(client, config.CHANNEL_ID_POLITICS);
-    // // console.log('Politics channel found:', !!politicsChannel);
 
-    // if (politicsChannel) {
-    //     // const messages = await politicsChannel.messages.fetch({ limit: 100 });
-    //     const messages = (await DiscordUtilityService.fetchMessages(client, config.CHANNEL_ID_POLITICS, 100)).reverse();
-    //     // console.log('Total messages fetched:', messages.size);
-
-    //     const now = Date.now();``````````````````````````
-
-    //     // Convert to array and sort by timestamp (newest first)
-    //     const messageArray = Array.from(messages.values()).sort((a, b) => b.createdTimestamp - a.createdTimestamp);
-
-    //     // Find messages from the bot that are replies
-    //     const botReplies = messageArray.filter(m =>
-    //         m.author.id === client.user.id &&
-    //         m.reference?.messageId
-    //     );
-    //     const repliedToIds = new Set(botReplies.map(m => m.reference.messageId));
-    //     // console.log('Bot replies found:', botReplies.length);
-    //     // console.log('Replied to IDs:', Array.from(repliedToIds));
-
-    //     let mentionsFound = 0;
-    //     for (const message of messageArray) {
-    //         if (message.mentions.has(client.user.id) && !message.author.bot) {
-    //             mentionsFound++;
-    //             const timeDifference = (now - message.createdTimestamp) / 1000 / 60; // Convert to minutes
-    //             // console.log(`Mention ${mentionsFound}: ${message.id}, Time diff: ${timeDifference.toFixed(2)} minutes, Already replied: ${repliedToIds.has(message.id)}`);
-
-    //             if (timeDifference <= 200 && !repliedToIds.has(message.id)) {
-    //                 utilities.consoleLog('=', `Found message in politics channel that mentions me and I haven't replied to in the last 5 minutes: ${message.content}`);
-    //                 await processMessage(client, { mongo, localMongo }, message);
-    //                 break;
-    //             }
-    //         }
-    //     }
-    //     // console.log('Total mentions found:', mentionsFound);
-    // }
   }
 }
 
@@ -2958,19 +2904,11 @@ async function luposOnReadyReports(client, mongo) {
   } catch (error) {
     utilities.consoleLog("=", `Error connecting to MongoDB \n${error}`);
   }
-  // DiscordUtilityService.printOutAllRoles(client);
-  // DiscordUtilityService.printOutAllEmojis(client);
   DiscordUtilityService.displayAllChannelActivity(client, mongo);
-  // await DiscordUtilityService.calculateMessagesSentOnAveragePerDayInChannel(client, config.CHANNEL_ID_POLITICS);
   utilities.consoleLog(">");
 }
 
 async function luposOnReadyCloneMessages(client, { localMongo }) {
-  // await DiscordUtilityService.fetchAndSaveAllServerMessages(client, localMongo, '609471635308937237', {
-  //     resumePoints: [
-  //         { channelId: '762734438375096380', lastMessageId: '901349132701155349' },  // politics
-  //     ]
-  // });
   await DiscordUtilityService.fetchAndSaveAllServerMessages(
     client,
     localMongo,

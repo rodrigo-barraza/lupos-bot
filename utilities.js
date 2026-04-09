@@ -1,6 +1,4 @@
-import _moment from "moment";
 import { DateTime } from "luxon";
-import CensorService from "#root/services/CensorService.js";
 import crypto from "crypto";
 
 const utilities = {
@@ -36,16 +34,12 @@ const utilities = {
       return string.charAt(0).toUpperCase() + string.slice(1);
     }
   },
-  // Deprecated: Use CensorService.removeFlaggedWords() instead
-  removeFlaggedWords(string) {
-    return CensorService.removeFlaggedWords(string);
-  },
+
   removeMentions(string) {
     return string
       .replace(/@here/g, "꩜here")
       .replace(/@everyone/g, "꩜everyone")
       .replace(/@horde/g, "꩜horde")
-      .replace(/@alliance/g, "꩜alliance")
       .replace(/@alliance/g, "꩜alliance")
       .replace(/@Guild Leader - Horde/g, "꩜Guild Leader - Horde")
       .replace(/@Guild Leader - Alliance/g, "꩜Guild Leader - Alliance")

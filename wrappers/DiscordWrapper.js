@@ -1,4 +1,4 @@
-import "dotenv/config";
+
 import { Client, GatewayIntentBits, Partials } from "discord.js";
 
 const clients = [];

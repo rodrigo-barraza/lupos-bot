@@ -1,4 +1,4 @@
-import "dotenv/config";
+
 import { DateTime } from "luxon";
 import utilities from "#root/utilities.js";
 const { consoleLog } = utilities;
@@ -1126,16 +1126,9 @@ const DiscordUtilityService = {
     }
     return displayName;
   },
-  getUsernameFromUser(user) {
-    let username;
-    if (user?.username) {
-      username = user.username;
-    }
-    return username;
-  },
   getCleanUsernameFromUser(user) {
     // Removes periods and hashes with underscores and removes any non-alphanumeric characters
-    let username = DiscordUtilityService.getUsernameFromUser(user);
+    let username = user?.username;
     if (username) {
       username = username.replace(/[.#]/g, "_").replace(/[^\w]/gi, "");
     }
@@ -1238,7 +1231,8 @@ const DiscordUtilityService = {
     }
     return user;
   },
-  // Delegates to getUserFromClientAndId
+  // Deprecated: Use getUserFromClientAndId directly.
+  // Kept as alias for existing call sites (PermanentTimeOutJob, getDisplayName).
   async retrieveUserFromClientAndUserId(client, userId) {
     return DiscordUtilityService.getUserFromClientAndId(client, userId);
   },
