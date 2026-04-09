@@ -15,6 +15,7 @@ function getHeaders(username = "lupos") {
     "Content-Type": "application/json",
     "x-project": "lupos",
     "x-username": username,
+    "x-agent": "LUPOS",
   };
 }
 
