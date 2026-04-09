@@ -8,8 +8,7 @@ const puppeteer = await import(
 );
 import { executablePath } from "puppeteer-core";
 import xml2js from "xml2js";
-// const AIService = require('../services/AIService.js');
-// const LogFormatter = require('../formatters/LogFormatter.js');
+import { YoutubeTranscript } from "youtube-transcript/dist/youtube-transcript.esm.js";
 
 /**
  * Scan Puppeteer's cache directory for an installed Chrome executable.
@@ -203,59 +202,25 @@ class ScraperService {
       });
 
       try {
-        const descriptionElement = await page.waitForSelector(
-          'div[id="description"]',
-          { timeout: 5000 },
-        );
-        if (descriptionElement) {
-          await page.evaluate(() =>
-            document.querySelector('div[id="description"]').click(),
-          );
-          await page.waitForSelector('button[aria-label="Show transcript"]', {
-            timeout: 5000,
-          });
-          const showTranscriptButton = await page.$(
-            'button[aria-label="Show transcript"]',
-          );
-          if (showTranscriptButton) {
-            await page.evaluate(() =>
-              document
-                .querySelector('button[aria-label="Show transcript"]')
-                .click(),
-            );
-            await page.waitForSelector("ytd-transcript-segment-renderer", {
-              timeout: 5000,
-            });
-
-            const transcriptData = await page.evaluate(() => {
-              const transcriptElement =
-                document.querySelector('div[id="panels"]');
-              const transcriptSegments = Array.from(
-                transcriptElement.querySelectorAll(
-                  "ytd-transcript-segment-renderer",
-                ),
-              );
-              return transcriptSegments.map((segment) => {
-                const timestamp = segment.querySelector(
-                  'div[class="segment-timestamp style-scope ytd-transcript-segment-renderer"]',
-                ).innerText;
-                const innerText = segment.querySelector(
-                  "yt-formatted-string",
-                ).innerText;
-                return { timestamp, innerText };
-              });
-            });
-
+        const videoId = url.match(youtubeWatchRegex)?.[1];
+        if (videoId) {
+          const transcriptData = await YoutubeTranscript.fetchTranscript(videoId);
+          if (transcriptData?.length) {
             const transcript = transcriptData
-              .map((entry) => `${entry.timestamp}: ${entry.innerText}\n`)
-              .join("");
+              .map((entry) => {
+                const minutes = Math.floor(entry.offset / 60000);
+                const seconds = Math.floor((entry.offset % 60000) / 1000);
+                const timestamp = `${minutes}:${String(seconds).padStart(2, "0")}`;
+                return `${timestamp}: ${entry.text}`;
+              })
+              .join("\n");
             if (transcript.trim()) {
               result.transcript = transcript;
             }
           }
         }
       } catch (error) {
-        console.error("YouTube transcript extraction error:", error);
+        console.error("YouTube transcript extraction error:", error.message);
       }
     }
 

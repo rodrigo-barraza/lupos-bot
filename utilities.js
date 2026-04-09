@@ -25,7 +25,7 @@ const utilities = {
         `❌ [utilities:generateFileHash] Error generating hash:\n`,
         `${error}`,
       );
-      throw error;
+      return null;
     }
   },
   // String utilities

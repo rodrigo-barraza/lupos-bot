@@ -403,8 +403,10 @@ const AIService = {
           const realImageUrl = isObject ? imageUrl.url : imageUrl;
           const userId = isObject ? imageUrl.userId : null;
 
-          const { hash, fileType } =
+          const hashResult =
             await utilities.generateFileHash(realImageUrl);
+          if (!hashResult) return null;
+          const { hash, fileType } = hashResult;
           const existingImage = await collection.findOne({ hash });
 
           if (existingImage) {
@@ -473,7 +475,9 @@ const AIService = {
       let index = 0;
       for (const audioUrl of audioUrls) {
         index++;
-        const { hash, fileType } = await utilities.generateFileHash(audioUrl);
+        const hashResult = await utilities.generateFileHash(audioUrl);
+        if (!hashResult) continue;
+        const { hash, fileType } = hashResult;
         existingAudio = await collection.findOne({ hash });
 
         if (!existingAudio) {
