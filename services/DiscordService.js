@@ -1560,7 +1560,7 @@ Respond with ONLY "yes" or "no". Nothing else.`,
       username: message.author?.username || "unknown",
       ...AIService._getSessionParams(),
     });
-    AIService._captureSessionId(agentResponse);
+
 
     generatedText = agentResponse.text || "";
 

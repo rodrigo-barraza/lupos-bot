@@ -1,6 +1,7 @@
 // Packages
 
 import path from "path";
+import crypto from "crypto";
 
 // import { DateTime } from 'luxon';
 // Config
@@ -60,23 +61,17 @@ function assembleConversation(systemMessage, userMessage, message) {
 const AIService = {
   /**
    * Returns session params for PrismService calls.
-   * First call in a message cycle: { createSession: true }
-   * Subsequent calls: { sessionId: "<existing-id>" }
+   * Generates a sessionId locally on the first call per message cycle
+   * and reuses it for subsequent calls (CurrentService.clearSessionId()
+   * resets at the start of each cycle).
    */
   _getSessionParams() {
-    const existingSessionId = CurrentService.getSessionId();
-    if (existingSessionId) {
-      return { sessionId: existingSessionId };
+    let sessionId = CurrentService.getSessionId();
+    if (!sessionId) {
+      sessionId = crypto.randomUUID();
+      CurrentService.setSessionId(sessionId);
     }
-    return { createSession: true };
-  },
-  /**
-   * Capture sessionId from a Prism response into CurrentService.
-   */
-  _captureSessionId(prismResult) {
-    if (prismResult?.sessionId && !CurrentService.getSessionId()) {
-      CurrentService.setSessionId(prismResult.sessionId);
-    }
+    return { sessionId };
   },
   /**
    * Get the current Discord username from CurrentService, with "lupos" fallback.
@@ -173,7 +168,7 @@ const AIService = {
         ...AIService._getSessionParams(),
       });
 
-      AIService._captureSessionId(prismResult);
+
       textResponse = prismResult.text;
 
       if (prismResult.model) {
@@ -230,7 +225,7 @@ const AIService = {
           ...AIService._getSessionParams(),
         });
 
-        AIService._captureSessionId(prismResult);
+  
 
         if (prismResult.imageData) {
           generatedImage = prismResult.imageData;
@@ -282,7 +277,7 @@ const AIService = {
           ...AIService._getSessionParams(),
         });
 
-        AIService._captureSessionId(prismResult);
+  
 
         generatedImage = prismResult.imageData;
 
@@ -308,7 +303,6 @@ const AIService = {
         ...AIService._getSessionParams(),
       });
 
-      AIService._captureSessionId(result);
 
       return {
         response: { choices: [{ message: { content: result.text } }] },
@@ -354,7 +348,6 @@ const AIService = {
       ...AIService._getSessionParams(),
     });
 
-    AIService._captureSessionId(result);
 
     const transcription = (result.text || "").trim().replace(/\n+/g, " ");
     return transcription;

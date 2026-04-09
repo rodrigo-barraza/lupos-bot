@@ -68,8 +68,7 @@ export default class PrismService {
    * @param {number} [payload.maxTokens] - Max tokens
    * @param {number} [payload.temperature] - Temperature
    * @param {string} [payload.username="lupos"] - Username for tracking
-   * @param {boolean} [payload.createSession] - Create a new session
-   * @param {string} [payload.sessionId] - Existing session ID
+   * @param {string} [payload.sessionId] - Session ID for request grouping
    * @returns {Promise<{ text: string, model: string, provider: string }>}
    */
   static async generateText({
@@ -79,7 +78,6 @@ export default class PrismService {
     maxTokens,
     temperature,
     username = "lupos",
-    createSession,
     sessionId,
   }) {
     const provider = PROVIDER_MAP[type];
@@ -97,7 +95,6 @@ export default class PrismService {
 
     if (maxTokens) body.options.maxTokens = maxTokens;
     if (temperature !== undefined) body.options.temperature = temperature;
-    if (createSession) body.createSession = true;
     if (sessionId) body.sessionId = sessionId;
 
 
@@ -110,7 +107,6 @@ export default class PrismService {
       text: data.text,
       model: data.model,
       provider: data.provider,
-      sessionId: data.sessionId || null,
     };
   }
 
@@ -137,15 +133,13 @@ export default class PrismService {
    * @param {boolean} [payload.thinkingEnabled] - Enable extended thinking (chain-of-thought)
    * @param {number} [payload.thinkingBudget] - Max thinking tokens budget
    * @param {string} [payload.username="lupos"] - Username for tracking
-   * @param {boolean} [payload.createSession] - Create a new session
-   * @param {string} [payload.sessionId]   - Existing session ID
+   * @param {string} [payload.sessionId]   - Session ID for request grouping
    * @returns {Promise<{
    *   text: string|null,
    *   images: Array<{ data: string, mimeType: string, minioRef: string|null }>,
    *   toolCalls: Array<object>,
    *   model: string,
    *   provider: string,
-   *   sessionId: string|null,
    * }>}
    */
   static async generateAgentResponse({
@@ -158,7 +152,6 @@ export default class PrismService {
     thinkingEnabled,
     thinkingBudget,
     username = "lupos",
-    createSession,
     sessionId,
   }) {
     const provider = PROVIDER_MAP[type];
@@ -181,7 +174,6 @@ export default class PrismService {
     if (temperature !== undefined) body.temperature = temperature;
     if (thinkingEnabled !== undefined) body.thinkingEnabled = thinkingEnabled;
     if (thinkingBudget) body.thinkingBudget = thinkingBudget;
-    if (createSession) body.createSession = true;
     if (sessionId) body.sessionId = sessionId;
 
     const data = await PrismService._request("/agent?stream=false", {
@@ -195,7 +187,6 @@ export default class PrismService {
       toolCalls: data.toolCalls || [],
       model: data.model,
       provider: data.provider,
-      sessionId: data.sessionId || null,
     };
   }
 
@@ -208,8 +199,7 @@ export default class PrismService {
    * @param {Array}  [payload.images=[]] - Array of base64 data URLs or { imageData, mimeType } objects
    * @param {string} [payload.username="lupos"] - Username for tracking
    * @param {string} [payload.systemPrompt]
-   * @param {boolean} [payload.createSession] - Create a new session
-   * @param {string} [payload.sessionId] - Existing session ID
+   * @param {string} [payload.sessionId] - Session ID for request grouping
    * @returns {Promise<{ imageData: string, mimeType: string, text: string, minioRef: string|null, model: string, provider: string }>}
    */
   static async generateImage({
@@ -219,7 +209,6 @@ export default class PrismService {
     images = [],
     username = "lupos",
     systemPrompt,
-    createSession,
     sessionId,
   }) {
     const imageDataUrls = images.map((img) => {
@@ -241,7 +230,6 @@ export default class PrismService {
     };
 
     if (systemPrompt) body.systemPrompt = systemPrompt;
-    if (createSession) body.createSession = true;
     if (sessionId) body.sessionId = sessionId;
     body.forceImageGeneration = true;
 
@@ -259,7 +247,6 @@ export default class PrismService {
       text: result.text || null,
       model: result.model,
       provider: result.provider,
-      sessionId: result.sessionId || null,
     };
   }
 
@@ -272,8 +259,7 @@ export default class PrismService {
    * @param {string} [payload.model]
    * @param {string} [payload.username="lupos"]
    * @param {string} [payload.systemPrompt]
-   * @param {boolean} [payload.createSession] - Create a new session
-   * @param {string} [payload.sessionId] - Existing session ID
+   * @param {string} [payload.sessionId] - Session ID for request grouping
    * @returns {Promise<{ text: string }>}
    */
   static async captionImage({
@@ -283,7 +269,6 @@ export default class PrismService {
     model,
     username = "lupos",
     systemPrompt,
-    createSession,
     sessionId,
   }) {
     const normalizedImages = Array.isArray(images) ? images : [images];
@@ -296,15 +281,10 @@ export default class PrismService {
 
     if (model) body.model = model;
     if (systemPrompt) body.systemPrompt = systemPrompt;
-    if (createSession) body.createSession = true;
     if (sessionId) body.sessionId = sessionId;
 
 
-    const result = await PrismService._request("/chat?stream=false", { body, username });
-    return {
-      ...result,
-      sessionId: result.sessionId || null,
-    };
+    return PrismService._request("/chat?stream=false", { body, username });
   }
 
   /**
@@ -316,9 +296,8 @@ export default class PrismService {
    * @param {string} [payload.model]
    * @param {string} [payload.language]
    * @param {string} [payload.username="lupos"]
-   * @param {boolean} [payload.createSession]
    * @param {string} [payload.sessionId]
-   * @returns {Promise<{ text: string, sessionId: string|null }>}
+   * @returns {Promise<{ text: string }>}
    */
   static async transcribeAudio({
     audio,
@@ -327,7 +306,6 @@ export default class PrismService {
     model,
     language,
     username = "lupos",
-    createSession,
     sessionId,
   }) {
     // Accept Buffer or base64 string
@@ -339,7 +317,6 @@ export default class PrismService {
     const body = { provider, audio: dataUrl, skipConversation: true };
     if (model) body.model = model;
     if (language) body.language = language;
-    if (createSession) body.createSession = true;
     if (sessionId) body.sessionId = sessionId;
 
     const result = await PrismService._request("/audio-to-text", {
@@ -349,7 +326,6 @@ export default class PrismService {
 
     return {
       text: result.text,
-      sessionId: result.sessionId || null,
     };
   }
 
@@ -411,11 +387,10 @@ export default class PrismService {
    * @param {string} [payload.model]
    * @returns {Promise<{ embedding: number[], dimensions: number }>}
    */
-  static async generateEmbedding({ text, provider = "openai", model, sessionId, createSession }) {
+  static async generateEmbedding({ text, provider = "openai", model, sessionId }) {
     const body = { provider, text };
     if (model) body.model = model;
     if (sessionId) body.sessionId = sessionId;
-    if (createSession) body.createSession = true;
 
     return PrismService._request("/embed", { body });
   }

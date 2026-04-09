@@ -3262,7 +3262,7 @@ const ClockCrewConstants = {
       name: "VuvuzelaClock",
       nicknames: "",
       joinDate: "",
-      description: "",
+      description: `Member of the Clock Crew.`,
     },
     {
       name: "WatsonClock",
@@ -3764,7 +3764,7 @@ const ClockCrewConstants = {
       name: "AnonDaveClock",
       nicknames: "",
       joinDate: "",
-      description: "",
+      description: `Member of the Clock Crew.`,
     },
     {
       url: "anonymous-frog.",
@@ -3810,9 +3810,11 @@ const ClockCrewConstants = {
       url: "appleclock.",
       username: "AppleClock",
       name: "AppleClock",
-      nicknames: "",
-      joinDate: "",
-      description: "",
+      nicknames: "Founderfruit",
+      joinDate: "September 2001",
+      description: "One of the original founding members of the Clock Crew (a 'Founderfruit'), establishing the early traditions alongside OrangeClock, RaspberryClock, and PineappleClock.",
+      role: "Founder",
+      firstAppearance: "September 2001"
     },
     {
       url: "apple-clock.",
@@ -4732,8 +4734,8 @@ Long version: BB10's story involved getting tutored by an older clock in the pas
       username: "BlamClock",
       name: "BlamClock",
       nicknames: "",
-      joinDate: "",
-      description: "",
+      joinDate: "11/20/02",
+      description: "Registered Newgrounds user and member of the Clock Crew. Active profile discovered via deep scrape.",
     },
     {
       url: "blammy-clock-guy.",
@@ -5196,8 +5198,8 @@ Long version: BB10's story involved getting tutored by an older clock in the pas
       username: "BronzeClock",
       name: "BronzeClock",
       nicknames: "",
-      joinDate: "",
-      description: "",
+      joinDate: "2/13/05",
+      description: "Registered Newgrounds user and member of the Clock Crew. Active profile discovered via deep scrape.",
     },
     {
       url: "brownclock.",
@@ -5629,7 +5631,7 @@ Long version: BB10's story involved getting tutored by an older clock in the pas
       name: "CarrotClock",
       nicknames: "",
       joinDate: "",
-      description: "",
+      description: `Member of the Clock Crew.`,
     },
     {
       url: "cartridgeclock.",
@@ -6276,8 +6278,8 @@ Long version: BB10's story involved getting tutored by an older clock in the pas
       username: "CloverClock",
       name: "CloverClock",
       nicknames: "",
-      joinDate: "",
-      description: "",
+      joinDate: "8/11/03",
+      description: "Registered Newgrounds user and member of the Clock Crew. Active profile discovered via deep scrape.",
     },
     {
       url: "clownclock.",
@@ -6861,7 +6863,7 @@ Long version: BB10's story involved getting tutored by an older clock in the pas
       name: "ChocolateBarClock",
       nicknames: "",
       joinDate: "",
-      description: "",
+      description: `Member of the Clock Crew.`,
     },
     {
       url: "da-flavaflav-clock.",
@@ -7012,8 +7014,8 @@ Long version: BB10's story involved getting tutored by an older clock in the pas
       username: "DeadMouseClock",
       name: "DeadMouseClock",
       nicknames: "",
-      joinDate: "",
-      description: "",
+      joinDate: "7/10/05",
+      description: "Registered Newgrounds user and member of the Clock Crew. Active profile discovered via deep scrape.",
     },
     {
       url: "deadskoo.",
@@ -7332,8 +7334,8 @@ Long version: BB10's story involved getting tutored by an older clock in the pas
       username: "Draco-Clock",
       name: "Draco-Clock",
       nicknames: "",
-      joinDate: "",
-      description: "",
+      joinDate: "12/3/03",
+      description: "Registered Newgrounds user and member of the Clock Crew. Active profile discovered via deep scrape.",
     },
     {
       url: "dragonbladeclock.",
@@ -8077,7 +8079,7 @@ Long version: BB10's story involved getting tutored by an older clock in the pas
       name: "FLOUNDERMANCLOCK",
       nicknames: "",
       joinDate: "",
-      description: "",
+      description: `Member of the Clock Crew.`,
     },
     {
       url: "flowerclock.",
@@ -8100,8 +8102,8 @@ Long version: BB10's story involved getting tutored by an older clock in the pas
       username: "FluxCapacitorClock",
       name: "FluxCapacitorClock",
       nicknames: "",
-      joinDate: "",
-      description: "",
+      joinDate: "2/2/06",
+      description: "Registered Newgrounds user and member of the Clock Crew. Active profile discovered via deep scrape.",
     },
     {
       url: "fogclock.",
@@ -8669,7 +8671,7 @@ Long version: BB10's story involved getting tutored by an older clock in the pas
       name: "GodClock",
       nicknames: "",
       joinDate: "",
-      description: "",
+      description: `Member of the Clock Crew.`,
     },
     {
       url: "god-clock.",
@@ -8900,8 +8902,8 @@ Long version: BB10's story involved getting tutored by an older clock in the pas
       username: "GuavaClock",
       name: "GuavaClock",
       nicknames: "",
-      joinDate: "",
-      description: "",
+      joinDate: "12/5/01",
+      description: "Registered Newgrounds user and member of the Clock Crew. Active profile discovered via deep scrape.",
     },
     {
       url: "guava-clock.",
@@ -9285,7 +9287,7 @@ Long version: BB10's story involved getting tutored by an older clock in the pas
       name: "HueyFreeClock",
       nicknames: "",
       joinDate: "",
-      description: "",
+      description: `Member of the Clock Crew.`,
     },
     {
       url: "humanclock.",
@@ -10101,7 +10103,7 @@ Long version: BB10's story involved getting tutored by an older clock in the pas
       name: "KnottsberryClock",
       nicknames: "",
       joinDate: "",
-      description: "",
+      description: `KnottsBerryClock is the producer of clockcrew.cc and people still love his animation`,
     },
     {
       url: "koalaclock.",
@@ -10396,8 +10398,8 @@ Long version: BB10's story involved getting tutored by an older clock in the pas
       username: "Lilt-clock",
       name: "Lilt-clock",
       nicknames: "",
-      joinDate: "",
-      description: "",
+      joinDate: "3/31/06",
+      description: "Registered Newgrounds user and member of the Clock Crew. Active profile discovered via deep scrape.",
     },
     {
       url: "limeclock.",
@@ -11851,9 +11853,11 @@ Long version: BB10's story involved getting tutored by an older clock in the pas
       url: "orangeclock.",
       username: "OrangeClock",
       name: "OrangeClock",
-      nicknames: "",
-      joinDate: "",
-      description: "",
+      nicknames: "The Founder, Founderfruit",
+      joinDate: "September 2001",
+      description: "Recognized as the primary founder of the Clock Crew. He was the first to adopt the 'Clock' gimmick in response to StrawberryClock's 'B' and established the core traditions.",
+      role: "Founder / Creator",
+      firstAppearance: "September 2001"
     },
     {
       url: "orangeclock-1.",
@@ -12323,9 +12327,11 @@ Long version: BB10's story involved getting tutored by an older clock in the pas
       url: "pineappleclock.",
       username: "PineappleClock",
       name: "PineappleClock",
-      nicknames: "",
-      joinDate: "",
-      description: "",
+      nicknames: "Founderfruit",
+      joinDate: "September 17, 2001",
+      description: "The fifth founder of the Clock Crew. Discovered a thread about the Clocks on Newgrounds forums and joined the original 'Founderfruits'.",
+      role: "Founder",
+      firstAppearance: "September 17, 2001"
     },
     {
       url: "pinesolclock.",
@@ -12891,9 +12897,11 @@ Long version: BB10's story involved getting tutored by an older clock in the pas
       url: "raspberryclock.",
       username: "RaspberryClock",
       name: "RaspberryClock",
-      nicknames: "",
-      joinDate: "",
-      description: "",
+      nicknames: "Founderfruit",
+      joinDate: "September 2001",
+      description: "A founding member ('Founderfruit') known as the friendliest member of the Crew. Contributed to building the early websites and infrastructure for the group.",
+      role: "Founder",
+      firstAppearance: "September 2001"
     },
     {
       url: "rastaclock.",
@@ -13109,7 +13117,7 @@ Long version: BB10's story involved getting tutored by an older clock in the pas
       name: "RobClock",
       nicknames: "",
       joinDate: "",
-      description: "",
+      description: `Member of the Clock Crew.`,
     },
     {
       url: "robertsmithclock.",
@@ -13124,8 +13132,8 @@ Long version: BB10's story involved getting tutored by an older clock in the pas
       username: "RoboClock",
       name: "RoboClock",
       nicknames: "",
-      joinDate: "",
-      description: "",
+      joinDate: "8/15/06",
+      description: "Registered Newgrounds user and member of the Clock Crew. Active profile discovered via deep scrape.",
     },
     {
       url: "robotclock.",
@@ -13221,7 +13229,7 @@ Long version: BB10's story involved getting tutored by an older clock in the pas
       name: "RupeeClock",
       nicknames: "",
       joinDate: "",
-      description: "",
+      description: `Member of the Clock Crew.`,
     },
     {
       url: "russianclock.",
@@ -13268,8 +13276,8 @@ Long version: BB10's story involved getting tutored by an older clock in the pas
       username: "SalmonBerryClock",
       name: "SalmonBerryClock",
       nicknames: "",
-      joinDate: "",
-      description: "",
+      joinDate: "5/18/06",
+      description: "Registered Newgrounds user and member of the Clock Crew. Active profile discovered via deep scrape.",
     },
     {
       url: "salsaclock.",
@@ -13340,8 +13348,8 @@ Long version: BB10's story involved getting tutored by an older clock in the pas
       username: "SatanClock",
       name: "SatanClock",
       nicknames: "",
-      joinDate: "",
-      description: "",
+      joinDate: "2/11/05",
+      description: "Registered Newgrounds user and member of the Clock Crew. Active profile discovered via deep scrape.",
     },
     {
       url: "satan-clock.",
@@ -13596,8 +13604,8 @@ Long version: BB10's story involved getting tutored by an older clock in the pas
       username: "ShotGlassClock",
       name: "ShotGlassClock",
       nicknames: "",
-      joinDate: "",
-      description: "",
+      joinDate: "5/12/03",
+      description: "Registered Newgrounds user and member of the Clock Crew. Active profile discovered via deep scrape.",
     },
     {
       url: "shrapnel.",
@@ -13837,7 +13845,7 @@ Long version: BB10's story involved getting tutored by an older clock in the pas
       name: "SnakeClock",
       nicknames: "",
       joinDate: "",
-      description: "",
+      description: `Member of the Clock Crew.`,
     },
     {
       url: "snakehead.",
@@ -13933,7 +13941,7 @@ Long version: BB10's story involved getting tutored by an older clock in the pas
       name: "Sombra",
       nicknames: "",
       joinDate: "",
-      description: "",
+      description: `Member of the Clock Crew.`,
     },
     {
       url: "sombreroclock.",
@@ -14292,8 +14300,8 @@ Long version: BB10's story involved getting tutored by an older clock in the pas
       username: "Stone-Clock",
       name: "Stone-Clock",
       nicknames: "",
-      joinDate: "",
-      description: "",
+      joinDate: "2/4/01",
+      description: "Registered Newgrounds user and member of the Clock Crew. Active profile discovered via deep scrape.",
     },
     {
       url: "stoopidclock.",
@@ -14325,7 +14333,7 @@ Long version: BB10's story involved getting tutored by an older clock in the pas
       name: "StrangeClock",
       nicknames: "",
       joinDate: "",
-      description: "",
+      description: `Member of the Clock Crew.`,
     },
     {
       url: "straweberryclock.",
@@ -14339,9 +14347,11 @@ Long version: BB10's story involved getting tutored by an older clock in the pas
       url: "strawberryclock.",
       username: "StrawberryClock",
       name: "StrawberryClock",
-      nicknames: "",
-      joinDate: "",
-      description: "",
+      nicknames: "King of the Portal",
+      joinDate: "August 15, 2001",
+      description: "The catalyst and figurehead of the Clock Crew. Created by Coolboyman, his flash submission 'B' inspired the formation of the crew. August 15th is celebrated as Clock Day.",
+      role: "Figurehead / Catalyst",
+      firstAppearance: "August 15, 2001 (Flash Movie: 'B')"
     },
     {
       url: "strawberryclockv2.",
@@ -14644,8 +14654,8 @@ Long version: BB10's story involved getting tutored by an older clock in the pas
       username: "TapeRecorderClock",
       name: "TapeRecorderClock",
       nicknames: "",
-      joinDate: "",
-      description: "",
+      joinDate: "8/19/08",
+      description: "Registered Newgrounds user and member of the Clock Crew. Active profile discovered via deep scrape.",
     },
     {
       url: "tardclock.",
@@ -14893,7 +14903,7 @@ Long version: BB10's story involved getting tutored by an older clock in the pas
       name: "ThorClock",
       nicknames: "",
       joinDate: "",
-      description: "",
+      description: `Member of the Clock Crew.`,
     },
     {
       url: "thugclock.",
@@ -15221,7 +15231,7 @@ Long version: BB10's story involved getting tutored by an older clock in the pas
       name: "TurdClock",
       nicknames: "",
       joinDate: "",
-      description: "",
+      description: `Member of the Clock Crew.`,
     },
     {
       url: "turnipclock.",
@@ -15421,7 +15431,7 @@ Long version: BB10's story involved getting tutored by an older clock in the pas
       name: "VendettaClock",
       nicknames: "",
       joinDate: "",
-      description: "",
+      description: `Member of the Clock Crew.`,
     },
     {
       url: "verg.",
@@ -15652,8 +15662,8 @@ Long version: BB10's story involved getting tutored by an older clock in the pas
       username: "WheatClock",
       name: "WheatClock",
       nicknames: "",
-      joinDate: "",
-      description: "",
+      joinDate: "3/7/04",
+      description: "Registered Newgrounds user and member of the Clock Crew. Active profile discovered via deep scrape.",
     },
     {
       url: "whiskeyclock.",
