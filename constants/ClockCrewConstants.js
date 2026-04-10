@@ -3821,7 +3821,7 @@ const ClockCrewConstants = {
       username: "Apple-Clock",
       name: "Apple-Clock",
       nicknames: "",
-      joinDate: "",
+      joinDate: "2001-11-18",
       description: "",
     },
     {
@@ -3829,7 +3829,7 @@ const ClockCrewConstants = {
       username: "AppleDollarClock",
       name: "AppleDollarClock",
       nicknames: "",
-      joinDate: "",
+      joinDate: "2006-07-24",
       description: "",
     },
     {
@@ -3837,7 +3837,7 @@ const ClockCrewConstants = {
       username: "ApricotClock",
       name: "ApricotClock",
       nicknames: "",
-      joinDate: "",
+      joinDate: "2001-09-27",
       description: "",
     },
     {
@@ -3845,7 +3845,7 @@ const ClockCrewConstants = {
       username: "aquamarineclock",
       name: "aquamarineclock",
       nicknames: "",
-      joinDate: "",
+      joinDate: "2006-04-11",
       description: "",
     },
     {
@@ -3853,7 +3853,7 @@ const ClockCrewConstants = {
       username: "arcaneclock",
       name: "arcaneclock",
       nicknames: "",
-      joinDate: "",
+      joinDate: "2003-10-09",
       description: "",
     },
     {
@@ -3861,7 +3861,7 @@ const ClockCrewConstants = {
       username: "archangelclock",
       name: "archangelclock",
       nicknames: "",
-      joinDate: "",
+      joinDate: "2004-02-16",
       description: "",
     },
     {
@@ -3869,7 +3869,7 @@ const ClockCrewConstants = {
       username: "ArchonClock",
       name: "ArchonClock",
       nicknames: "",
-      joinDate: "",
+      joinDate: "2003-01-03",
       description: "",
     },
     {
@@ -3877,7 +3877,7 @@ const ClockCrewConstants = {
       username: "ArcticClock",
       name: "ArcticClock",
       nicknames: "",
-      joinDate: "",
+      joinDate: "2003-01-03",
       description: "",
     },
     {
@@ -3885,7 +3885,7 @@ const ClockCrewConstants = {
       username: "armored-core-clock",
       name: "armored-core-clock",
       nicknames: "",
-      joinDate: "",
+      joinDate: "2007-07-17",
       description: "",
     },
     {
@@ -3893,7 +3893,7 @@ const ClockCrewConstants = {
       username: "ArmyClock",
       name: "ArmyClock",
       nicknames: "",
-      joinDate: "",
+      joinDate: "2003-02-26",
       description: "",
     },
     {
@@ -3901,7 +3901,7 @@ const ClockCrewConstants = {
       username: "arreon-clock",
       name: "arreon-clock",
       nicknames: "",
-      joinDate: "",
+      joinDate: "2004-01-11",
       description: "",
     },
     {
@@ -3909,7 +3909,7 @@ const ClockCrewConstants = {
       username: "ArtichokeClock",
       name: "ArtichokeClock",
       nicknames: "",
-      joinDate: "",
+      joinDate: "2001-09-24",
       description: "",
     },
     {
@@ -3917,7 +3917,7 @@ const ClockCrewConstants = {
       username: "artichokeclock1",
       name: "artichokeclock1",
       nicknames: "",
-      joinDate: "",
+      joinDate: "2008-12-15",
       description: "",
     },
     {
@@ -3925,7 +3925,7 @@ const ClockCrewConstants = {
       username: "AsparagusClock",
       name: "AsparagusClock",
       nicknames: "",
-      joinDate: "",
+      joinDate: "2003-09-29",
       description: "",
     },
     {
@@ -3933,7 +3933,7 @@ const ClockCrewConstants = {
       username: "Asparagus-Clock",
       name: "Asparagus-Clock",
       nicknames: "",
-      joinDate: "",
+      joinDate: "2003-12-20",
       description: "",
     },
     {
@@ -3941,7 +3941,7 @@ const ClockCrewConstants = {
       username: "AssClock",
       name: "AssClock",
       nicknames: "",
-      joinDate: "",
+      joinDate: "2003-11-09",
       description: "",
     },
     {
@@ -3949,7 +3949,7 @@ const ClockCrewConstants = {
       username: "Asteroid-Clock",
       name: "Asteroid-Clock",
       nicknames: "",
-      joinDate: "",
+      joinDate: "2005-02-08",
       description: "",
     },
     {
@@ -3965,7 +3965,7 @@ const ClockCrewConstants = {
       username: "Athi",
       name: "AthenaisClock",
       nicknames: "",
-      joinDate: "",
+      joinDate: "2006-08-13",
       description: "",
     },
     {
@@ -3973,7 +3973,7 @@ const ClockCrewConstants = {
       username: "AtomicBadgerClock",
       name: "AtomicBadgerClock",
       nicknames: "",
-      joinDate: "",
+      joinDate: "2004-04-01",
       description: "",
     },
     {
@@ -3981,7 +3981,7 @@ const ClockCrewConstants = {
       username: "AtomicClock",
       name: "AtomicClock",
       nicknames: "",
-      joinDate: "",
+      joinDate: "2002-03-30",
       description: "",
     },
     {
@@ -3989,7 +3989,7 @@ const ClockCrewConstants = {
       username: "Atomic-Shadow-Clock",
       name: "Atomic-Shadow-Clock",
       nicknames: "",
-      joinDate: "",
+      joinDate: "2003-05-19",
       description: "",
     },
     {
@@ -4006,7 +4006,7 @@ const ClockCrewConstants = {
       username: "AugustClock",
       name: "AugustClock",
       nicknames: "",
-      joinDate: "",
+      joinDate: "2006-08-10",
       description: "",
     },
     {
@@ -4014,7 +4014,7 @@ const ClockCrewConstants = {
       username: "AuraClock",
       name: "AuraClock",
       nicknames: "",
-      joinDate: "",
+      joinDate: "2003-09-22",
       description: "",
     },
     {
@@ -4022,7 +4022,7 @@ const ClockCrewConstants = {
       username: "AutobotClock",
       name: "AutobotClock",
       nicknames: "",
-      joinDate: "",
+      joinDate: "2015-07-14",
       description: "",
     },
     {
@@ -4030,7 +4030,7 @@ const ClockCrewConstants = {
       username: "avengerclock",
       name: "avengerclock",
       nicknames: "",
-      joinDate: "",
+      joinDate: "2007-09-01",
       description: "",
     },
     {
@@ -4046,7 +4046,7 @@ const ClockCrewConstants = {
       username: "Avrielclock",
       name: "Avrielclock",
       nicknames: "",
-      joinDate: "",
+      joinDate: "2007-09-13",
       description: "",
     },
     {
@@ -4054,7 +4054,7 @@ const ClockCrewConstants = {
       username: "AwesomeOrNawt",
       name: "EvilSquashClock",
       nicknames: "",
-      joinDate: "",
+      joinDate: "2009-03-15",
       description: "",
     },
     {
@@ -4062,7 +4062,7 @@ const ClockCrewConstants = {
       username: "AxeClock",
       name: "AxeClock",
       nicknames: "",
-      joinDate: "",
+      joinDate: "2004-03-14",
       description: "",
     },
     {
@@ -4070,7 +4070,7 @@ const ClockCrewConstants = {
       username: "AxisClock",
       name: "AxisClock",
       nicknames: "",
-      joinDate: "",
+      joinDate: "2005-06-10",
       description: "",
     },
     {
@@ -4078,7 +4078,7 @@ const ClockCrewConstants = {
       username: "babacoclock",
       name: "babacoclock",
       nicknames: "",
-      joinDate: "",
+      joinDate: "2002-08-10",
       description: "",
     },
     {
@@ -4086,7 +4086,7 @@ const ClockCrewConstants = {
       username: "BaboonClock",
       name: "BaboonClock",
       nicknames: "",
-      joinDate: "",
+      joinDate: "2000-12-30",
       description: "",
     },
     {
@@ -4094,7 +4094,7 @@ const ClockCrewConstants = {
       username: "babyclock",
       name: "babyclock",
       nicknames: "",
-      joinDate: "",
+      joinDate: "2005-08-15",
       description: "",
     },
     {
@@ -4102,7 +4102,7 @@ const ClockCrewConstants = {
       username: "Bacardi-Clock",
       name: "Bacardi-Clock",
       nicknames: "",
-      joinDate: "",
+      joinDate: "2006-09-16",
       description: "",
     },
     {
@@ -4110,7 +4110,7 @@ const ClockCrewConstants = {
       username: "BaconBurgerClock",
       name: "BaconBurgerClock",
       nicknames: "",
-      joinDate: "",
+      joinDate: "2001-11-02",
       description: "",
     },
     {
@@ -4118,7 +4118,7 @@ const ClockCrewConstants = {
       username: "BaconClock",
       name: "BaconClock",
       nicknames: "",
-      joinDate: "",
+      joinDate: "2003-12-06",
       description: "",
     },
     {
@@ -4134,7 +4134,7 @@ const ClockCrewConstants = {
       username: "badgerclock",
       name: "badgerclock",
       nicknames: "",
-      joinDate: "",
+      joinDate: "2004-07-22",
       description: "",
     },
     {
@@ -4142,7 +4142,7 @@ const ClockCrewConstants = {
       username: "BadToupeeClock",
       name: "BadToupeeClock",
       nicknames: "",
-      joinDate: "",
+      joinDate: "2005-08-20",
       description: "",
     },
     {
@@ -4150,7 +4150,7 @@ const ClockCrewConstants = {
       username: "BAFA",
       name: "BAFA",
       nicknames: "",
-      joinDate: "",
+      joinDate: "2003-06-09",
       description: "",
     },
     {
@@ -4166,7 +4166,7 @@ const ClockCrewConstants = {
       username: "bagpipeclock",
       name: "bagpipeclock",
       nicknames: "",
-      joinDate: "",
+      joinDate: "2002-01-15",
       description: "",
     },
     {
@@ -4174,7 +4174,7 @@ const ClockCrewConstants = {
       username: "BakanekoClock",
       name: "BakanekoClock",
       nicknames: "",
-      joinDate: "",
+      joinDate: "2002-04-23",
       description: "",
     },
     {
@@ -4182,7 +4182,7 @@ const ClockCrewConstants = {
       username: "Ball-Clock",
       name: "Ball-Clock",
       nicknames: "",
-      joinDate: "",
+      joinDate: "2002-08-03",
       description: "",
     },
     {
@@ -4190,7 +4190,7 @@ const ClockCrewConstants = {
       username: "Balloon-Clock",
       name: "Balloon-Clock",
       nicknames: "",
-      joinDate: "",
+      joinDate: "2003-11-27",
       description: "",
     },
     {
@@ -4198,7 +4198,7 @@ const ClockCrewConstants = {
       username: "ballsclock",
       name: "ballsclock",
       nicknames: "",
-      joinDate: "",
+      joinDate: "2021-02-03",
       description: "",
     },
     {
@@ -4215,7 +4215,7 @@ const ClockCrewConstants = {
       username: "bandageclock",
       name: "bandageclock",
       nicknames: "",
-      joinDate: "",
+      joinDate: "2007-09-19",
       description: "",
     },
     {
@@ -4223,7 +4223,7 @@ const ClockCrewConstants = {
       username: "BanDit-cL0ck",
       name: "BanDit-cL0ck",
       nicknames: "",
-      joinDate: "",
+      joinDate: "2005-10-01",
       description: "",
     },
     {
@@ -4231,7 +4231,7 @@ const ClockCrewConstants = {
       username: "BarbedWireClock",
       name: "BarbedWireClock",
       nicknames: "",
-      joinDate: "",
+      joinDate: "2006-06-08",
       description: "",
     },
     {
@@ -4239,7 +4239,7 @@ const ClockCrewConstants = {
       username: "BarcodeClock",
       name: "BarcodeClock",
       nicknames: "",
-      joinDate: "",
+      joinDate: "2006-04-30",
       description: "",
     },
     {
@@ -4255,7 +4255,7 @@ const ClockCrewConstants = {
       username: "barsketball-clock",
       name: "barsketball-clock",
       nicknames: "",
-      joinDate: "",
+      joinDate: "2003-09-19",
       description: "",
     },
     {
@@ -4263,7 +4263,7 @@ const ClockCrewConstants = {
       username: "BasketballClock",
       name: "BasketballClock",
       nicknames: "",
-      joinDate: "",
+      joinDate: "2005-05-24",
       description: "",
     },
     {
@@ -4271,7 +4271,7 @@ const ClockCrewConstants = {
       username: "Basketball-Clock",
       name: "Basketball-Clock",
       nicknames: "",
-      joinDate: "",
+      joinDate: "2002-08-10",
       description: "",
     },
     {
@@ -4279,7 +4279,7 @@ const ClockCrewConstants = {
       username: "BassClock",
       name: "BassClock",
       nicknames: "",
-      joinDate: "",
+      joinDate: "2003-03-25",
       description: "",
     },
     {
@@ -4287,7 +4287,7 @@ const ClockCrewConstants = {
       username: "BatClock",
       name: "BatClock",
       nicknames: "",
-      joinDate: "",
+      joinDate: "2002-10-28",
       description: "",
     },
     {
@@ -4295,7 +4295,7 @@ const ClockCrewConstants = {
       username: "Bat-clock",
       name: "Bat-clock",
       nicknames: "",
-      joinDate: "",
+      joinDate: "2003-05-13",
       description: "",
     },
     {
@@ -4303,7 +4303,7 @@ const ClockCrewConstants = {
       username: "BatmanClock",
       name: "BatmanClock",
       nicknames: "",
-      joinDate: "",
+      joinDate: "2004-01-30",
       description: "",
     },
     {
@@ -4311,7 +4311,7 @@ const ClockCrewConstants = {
       username: "BatteryClock",
       name: "BatteryClock",
       nicknames: "",
-      joinDate: "",
+      joinDate: "2008-02-19",
       description: "",
     },
     {
@@ -4319,7 +4319,7 @@ const ClockCrewConstants = {
       username: "BattleBlockClock",
       name: "BattleBlockClock",
       nicknames: "",
-      joinDate: "",
+      joinDate: "2018-07-22",
       description: "",
     },
     {
@@ -4327,7 +4327,7 @@ const ClockCrewConstants = {
       username: "BawlsClock",
       name: "BawlsClock",
       nicknames: "",
-      joinDate: "",
+      joinDate: "2003-08-16",
       description: "",
     },
     {
@@ -4343,9 +4343,9 @@ Long version: BB10's story involved getting tutored by an older clock in the pas
       url: "bbcbasketballclock.",
       username: "BBCBasketballClock",
       name: "BBCBasketballClock",
-      nicknames: "",
-      joinDate: "",
-      description: "",
+      nicknames: "BlueBasketBall-Clock",
+      joinDate: "2025-10-26",
+      description: "Official Clock",
     },
     {
       url: "bbqbeefburgerman.",
@@ -4576,7 +4576,7 @@ Long version: BB10's story involved getting tutored by an older clock in the pas
       username: "bigclock",
       name: "bigclock",
       nicknames: "",
-      joinDate: "",
+      joinDate: "2022-11-15",
       description: "",
     },
     {
@@ -4688,7 +4688,7 @@ Long version: BB10's story involved getting tutored by an older clock in the pas
       username: "BlackClock",
       name: "BlackClock",
       nicknames: "",
-      joinDate: "",
+      joinDate: "2003-08-23",
       description: "",
     },
     {
@@ -4720,7 +4720,7 @@ Long version: BB10's story involved getting tutored by an older clock in the pas
       username: "blahclock",
       name: "blahclock",
       nicknames: "",
-      joinDate: "",
+      joinDate: "2006-04-09",
       description: "",
     },
     {
@@ -4728,7 +4728,7 @@ Long version: BB10's story involved getting tutored by an older clock in the pas
       username: "BlairClock",
       name: "BlairClock",
       nicknames: "",
-      joinDate: "",
+      joinDate: "2002-03-11",
       description: "",
     },
     {
@@ -4744,7 +4744,7 @@ Long version: BB10's story involved getting tutored by an older clock in the pas
       username: "Blammy-clock-guy",
       name: "Blammy-clock-guy",
       nicknames: "",
-      joinDate: "",
+      joinDate: "2004-11-11",
       description: "",
     },
     {
@@ -4752,7 +4752,7 @@ Long version: BB10's story involved getting tutored by an older clock in the pas
       username: "blankclock",
       name: "blankclock",
       nicknames: "",
-      joinDate: "",
+      joinDate: "2006-05-17",
       description: "",
     },
     {
@@ -4760,7 +4760,7 @@ Long version: BB10's story involved getting tutored by an older clock in the pas
       username: "BlobClock",
       name: "BlobClock",
       nicknames: "",
-      joinDate: "",
+      joinDate: "2003-09-28",
       description: "",
     },
     {
@@ -4768,7 +4768,7 @@ Long version: BB10's story involved getting tutored by an older clock in the pas
       username: "blockclock",
       name: "blockclock",
       nicknames: "",
-      joinDate: "",
+      joinDate: "2007-08-19",
       description: "",
     },
     {
@@ -4776,7 +4776,7 @@ Long version: BB10's story involved getting tutored by an older clock in the pas
       username: "Block-Clock",
       name: "Block-Clock",
       nicknames: "",
-      joinDate: "",
+      joinDate: "2008-09-21",
       description: "",
     },
     {
@@ -4792,7 +4792,7 @@ Long version: BB10's story involved getting tutored by an older clock in the pas
       username: "BluebeetClock",
       name: "BluebeetClock",
       nicknames: "",
-      joinDate: "",
+      joinDate: "2004-09-01",
       description: "",
     },
     {
@@ -4800,7 +4800,7 @@ Long version: BB10's story involved getting tutored by an older clock in the pas
       username: "BlueberryClock",
       name: "BlueberryClock",
       nicknames: "",
-      joinDate: "",
+      joinDate: "2001-08-15",
       description: "",
     },
     {
@@ -5089,7 +5089,7 @@ Long version: BB10's story involved getting tutored by an older clock in the pas
       username: "boxclock",
       name: "boxclock",
       nicknames: "",
-      joinDate: "",
+      joinDate: "2003-01-05",
       description: "",
     },
     {
@@ -6226,7 +6226,7 @@ Long version: BB10's story involved getting tutored by an older clock in the pas
       username: "Clock-Ninja",
       name: "Clock-Ninja",
       nicknames: "",
-      joinDate: "",
+      joinDate: "2013-08-29",
       description: "",
     },
     {
@@ -6234,7 +6234,7 @@ Long version: BB10's story involved getting tutored by an older clock in the pas
       username: "Clock-Pear",
       name: "Clock-Pear",
       nicknames: "",
-      joinDate: "",
+      joinDate: "2002-01-10",
       description: "",
     },
     {
@@ -6242,7 +6242,7 @@ Long version: BB10's story involved getting tutored by an older clock in the pas
       username: "Clocks-R-kool",
       name: "Clocks-R-kool",
       nicknames: "",
-      joinDate: "",
+      joinDate: "2005-12-18",
       description: "",
     },
     {
@@ -6250,7 +6250,7 @@ Long version: BB10's story involved getting tutored by an older clock in the pas
       username: "clockworkclock",
       name: "clockworkclock",
       nicknames: "",
-      joinDate: "",
+      joinDate: "2003-09-01",
       description: "",
     },
     {
@@ -6266,7 +6266,7 @@ Long version: BB10's story involved getting tutored by an older clock in the pas
       username: "clockyclock",
       name: "clockyclock",
       nicknames: "",
-      joinDate: "",
+      joinDate: "2005-08-15",
       description: "",
     },
     {
@@ -6290,7 +6290,7 @@ Long version: BB10's story involved getting tutored by an older clock in the pas
       username: "ClownClock",
       name: "ClownClock",
       nicknames: "",
-      joinDate: "",
+      joinDate: "2002-07-18",
       description: "",
     },
     {
@@ -6306,7 +6306,7 @@ Long version: BB10's story involved getting tutored by an older clock in the pas
       username: "cobaltclock",
       name: "cobaltclock",
       nicknames: "",
-      joinDate: "",
+      joinDate: "2009-08-14",
       description: "",
     },
     {
@@ -6314,7 +6314,7 @@ Long version: BB10's story involved getting tutored by an older clock in the pas
       username: "CockClock",
       name: "CockClock",
       nicknames: "",
-      joinDate: "",
+      joinDate: "2003-06-07",
       description: "",
     },
     {
@@ -6322,7 +6322,7 @@ Long version: BB10's story involved getting tutored by an older clock in the pas
       username: "CoconutClock",
       name: "CoconutClock",
       nicknames: "",
-      joinDate: "",
+      joinDate: "2001-10-08",
       description: "",
     },
     {
@@ -6330,7 +6330,7 @@ Long version: BB10's story involved getting tutored by an older clock in the pas
       username: "cocktaclock",
       name: "cocktaclock",
       nicknames: "",
-      joinDate: "",
+      joinDate: "2022-10-08",
       description: "",
     },
     {
@@ -6355,7 +6355,7 @@ Long version: BB10's story involved getting tutored by an older clock in the pas
       username: "CokeClock",
       name: "CokeClock",
       nicknames: "",
-      joinDate: "",
+      joinDate: "2002-02-24",
       description: "",
     },
     {
@@ -6363,7 +6363,7 @@ Long version: BB10's story involved getting tutored by an older clock in the pas
       username: "colaclock",
       name: "colaclock",
       nicknames: "",
-      joinDate: "",
+      joinDate: "2007-07-29",
       description: "",
     },
     {
@@ -6371,7 +6371,7 @@ Long version: BB10's story involved getting tutored by an older clock in the pas
       username: "combineclock",
       name: "combineclock",
       nicknames: "",
-      joinDate: "",
+      joinDate: "2005-01-08",
       description: "",
     },
     {
@@ -6379,7 +6379,7 @@ Long version: BB10's story involved getting tutored by an older clock in the pas
       username: "Commie-Clock",
       name: "Commie-Clock",
       nicknames: "",
-      joinDate: "",
+      joinDate: "2003-12-14",
       description: "",
     },
     {
@@ -6396,7 +6396,7 @@ Long version: BB10's story involved getting tutored by an older clock in the pas
       username: "companionclock",
       name: "companionclock",
       nicknames: "",
-      joinDate: "",
+      joinDate: "2010-07-01",
       description: "",
     },
     {
@@ -6404,7 +6404,7 @@ Long version: BB10's story involved getting tutored by an older clock in the pas
       username: "CompassClock",
       name: "CompassClock",
       nicknames: "",
-      joinDate: "",
+      joinDate: "2006-06-08",
       description: "",
     },
     {
@@ -6412,7 +6412,7 @@ Long version: BB10's story involved getting tutored by an older clock in the pas
       username: "ComputerClock",
       name: "ComputerClock",
       nicknames: "",
-      joinDate: "",
+      joinDate: "2002-07-08",
       description: "",
     },
     {
@@ -6420,7 +6420,7 @@ Long version: BB10's story involved getting tutored by an older clock in the pas
       username: "ComputzorChipClock",
       name: "ComputzorChipClock",
       nicknames: "",
-      joinDate: "",
+      joinDate: "2006-07-07",
       description: "",
     },
     {
@@ -6428,7 +6428,7 @@ Long version: BB10's story involved getting tutored by an older clock in the pas
       username: "condomclock",
       name: "condomclock",
       nicknames: "",
-      joinDate: "",
+      joinDate: "2002-08-13",
       description: "",
     },
     {
@@ -6436,7 +6436,7 @@ Long version: BB10's story involved getting tutored by an older clock in the pas
       username: "controllerclock",
       name: "controllerclock",
       nicknames: "",
-      joinDate: "",
+      joinDate: "2010-08-15",
       description: "",
     },
     {
@@ -6444,7 +6444,7 @@ Long version: BB10's story involved getting tutored by an older clock in the pas
       username: "CoocooClock",
       name: "CoocooClock",
       nicknames: "",
-      joinDate: "",
+      joinDate: "2006-05-21",
       description: "",
     },
     {
@@ -6452,7 +6452,7 @@ Long version: BB10's story involved getting tutored by an older clock in the pas
       username: "CookieClock",
       name: "CookieClock",
       nicknames: "",
-      joinDate: "",
+      joinDate: "2002-02-02",
       description: "",
     },
     {
@@ -6460,7 +6460,7 @@ Long version: BB10's story involved getting tutored by an older clock in the pas
       username: "coolclock",
       name: "coolclock",
       nicknames: "",
-      joinDate: "",
+      joinDate: "2003-08-26",
       description: "",
     },
     {
@@ -6468,7 +6468,7 @@ Long version: BB10's story involved getting tutored by an older clock in the pas
       username: "CoorsClock",
       name: "CoorsClock",
       nicknames: "",
-      joinDate: "",
+      joinDate: "2003-03-05",
       description: "",
     },
     {
@@ -6476,7 +6476,7 @@ Long version: BB10's story involved getting tutored by an older clock in the pas
       username: "CorgiClock",
       name: "CorgiClock",
       nicknames: "",
-      joinDate: "",
+      joinDate: "2005-07-11",
       description: "",
     },
     {
@@ -6484,7 +6484,7 @@ Long version: BB10's story involved getting tutored by an older clock in the pas
       username: "CornClock",
       name: "CornClock",
       nicknames: "",
-      joinDate: "",
+      joinDate: "2007-11-09",
       description: "",
     },
     {
@@ -6492,7 +6492,7 @@ Long version: BB10's story involved getting tutored by an older clock in the pas
       username: "CorpseGrinderClock",
       name: "CorpseGrinderClock",
       nicknames: "",
-      joinDate: "",
+      joinDate: "2005-05-22",
       description: "",
     },
     {
@@ -6500,7 +6500,7 @@ Long version: BB10's story involved getting tutored by an older clock in the pas
       username: "CosbyClock",
       name: "CosbyClock",
       nicknames: "",
-      joinDate: "",
+      joinDate: "2002-10-02",
       description: "",
     },
     {
@@ -6508,7 +6508,7 @@ Long version: BB10's story involved getting tutored by an older clock in the pas
       username: "cosplayclock",
       name: "cosplayclock",
       nicknames: "",
-      joinDate: "",
+      joinDate: "2005-08-18",
       description: "",
     },
     {
@@ -6524,7 +6524,7 @@ Long version: BB10's story involved getting tutored by an older clock in the pas
       username: "CounterClock",
       name: "CounterClock",
       nicknames: "",
-      joinDate: "",
+      joinDate: "2001-09-30",
       description: "",
     },
     {
@@ -6532,7 +6532,7 @@ Long version: BB10's story involved getting tutored by an older clock in the pas
       username: "countryballclockcrew",
       name: "countryballclockcrew",
       nicknames: "",
-      joinDate: "",
+      joinDate: "2021-10-13",
       description: "",
     },
     {
@@ -6549,7 +6549,7 @@ Long version: BB10's story involved getting tutored by an older clock in the pas
       username: "CowClock",
       name: "CowClock",
       nicknames: "",
-      joinDate: "",
+      joinDate: "2003-08-07",
       description: "",
     },
     {
@@ -6557,7 +6557,7 @@ Long version: BB10's story involved getting tutored by an older clock in the pas
       username: "CrabappleClock",
       name: "CrabappleClock",
       nicknames: "",
-      joinDate: "",
+      joinDate: "2002-04-22",
       description: "",
     },
     {
@@ -6565,7 +6565,7 @@ Long version: BB10's story involved getting tutored by an older clock in the pas
       username: "CrabClock",
       name: "CrabClock",
       nicknames: "",
-      joinDate: "",
+      joinDate: "2006-04-09",
       description: "",
     },
     {
@@ -6573,7 +6573,7 @@ Long version: BB10's story involved getting tutored by an older clock in the pas
       username: "Cracker-Clock",
       name: "Cracker-Clock",
       nicknames: "",
-      joinDate: "",
+      joinDate: "2001-04-19",
       description: "",
     },
     {
@@ -6581,7 +6581,7 @@ Long version: BB10's story involved getting tutored by an older clock in the pas
       username: "CraisinClock",
       name: "CraisinClock",
       nicknames: "",
-      joinDate: "",
+      joinDate: "2002-08-07",
       description: "",
     },
     {
@@ -6597,7 +6597,7 @@ Long version: BB10's story involved getting tutored by an older clock in the pas
       username: "CrapClock",
       name: "CrapClock",
       nicknames: "",
-      joinDate: "",
+      joinDate: "2002-04-10",
       description: "",
     },
     {
@@ -6605,7 +6605,7 @@ Long version: BB10's story involved getting tutored by an older clock in the pas
       username: "CrappyClock",
       name: "CrappyClock",
       nicknames: "",
-      joinDate: "",
+      joinDate: "2006-03-17",
       description: "",
     },
     {
@@ -6613,7 +6613,7 @@ Long version: BB10's story involved getting tutored by an older clock in the pas
       username: "CrashClock",
       name: "CrashClock",
       nicknames: "",
-      joinDate: "",
+      joinDate: "2022-06-08",
       description: "",
     },
     {
@@ -6621,7 +6621,7 @@ Long version: BB10's story involved getting tutored by an older clock in the pas
       username: "CrazyClock",
       name: "CrazyClock",
       nicknames: "",
-      joinDate: "",
+      joinDate: "2003-08-22",
       description: "",
     },
     {
@@ -6629,7 +6629,7 @@ Long version: BB10's story involved getting tutored by an older clock in the pas
       username: "creamclock",
       name: "creamclock",
       nicknames: "",
-      joinDate: "",
+      joinDate: "2008-01-23",
       description: "",
     },
     {
@@ -6637,7 +6637,7 @@ Long version: BB10's story involved getting tutored by an older clock in the pas
       username: "Creatus",
       name: "Creatus",
       nicknames: "",
-      joinDate: "",
+      joinDate: "2004-08-18",
       description: "",
     },
     {
@@ -6645,7 +6645,7 @@ Long version: BB10's story involved getting tutored by an older clock in the pas
       username: "CreditCardClock",
       name: "CreditCardClock",
       nicknames: "",
-      joinDate: "",
+      joinDate: "2005-08-30",
       description: "",
     },
     {
@@ -6653,7 +6653,7 @@ Long version: BB10's story involved getting tutored by an older clock in the pas
       username: "creepyclock",
       name: "creepyclock",
       nicknames: "",
-      joinDate: "",
+      joinDate: "2010-05-26",
       description: "",
     },
     {
@@ -6661,7 +6661,7 @@ Long version: BB10's story involved getting tutored by an older clock in the pas
       username: "CrimsonClock",
       name: "CrimsonClock",
       nicknames: "",
-      joinDate: "",
+      joinDate: "2002-07-26",
       description: "",
     },
     {
@@ -6669,7 +6669,7 @@ Long version: BB10's story involved getting tutored by an older clock in the pas
       username: "cripclock",
       name: "cripclock",
       nicknames: "",
-      joinDate: "",
+      joinDate: "2007-02-25",
       description: "",
     },
     {
@@ -6677,7 +6677,7 @@ Long version: BB10's story involved getting tutored by an older clock in the pas
       username: "crocodileclock",
       name: "crocodileclock",
       nicknames: "",
-      joinDate: "",
+      joinDate: "2009-03-22",
       description: "",
     },
     {
@@ -6685,7 +6685,7 @@ Long version: BB10's story involved getting tutored by an older clock in the pas
       username: "crosshairclock",
       name: "crosshairclock",
       nicknames: "",
-      joinDate: "",
+      joinDate: "2006-09-10",
       description: "",
     },
     {
@@ -6693,7 +6693,7 @@ Long version: BB10's story involved getting tutored by an older clock in the pas
       username: "crotchetclock",
       name: "crotchetclock",
       nicknames: "",
-      joinDate: "",
+      joinDate: "2002-11-22",
       description: "",
     },
     {
@@ -6701,7 +6701,7 @@ Long version: BB10's story involved getting tutored by an older clock in the pas
       username: "CrowClock",
       name: "CrowClock",
       nicknames: "",
-      joinDate: "",
+      joinDate: "2002-05-14",
       description: "",
     },
     {
@@ -6709,7 +6709,7 @@ Long version: BB10's story involved getting tutored by an older clock in the pas
       username: "CrownClock",
       name: "CrownClock",
       nicknames: "",
-      joinDate: "",
+      joinDate: "2005-10-21",
       description: "",
     },
     {
@@ -6717,7 +6717,7 @@ Long version: BB10's story involved getting tutored by an older clock in the pas
       username: "crunkclock",
       name: "crunkclock",
       nicknames: "",
-      joinDate: "",
+      joinDate: "2008-09-02",
       description: "",
     },
     {
@@ -6733,7 +6733,7 @@ Long version: BB10's story involved getting tutored by an older clock in the pas
       username: "crystalclock",
       name: "crystalclock",
       nicknames: "",
-      joinDate: "",
+      joinDate: "2003-01-09",
       description: "",
     },
     {
@@ -6741,7 +6741,7 @@ Long version: BB10's story involved getting tutored by an older clock in the pas
       username: "CS-SealClock",
       name: "CS-SealClock",
       nicknames: "",
-      joinDate: "",
+      joinDate: "2006-05-27",
       description: "",
     },
     {
@@ -6749,7 +6749,7 @@ Long version: BB10's story involved getting tutored by an older clock in the pas
       username: "CubeClock",
       name: "CubeClock",
       nicknames: "",
-      joinDate: "",
+      joinDate: "2004-01-17",
       description: "",
     },
     {
@@ -6757,7 +6757,7 @@ Long version: BB10's story involved getting tutored by an older clock in the pas
       username: "Cube-Clock",
       name: "Cube-Clock",
       nicknames: "",
-      joinDate: "",
+      joinDate: "2003-11-14",
       description: "",
     },
     {
@@ -6765,7 +6765,7 @@ Long version: BB10's story involved getting tutored by an older clock in the pas
       username: "cuckooclock",
       name: "cuckooclock",
       nicknames: "",
-      joinDate: "",
+      joinDate: "2013-10-21",
       description: "",
     },
     {
@@ -6773,7 +6773,7 @@ Long version: BB10's story involved getting tutored by an older clock in the pas
       username: "CucumberClock",
       name: "CucumberClock",
       nicknames: "",
-      joinDate: "",
+      joinDate: "2001-09-25",
       description: "",
     },
     {
@@ -6781,7 +6781,7 @@ Long version: BB10's story involved getting tutored by an older clock in the pas
       username: "CumClock",
       name: "CumClock",
       nicknames: "",
-      joinDate: "",
+      joinDate: "2004-08-30",
       description: "",
     },
     {
@@ -6789,7 +6789,7 @@ Long version: BB10's story involved getting tutored by an older clock in the pas
       username: "cumquatclock",
       name: "cumquatclock",
       nicknames: "",
-      joinDate: "",
+      joinDate: "2002-01-08",
       description: "",
     },
     {
@@ -6797,7 +6797,7 @@ Long version: BB10's story involved getting tutored by an older clock in the pas
       username: "CuntmelonClock",
       name: "CuntmelonClock",
       nicknames: "",
-      joinDate: "",
+      joinDate: "2005-06-16",
       description: "",
     },
     {
@@ -6805,7 +6805,7 @@ Long version: BB10's story involved getting tutored by an older clock in the pas
       username: "CupcakeClock",
       name: "CupcakeClock",
       nicknames: "",
-      joinDate: "",
+      joinDate: "2005-08-15",
       description: "",
     },
     {
@@ -6813,7 +6813,7 @@ Long version: BB10's story involved getting tutored by an older clock in the pas
       username: "cuppyclock",
       name: "cuppyclock",
       nicknames: "",
-      joinDate: "",
+      joinDate: "2013-06-20",
       description: "",
     },
     {
@@ -6821,7 +6821,7 @@ Long version: BB10's story involved getting tutored by an older clock in the pas
       username: "CurrantClock",
       name: "CurrantClock",
       nicknames: "",
-      joinDate: "",
+      joinDate: "2006-04-20",
       description: "",
     },
     {
@@ -6829,7 +6829,7 @@ Long version: BB10's story involved getting tutored by an older clock in the pas
       username: "curtainclock",
       name: "curtainclock",
       nicknames: "",
-      joinDate: "",
+      joinDate: "2007-07-26",
       description: "",
     },
     {
@@ -6845,7 +6845,7 @@ Long version: BB10's story involved getting tutored by an older clock in the pas
       username: "Cynadius",
       name: "ElementsClock",
       nicknames: "",
-      joinDate: "",
+      joinDate: "2006-08-10",
       description: "",
     },
     {
@@ -6853,7 +6853,7 @@ Long version: BB10's story involved getting tutored by an older clock in the pas
       username: "cyberclock",
       name: "cyberclock",
       nicknames: "",
-      joinDate: "",
+      joinDate: "2010-10-26",
       description: "",
     },
     {
@@ -6861,7 +6861,7 @@ Long version: BB10's story involved getting tutored by an older clock in the pas
       username: "CyborgClock",
       name: "CyborgClock",
       nicknames: "",
-      joinDate: "",
+      joinDate: "2001-02-03",
       description: "",
     },
     {
@@ -6877,7 +6877,7 @@ Long version: BB10's story involved getting tutored by an older clock in the pas
       username: "Da-FlavaFlav-Clock",
       name: "Da-FlavaFlav-Clock",
       nicknames: "",
-      joinDate: "",
+      joinDate: "2001-10-10",
       description: "",
     },
     {
@@ -6893,7 +6893,7 @@ Long version: BB10's story involved getting tutored by an older clock in the pas
       username: "dadclock",
       name: "dadclock",
       nicknames: "",
-      joinDate: "",
+      joinDate: "2006-07-10",
       description: "",
     },
     {
@@ -6909,7 +6909,7 @@ Long version: BB10's story involved getting tutored by an older clock in the pas
       username: "DangerSignalClock",
       name: "DangerSignalClock",
       nicknames: "",
-      joinDate: "",
+      joinDate: "2006-10-05",
       description: "",
     },
     {
@@ -6917,7 +6917,7 @@ Long version: BB10's story involved getting tutored by an older clock in the pas
       username: "Daemon-Clock",
       name: "Daemon-Clock",
       nicknames: "",
-      joinDate: "",
+      joinDate: "2003-10-23",
       description: "",
     },
     {
@@ -6925,7 +6925,7 @@ Long version: BB10's story involved getting tutored by an older clock in the pas
       username: "DannyKicks",
       name: "DannyKicks",
       nicknames: "",
-      joinDate: "",
+      joinDate: "2000-12-03",
       description: "",
     },
     {
@@ -6933,7 +6933,7 @@ Long version: BB10's story involved getting tutored by an older clock in the pas
       username: "DarkArchon",
       name: "DarkArchon",
       nicknames: "",
-      joinDate: "",
+      joinDate: "2003-09-04",
       description: "",
     },
     {
@@ -6941,7 +6941,7 @@ Long version: BB10's story involved getting tutored by an older clock in the pas
       username: "DarkcharkyClark",
       name: "DarkCherryClock",
       nicknames: "",
-      joinDate: "",
+      joinDate: "2006-03-25",
       description: "",
     },
     {
@@ -6949,7 +6949,7 @@ Long version: BB10's story involved getting tutored by an older clock in the pas
       username: "DarkClock",
       name: "DarkClock",
       nicknames: "",
-      joinDate: "",
+      joinDate: "2003-04-19",
       description: "",
     },
     {
@@ -6957,7 +6957,7 @@ Long version: BB10's story involved getting tutored by an older clock in the pas
       username: "Dark-Clock",
       name: "Dark-Clock",
       nicknames: "",
-      joinDate: "",
+      joinDate: "2006-07-08",
       description: "",
     },
     {
@@ -6965,7 +6965,7 @@ Long version: BB10's story involved getting tutored by an older clock in the pas
       username: "DarkDragonClock",
       name: "DarkDragonClock",
       nicknames: "",
-      joinDate: "",
+      joinDate: "2002-06-13",
       description: "",
     },
     {
@@ -6981,7 +6981,7 @@ Long version: BB10's story involved getting tutored by an older clock in the pas
       username: "DarthClock",
       name: "DarthClock",
       nicknames: "",
-      joinDate: "",
+      joinDate: "2005-07-01",
       description: "",
     },
     {
@@ -6989,7 +6989,7 @@ Long version: BB10's story involved getting tutored by an older clock in the pas
       username: "DarthVaderClock",
       name: "DarthVaderClock",
       nicknames: "",
-      joinDate: "",
+      joinDate: "2006-12-10",
       description: "",
     },
     {
@@ -6997,7 +6997,7 @@ Long version: BB10's story involved getting tutored by an older clock in the pas
       username: "DateClock",
       name: "DateClock",
       nicknames: "",
-      joinDate: "",
+      joinDate: "2002-03-22",
       description: "",
     },
     {
@@ -9790,7 +9790,7 @@ Long version: BB10's story involved getting tutored by an older clock in the pas
       username: "JooceClock",
       name: "JooceClock",
       nicknames: "",
-      joinDate: "1/20/23",
+      joinDate: "2023-01-20",
       description: "Official Clock - Juice The Goose",
     },
     {
