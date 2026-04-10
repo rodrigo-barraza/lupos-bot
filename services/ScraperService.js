@@ -1,5 +1,4 @@
 
-import _utilities from "#root/utilities.js";
 import fs from "fs";
 import path from "path";
 import os from "os";
@@ -7,8 +6,6 @@ const puppeteer = await import(
   process.platform === "win32" ? "puppeteer" : "puppeteer-core"
 );
 import { executablePath } from "puppeteer-core";
-import xml2js from "xml2js";
-import { YoutubeTranscript } from "youtube-transcript/dist/youtube-transcript.esm.js";
 
 /**
  * Scan Puppeteer's cache directory for an installed Chrome executable.
@@ -73,223 +70,9 @@ if (process.platform === "win32") {
 }
 
 class ScraperService {
-  static async scrapeRSS(url) {
-    const browser = await puppeteer.launch(puppeteerOptions);
-    const page = await browser.newPage();
-    await page.goto(url, { waitUntil: "networkidle0" });
-
-    let xmlContent = await page.evaluate(() => document.body.innerText);
-
-    await browser.close();
-
-    xmlContent = xmlContent.substring(xmlContent.indexOf("<rss"));
-    xmlContent = xmlContent.replace(/&(?!nbsp;)/g, "&amp;");
-
-    const parser = new xml2js.Parser({
-      explicitArray: false,
-      mergeAttrs: true,
-    });
-    const result = await parser.parseStringPromise(xmlContent);
-    const items = result.rss.channel.item;
-    return items;
-  }
-
-  static async scrapeRSSGoogleTrends() {
-    const url =
-      "https://trends.google.com/trends/trendingsearches/daily/rss?geo=US";
-    const browser = await puppeteer.launch({ headless: "shell" });
-    const page = await browser.newPage();
-    await page.goto(url, { waitUntil: "networkidle0" });
-
-    // Extract XML content from the page
-    let xmlContent = await page.evaluate(() => document.body.innerText);
-
-    await browser.close();
-
-    xmlContent = xmlContent.substring(xmlContent.indexOf("<rss"));
-
-    // Parse XML content to JSON
-    const parser = new xml2js.Parser({
-      explicitArray: false,
-      mergeAttrs: true,
-    });
-    const result = await parser.parseStringPromise(xmlContent);
-
-    let output = "# Currently Trending\n";
-
-    const items = result.rss.channel.item;
-    items.forEach((item) => {
-      const title = item.title;
-      const description = item.description || "No description";
-      const pubDate = item.pubDate;
-
-      output += `## Title: ${title}\n`;
-      output += `- Description: ${description}\n`;
-      output += `- Date: ${pubDate}\n`;
-      output += `### Recent News\n`;
-
-      const newsItems = Array.isArray(item["ht:news_item"])
-        ? item["ht:news_item"]
-        : [item["ht:news_item"]];
-      newsItems.forEach((newsItem) => {
-        const newsItemTitle = newsItem["ht:news_item_title"];
-        const newsItemSnippet = newsItem["ht:news_item_snippet"];
-        const newsItemUrl = newsItem["ht:news_item_url"];
-        const newsItemSource = newsItem["ht:news_item_source"];
-
-        output += `- Title: ${newsItemTitle}\n`;
-        output += `- Snippet: ${newsItemSnippet}\n`;
-        output += `- URL: ${newsItemUrl}\n`;
-        output += `- Source: ${newsItemSource}\n\n`;
-      });
-    });
-
-    return output;
-  }
-
-  static async scrapeURL(url) {
-    const _functionName = "scrapeURL";
-    if (url.includes("aveda.com")) {
-      // ignore
-      return {};
-    }
-    const isImage = await _utilities.isImageUrl(url);
-    if (isImage) {
-      return {};
-    }
-
-    const browser = await puppeteer.launch(puppeteerOptions);
-    const page = await browser.newPage();
-
-    try {
-      // Use networkidle2 with a timeout to survive redirects and late navigations
-      await page.goto(url, {
-        waitUntil: "networkidle2",
-        timeout: 15000,
-      });
-    } catch (navError) {
-      // Timeout or net::ERR — still attempt to scrape whatever loaded
-      console.warn(`[ScraperService] Navigation incomplete for ${url}: ${navError.message}`);
-    }
-
-    const selectors = [
-      { selector: "head title", property: "title", attribute: null },
-      { selector: "p", property: "text", attribute: null },
-      { selector: "h1", property: "header", attribute: null },
-      {
-        selector: 'meta[name="description"]',
-        property: "description",
-        attribute: "content",
-      },
-      {
-        selector: 'meta[name="keywords"]',
-        property: "keywords",
-        attribute: "content",
-      },
-      {
-        selector: 'meta[property="og:image"]',
-        property: "image",
-        attribute: "content",
-      },
-    ];
-
-    const result = {};
-    const youtubeWatchRegex =
-      /(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]{11})/;
-
-    if (youtubeWatchRegex.test(url)) {
-      // Video description
-      selectors.push({
-        selector: 'div[id="description"] span',
-        property: "description",
-        attribute: null,
-      });
-      // Related videos
-      selectors.push({
-        selector: 'div[id="secondary"] a h3',
-        property: "relatedVideos",
-        attribute: null,
-      });
-
-      try {
-        const videoId = url.match(youtubeWatchRegex)?.[1];
-        if (videoId) {
-          const transcriptData = await YoutubeTranscript.fetchTranscript(videoId);
-          if (transcriptData?.length) {
-            const transcript = transcriptData
-              .map((entry) => {
-                const minutes = Math.floor(entry.offset / 60000);
-                const seconds = Math.floor((entry.offset % 60000) / 1000);
-                const timestamp = `${minutes}:${String(seconds).padStart(2, "0")}`;
-                return `${timestamp}: ${entry.text}`;
-              })
-              .join("\n");
-            if (transcript.trim()) {
-              result.transcript = transcript;
-            }
-          }
-        }
-      } catch (error) {
-        console.error("YouTube transcript extraction error:", error.message);
-      }
-    }
-
-    // Run all selector queries sequentially to avoid racing a stale context
-    for (const { selector, property, attribute } of selectors) {
-      try {
-        const elementExists = await page.$(selector);
-        if (!elementExists) continue;
-
-        const value = await page.evaluate(
-          (s, attr) => {
-            const elements = Array.from(document.querySelectorAll(s));
-            return elements.map((element) => {
-              if (!element) return null;
-              // If attribute is specified, get that attribute (for meta tags)
-              if (attr) {
-                return element.getAttribute(attr);
-              }
-              // Otherwise, get innerText
-              return element.innerText;
-            });
-          },
-          selector,
-          attribute,
-        );
-
-        // Filter out null, undefined, and empty strings
-        const filteredValue = value.filter(
-          (v) => v !== null && v !== undefined && v.trim() !== "",
-        );
-
-        // Only add to result if there are actual values
-        if (filteredValue.length > 0) {
-          // If it's a single value, don't use an array
-          result[property] =
-            filteredValue.length === 1 ? filteredValue[0] : filteredValue;
-        }
-      } catch (error) {
-        // Suppress verbose stack traces for context-destroyed errors (page redirect mid-scrape)
-        if (error.message?.includes("Execution context was destroyed")) {
-          console.warn(`[ScraperService] Context lost on "${selector}" — page navigated away (${url})`);
-          break; // No point trying remaining selectors, the page is gone
-        }
-        console.error(`Puppeteer Error on ${selector}:\n`, error);
-      }
-    }
-
-    await browser.close();
-    // console.log(...LogFormatter.scrapeSuccess({functionName, url, result}));
-    return result;
-  }
-
-
-
   static async scrapeTenor(url) {
     let browser;
     try {
-      // consoleInfo('<', 'scrapeTenor');
-      // consoleInfo('=', 'scrapeTenor', url);
       browser = await puppeteer.launch(puppeteerOptions);
       const page = await browser.newPage();
       // Set user agent to avoid bot detection
@@ -339,8 +122,6 @@ class ScraperService {
         .replace(/%20/g, " ");
 
       await browser.close();
-      // consoleInfo('=', 'scrapeTenor', result);
-      // consoleInfo('>', 'scrapeTenor');
       return result;
     } catch (error) {
       console.error("Puppeteer Error:\n", error);
@@ -353,13 +134,12 @@ class ScraperService {
   }
 
   static async scrapeTwitchUrl(url) {
-    const _functionName = "scrapeTwitchUrl";
     try {
       const browser = await puppeteer.launch(puppeteerOptions);
       const page = await browser.newPage();
       await page.goto(url, {
-        timeout: 15000, // 15 seconds timeout
-        waitUntil: "domcontentloaded", // Less strict than 'load' or 'networkidle0'
+        timeout: 15000,
+        waitUntil: "domcontentloaded",
       });
 
       const selectors = [
@@ -394,61 +174,19 @@ class ScraperService {
 
             if (value) {
               result[property] = value.trim();
-              // console.log(`⚡ [PuppeteerWrapper:scrapeTwitchUrl] Scraped property ${property} for selector ${selector} for URL: ${url} with value:`, result[property]);
             }
           } catch {
-            // console.warn(`❌ [PuppeteerWrapper:scrapeTwitchUrl] Error scraping selector: ${selector} for URL: ${url}`);
+            // Silently ignore — selector may not exist on this page
           }
         }),
       );
 
       await browser.close();
-      // console.log(...LogFormatter.scrapeSuccess({functionName, url, result}));
       return result;
     } catch (error) {
       console.error("Puppeteer Error:\n", error);
       return {};
     }
-  }
-
-  static async scrapeGoogleAlerts(searchText) {
-    let result;
-    const browser = await puppeteer.launch(puppeteerOptions);
-    const page = await browser.newPage();
-    await page.goto("https://www.google.com/alerts");
-
-    try {
-      await page.type('input[type="text"]', searchText);
-      await page.waitForSelector("li.result");
-
-      result = await page.evaluate(() => {
-        const noRecentResults = document.querySelector(
-          ".preview_timerange_extended",
-        );
-        if (!noRecentResults) {
-          const firstResultSet = document.querySelector(
-            "#preview_results .result_set",
-          );
-          if (!firstResultSet) return [];
-          const listItems = firstResultSet.querySelectorAll("li.result");
-          return Array.from(listItems, (element) => {
-            const title = element.querySelector("h4 a").textContent.trim();
-            const description = element
-              .querySelector("div span")
-              .textContent.trim();
-            const url = element.querySelector("h4 a").getAttribute("href");
-            return { title, description, url };
-          });
-        }
-      });
-    } catch (error) {
-      console.error("Puppeteer Error:\n", error);
-      result = null;
-    }
-
-    await browser.close();
-    // utilities.consoleInfoColor([[`║ 📰 News: `, { }], [result, { }]]);
-    return result;
   }
 }
 
