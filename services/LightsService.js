@@ -12,8 +12,7 @@ export default class LightsService {
       const response = await fetch(`${LIGHTS_URL}/lights/${lightId}`);
       const data = await response.json();
       return data;
-    } catch (error) {
-      console.error("[LightsService] getLights failed:", error.message);
+    } catch {
       return null;
     }
   }
@@ -25,8 +24,7 @@ export default class LightsService {
       );
       const data = await response.json();
       return data;
-    } catch (error) {
-      console.error("[LightsService] validateColor failed:", error.message);
+    } catch {
       return null;
     }
   }
@@ -47,8 +45,7 @@ export default class LightsService {
       });
       const data = await response.json();
       return data;
-    } catch (error) {
-      console.error("[LightsService] setState failed:", error.message);
+    } catch {
       return null;
     }
   }
@@ -74,8 +71,7 @@ export default class LightsService {
       );
       const data = await response.json();
       return data;
-    } catch (error) {
-      console.error("[LightsService] setStateDelta failed:", error.message);
+    } catch {
       return null;
     }
   }
@@ -89,8 +85,7 @@ export default class LightsService {
       });
       const data = await response.json();
       return data;
-    } catch (error) {
-      console.error("[LightsService] togglePower failed:", error.message);
+    } catch {
       return null;
     }
   }
@@ -107,8 +102,7 @@ export default class LightsService {
       );
       const data = await response.json();
       return data;
-    } catch (error) {
-      console.error("[LightsService] randomizeColor failed:", error.message);
+    } catch {
       return null;
     }
   }
@@ -125,8 +119,8 @@ export default class LightsService {
       );
       const data = await response.json();
       return data;
-    } catch (error) {
-      console.error("[LightsService] cycleColor failed:", error.message);
+    } catch {
+      // Silently ignore — lights API may be offline
       return null;
     }
   }

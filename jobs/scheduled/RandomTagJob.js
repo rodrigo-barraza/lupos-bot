@@ -159,7 +159,7 @@ async function randomTag({ client, guildId, channelId }) {
           for (const memory of memoryResult.memories) {
             const createdDate = new Date(memory.createdAt);
             const timeAgo = DateTime.fromJSDate(createdDate).toRelative();
-            peopleContext += `\n- ${memory.fact} (remembered ${timeAgo})`;
+            peopleContext += `\n- ${memory.content} (remembered ${timeAgo})`;
           }
         }
       } catch (memoryErr) {

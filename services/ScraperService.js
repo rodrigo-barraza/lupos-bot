@@ -160,7 +160,17 @@ class ScraperService {
 
     const browser = await puppeteer.launch(puppeteerOptions);
     const page = await browser.newPage();
-    await page.goto(url);
+
+    try {
+      // Use networkidle2 with a timeout to survive redirects and late navigations
+      await page.goto(url, {
+        waitUntil: "networkidle2",
+        timeout: 15000,
+      });
+    } catch (navError) {
+      // Timeout or net::ERR — still attempt to scrape whatever loaded
+      console.warn(`[ScraperService] Navigation incomplete for ${url}: ${navError.message}`);
+    }
 
     const selectors = [
       { selector: "head title", property: "title", attribute: null },
@@ -224,45 +234,49 @@ class ScraperService {
       }
     }
 
-    await Promise.all(
-      selectors.map(async ({ selector, property, attribute }) => {
-        try {
-          const elementExists = await page.$(selector);
-          if (!elementExists) return;
+    // Run all selector queries sequentially to avoid racing a stale context
+    for (const { selector, property, attribute } of selectors) {
+      try {
+        const elementExists = await page.$(selector);
+        if (!elementExists) continue;
 
-          const value = await page.evaluate(
-            (s, attr) => {
-              const elements = Array.from(document.querySelectorAll(s));
-              return elements.map((element) => {
-                if (!element) return null;
-                // If attribute is specified, get that attribute (for meta tags)
-                if (attr) {
-                  return element.getAttribute(attr);
-                }
-                // Otherwise, get innerText
-                return element.innerText;
-              });
-            },
-            selector,
-            attribute,
-          );
+        const value = await page.evaluate(
+          (s, attr) => {
+            const elements = Array.from(document.querySelectorAll(s));
+            return elements.map((element) => {
+              if (!element) return null;
+              // If attribute is specified, get that attribute (for meta tags)
+              if (attr) {
+                return element.getAttribute(attr);
+              }
+              // Otherwise, get innerText
+              return element.innerText;
+            });
+          },
+          selector,
+          attribute,
+        );
 
-          // Filter out null, undefined, and empty strings
-          const filteredValue = value.filter(
-            (v) => v !== null && v !== undefined && v.trim() !== "",
-          );
+        // Filter out null, undefined, and empty strings
+        const filteredValue = value.filter(
+          (v) => v !== null && v !== undefined && v.trim() !== "",
+        );
 
-          // Only add to result if there are actual values
-          if (filteredValue.length > 0) {
-            // If it's a single value, don't use an array
-            result[property] =
-              filteredValue.length === 1 ? filteredValue[0] : filteredValue;
-          }
-        } catch (error) {
-          console.error(`Puppeteer Error on ${selector}:\n`, error);
+        // Only add to result if there are actual values
+        if (filteredValue.length > 0) {
+          // If it's a single value, don't use an array
+          result[property] =
+            filteredValue.length === 1 ? filteredValue[0] : filteredValue;
         }
-      }),
-    );
+      } catch (error) {
+        // Suppress verbose stack traces for context-destroyed errors (page redirect mid-scrape)
+        if (error.message?.includes("Execution context was destroyed")) {
+          console.warn(`[ScraperService] Context lost on "${selector}" — page navigated away (${url})`);
+          break; // No point trying remaining selectors, the page is gone
+        }
+        console.error(`Puppeteer Error on ${selector}:\n`, error);
+      }
+    }
 
     await browser.close();
     // console.log(...LogFormatter.scrapeSuccess({functionName, url, result}));

@@ -1212,7 +1212,7 @@ Respond with ONLY "yes" or "no". Nothing else.`,
             for (const memory of memoryResult.memories) {
               const createdDate = new Date(memory.createdAt);
               const timeAgo = DateTime.fromJSDate(createdDate).toRelative();
-              systemPrompt += `\n- ${memory.fact} (about ${memory.aboutUsername}, remembered ${timeAgo})`;
+              systemPrompt += `\n- ${memory.content} (about ${memory.aboutUsername}, remembered ${timeAgo})`;
             }
           }
         }
@@ -2003,7 +2003,6 @@ async function extractContentFromMessages(
   // Prepare all async operations
   const allPromises = {
     conversations: [],
-    urls: [],
     emojis: [],
     audio: [],
     images: [],
@@ -2181,21 +2180,6 @@ async function extractContentFromMessages(
           userExists.time = recentMessage.createdTimestamp;
         }
 
-        // Queue URL scraping
-        const urls = recentMessage.content.match(/(https?:\/\/[^\s]+)/g);
-        if (urls) {
-          allPromises.urls.push({
-            messageId: recentMessage.id,
-            urls,
-            promises: urls.map((url) =>
-              ScraperService.scrapeURL(url).catch((_error) => ({
-                url,
-                error: "Failed to load",
-                content: null,
-              })),
-            ),
-          });
-        }
 
         // Queue emoji extraction
         allPromises.emojis.push({
@@ -2288,7 +2272,6 @@ async function extractContentFromMessages(
     // Execute all promises in parallel
     const results = await Promise.allSettled([
       ...allPromises.conversations.map((item) => item.promise),
-      ...allPromises.urls.flatMap((item) => item.promises),
       ...allPromises.emojis.map((item) => item.promise),
       ...allPromises.audio.map((item) => item.promise),
       ...allPromises.images.map((item) => item.promise),
@@ -2306,20 +2289,7 @@ async function extractContentFromMessages(
       }
     }
 
-    // Process URLs
-    const urlResults = {};
-    for (const item of allPromises.urls) {
-      const scrapedUrls = [];
-      for (let i = 0; i < item.urls.length; i++) {
-        const result = results[resultIndex++];
-        scrapedUrls.push(
-          result.status === "fulfilled"
-            ? result.value
-            : { url: item.urls[i], error: "Failed to load", content: null },
-        );
-      }
-      urlResults[item.messageId] = { urls: item.urls, scrapedUrls };
-    }
+
 
     // Process emojis
     for (const _item of allPromises.emojis) {
@@ -2571,19 +2541,7 @@ async function extractContentFromMessages(
           modifiedContent += `\n${recentMessage.content}`;
           modifiedContent += `\n</message_content>`;
 
-          // Add scraped URL content
-          const urlData = urlResults[recentMessage.id];
-          if (urlData?.scrapedUrls?.length) {
-            modifiedContent += `\n\n[SCRAPED URL CONTENT]`;
-            for (const [index, scrapedData] of urlData.scrapedUrls.entries()) {
-              modifiedContent += `\n- ${urlData.urls[index]}:`;
-              for (const [key, value] of Object.entries(scrapedData)) {
-                if (value) {
-                  modifiedContent += `\n  - ${utilities.capitalize(key)}: ${value}`;
-                }
-              }
-            }
-          }
+
         }
 
         const attachmentResult = await generateAttachmentsResponse(
