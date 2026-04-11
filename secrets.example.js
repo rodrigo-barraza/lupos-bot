@@ -32,6 +32,7 @@ export default {
 
 	// ─── Service URLs ──────────────────────────────────────────────
 	"LIGHTS_URL": "http://localhost:4444",
+	"TOOLS_API_URL": "http://localhost:5590",
 	"TREND_API_URL": "http://localhost:5570",
 	"PRODUCT_API_URL": "http://localhost:5560",
 	"EVENT_API_URL": "http://localhost:5556",

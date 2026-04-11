@@ -1,192 +1,93 @@
 
-import fs from "fs";
-import path from "path";
-import os from "os";
-const puppeteer = await import(
-  process.platform === "win32" ? "puppeteer" : "puppeteer-core"
-);
-import { executablePath } from "puppeteer-core";
+// ============================================================
+// Scraper Service — Tools API Client
+// ============================================================
+// Lightweight HTTP client that delegates all scraping to the
+// centralized tools-api CrawlerService (Crawlee + Cheerio).
+//
+// Replaces the previous Puppeteer-based implementation.
+// No local browser dependencies required.
+// ============================================================
+
+import config from "#root/secrets.js";
+
+const TOOLS_API_URL = config.TOOLS_API_URL || "http://localhost:5590";
+const SCRAPE_TIMEOUT_MS = 15_000;
 
 /**
- * Scan Puppeteer's cache directory for an installed Chrome executable.
- * Works across WSL, Ubuntu, and Raspberry Pi where puppeteer-core's
- * executablePath() may fail to resolve the bundled browser.
+ * Fetch page metadata from tools-api's /utility/scrape/metadata endpoint.
+ *
+ * @param {string} url - Target URL to scrape
+ * @returns {Promise<object>} Metadata object ({ title, description, image, video, keywords, ... })
  */
-function findCachedChrome() {
-  const cacheDir = path.join(os.homedir(), ".cache", "puppeteer", "chrome");
-  if (!fs.existsSync(cacheDir)) return null;
+async function fetchMetadata(url) {
+  const endpoint = `${TOOLS_API_URL}/utility/scrape/metadata?url=${encodeURIComponent(url)}`;
 
   try {
-    const versions = fs.readdirSync(cacheDir);
-    for (const version of versions) {
-      const versionDir = path.join(cacheDir, version);
-      if (!fs.statSync(versionDir).isDirectory()) continue;
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), SCRAPE_TIMEOUT_MS);
 
-      // Look for chrome binary inside nested directories (e.g. chrome-linux64/chrome)
-      const subDirs = fs.readdirSync(versionDir);
-      for (const sub of subDirs) {
-        const chromeBin = path.join(versionDir, sub, "chrome");
-        if (fs.existsSync(chromeBin)) return chromeBin;
-      }
+    const response = await fetch(endpoint, {
+      signal: controller.signal,
+      headers: { Accept: "application/json" },
+    });
+
+    clearTimeout(timeout);
+
+    if (!response.ok) {
+      console.error(`[ScraperService] tools-api returned HTTP ${response.status} for ${url}`);
+      return {};
     }
-  } catch {
-    // Silently ignore scan errors
+
+    return await response.json();
+  } catch (error) {
+    if (error.name === "AbortError") {
+      console.error(`[ScraperService] Timeout scraping ${url}`);
+    } else {
+      console.error(`[ScraperService] Failed to scrape ${url}: ${error.message}`);
+    }
+    return {};
   }
-  return null;
-}
-
-let puppeteerOptions = {};
-
-if (process.platform === "win32") {
-  puppeteerOptions = { headless: "shell" };
-} else {
-  // Find a usable Chromium/Chrome executable for Linux/WSL/Raspberry Pi
-  const LINUX_CHROME_PATHS = [
-    "/usr/bin/chromium-browser",
-    "/usr/bin/chromium",
-    "/usr/bin/google-chrome",
-    "/usr/bin/google-chrome-stable",
-  ];
-  let chromePath = LINUX_CHROME_PATHS.find((p) => fs.existsSync(p));
-  if (!chromePath) {
-    // Try puppeteer-core's executablePath first
-    try {
-      chromePath = executablePath();
-    } catch {
-      // executablePath() failed — scan the Puppeteer cache manually
-      chromePath = findCachedChrome();
-    }
-    if (!chromePath) {
-      console.warn(
-        "⚠️ [ScraperService] Could not find a Chrome/Chromium executable. Puppeteer may fail to launch.",
-      );
-    }
-  }
-  puppeteerOptions = {
-    headless: "shell",
-    executablePath: chromePath,
-    args: ["--no-sandbox"],
-  };
 }
 
 class ScraperService {
+  /**
+   * Extract Tenor GIF metadata (image URL, title, keywords).
+   * Previously used Puppeteer to render the page — now delegates
+   * to tools-api Cheerio extraction.
+   *
+   * @param {string} url - Tenor URL (https://tenor.com/view/...)
+   * @returns {Promise<object>} { title, image, keywords, name }
+   */
   static async scrapeTenor(url) {
-    let browser;
-    try {
-      browser = await puppeteer.launch(puppeteerOptions);
-      const page = await browser.newPage();
-      // Set user agent to avoid bot detection
-      await page.setUserAgent(
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-      );
-      // Set viewport
-      await page.setViewport({ width: 1920, height: 1080 });
-      await page.goto(url);
+    const metadata = await fetchMetadata(url);
 
-      const selectors = [
-        { selector: "title", property: "title" },
-        { selector: 'meta[itemprop="contentUrl"]', property: "image" },
-        { selector: 'meta[itemprop="keywords"]', property: "keywords" },
-      ];
+    // Build the same shape as the old Puppeteer-based response
+    const result = {};
 
-      const result = {};
+    if (metadata.title) result.title = metadata.title;
+    if (metadata.image) result.image = metadata.image;
+    if (metadata.keywords) result.keywords = metadata.keywords;
 
-      await Promise.all(
-        selectors.map(async ({ selector, property }) => {
-          try {
-            await page.waitForSelector(selector, { timeout: 5000 });
+    // Derive name from URL (same logic as before)
+    result.name = url
+      .replace("https://tenor.com/view/", "")
+      .replace(/-/g, " ")
+      .replace(/%20/g, " ");
 
-            const value = await page.evaluate(
-              (s, p) => {
-                const element = document.querySelector(s);
-                return element
-                  ? element[p] || element.getAttribute("content")
-                  : null;
-              },
-              selector,
-              property,
-            );
-
-            if (value) {
-              result[property] = value.trim();
-            }
-          } catch (error) {
-            console.error(`Puppeteer Error on ${selector}:\n`, error);
-          }
-        }),
-      );
-
-      result.name = url
-        .replace("https://tenor.com/view/", "")
-        .replace(/-/g, " ")
-        .replace(/%20/g, " ");
-
-      await browser.close();
-      return result;
-    } catch (error) {
-      console.error("Puppeteer Error:\n", error);
-      return {};
-    } finally {
-      if (browser) {
-        await browser.close();
-      }
-    }
+    return result;
   }
 
+  /**
+   * Extract Twitch stream metadata (title, description, image).
+   * Previously used Puppeteer to render the page — now delegates
+   * to tools-api Cheerio extraction.
+   *
+   * @param {string} url - Twitch URL (https://twitch.tv/...)
+   * @returns {Promise<object>} { title, description, image, video }
+   */
   static async scrapeTwitchUrl(url) {
-    try {
-      const browser = await puppeteer.launch(puppeteerOptions);
-      const page = await browser.newPage();
-      await page.goto(url, {
-        timeout: 15000,
-        waitUntil: "domcontentloaded",
-      });
-
-      const selectors = [
-        { selector: "title", property: "title" },
-        { selector: 'meta[name="description"]', property: "description" },
-        { selector: 'meta[name="og:description"]', property: "description" },
-        {
-          selector: 'meta[name="twitter:description"]',
-          property: "description",
-        },
-        { selector: 'meta[property="og:image"]', property: "image" },
-        { selector: 'meta[property="og:video"]', property: "video" },
-      ];
-
-      const result = {};
-
-      await Promise.all(
-        selectors.map(async ({ selector, property }) => {
-          try {
-            await page.waitForSelector(selector, { timeout: 5000 });
-
-            const value = await page.evaluate(
-              (s, p) => {
-                const element = document.querySelector(s);
-                return element
-                  ? element[p] || element.getAttribute("content")
-                  : null;
-              },
-              selector,
-              property,
-            );
-
-            if (value) {
-              result[property] = value.trim();
-            }
-          } catch {
-            // Silently ignore — selector may not exist on this page
-          }
-        }),
-      );
-
-      await browser.close();
-      return result;
-    } catch (error) {
-      console.error("Puppeteer Error:\n", error);
-      return {};
-    }
+    return await fetchMetadata(url);
   }
 }
 
