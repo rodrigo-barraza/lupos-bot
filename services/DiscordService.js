@@ -1202,7 +1202,7 @@ Respond with ONLY "yes" or "no". Nothing else.`,
             userIds: participantUserIds,
             queryText,
             limit: 8,
-            sessionId: CurrentService.getSessionId(),
+            traceId: CurrentService.getTraceId(),
           });
 
           if (memoryResult?.memories?.length > 0) {
@@ -1634,7 +1634,7 @@ async function replyMessage(queuedDatum, localMongo) {
   CurrentService.setUser(user);
   CurrentService.setMessage(message);
   CurrentService.setStartTime(Date.now());
-  CurrentService.clearSessionId();
+  CurrentService.clearTraceId();
 
   // Check if message was deleted before we start processing
   if (isMessageCancelled(message.id)) {
@@ -1839,7 +1839,7 @@ ${combinedGuildInformation && combinedChannelInformation ? `URL: ${utilities.get
         messages: recentUserMessages,
         participants: memoryParticipants,
         sourceMessageId: message.id,
-        sessionId: CurrentService.getSessionId(),
+        traceId: CurrentService.getTraceId(),
       })
         .then((result) => {
           if (result?.count > 0) {
@@ -1896,7 +1896,7 @@ ${combinedGuildInformation && combinedChannelInformation ? `URL: ${utilities.get
   });
   CurrentService.clearModels();
   CurrentService.clearModelTypes();
-  CurrentService.clearSessionId();
+  CurrentService.clearTraceId();
 
   LightsService.cycleColor(config.PRIMARY_LIGHT_ID, "purples");
   return;

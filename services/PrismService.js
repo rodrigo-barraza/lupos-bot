@@ -68,7 +68,7 @@ export default class PrismService {
    * @param {number} [payload.maxTokens] - Max tokens
    * @param {number} [payload.temperature] - Temperature
    * @param {string} [payload.username="lupos"] - Username for tracking
-   * @param {string} [payload.sessionId] - Session ID for request grouping
+   * @param {string} [payload.traceId] - Trace ID for request grouping
    * @returns {Promise<{ text: string, model: string, provider: string }>}
    */
   static async generateText({
@@ -78,7 +78,7 @@ export default class PrismService {
     maxTokens,
     temperature,
     username = "lupos",
-    sessionId,
+    traceId,
   }) {
     const provider = PROVIDER_MAP[type];
     if (!provider) {
@@ -95,7 +95,7 @@ export default class PrismService {
 
     if (maxTokens) body.options.maxTokens = maxTokens;
     if (temperature !== undefined) body.options.temperature = temperature;
-    if (sessionId) body.sessionId = sessionId;
+    if (traceId) body.traceId = traceId;
 
 
     const data = await PrismService._request("/chat?stream=false", {
@@ -133,7 +133,7 @@ export default class PrismService {
    * @param {boolean} [payload.thinkingEnabled] - Enable extended thinking (chain-of-thought)
    * @param {number} [payload.thinkingBudget] - Max thinking tokens budget
    * @param {string} [payload.username="lupos"] - Username for tracking
-   * @param {string} [payload.sessionId]   - Session ID for request grouping
+   * @param {string} [payload.traceId]   - Trace ID for request grouping
    * @returns {Promise<{
    *   text: string|null,
    *   images: Array<{ data: string, mimeType: string, minioRef: string|null }>,
@@ -152,7 +152,7 @@ export default class PrismService {
     thinkingEnabled,
     thinkingBudget,
     username = "lupos",
-    sessionId,
+    traceId,
   }) {
     const provider = PROVIDER_MAP[type];
     if (!provider) {
@@ -174,7 +174,7 @@ export default class PrismService {
     if (temperature !== undefined) body.temperature = temperature;
     if (thinkingEnabled !== undefined) body.thinkingEnabled = thinkingEnabled;
     if (thinkingBudget) body.thinkingBudget = thinkingBudget;
-    if (sessionId) body.sessionId = sessionId;
+    if (traceId) body.traceId = traceId;
 
     const data = await PrismService._request("/agent?stream=false", {
       body,
@@ -199,7 +199,7 @@ export default class PrismService {
    * @param {Array}  [payload.images=[]] - Array of base64 data URLs or { imageData, mimeType } objects
    * @param {string} [payload.username="lupos"] - Username for tracking
    * @param {string} [payload.systemPrompt]
-   * @param {string} [payload.sessionId] - Session ID for request grouping
+   * @param {string} [payload.traceId] - Trace ID for request grouping
    * @returns {Promise<{ imageData: string, mimeType: string, text: string, minioRef: string|null, model: string, provider: string }>}
    */
   static async generateImage({
@@ -209,7 +209,7 @@ export default class PrismService {
     images = [],
     username = "lupos",
     systemPrompt,
-    sessionId,
+    traceId,
   }) {
     const imageDataUrls = images.map((img) => {
       if (typeof img === "string") return img;
@@ -230,7 +230,7 @@ export default class PrismService {
     };
 
     if (systemPrompt) body.systemPrompt = systemPrompt;
-    if (sessionId) body.sessionId = sessionId;
+    if (traceId) body.traceId = traceId;
     body.forceImageGeneration = true;
 
 
@@ -259,7 +259,7 @@ export default class PrismService {
    * @param {string} [payload.model]
    * @param {string} [payload.username="lupos"]
    * @param {string} [payload.systemPrompt]
-   * @param {string} [payload.sessionId] - Session ID for request grouping
+   * @param {string} [payload.traceId] - Trace ID for request grouping
    * @returns {Promise<{ text: string }>}
    */
   static async captionImage({
@@ -269,7 +269,7 @@ export default class PrismService {
     model,
     username = "lupos",
     systemPrompt,
-    sessionId,
+    traceId,
   }) {
     const normalizedImages = Array.isArray(images) ? images : [images];
 
@@ -281,7 +281,7 @@ export default class PrismService {
 
     if (model) body.model = model;
     if (systemPrompt) body.systemPrompt = systemPrompt;
-    if (sessionId) body.sessionId = sessionId;
+    if (traceId) body.traceId = traceId;
 
 
     return PrismService._request("/chat?stream=false", { body, username });
@@ -296,7 +296,7 @@ export default class PrismService {
    * @param {string} [payload.model]
    * @param {string} [payload.language]
    * @param {string} [payload.username="lupos"]
-   * @param {string} [payload.sessionId]
+   * @param {string} [payload.traceId]
    * @returns {Promise<{ text: string }>}
    */
   static async transcribeAudio({
@@ -306,7 +306,7 @@ export default class PrismService {
     model,
     language,
     username = "lupos",
-    sessionId,
+    traceId,
   }) {
     // Accept Buffer or base64 string
     const base64Audio = Buffer.isBuffer(audio)
@@ -317,7 +317,7 @@ export default class PrismService {
     const body = { provider, audio: dataUrl, skipConversation: true };
     if (model) body.model = model;
     if (language) body.language = language;
-    if (sessionId) body.sessionId = sessionId;
+    if (traceId) body.traceId = traceId;
 
     const result = await PrismService._request("/audio-to-text", {
       body,
@@ -349,11 +349,11 @@ export default class PrismService {
     messages,
     participants,
     sourceMessageId,
-    sessionId,
+    traceId,
   }) {
     const body = { guildId, channelId, messages, participants };
     if (sourceMessageId) body.sourceMessageId = sourceMessageId;
-    if (sessionId) body.sessionId = sessionId;
+    if (traceId) body.traceId = traceId;
 
     return PrismService._request("/memory/extract", { body });
   }
@@ -367,10 +367,10 @@ export default class PrismService {
    * @param {number} [payload.limit=10]
    * @returns {Promise<{ memories: Array, count: number }>}
    */
-  static async searchMemories({ guildId, userIds, queryText, limit = 10, sessionId }) {
+  static async searchMemories({ guildId, userIds, queryText, limit = 10, traceId }) {
     const body = { guildId, queryText, limit };
     if (userIds?.length > 0) body.userIds = userIds;
-    if (sessionId) body.sessionId = sessionId;
+    if (traceId) body.traceId = traceId;
 
     return PrismService._request("/memory/search", { body });
   }
@@ -387,10 +387,10 @@ export default class PrismService {
    * @param {string} [payload.model]
    * @returns {Promise<{ embedding: number[], dimensions: number }>}
    */
-  static async generateEmbedding({ text, provider = "openai", model, sessionId }) {
+  static async generateEmbedding({ text, provider = "openai", model, traceId }) {
     const body = { provider, text };
     if (model) body.model = model;
-    if (sessionId) body.sessionId = sessionId;
+    if (traceId) body.traceId = traceId;
 
     return PrismService._request("/embed", { body });
   }

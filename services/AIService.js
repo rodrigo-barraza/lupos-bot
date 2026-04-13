@@ -58,18 +58,18 @@ function assembleConversation(systemMessage, userMessage, message) {
 
 const AIService = {
   /**
-   * Returns session params for PrismService calls.
-   * Generates a sessionId locally on the first call per message cycle
-   * and reuses it for subsequent calls (CurrentService.clearSessionId()
+   * Returns trace params for PrismService calls.
+   * Generates a traceId locally on the first call per message cycle
+   * and reuses it for subsequent calls (CurrentService.clearTraceId()
    * resets at the start of each cycle).
    */
-  _getSessionParams() {
-    let sessionId = CurrentService.getSessionId();
-    if (!sessionId) {
-      sessionId = crypto.randomUUID();
-      CurrentService.setSessionId(sessionId);
+  _getTraceParams() {
+    let traceId = CurrentService.getTraceId();
+    if (!traceId) {
+      traceId = crypto.randomUUID();
+      CurrentService.setTraceId(traceId);
     }
-    return { sessionId };
+    return { traceId };
   },
   /**
    * Get the current Discord username from CurrentService, with "lupos" fallback.
@@ -163,7 +163,7 @@ const AIService = {
         maxTokens: tokens,
         temperature,
         username: discordUsername,
-        ...AIService._getSessionParams(),
+        ...AIService._getTraceParams(),
       });
 
 
@@ -206,7 +206,7 @@ const AIService = {
           model: usedModel,
           images: imageObjects,
           username: discordUsername,
-          ...AIService._getSessionParams(),
+          ...AIService._getTraceParams(),
         });
 
   
@@ -258,7 +258,7 @@ const AIService = {
           model: usedModel,
           images: imageObjects,
           username: discordUsername,
-          ...AIService._getSessionParams(),
+          ...AIService._getTraceParams(),
         });
 
   
@@ -284,7 +284,7 @@ const AIService = {
         provider: provider || "google",
         model: model || "gemini-3-flash-preview",
         username: discordUsername,
-        ...AIService._getSessionParams(),
+        ...AIService._getTraceParams(),
       });
 
 
@@ -329,7 +329,7 @@ const AIService = {
       mimeType,
       provider: "openai",
       username: discordUsername,
-      ...AIService._getSessionParams(),
+      ...AIService._getTraceParams(),
     });
 
 
