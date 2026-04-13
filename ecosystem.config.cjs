@@ -2,6 +2,7 @@ module.exports = {
   apps: [
     {
       name: "lupos-services",
+      cwd: __dirname,
       script: "lupos.js",
       args: "mode=services",
       interpreter: process.execPath,
@@ -11,6 +12,7 @@ module.exports = {
     },
     {
       name: "lupos-messages",
+      cwd: __dirname,
       script: "lupos.js",
       args: "mode=messages",
       interpreter: process.execPath,
