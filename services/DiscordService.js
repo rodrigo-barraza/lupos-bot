@@ -1584,7 +1584,7 @@ Respond with ONLY "yes" or "no". Nothing else.`,
       thinkingEnabled: true,
       thinkingBudget: 10_000,
       username: message.author?.username || "unknown",
-      ...AIService._getSessionParams(),
+      ...AIService._getTraceParams(),
     });
 
 
@@ -2802,6 +2802,9 @@ async function luposOnReady(client, { mongo }) {
   if (mode === "services" || !mode) {
     await generateRolesEmbedMessage(client);
 
+    // Sweep existing members: kick accounts < 4 weeks old that joined while bot was offline
+    await luposOnReadyDeleteNewAccounts(client);
+
     if (config.ROLE_ID_BIRTHDAY_MONTH) {
       BirthdayJob.startJob(client);
     }
@@ -3688,10 +3691,10 @@ async function luposOnGuildMemberUpdate(client, mongo, oldMember, newMember) {
   // console.log(...LogFormatter.memberUpdate(functionName, oldMember, newMember));
   if (oldMember.guild.id !== config.GUILD_ID_PRIMARY) return;
 
-  // Kick if member now holds the forbidden role combo (Horde + Apex Legends)
-  if (newMember.roles.cache.size > oldMember.roles.cache.size) {
-    await kickIfForbiddenCombo(newMember, functionName);
-  }
+  // Kick if member now holds the forbidden role combo (Horde + Apex Legends).
+  // Always check — oldMember can be a partial with an empty role cache,
+  // making size-based comparisons unreliable.
+  await kickIfForbiddenCombo(newMember, functionName);
 
   // Whenever a user completes onboarding
   const hasOldMemberCompletedOnboarding = oldMember.flags & (1 << 1);
@@ -3702,6 +3705,13 @@ async function luposOnGuildMemberUpdate(client, mongo, oldMember, newMember) {
       ...LogFormatter.memberUpdateOnboardingComplete(functionName, newMember),
     );
     await generateRolesEmbedMessage(client);
+
+    // Re-check both guards after onboarding — the member now has all their chosen roles
+    const freshMember = await newMember.guild.members.fetch(newMember.id);
+    const kickedAge = await kickIfTooNew(freshMember, functionName);
+    if (!kickedAge) {
+      await kickIfForbiddenCombo(freshMember, functionName);
+    }
   }
 }
 

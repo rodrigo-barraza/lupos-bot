@@ -38,6 +38,11 @@ export async function kickIfTooNew(member, callerName = "AccountGuard") {
         error,
       );
     }
+  } else {
+    const ageDays = Math.floor(accountAge / MS_PER_DAY);
+    console.log(
+      `[${callerName}] Account age OK: ${member.user.username} (${member.id}), age: ${ageDays} days${isWhitelisted ? " (whitelisted)" : ""}`,
+    );
   }
 
   return false;
