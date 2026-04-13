@@ -57,6 +57,11 @@ export const YOUTUBE_BUTTON_ACTIONS = {
 };
 
 /**
+ * Time constants.
+ */
+export const MS_PER_DAY = 24 * 60 * 60 * 1000;
+
+/**
  * Account guard constants.
  */
-export const ACCOUNT_AGE_THRESHOLD_MS = 28 * 24 * 60 * 60 * 1000; // 4 weeks
+export const ACCOUNT_AGE_THRESHOLD_MS = 28 * MS_PER_DAY; // 4 weeks

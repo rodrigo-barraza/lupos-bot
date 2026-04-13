@@ -57,6 +57,7 @@ import {
   GAME_ROLE_MAPPINGS,
   EXPLOSION_GIFS,
   YOUTUBE_BUTTON_ACTIONS,
+  MS_PER_DAY,
 } from "#root/constants.js";
 import CensorService from "#root/services/CensorService.js";
 import { kickIfTooNew, kickIfForbiddenCombo, purgeByAccountAge } from "#root/services/AccountGuardService.js";
@@ -1507,7 +1508,7 @@ Respond with ONLY "yes" or "no". Nothing else.`,
     // Clock Crew context — if this is the Clock Crew guild, build the
     // clocks list for injection into the persona. The persona identity
     // is handled by AgentPersonaRegistry based on guildId.
-    if (message.guildId === "249010731910037507") {
+    if (message.guildId === config.GUILD_ID_CLOCK_CREW) {
       try {
         const { ClockCrewConstants } = await import("#root/constants.js");
         const clockWithoutProfiles = ClockCrewConstants.clocks_without_profiles;
@@ -2916,7 +2917,7 @@ async function luposOnReadyDeleteNewAccounts(client) {
  * One-off purge: kick all members with accounts < 2 months old
  * in a specific guild.
  */
-const TWO_MONTHS_MS = 60 * 24 * 60 * 60 * 1000;
+const TWO_MONTHS_MS = 60 * MS_PER_DAY;
 const PURGE_TARGET_GUILD_ID = "609471635308937237";
 
 async function luposOnReadyPurgeYoungAccounts(client) {

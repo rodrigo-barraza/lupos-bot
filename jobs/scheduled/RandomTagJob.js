@@ -13,7 +13,7 @@ const INTERVAL_MIN_MS = 10 * 60 * 1000; // 10 minutes
 const INTERVAL_MAX_MS = 60 * 60 * 1000; // 60 minutes
 
 function getRandomInterval() {
-  return Math.floor(Math.random() * (INTERVAL_MAX_MS - INTERVAL_MIN_MS + 1)) + INTERVAL_MIN_MS;
+  return utilities.getRandomInterval(INTERVAL_MIN_MS, INTERVAL_MAX_MS);
 }
 
 /**

@@ -15,7 +15,7 @@ const IMAGES_DIR = path.resolve(
 let lastUsedImage = null;
 
 function getRandomInterval() {
-  return Math.floor(Math.random() * (INTERVAL_MAX_MS - INTERVAL_MIN_MS + 1)) + INTERVAL_MIN_MS;
+  return utilities.getRandomInterval(INTERVAL_MIN_MS, INTERVAL_MAX_MS);
 }
 
 async function rotateIcon({ client, guildId }) {

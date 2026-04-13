@@ -4,6 +4,7 @@ import utilities from "#root/utilities.js";
 const { consoleLog } = utilities;
 import config from "#root/secrets.js";
 import { Collection, ChannelType, Events, ActivityType } from "discord.js";
+import { MS_PER_DAY } from "#root/constants.js";
 import ScraperService from "#root/services/ScraperService.js";
 import LightsService from "#root/services/LightsService.js";
 import LogFormatter from "#root/formatters/LogFormatter.js";
@@ -2134,7 +2135,7 @@ const DiscordUtilityService = {
 
     const daysSinceStart = Math.max(
       1,
-      Math.ceil((now - lastMessageDate.getTime()) / (24 * 60 * 60 * 1000)),
+      Math.ceil((now - lastMessageDate.getTime()) / MS_PER_DAY),
     );
     const averageMessagesPerHour = (
       messageCount /

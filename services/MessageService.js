@@ -1,5 +1,4 @@
-import { MessageConstant } from "#root/constants.js";
-import { ClockCrewConstants } from "#root/constants.js";
+import { MessageConstant, ClockCrewConstants } from "#root/constants.js";
 import config from "#root/secrets.js";
 const { ASSISTANT_MESSAGE } = config;
 
@@ -30,7 +29,7 @@ const MessageService = {
         assistantMessage += `\n\n`;
       }
       // If Clock Crew guild, add Clock Crew information
-      if (guildId === "249010731910037507") {
+      if (guildId === config.GUILD_ID_CLOCK_CREW) {
         const clockWithoutProfiles = ClockCrewConstants.clocks_without_profiles;
         const clocksWithProfiles = ClockCrewConstants.clocks_with_profiles;
         const allClocks = [...clockWithoutProfiles, ...clocksWithProfiles];

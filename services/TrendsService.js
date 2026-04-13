@@ -1,4 +1,5 @@
 import config from "#root/secrets.js";
+import utilities from "#root/utilities.js";
 
 const TREND_API_BASE_URL = config.TREND_API_URL || "http://localhost:5570";
 const PRODUCT_API_BASE_URL = config.PRODUCT_API_URL || "http://localhost:5560";
@@ -6,7 +7,7 @@ const EVENT_API_BASE_URL = config.EVENT_API_URL || "http://localhost:5556";
 const WEATHER_API_BASE_URL = config.WEATHER_API_URL || "http://localhost:5555";
 
 const CACHE_TTL_MS = 1 * 60 * 1000; // 1 minutes
-const FETCH_TIMEOUT_MS = 3000; // 3 seconds
+const _FETCH_TIMEOUT_MS = 3000; // 3 seconds — default matches utilities.fetchWithTimeout
 
 // ─── In-Memory Cache ───────────────────────────────────────────────
 
@@ -29,19 +30,7 @@ function isCacheValid(key) {
 
 // ─── Fetch Helpers ─────────────────────────────────────────────────
 
-async function fetchWithTimeout(url, timeoutMs = FETCH_TIMEOUT_MS) {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    const res = await fetch(url, { signal: controller.signal });
-    if (!res.ok) return null;
-    return await res.json();
-  } catch {
-    return null;
-  } finally {
-    clearTimeout(timer);
-  }
-}
+const fetchWithTimeout = utilities.fetchWithTimeout;
 
 // ─── Individual Fetchers ───────────────────────────────────────────
 

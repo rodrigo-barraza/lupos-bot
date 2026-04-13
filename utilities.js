@@ -474,6 +474,46 @@ const utilities = {
   getDiscordMessageUrl(guildId, channelId, messageId) {
     return `https://discord.com/channels/${guildId}/${channelId}/${messageId}`;
   },
+  /**
+   * Format a millisecond duration as playback time (m:ss).
+   * @param {number} ms - Duration in milliseconds.
+   * @returns {string} e.g. "3:07"
+   */
+  formatPlaybackTime(ms) {
+    const totalSeconds = Math.floor(ms / 1000);
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+    return `${minutes}:${seconds.toString().padStart(2, "0")}`;
+  },
+  /**
+   * Return a random integer between minMs and maxMs (inclusive).
+   * @param {number} minMs
+   * @param {number} maxMs
+   * @returns {number}
+   */
+  getRandomInterval(minMs, maxMs) {
+    return Math.floor(Math.random() * (maxMs - minMs + 1)) + minMs;
+  },
+  /**
+   * Fetch a URL with an AbortController timeout.
+   * Returns parsed JSON on success, null on failure / timeout.
+   * @param {string} url
+   * @param {number} [timeoutMs=3000]
+   * @returns {Promise<object|null>}
+   */
+  async fetchWithTimeout(url, timeoutMs = 3000) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const res = await fetch(url, { signal: controller.signal });
+      if (!res.ok) return null;
+      return await res.json();
+    } catch {
+      return null;
+    } finally {
+      clearTimeout(timer);
+    }
+  },
 };
 
 export default utilities;

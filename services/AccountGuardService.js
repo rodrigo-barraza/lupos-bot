@@ -6,7 +6,7 @@
  */
 
 import config from "#root/secrets.js";
-import { ACCOUNT_AGE_THRESHOLD_MS } from "#root/constants.js";
+import { ACCOUNT_AGE_THRESHOLD_MS, MS_PER_DAY } from "#root/constants.js";
 
 /**
  * Kick a member if their Discord account is too new (< 4 weeks old)
@@ -25,7 +25,7 @@ export async function kickIfTooNew(member, callerName = "AccountGuard") {
   );
 
   if (accountAge < ACCOUNT_AGE_THRESHOLD_MS && !isWhitelisted) {
-    const ageDays = Math.floor(accountAge / (24 * 60 * 60 * 1000));
+    const ageDays = Math.floor(accountAge / MS_PER_DAY);
     console.log(
       `[${callerName}] Kicking new account: ${member.user.username} (${member.id}), account age: ${ageDays} days`,
     );
@@ -103,7 +103,7 @@ export async function kickIfForbiddenCombo(member, callerName = "AccountGuard") 
  */
 export async function purgeByAccountAge(guild, thresholdMs, options = {}) {
   const { dryRun = false, callerName = "purgeByAccountAge" } = options;
-  const thresholdDays = Math.floor(thresholdMs / (24 * 60 * 60 * 1000));
+  const thresholdDays = Math.floor(thresholdMs / MS_PER_DAY);
 
   console.log(
     `[${callerName}] Fetching all members for guild "${guild.name}" (${guild.id})...`,
@@ -123,7 +123,7 @@ export async function purgeByAccountAge(guild, thresholdMs, options = {}) {
     const accountAge = Date.now() - member.user.createdAt.getTime();
     if (accountAge >= thresholdMs) continue;
 
-    const ageDays = Math.floor(accountAge / (24 * 60 * 60 * 1000));
+    const ageDays = Math.floor(accountAge / MS_PER_DAY);
     const isWhitelisted = config.USER_IDS_NEW_ACCOUNT_WHITELIST?.includes(
       member.id,
     );

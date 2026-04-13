@@ -1,10 +1,6 @@
 import AIService from "#root/services/AIService.js";
-import _HungerService from "#root/services/HungerService.js";
-import _ThirstService from "#root/services/ThirstService.js";
-import _BathroomService from "#root/services/BathroomService.js";
 import MoodService from "#root/services/MoodService.js";
-import _SicknessService from "#root/services/SicknessService.js";
-import _AlcoholService from "#root/services/AlcoholService.js";
+import config from "#root/secrets.js";
 
 let currentYappers = [];
 
@@ -15,7 +11,7 @@ const YapperService = {
   getYappers() {
     return currentYappers;
   },
-  async yapperMessage(interaction) {
+  async yapperMessage(_interaction) {
     MoodService.decreaseMoodLevel();
     const yappers = YapperService.getYappers();
     let systemContent = `
@@ -32,11 +28,17 @@ const YapperService = {
       systemContent += `- ${yapper.displayName} with ${yapper.count} recent yaps\n`;
     }
     const userContent = `Who are the current top 5 yappers in order?`;
-    return await AIService.generateTextFromSystemUserMessages(
-      systemContent,
-      userContent,
-      interaction,
-    );
+    const conversation = [
+      { role: "system", content: systemContent },
+      { role: "user", content: userContent },
+    ];
+    return await AIService.generateText({
+      conversation,
+      type: config.LANGUAGE_MODEL_TYPE,
+      modelPerformance: "POWERFUL",
+      tokens: config.LANGUAGE_MODEL_MAX_TOKENS,
+      temperature: config.LANGUAGE_MODEL_TEMPERATURE,
+    });
   },
 };
 

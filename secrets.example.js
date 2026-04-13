@@ -49,6 +49,7 @@ export default {
 	"GUILD_ID_PRIMARY": "609471635308937237",
 	"GUILD_ID_TESTING": "1357934319879979170",
 	"GUILD_ID_GROBBULUS": "1388329197260505262",
+	"GUILD_ID_CLOCK_CREW": "249010731910037507",
 
 	// ─── Discord IDs — Emojis ──────────────────────────────────────
 	"EMOJI_ID_FLAG": "1377425518520959067",
@@ -94,7 +95,6 @@ export default {
 	"DEATHROLL_SEASON": 1,
 	"GENERATE_IMAGE": true,
 	"ASSISTANT_MESSAGE": "",
-	"FLAGGED_WORDS": "beaner, c00n, c0on, chink, co0n, coon, f a g g o t, f\\.ag, f@g, f@gg0t, f@ggot, fag, fagg0t, faggatron, faggit, faggot, faggy, fagit, faglord, fagot, fags, fgrt, fgtrtd, FGTRTD, fgts, frociaggine, g00k, g0ok, go0k, gook, honkey, https://imgur.com/aRYkT2C, kike, kys, n!g, n!ger, n!gg3r, n!gger, ni🅱️ 🅱️ a, nibba, nig, nigg3r, nigga, nigger, niglet, pajeet, sassygao, sassygao:, spic, trannies, trannny, tranny, trannys, wetback, www.wowgoldgo.com",
 
 	// ─── Home Automation ───────────────────────────────────────────
 	"PRIMARY_LIGHT_ID": "d073d523f763",

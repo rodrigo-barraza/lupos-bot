@@ -59,8 +59,9 @@ const StatService = {
       increase(multiplier = 1) {
         const amount = step * multiplier;
         level = clamp(level + amount);
+        const capitalized = name.charAt(0).toUpperCase() + name.slice(1);
         console.log(
-          `${name.charAt(0).toUpperCase() + name.slice(1)} level increased to: ${level}`,
+          `${capitalized} level increased to: ${level}`,
         );
         if (onChange) onChange(level, name);
         return level;
@@ -69,8 +70,9 @@ const StatService = {
       decrease(multiplier = 1) {
         const amount = step * multiplier;
         level = clamp(level - amount);
+        const capitalized = name.charAt(0).toUpperCase() + name.slice(1);
         console.log(
-          `${name.charAt(0).toUpperCase() + name.slice(1)} level decreased to: ${level}`,
+          `${capitalized} level decreased to: ${level}`,
         );
         if (onChange) onChange(level, name);
         return level;

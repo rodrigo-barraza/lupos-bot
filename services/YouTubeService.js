@@ -8,6 +8,7 @@ import {
 import play from "play-dl";
 import ytdl from "@distube/ytdl-core";
 import DiscordUtilityService from "#root/services/DiscordUtilityService.js";
+import utilities from "#root/utilities.js";
 import {
   ActionRowBuilder,
   ButtonBuilder,
@@ -32,12 +33,7 @@ let volumeLevel = 5;
 const statusStymbol = "▶";
 let currentMessage = null; // Track the current message being processed
 
-function formatTime(ms) {
-  const totalSeconds = Math.floor(ms / 1000);
-  const minutes = Math.floor(totalSeconds / 60);
-  const seconds = totalSeconds % 60;
-  return `${minutes}:${seconds.toString().padStart(2, "0")}`;
-}
+const formatTime = utilities.formatPlaybackTime;
 
 // Add these variables at the top with your other variables
 const recordingStreams = new Map();
@@ -141,11 +137,7 @@ function createEmbed(video, queueMessage) {
 
   let formatted = "0:00";
   if (player.state?.resource?.playbackDuration) {
-    const milliseconds = player.state.resource.playbackDuration;
-    const totalSeconds = Math.floor(milliseconds / 1000);
-    const minutes = Math.floor(totalSeconds / 60);
-    const seconds = totalSeconds % 60;
-    formatted = `${minutes}:${seconds.toString().padStart(2, "0")}`;
+    formatted = utilities.formatPlaybackTime(player.state.resource.playbackDuration);
   }
 
   // formatted message with embed
@@ -348,11 +340,7 @@ class YouTubeService {
 
       // Add message when song is added to queue
       if (isQueueProcessing) {
-        const milliseconds = player.state.resource.playbackDuration;
-        const totalSeconds = Math.floor(milliseconds / 1000);
-        const minutes = Math.floor(totalSeconds / 60);
-        const seconds = totalSeconds % 60;
-        const _formatted = `${minutes}:${seconds.toString().padStart(2, "0")}`;
+        const _formatted = utilities.formatPlaybackTime(player.state.resource.playbackDuration);
 
         // grab existing message embed and resend it with updated fields
         const existingEmbed = nowPlayingMessage.embeds[0];
@@ -711,11 +699,7 @@ class YouTubeService {
         progressBar.substring(0, filledLength).replace(/░/g, "█") +
         progressBar.substring(filledLength);
 
-      const milliseconds = player.state.resource.playbackDuration;
-      const totalSeconds = Math.floor(milliseconds / 1000);
-      const minutes = Math.floor(totalSeconds / 60);
-      const seconds = totalSeconds % 60;
-      const formatted = `${minutes}:${seconds.toString().padStart(2, "0")}`;
+      const formatted = utilities.formatPlaybackTime(player.state.resource.playbackDuration);
 
       dividingLine = dividingLine
         .slice(formatted.length)
