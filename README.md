@@ -6,26 +6,110 @@ A highly personalized, AI-powered Discord bot that serves as the backbone of a g
 
 - **Context-Aware Responses** — generates highly personalized responses using the Prism gateway.
 - **Image Generation & Vision** — creates images from prompts and can 'see' uploaded images.
-- **Simulated Personality** — dynamic traits like mood, hunger, and energy which influence its chat behavior.
-- **Community Management** — handles roles, tracks the most active chatters, moderates content, and plays media.
+- **Simulated Personality** — dynamic traits (mood, hunger, thirst, energy, sickness, alcohol) influence chat behavior.
+- **Community Management** — role assignment, content moderation, account guard, and active chatter tracking.
+- **Voice & Media** — joins voice channels, plays YouTube audio, and TTS via @discordjs/voice.
+- **Scheduled Jobs** — birthday announcements, activity role assignment, server icon rotation, random tags.
+- **Web Scraping** — URL content extraction via Puppeteer for use in AI context.
+- **Transcription API** — Express endpoint for speech-to-text via Prism.
+
+## 📂 Directory Structure
+
+```
+lupos/
+├── lupos.js                       # Main entry point and Express server bootstrap
+├── constants.js                   # Re-exports from constants/ barrel
+├── utilities.js                   # Shared helpers (time formatting, random, fetch)
+├── arrays.js                      # Root-level shared arrays
+├── api/
+│   └── services/VendingService/   # Express routes for vending session webhooks
+│       └── routes/
+│           ├── PostSessionStart.js
+│           └── PostSessionEnd.js
+├── arrays/                        # Static data arrays
+│   ├── birthdays.js               # Member birthday definitions
+│   ├── channels.js                # Monitored channel IDs
+│   ├── ignorePhrases.js           # Phrases to skip in AI processing
+│   ├── roles.js                   # Role ID mappings
+│   └── users.js                   # User ID mappings and metadata
+├── commands/
+│   └── utility/
+│       └── deathrollUtils.js      # Death roll game command helpers
+├── constants/                     # Domain-specific constant modules
+│   ├── ClockCrewConstants.js      # Clock crew event/role constants
+│   ├── GameConstants.js           # Game roles, explosions, account age thresholds
+│   ├── MessageConstants.js        # Message templates and April Fools config
+│   └── MoodConstants.js           # Mood definitions and temperature thresholds
+├── formatters/
+│   └── LogFormatter.js            # Styled console log formatting
+├── images/                        # Static image assets (April Fools, etc.)
+├── jobs/
+│   ├── event-driven/
+│   │   └── ReactJob.js            # Reaction-triggered event handler
+│   └── scheduled/
+│       ├── ActivityRoleAssignmentJob.js  # Periodic role assignment by activity
+│       ├── BirthdayJob.js               # Daily birthday announcements
+│       ├── PermanentTimeOutJob.js       # Permanent timeout enforcement
+│       ├── RandomTagJob.js              # Random member tagging
+│       └── ServerIconJob.js             # Scheduled server icon rotation
+├── services/                      # Core business logic
+│   ├── DiscordService.js          # Primary Discord event handler and bot lifecycle
+│   ├── DiscordUtilityService.js   # Discord helper utilities (channel stats, member ops)
+│   ├── AIService.js               # AI proxy: text, image, vision, TTS, STT via Prism
+│   ├── PrismService.js            # HTTP client for the Prism AI gateway
+│   ├── MongoService.js            # MongoDB wrapper for persistence
+│   ├── MessageService.js          # Message processing, history, and formatting
+│   ├── AccountGuardService.js     # New account detection and kicking
+│   ├── CensorService.js           # Content moderation and filtering
+│   ├── MoodService.js             # Simulated mood state machine
+│   ├── HungerService.js           # Simulated hunger trait
+│   ├── ThirstService.js           # Simulated thirst trait
+│   ├── EnergyService.js           # Simulated energy trait
+│   ├── SicknessService.js         # Simulated sickness trait
+│   ├── AlcoholService.js          # Simulated alcohol trait
+│   ├── BathroomService.js         # Simulated bathroom need trait
+│   ├── CurrentService.js          # Current state/context tracking
+│   ├── LightsService.js           # HTTP client for the Lights API
+│   ├── ScraperService.js          # Puppeteer-based web scraping
+│   ├── StatService.js             # User/server statistics
+│   ├── TrendsService.js           # Social media trend fetching
+│   ├── YapperService.js           # Top chatter ranking and role assignment
+│   ├── YouTubeService.js          # YouTube audio streaming and transcripts
+│   └── services.js                # Express router with /transcribe endpoint
+├── tests/                         # Jest test suites
+│   ├── services/                  # Service-level unit tests
+│   └── wrappers/                  # Wrapper-level unit tests
+├── voices/                        # Sample voice message assets
+├── wrappers/
+│   └── DiscordWrapper.js          # Low-level Discord.js client wrapper
+├── secrets.example.js             # Template for secrets.js
+├── ecosystem.config.cjs           # PM2 process manager config
+├── eslint.config.js               # ESLint flat config
+├── jest.config.js                 # Jest test configuration
+├── .prettierrc                    # Prettier config
+└── package.json                   # Dependencies and npm scripts
+```
 
 ## ⚙️ Prerequisites
 
 - **Node.js** v20+ (ES Modules)
-- **Discord Bot Token**
-- **MongoDB** (for tracking users, messages, and personality state)
-- **Prism** & **Tools API** accessible.
+- **Discord Bot Token** — with Message Content and Server Members privileged intents
+- **MongoDB** — for tracking users, messages, and personality state
+- **Prism** & **Tools API** — accessible on the local network
 
 ## 🛠️ Tech Stack
 
 | Dependency | Purpose |
 | --- | --- |
 | Node.js | Runtime |
-| Discord.js | Interaction with Discord API |
-| @discordjs/voice | Voice channel integration (music, TTS) |
-| MongoDB | Core persistent storage |
-| Puppeteer | Rendering web views for images |
-| Sharp / Jimp | Image manipulation |
+| Discord.js | Discord API interaction and gateway events |
+| @discordjs/voice | Voice channel audio (music, TTS playback) |
+| MongoDB | Persistent storage (messages, users, state) |
+| Puppeteer | Headless browser for web scraping and image rendering |
+| Sharp / Jimp | Image processing and manipulation |
+| Luxon | Date/time handling |
+| play-dl / ytdl-core | YouTube audio streaming |
+| Express | Internal HTTP API for transcription and webhooks |
 
 ## 🚀 Setup
 
@@ -41,20 +125,24 @@ npm install
 cp secrets.example.js secrets.js
 ```
 
-### 3️⃣ Start the server
+Edit `secrets.js` with your Discord bot token, MongoDB URI, and Prism/Tools API URLs.
+
+### 3️⃣ Start the bot
 
 ```bash
-npm run dev        # Development (Lupos starts in messages mode)
+npm run dev        # Development (starts in messages mode)
 ```
+
+Other modes: `clone:messages`, `delete:duplicates`, `delete:newAccounts`, `purge:youngAccounts`, `reports`.
 
 ## 📜 Scripts
 
 ```bash
-npm run dev        # Run Lupos (starts in messages mode)
-npm test           # Run tests (Jest)
-npm run lint       # Run ESLint
-npm run lint:fix   # Auto-fix lint issues
-npm run format     # Format with Prettier
+npm run dev          # Run Lupos (messages mode)
+npm test             # Run tests (Jest)
+npm run lint         # Run ESLint
+npm run lint:fix     # Auto-fix lint issues
+npm run format       # Format with Prettier
 npm run format:check # Check formatting
 ```
 

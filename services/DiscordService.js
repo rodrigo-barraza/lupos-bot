@@ -2906,14 +2906,20 @@ async function luposOnReadyDeleteNewAccounts(client) {
 
   console.log(`[${functionName}] Fetching all members...`);
   const members = await guild.members.fetch();
-  let kickedCount = 0;
+  let kickedAge = 0;
+  let kickedCombo = 0;
 
   for (const [, member] of members) {
-    const wasKicked = await kickIfTooNew(member, functionName);
-    if (wasKicked) kickedCount++;
+    const wasTooNew = await kickIfTooNew(member, functionName);
+    if (wasTooNew) {
+      kickedAge++;
+      continue;
+    }
+    const wasForbidden = await kickIfForbiddenCombo(member, functionName);
+    if (wasForbidden) kickedCombo++;
   }
 
-  console.log(`[${functionName}] Done. Kicked: ${kickedCount}`);
+  console.log(`[${functionName}] Done. Kicked — age: ${kickedAge}, forbidden combo: ${kickedCombo}`);
 }
 
 /**

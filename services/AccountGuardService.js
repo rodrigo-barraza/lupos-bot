@@ -74,17 +74,22 @@ export async function kickIfForbiddenCombo(member, callerName = "AccountGuard") 
 
   if (!hasBoth) return false;
 
+  // Only kick if they joined the server within the past 4 weeks
+  const joinAge = Date.now() - (member.joinedTimestamp || 0);
+  if (joinAge > ACCOUNT_AGE_THRESHOLD_MS) return false;
+
+  const joinDays = Math.floor(joinAge / MS_PER_DAY);
   const comboNames = FORBIDDEN_COMBO_ROLE_IDS.map((id) => {
     const role = member.guild.roles.cache.get(id);
     return role ? role.name : id;
   }).join(" + ");
 
   console.log(
-    `[${callerName}] Kicking ${member.user.username} (${member.id}) for forbidden role combo: ${comboNames}`,
+    `[${callerName}] Kicking ${member.user.username} (${member.id}) for forbidden role combo: ${comboNames} (joined ${joinDays}d ago)`,
   );
 
   try {
-    await member.kick(`Forbidden role combo: ${comboNames}`);
+    await member.kick(`Forbidden role combo: ${comboNames} (joined ${joinDays}d ago)`);
     return true;
   } catch (error) {
     console.error(
