@@ -3,6 +3,5 @@
 /recordings
 /voices
 secrets.js
-.env
 .vscode/settings.json
 *:Zone.Identifier

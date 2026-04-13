@@ -1,7 +1,6 @@
 "use strict";
 
 // Environment setup
-import "dotenv/config";
 process.env.NODE_NO_WARNINGS = "stream/web";
 
 // Dependencies

@@ -23,7 +23,6 @@
     "@discordjs/voice": "^0.19.2",
     "@distube/ytdl-core": "^4.16.12",
     "discord.js": "^14.26.2",
-    "dotenv": "^17.4.1",
     "express": "^5.2.1",
     "ffmpeg-static": "^5.3.0",
     "fluent-ffmpeg": "^2.1.3",
