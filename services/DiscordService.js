@@ -1277,24 +1277,50 @@ Respond with ONLY "yes" or "no". Nothing else.`,
         // If the referenced message is not in the collection, because we process a random amount of messages (5-100) ...
         // ... then we need to fetch the message and check if it has an attachment that is an image ...
         // ... this is a fallback in case the referenced message is not in the recent messages ...
-        // ... along with bot messages
-        if (
-          cachedMessageReference &&
-          cachedMessageReference.attachments &&
-          cachedMessageReference.attachments.size > 0
-        ) {
-          const imageAttachment = cachedMessageReference.attachments.find(
-            (attachment) => {
-              return (
-                attachment.contentType &&
-                attachment.contentType.startsWith("image/")
-              );
-            },
-          );
-          if (imageAttachment) {
-            const imageUrl = imageAttachment.proxyURL || imageAttachment.url;
-            imageLabels.push("Replied-to message image");
-            imageUrls.push(imageUrl);
+        // ... along with bot messages (which are not stored in messagesImagesCollection)
+        if (cachedMessageReference) {
+          let foundImage = false;
+
+          // Check attachments first (user-uploaded images)
+          if (
+            cachedMessageReference.attachments &&
+            cachedMessageReference.attachments.size > 0
+          ) {
+            const imageAttachment = cachedMessageReference.attachments.find(
+              (attachment) => {
+                return (
+                  attachment.contentType &&
+                  attachment.contentType.startsWith("image/")
+                );
+              },
+            );
+            if (imageAttachment) {
+              const imageUrl = imageAttachment.proxyURL || imageAttachment.url;
+              imageLabels.push("Replied-to message image");
+              imageUrls.push(imageUrl);
+              foundImage = true;
+            }
+          }
+
+          // Check embeds for images (bot-generated images are sent via embeds)
+          if (
+            !foundImage &&
+            cachedMessageReference.embeds &&
+            cachedMessageReference.embeds.length > 0
+          ) {
+            for (const embed of cachedMessageReference.embeds) {
+              const embedImageUrl = embed.image?.proxyURL || embed.image?.url;
+              if (embedImageUrl) {
+                imageLabels.push("Replied-to message image (generated)");
+                imageUrls.push(embedImageUrl);
+                foundImage = true;
+                break; // Only take the first embed image
+              }
+            }
+          }
+
+          if (foundImage) {
+            console.log(`🖼️ [DiscordService] Captured reference image from replied-to message (${cachedMessageReference.author?.bot ? "bot" : "user"})`);
           }
         }
       }
