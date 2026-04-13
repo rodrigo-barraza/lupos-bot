@@ -8,8 +8,6 @@ import crypto from "crypto";
 import config from "#root/secrets.js";
 // Formatters
 import LogFormatter from "#root/formatters/LogFormatter.js";
-// Wrappers
-import ComfyUIService from "#root/services/ComfyUIService.js";
 // Libraries
 import utilities from "#root/utilities.js";
 // Services
@@ -192,21 +190,7 @@ const AIService = {
 
 
 
-    if (type === "LOCAL") {
-      try {
-        console.log(...LogFormatter.generateImageStart({ prompt }));
-        await ComfyUIService.checkComfyUIWebsocketStatus();
-        if (prompt) {
-          usedModel = "FLUX.1-dev";
-          generatedImage = await ComfyUIService.generateComfyUIImage(
-            prompt,
-            client,
-          );
-        }
-      } catch (error) {
-        console.error(...LogFormatter.error("generateImage", error));
-      }
-    } else if (type === "GOOGLE") {
+    if (type === "GOOGLE") {
       let hasError = false;
       try {
         const imageObjects = imageUrls.length

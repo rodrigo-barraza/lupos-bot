@@ -26,10 +26,6 @@ export default {
 	"DATABASE_URL": "",
 	"LOCAL_DATABASE_URL": "mongodb://192.168.86.2:27017/?directConnection=true&replicaSet=rs0",
 
-	// ─── ComfyUI ───────────────────────────────────────────────────
-	"COMFY_UI_IMAGE_MODEL_API_URL": "http://192.168.86.179:8188",
-	"COMFY_UI_IMAGE_MODEL_WEBSOCKET_URL": "ws://192.168.86.179:8188",
-
 	// ─── Service URLs ──────────────────────────────────────────────
 	"LIGHTS_URL": "http://localhost:4444",
 	"TOOLS_API_URL": "http://localhost:5590",

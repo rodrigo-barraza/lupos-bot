@@ -2,12 +2,6 @@ import { jest, describe, it, expect, beforeAll, afterAll } from "@jest/globals";
 
 // ── Mocks ────────────────────────────────────────────────────────────────────
 // Mock heavyweight dependencies that AIService transitively depends on
-jest.unstable_mockModule("../../services/ComfyUIService", () => ({
-  default: {
-    checkComfyUIWebsocketStatus: jest.fn(),
-    generateComfyUIImage: jest.fn(),
-  },
-}));
 jest.unstable_mockModule("../../services/MongoService", () => ({
   default: {
     getClient: jest.fn().mockReturnValue(null),

@@ -28,7 +28,6 @@ import ScraperService from "#root/services/ScraperService.js";
 import DiscordWrapper from "#root/wrappers/DiscordWrapper.js";
 import YouTubeService from "#root/services/YouTubeService.js";
 import LightsService from "#root/services/LightsService.js";
-// ComfyUIService removed — Lupos now uses the agent endpoint with generate_image tool
 import MongoService from "#root/services/MongoService.js";
 import PrismService from "#root/services/PrismService.js";
 import DiscordUtilityService from "#root/services/DiscordUtilityService.js";

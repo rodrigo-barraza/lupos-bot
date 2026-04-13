@@ -659,28 +659,7 @@ const LogFormatter = {
       state: oldState,
     });
   },
-  // COMFY UI
-  comfyUITimedOut(functionName) {
-    return LogFormatter.globalFormatter({
-      functionName,
-      logEmoji: "❌",
-      logName: `${styles.redBackground}COMFY UI TIMED OUT${styles.reset}`,
-    });
-  },
-  comfyUIDown(functionName) {
-    return LogFormatter.globalFormatter({
-      functionName,
-      logEmoji: "❌",
-      logName: `${styles.redBackground}COMFY UI DOWN${styles.reset}`,
-    });
-  },
-  comfyUIUp(functionName) {
-    return LogFormatter.globalFormatter({
-      functionName,
-      logEmoji: "✅",
-      logName: `${styles.yellowBackground}COMFY UI UP${styles.reset}`,
-    });
-  },
+
   luposInitializing() {
     const c = {
       cyan: '\x1b[36m',

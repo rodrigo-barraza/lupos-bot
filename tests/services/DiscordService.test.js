@@ -15,9 +15,6 @@ import {
 jest.unstable_mockModule("../../services/PuppeteerService", () => ({
   default: {},
 }));
-jest.unstable_mockModule("../../services/ComfyUIService", () => ({
-  default: {},
-}));
 jest.unstable_mockModule("../../services/MongoService", () => ({
   default: {},
 }));
