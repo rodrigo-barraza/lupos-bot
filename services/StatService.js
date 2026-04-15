@@ -15,6 +15,8 @@
  *   hunger.getName();        // "hunger"
  */
 
+import utilities from "#root/utilities.js";
+
 const StatService = {
   /**
    * Creates a new stat instance with clamped get/set/increase/decrease.
@@ -59,7 +61,7 @@ const StatService = {
       increase(multiplier = 1) {
         const amount = step * multiplier;
         level = clamp(level + amount);
-        const capitalized = name.charAt(0).toUpperCase() + name.slice(1);
+        const capitalized = utilities.capitalize(name);
         console.log(
           `${capitalized} level increased to: ${level}`,
         );
@@ -70,7 +72,7 @@ const StatService = {
       decrease(multiplier = 1) {
         const amount = step * multiplier;
         level = clamp(level - amount);
-        const capitalized = name.charAt(0).toUpperCase() + name.slice(1);
+        const capitalized = utilities.capitalize(name);
         console.log(
           `${capitalized} level decreased to: ${level}`,
         );

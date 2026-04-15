@@ -12,7 +12,6 @@ import LogFormatter from "./formatters/LogFormatter.js";
 // const MongoWrapper = require('./wrappers/MongoWrapper.js');
 
 import express from "express";
-import bodyParser from "body-parser";
 const app = express();
 import services from "./services/services.js";
 
@@ -40,8 +39,8 @@ function main() {
     // DISCORD REPORTING: LUPOS
 
     // API SERVER
-    app.use(bodyParser.json());
-    app.use(bodyParser.urlencoded({ extended: true }));
+    app.use(express.json());
+    app.use(express.urlencoded({ extended: true }));
     app.use((req, res, next) => {
       res.setHeader("Access-Control-Allow-Origin", "*");
       res.setHeader(

@@ -4,7 +4,7 @@ import utilities from "#root/utilities.js";
 const { consoleLog } = utilities;
 import config from "#root/secrets.js";
 import { Collection, ChannelType, Events, ActivityType } from "discord.js";
-import { MS_PER_DAY } from "#root/constants.js";
+import { MS_PER_DAY, MONGO_DB_NAME } from "#root/constants.js";
 import ScraperService from "#root/services/ScraperService.js";
 import LightsService from "#root/services/LightsService.js";
 import LogFormatter from "#root/formatters/LogFormatter.js";
@@ -707,7 +707,7 @@ const DiscordUtilityService = {
     let channelsProcessed = 0;
 
     // Get the collection reference
-    const db = mongo.db("lupos");
+    const db = mongo.db(MONGO_DB_NAME);
     const collection = db.collection(collectionName);
 
     // Helper function to bulk save messages that don't exist
@@ -955,7 +955,7 @@ const DiscordUtilityService = {
     };
   },
   async deleteDuplicateMessagesByID(mongo, collectionName = "Messages") {
-    const db = mongo.db("lupos");
+    const db = mongo.db(MONGO_DB_NAME);
     const collection = db.collection(collectionName);
 
     console.log("[START] Finding and deleting duplicate messages...");
@@ -1030,7 +1030,7 @@ const DiscordUtilityService = {
   //     await collection.insertOne(messageObject);
   // },
   async saveMessageToMongo(message, mongo, collectionName = "Messages") {
-    const db = mongo.db("lupos");
+    const db = mongo.db(MONGO_DB_NAME);
     const collection = db.collection(collectionName);
     const messageObject = transformMessageRoot(message);
 
@@ -1041,7 +1041,7 @@ const DiscordUtilityService = {
     );
   },
   async updateMessageInMongo(message, mongo, collectionName = "Messages") {
-    const db = mongo.db("lupos");
+    const db = mongo.db(MONGO_DB_NAME);
     const collection = db.collection(collectionName);
     const messageObject = transformMessageRoot(message);
 

@@ -58,6 +58,7 @@ import {
   EXPLOSION_GIFS,
   YOUTUBE_BUTTON_ACTIONS,
   MS_PER_DAY,
+  MONGO_DB_NAME,
 } from "#root/constants.js";
 import CensorService from "#root/services/CensorService.js";
 import { kickIfTooNew, kickIfForbiddenCombo, purgeByAccountAge } from "#root/services/AccountGuardService.js";
@@ -1881,7 +1882,7 @@ ${combinedGuildInformation && combinedChannelInformation ? `URL: ${utilities.get
   const models = CurrentService.getModels();
   const modelTypes = CurrentService.getModelTypes();
 
-  const db = localMongo.db("lupos");
+  const db = localMongo.db(MONGO_DB_NAME);
   const collection2 = db.collection("MetricsMessageGeneration");
   await collection2.insertOne({
     models: models.join(", "),
@@ -1921,7 +1922,7 @@ async function generateUserConversationAndHash(
     .update(userMessagesAsText)
     .digest("hex");
   // Check if we already have a conversation for this hash
-  const db = localMongo.db("lupos");
+  const db = localMongo.db(MONGO_DB_NAME);
   const collection = db.collection("UserConversationSummaries");
   const existingConversation = await collection.findOne({ hash });
   if (existingConversation) {
@@ -2951,7 +2952,6 @@ async function processMessage(
   message,
   actionType,
 ) {
-  const { _slowBlink, _bold, _faint } = utilities.ansiEscapeCodes(true);
   const isDirectMessage = message.channel.type === ChannelType.DM;
   const isSelfMessage = message.author.id === client.user.id;
   const isDirectMessageFromSelf = isDirectMessage && isSelfMessage;
@@ -3854,7 +3854,7 @@ async function luposOnPresenceUpdate(client, oldPresence, newPresence) {
       if (activity.type === 0) {
         activityName = activity.name;
 
-        const db = mongo.db("lupos");
+        const db = mongo.db(MONGO_DB_NAME);
         const collection = db.collection("GameActivity");
         const existingActivity = await collection.findOne({
           name: activity.name,
@@ -3911,7 +3911,7 @@ async function luposOnPresenceUpdate(client, oldPresence, newPresence) {
 
     if (isStreaming) {
       const threeHoursAgo = new Date(Date.now() - 3 * 60 * 60 * 1000);
-      const db = mongo.db("lupos");
+      const db = mongo.db(MONGO_DB_NAME);
       const streamersCollection = db.collection("ActiveStreamers");
 
       // Find and update or insert

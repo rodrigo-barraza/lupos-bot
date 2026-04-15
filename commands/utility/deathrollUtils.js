@@ -13,7 +13,7 @@ import {
 } from "discord.js";
 import MongoService from "#root/services/MongoService.js";
 import config from "#root/secrets.js";
-import { MS_PER_DAY } from "#root/constants.js";
+import { MS_PER_DAY, MONGO_DB_NAME } from "#root/constants.js";
 
 // ─── Constants ────────────────────────────────────────────────────────
 
@@ -249,7 +249,7 @@ function getMedal(index) {
 
 function getDeathrollCollections() {
   const localMongo = MongoService.getClient("local");
-  const db = localMongo.db("lupos");
+  const db = localMongo.db(MONGO_DB_NAME);
   return {
     statsCollection: db.collection("DeathRollUserStats"),
     gamesCollection: db.collection("DeathRollGameHistory"),

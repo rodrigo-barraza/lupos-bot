@@ -6,6 +6,7 @@ import crypto from "crypto";
 // import { DateTime } from 'luxon';
 // Config
 import config from "#root/secrets.js";
+import { MONGO_DB_NAME } from "#root/constants.js";
 // Formatters
 import LogFormatter from "#root/formatters/LogFormatter.js";
 // Libraries
@@ -350,7 +351,7 @@ const AIService = {
       type === "BANNER" ||
       type === "SMALL"
     ) {
-      const db = localMongo.db("lupos");
+      const db = localMongo.db(MONGO_DB_NAME);
       let collection;
       let prompt = `Describe this ${type.toLowerCase()}. Make no mention about the quality, resolution, or pixelation.`;
 
@@ -445,7 +446,7 @@ const AIService = {
   // Transcribe audio files from URLs and store data in MongoDB
   async transcribeAudioUrls(audioUrls, messageId, localMongo) {
     const transcriptionsMap = new Map();
-    const db = localMongo.db("lupos");
+    const db = localMongo.db(MONGO_DB_NAME);
     const collection = db.collection("AudioTranscriptions");
     let existingAudio;
     if (audioUrls?.length) {
@@ -495,7 +496,6 @@ const AIService = {
 
   // "mini-brains" for specific tasks
   async generateTextSummaryFromMessage(message, messageContent) {
-    let summary = "";
     const systemContent = `You are an expert at summarizing the text that is given to you in two to three words. Start with an emoji. Do not use any other formatting, just give the emoji and the two to three words.`;
     const conversation = assembleConversation(
       systemContent,
@@ -503,23 +503,12 @@ const AIService = {
       message,
     );
     const generatedText = await AIService.generateText({
-      conversation: conversation,
-      type: config.LANGUAGE_MODEL_TYPE,
+      conversation,
       modelPerformance: "POWERFUL",
-      tokens: config.LANGUAGE_MODEL_MAX_TOKENS,
-      temperature: config.LANGUAGE_MODEL_TEMPERATURE,
-      label: "🧠 Summary",
-      // model,
-      // localMongo,
-      // replyMessageStartTime,
-      // guildId,
-      // userId,
-      // userName,
     });
     if (!generatedText) return "";
     // trim generatedText to 128 characters
-    summary = generatedText.substring(0, 128);
-    return summary;
+    return generatedText.substring(0, 128);
   },
   async generateTextCustomEmojiReactFromMessage(message, localMongo) {
     const client = message.client;

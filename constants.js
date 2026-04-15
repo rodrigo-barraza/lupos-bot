@@ -10,4 +10,5 @@ export {
   EXPLOSION_GIFS,
   YOUTUBE_BUTTON_ACTIONS,
   ACCOUNT_AGE_THRESHOLD_MS,
+  MONGO_DB_NAME,
 } from "./constants/GameConstants.js";

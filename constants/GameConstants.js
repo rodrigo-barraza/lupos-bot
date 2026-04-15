@@ -65,3 +65,8 @@ export const MS_PER_DAY = 24 * 60 * 60 * 1000;
  * Account guard constants.
  */
 export const ACCOUNT_AGE_THRESHOLD_MS = 28 * MS_PER_DAY; // 4 weeks
+
+/**
+ * MongoDB database name.
+ */
+export const MONGO_DB_NAME = "lupos";

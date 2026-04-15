@@ -10,6 +10,7 @@
 // ============================================================
 
 import config from "#root/secrets.js";
+import utilities from "#root/utilities.js";
 
 const TOOLS_API_URL = config.TOOLS_API_URL || "http://localhost:5590";
 const SCRAPE_TIMEOUT_MS = 15_000;
@@ -22,32 +23,8 @@ const SCRAPE_TIMEOUT_MS = 15_000;
  */
 async function fetchMetadata(url) {
   const endpoint = `${TOOLS_API_URL}/utility/scrape/metadata?url=${encodeURIComponent(url)}`;
-
-  try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), SCRAPE_TIMEOUT_MS);
-
-    const response = await fetch(endpoint, {
-      signal: controller.signal,
-      headers: { Accept: "application/json" },
-    });
-
-    clearTimeout(timeout);
-
-    if (!response.ok) {
-      console.error(`[ScraperService] tools-api returned HTTP ${response.status} for ${url}`);
-      return {};
-    }
-
-    return await response.json();
-  } catch (error) {
-    if (error.name === "AbortError") {
-      console.error(`[ScraperService] Timeout scraping ${url}`);
-    } else {
-      console.error(`[ScraperService] Failed to scrape ${url}: ${error.message}`);
-    }
-    return {};
-  }
+  const result = await utilities.fetchWithTimeout(endpoint, SCRAPE_TIMEOUT_MS);
+  return result ?? {};
 }
 
 class ScraperService {

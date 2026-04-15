@@ -6,8 +6,7 @@ const PRODUCT_API_BASE_URL = config.PRODUCT_API_URL || "http://localhost:5560";
 const EVENT_API_BASE_URL = config.EVENT_API_URL || "http://localhost:5556";
 const WEATHER_API_BASE_URL = config.WEATHER_API_URL || "http://localhost:5555";
 
-const CACHE_TTL_MS = 1 * 60 * 1000; // 1 minutes
-const _FETCH_TIMEOUT_MS = 3000; // 3 seconds — default matches utilities.fetchWithTimeout
+const CACHE_TTL_MS = 1 * 60 * 1000; // 1 minute
 
 // ─── In-Memory Cache ───────────────────────────────────────────────
 
@@ -32,128 +31,71 @@ function isCacheValid(key) {
 
 const fetchWithTimeout = utilities.fetchWithTimeout;
 
+/**
+ * Generic cached-fetch helper.
+ * @param {string} cacheKey   - Key in the cache object
+ * @param {string} url        - URL to fetch
+ * @param {function} extract  - (data) => value | null — extracts the useful data from the response
+ * @param {function} [transform] - (extracted) => transformed — optional post-processing
+ */
+async function cachedFetch(cacheKey, url, extract, transform = null) {
+  if (isCacheValid(cacheKey)) return cache[cacheKey].data;
+  try {
+    const data = await fetchWithTimeout(url);
+    const extracted = extract(data);
+    if (extracted) {
+      const result = transform ? transform(extracted) : extracted;
+      cache[cacheKey] = { data: result, fetchedAt: Date.now() };
+      return result;
+    }
+  } catch {
+    // silently fail — return stale cache
+  }
+  return cache[cacheKey].data;
+}
+
 // ─── Individual Fetchers ───────────────────────────────────────────
 
-async function fetchTrends() {
-  if (isCacheValid("trends")) return cache.trends.data;
-  try {
-    const data = await fetchWithTimeout(
-      `${TREND_API_BASE_URL}/trends/top?limit=10`,
-    );
-    if (data?.trends?.length) {
-      cache.trends = { data: data.trends, fetchedAt: Date.now() };
-      return data.trends;
-    }
-  } catch {
-    // silently fail
-  }
-  return cache.trends.data;
+function fetchTrends() {
+  return cachedFetch("trends", `${TREND_API_BASE_URL}/trends/top?limit=10`, (d) => d?.trends?.length ? d.trends : null);
 }
 
-async function fetchProducts() {
-  if (isCacheValid("products")) return cache.products.data;
-  try {
-    const data = await fetchWithTimeout(
-      `${PRODUCT_API_BASE_URL}/products/trending?limit=5`,
-    );
-    if (data?.products?.length) {
-      cache.products = { data: data.products, fetchedAt: Date.now() };
-      return data.products;
-    }
-  } catch {
-    // silently fail
-  }
-  return cache.products.data;
+function fetchProducts() {
+  return cachedFetch("products", `${PRODUCT_API_BASE_URL}/products/trending?limit=5`, (d) => d?.products?.length ? d.products : null);
 }
 
-async function fetchEvents() {
-  if (isCacheValid("events")) return cache.events.data;
-  try {
-    const data = await fetchWithTimeout(`${EVENT_API_BASE_URL}/events/today`);
-    if (data?.events?.length) {
-      cache.events = { data: data.events, fetchedAt: Date.now() };
-      return data.events;
-    }
-  } catch {
-    // silently fail
-  }
-  return cache.events.data;
+function fetchEvents() {
+  return cachedFetch("events", `${EVENT_API_BASE_URL}/events/today`, (d) => d?.events?.length ? d.events : null);
 }
 
-async function fetchEarthquakes() {
-  if (isCacheValid("earthquakes")) return cache.earthquakes.data;
-  try {
-    const data = await fetchWithTimeout(`${WEATHER_API_BASE_URL}/earthquakes`);
-    if (Array.isArray(data) && data.length) {
-      // Filter to M1.0+ only
-      const significant = data.filter((q) => (q.magnitude || 0) >= 1.0);
-      cache.earthquakes = { data: significant, fetchedAt: Date.now() };
-      return significant;
-    }
-  } catch {
-    // silently fail
-  }
-  return cache.earthquakes.data;
+function fetchEarthquakes() {
+  return cachedFetch(
+    "earthquakes",
+    `${WEATHER_API_BASE_URL}/earthquakes`,
+    (d) => Array.isArray(d) && d.length ? d : null,
+    (quakes) => quakes.filter((q) => (q.magnitude || 0) >= 1.0),
+  );
 }
 
-async function fetchNeo() {
-  if (isCacheValid("neo")) return cache.neo.data;
-  try {
-    const data = await fetchWithTimeout(`${WEATHER_API_BASE_URL}/neo`);
-    if (Array.isArray(data) && data.length) {
-      cache.neo = { data, fetchedAt: Date.now() };
-      return data;
-    }
-  } catch {
-    // silently fail
-  }
-  return cache.neo.data;
+function fetchNeo() {
+  return cachedFetch("neo", `${WEATHER_API_BASE_URL}/neo`, (d) => Array.isArray(d) && d.length ? d : null);
 }
 
-async function fetchSpaceWeather() {
-  if (isCacheValid("spaceWeather")) return cache.spaceWeather.data;
-  try {
-    const data = await fetchWithTimeout(
-      `${WEATHER_API_BASE_URL}/space-weather`,
-    );
-    if (data) {
-      cache.spaceWeather = { data, fetchedAt: Date.now() };
-      return data;
-    }
-  } catch {
-    // silently fail
-  }
-  return cache.spaceWeather.data;
+function fetchSpaceWeather() {
+  return cachedFetch("spaceWeather", `${WEATHER_API_BASE_URL}/space-weather`, (d) => d || null);
 }
 
-async function fetchIss() {
-  if (isCacheValid("iss")) return cache.iss.data;
-  try {
-    const data = await fetchWithTimeout(`${WEATHER_API_BASE_URL}/iss`);
-    if (data) {
-      cache.iss = { data, fetchedAt: Date.now() };
-      return data;
-    }
-  } catch {
-    // silently fail
-  }
-  return cache.iss.data;
+function fetchIss() {
+  return cachedFetch("iss", `${WEATHER_API_BASE_URL}/iss`, (d) => d || null);
 }
 
-async function fetchWildfires() {
-  if (isCacheValid("wildfires")) return cache.wildfires.data;
-  try {
-    const data = await fetchWithTimeout(`${WEATHER_API_BASE_URL}/wildfires`);
-    if (data?.events?.length) {
-      // Filter to significant fires (>1000 acres)
-      const major = data.events.filter((f) => (f.magnitudeValue || 0) >= 1000);
-      cache.wildfires = { data: major, fetchedAt: Date.now() };
-      return major;
-    }
-  } catch {
-    // silently fail
-  }
-  return cache.wildfires.data;
+function fetchWildfires() {
+  return cachedFetch(
+    "wildfires",
+    `${WEATHER_API_BASE_URL}/wildfires`,
+    (d) => d?.events?.length ? d.events : null,
+    (fires) => fires.filter((f) => (f.magnitudeValue || 0) >= 1000),
+  );
 }
 
 // ─── Summary Formatters ────────────────────────────────────────────

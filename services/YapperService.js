@@ -1,6 +1,5 @@
 import AIService from "#root/services/AIService.js";
 import MoodService from "#root/services/MoodService.js";
-import config from "#root/secrets.js";
 
 let currentYappers = [];
 
@@ -34,10 +33,7 @@ const YapperService = {
     ];
     return await AIService.generateText({
       conversation,
-      type: config.LANGUAGE_MODEL_TYPE,
       modelPerformance: "POWERFUL",
-      tokens: config.LANGUAGE_MODEL_MAX_TOKENS,
-      temperature: config.LANGUAGE_MODEL_TEMPERATURE,
     });
   },
 };

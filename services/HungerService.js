@@ -25,10 +25,7 @@ async function instantiate(client) {
     ];
     const response = await AIService.generateText({
       conversation,
-      type: config.LANGUAGE_MODEL_TYPE,
       modelPerformance: "POWERFUL",
-      tokens: config.LANGUAGE_MODEL_MAX_TOKENS,
-      temperature: config.LANGUAGE_MODEL_TEMPERATURE,
     });
     if (response) {
       await channel.send(response);

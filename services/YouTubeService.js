@@ -33,7 +33,6 @@ let volumeLevel = 5;
 const statusStymbol = "▶";
 let currentMessage = null; // Track the current message being processed
 
-const formatTime = utilities.formatPlaybackTime;
 
 // Add these variables at the top with your other variables
 const recordingStreams = new Map();
@@ -1066,7 +1065,7 @@ ${formatted} ${dividingLine} ${currentVideo.durationRaw}
     const totalDuration = player.state.resource.metadata.duration;
 
     message.reply(
-      `Current time: ${formatTime(currentTime)} / ${formatTime(totalDuration)}`,
+      `Current time: ${utilities.formatPlaybackTime(currentTime)} / ${utilities.formatPlaybackTime(totalDuration)}`,
     );
   }
 }

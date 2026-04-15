@@ -1,5 +1,6 @@
 import DiscordUtilityService from "#root/services/DiscordUtilityService.js";
 import utilities from "#root/utilities.js";
+import { MONGO_DB_NAME } from "#root/constants.js";
 const { consoleLog } = utilities;
 
 let previousTopAuthorId;
@@ -158,7 +159,7 @@ async function assignActivityRoles({
       await topAuthorMember.roles.add(topAuthorRole);
       previousTopAuthorId = topAuthor.authorId;
       // log in database
-      const db = mongo.db("lupos");
+      const db = mongo.db(MONGO_DB_NAME);
       const collection = db.collection("ActivityRoles");
       await collection.insertOne({
         userId: topAuthor.authorId,
@@ -198,7 +199,7 @@ async function assignActivityRoles({
       await topReactorMember.roles.add(topReactorRole);
       previousTopReactorId = topReactor.userId;
       // log in database
-      const db = mongo.db("lupos");
+      const db = mongo.db(MONGO_DB_NAME);
       const collection = db.collection("ActivityRoles");
       await collection.insertOne({
         userId: topReactor.userId,
