@@ -655,6 +655,7 @@ const DiscordUtilityService = {
       resumePoints = null, // Array of { channelId, lastMessageId }
       batchSize = 100, // Number of messages to process in each bulk operation
       dateLimit = "2025-11-01", // e.g., '2020-06-15' or new Date(2020, 5, 15) - stops fetching when messages are older than this date
+      categoryIds = null, // Array of category (parent) IDs to limit which channels are processed
     } = options;
 
     console.log(`[START] Beginning message fetch for guild: ${guildId}`);
@@ -685,6 +686,16 @@ const DiscordUtilityService = {
     let textChannels = guild.channels.cache.filter(
       (channel) => channel.type === ChannelType.GuildText,
     );
+
+    // Filter by category IDs if provided
+    if (categoryIds && Array.isArray(categoryIds) && categoryIds.length > 0) {
+      textChannels = textChannels.filter(
+        (channel) => channel.parentId && categoryIds.includes(channel.parentId),
+      );
+      console.log(
+        `[CATEGORIES] Filtering to ${categoryIds.length} category/ies — ${textChannels.size} channel(s) matched`,
+      );
+    }
 
     // If resumePoints provided, optionally filter to only those channels
     if (resumeMap.size > 0) {

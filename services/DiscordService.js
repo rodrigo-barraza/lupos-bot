@@ -2890,7 +2890,14 @@ async function luposOnReadyCloneMessages(client, { localMongo }) {
     client,
     localMongo,
     config.GUILD_ID_PRIMARY,
-    { dateLimit: "2026-01-16" },
+    {
+      dateLimit: "2026-01-16",
+      categoryIds: [
+        "610924121311674415",
+        "610921893071028408",
+        "609652454375555082",
+      ],
+    },
   );
 }
 
