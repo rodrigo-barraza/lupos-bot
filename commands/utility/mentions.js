@@ -1,5 +1,11 @@
 import { SlashCommandBuilder, EmbedBuilder } from "discord.js";
-import MongoService from "#root/services/MongoService.js";
+import {
+  getMongoDb,
+  getServerAgeYears,
+  computeStartDate,
+  formatTimePeriod,
+  getMedal,
+} from "./commandUtils.js";
 
 export default {
   data: new SlashCommandBuilder()
@@ -43,15 +49,8 @@ export default {
     ),
 
   async execute(interaction) {
-    const localMongo = MongoService.getClient("local");
-    const db = localMongo.db("lupos");
+    const db = getMongoDb();
     const messagesCollection = db.collection("Messages");
-
-    const serverAgeInDays = Math.floor(
-      (Date.now() - interaction.guild.createdTimestamp) / (1000 * 60 * 60 * 24),
-    );
-    const _serverAgeInMonths = Math.floor(serverAgeInDays / 30);
-    const serverAgeInYears = Math.floor(serverAgeInDays / 365);
 
     await interaction.deferReply();
 
@@ -63,16 +62,11 @@ export default {
     const channel = interaction.options.getChannel("channel");
 
     if (years === 0 && months === 0 && days === 0) {
-      years = serverAgeInYears;
+      years = getServerAgeYears(interaction.guild);
     }
 
-    // Calculate start date
     const now = new Date();
-    const startDate = new Date();
-    startDate.setFullYear(startDate.getFullYear() - years);
-    startDate.setMonth(startDate.getMonth() - months);
-    startDate.setDate(startDate.getDate() - days);
-    const unixStartDate = Math.floor(startDate.getTime());
+    const { startDate, unixStartDate } = computeStartDate(years, months, days);
 
     // Build match query
     const match = {
@@ -151,7 +145,7 @@ export default {
         uniqueMentioners: 0,
       };
 
-      const description = `**User:** ${targetUser.toString()}\n**Time Period:** ${formatTimePeriod(years, months, days)}\n**Channel:** ${channel ? channel.toString() : "All Channels"}\n**Total Mentions:** ${stats.totalMentions}\n\n`;
+      const description = `**User:** ${targetUser.toString()}\n**Time Period:** ${formatTimePeriod(years, months, days, "Last 30 days (default)")}\n**Channel:** ${channel ? channel.toString() : "All Channels"}\n**Total Mentions:** ${stats.totalMentions}\n\n`;
 
       // Create embed
       const embed = new EmbedBuilder()
@@ -207,32 +201,3 @@ export default {
     }
   },
 };
-
-// Helper function to format time period
-function formatTimePeriod(years, months, days) {
-  const parts = [];
-  if (years > 0) parts.push(`${years} year${years !== 1 ? "s" : ""}`);
-  if (months > 0) parts.push(`${months} month${months !== 1 ? "s" : ""}`);
-  if (days > 0) parts.push(`${days} day${days !== 1 ? "s" : ""}`);
-
-  if (parts.length === 0) return "Last 30 days (default)";
-  return "Last " + parts.join(", ");
-}
-
-// Helper function to get medal emoji for top 5
-function getMedal(index) {
-  switch (index) {
-    case 0:
-      return "🥇";
-    case 1:
-      return "🥈";
-    case 2:
-      return "🥉";
-    case 3:
-      return "🏅";
-    case 4:
-      return "🏅";
-    default:
-      return "  ";
-  }
-}

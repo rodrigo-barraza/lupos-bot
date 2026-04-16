@@ -1,5 +1,5 @@
 import { SlashCommandBuilder, PermissionFlagsBits } from "discord.js";
-import MongoService from "#root/services/MongoService.js";
+import { getMongoDb } from "./commandUtils.js";
 
 // How many votes needed to trigger timeout
 const VOTES_REQUIRED = 3;
@@ -21,8 +21,8 @@ const multiHitMoves = {
   "SCALE SHOT": "🐉",
   "BONE RUSH": "🦴",
   "WATER SHURIKEN": "💧",
-  "ARM THRUST": "🤜", // MISSING
-  "COMET PUNCH": "☄️", // MISSING
+  "ARM THRUST": "🤜",
+  "COMET PUNCH": "☄️",
 
   // 2 hits
   "DOUBLE KICK": "👟",
@@ -32,7 +32,7 @@ const multiHitMoves = {
   "DOUBLE HIT": "💥",
   "DUAL WINGBEAT": "🦅",
   "GEAR GRIND": "⚙️",
-  "DOUBLE IRON BASH": "🔨", // MISSING
+  "DOUBLE IRON BASH": "🔨",
 
   // 3 hits
   "TRIPLE AXEL": "⛸️",
@@ -113,8 +113,7 @@ export default {
     await interaction.deferReply();
 
     try {
-      const localMongo = MongoService.getClient("local");
-      const db = localMongo.db("lupos");
+      const db = getMongoDb();
       const beatupVotesCollection = db.collection("BeatUpGameVotes");
       const beatupCooldownsCollection = db.collection("BeatUpGameCooldowns");
 

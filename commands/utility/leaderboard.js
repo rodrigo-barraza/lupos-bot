@@ -1,5 +1,5 @@
 import { SlashCommandBuilder, EmbedBuilder } from "discord.js";
-import MongoService from "#root/services/MongoService.js";
+import { getMongoDb, formatTimePeriod, getMedal } from "./commandUtils.js";
 
 export default {
   data: new SlashCommandBuilder()
@@ -37,8 +37,7 @@ export default {
     ),
 
   async execute(interaction) {
-    const localMongo = MongoService.getClient("local");
-    const db = localMongo.db("lupos");
+    const db = getMongoDb();
     const messagesCollection = db.collection("Messages");
 
     await interaction.deferReply();
@@ -135,7 +134,7 @@ export default {
       const sortedUsers = result.userStats || [];
       const stats = result.allUserStats[0] || { totalUsers: 0, avgMessages: 0 };
 
-      const description = `**Time Period:** ${formatTimePeriod(years, months, days)}\n**Channel:** ${channel ? channel.toString() : "All Channels"}\n**Total Messages:** ${totalMessages}\n\n`;
+      const description = `**Time Period:** ${formatTimePeriod(years, months, days, "Last 7 days (default)")}\n**Channel:** ${channel ? channel.toString() : "All Channels"}\n**Total Messages:** ${totalMessages}\n\n`;
 
       // Create embed
       const embed = new EmbedBuilder()
@@ -182,28 +181,3 @@ export default {
     }
   },
 };
-
-// Helper function to format time period
-function formatTimePeriod(years, months, days) {
-  const parts = [];
-  if (years > 0) parts.push(`${years} year${years !== 1 ? "s" : ""}`);
-  if (months > 0) parts.push(`${months} month${months !== 1 ? "s" : ""}`);
-  if (days > 0) parts.push(`${days} day${days !== 1 ? "s" : ""}`);
-
-  if (parts.length === 0) return "Last 7 days (default)";
-  return "Last " + parts.join(", ");
-}
-
-// Helper function to get medal emoji for top 3
-function getMedal(index) {
-  switch (index) {
-    case 0:
-      return "🥇";
-    case 1:
-      return "🥈";
-    case 2:
-      return "🥉";
-    default:
-      return "  ";
-  }
-}

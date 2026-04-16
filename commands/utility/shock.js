@@ -1,5 +1,5 @@
 import { SlashCommandBuilder, PermissionFlagsBits } from "discord.js";
-import MongoService from "#root/services/MongoService.js";
+import { getMongoDb } from "./commandUtils.js";
 
 // Store cooldowns in memory (userId -> timestamp)
 const cooldowns = new Map();
@@ -116,7 +116,7 @@ export default {
         });
       }
 
-      // Fetch last 100 messages from the channel
+      // Fetch last 25 messages from the channel
       const messages = await interaction.channel.messages.fetch({ limit: 25 });
 
       // Get unique users from messages (exclude bots)
@@ -208,11 +208,10 @@ export default {
       );
 
       // Save shock to MongoDB and get updated count
-      const localMongo = MongoService.getClient("local");
-      const db = localMongo.db("lupos");
+      const db = getMongoDb();
       const shocksCollection = db.collection("ShockGameStatistics");
 
-      const result = await shocksCollection.findOneAndUpdate(
+      await shocksCollection.findOneAndUpdate(
         {
           userId: randomMember.user.id,
           guildId: interaction.guildId,
@@ -241,8 +240,6 @@ export default {
         },
       );
 
-      const _shockCount = result.shockCount;
-
       // Format message differently for self-shock (like confusion self-damage)
       let battleMessage;
 
@@ -261,9 +258,6 @@ export default {
           `The wild **${randomMember.user}** is paralyzed**!**\n` +
           `It can't move for the next ${timeoutSeconds} second${timeoutSeconds !== 1 ? "s" : ""}**!**\n\n`;
       }
-
-      // Add power and accuracy info
-      // battleMessage += `-# *Move Power: ${moveData.power} | Accuracy: ${moveData.accuracy}%*`;
 
       await interaction.editReply({
         content: battleMessage,

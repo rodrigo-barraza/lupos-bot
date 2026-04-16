@@ -1,4 +1,3 @@
-// roll from 0 to 100 with the option to specify a range
 import { SlashCommandBuilder } from "discord.js";
 
 export default {
@@ -20,7 +19,6 @@ export default {
         .setMinValue(1),
     ),
   async execute(interaction) {
-    console.log("interaction", interaction);
     const min = interaction.options.getInteger("min") ?? 0;
     const max = interaction.options.getInteger("max") ?? 100;
 

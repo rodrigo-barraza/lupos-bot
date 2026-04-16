@@ -5,7 +5,13 @@ import {
   ButtonBuilder,
   ButtonStyle,
 } from "discord.js";
-import MongoService from "#root/services/MongoService.js";
+import {
+  getMongoDb,
+  getServerAgeYears,
+  computeStartDate,
+  formatTimePeriod,
+  shuffleArray,
+} from "./commandUtils.js";
 
 export default {
   data: new SlashCommandBuilder()
@@ -45,16 +51,9 @@ export default {
     ),
 
   async execute(interaction) {
-    const localMongo = MongoService.getClient("local");
-    const db = localMongo.db("lupos");
+    const db = getMongoDb();
     const messagesCollection = db.collection("Messages");
     const scoresCollection = db.collection("GuessWhoGameScore");
-
-    const serverAgeInDays = Math.floor(
-      (Date.now() - interaction.guild.createdTimestamp) / (1000 * 60 * 60 * 24),
-    );
-    const _serverAgeInMonths = Math.floor(serverAgeInDays / 30);
-    const serverAgeInYears = Math.floor(serverAgeInDays / 365);
 
     await interaction.deferReply();
 
@@ -67,16 +66,10 @@ export default {
     const minLength = interaction.options.getInteger("min_length") || 20;
 
     if (years === 0 && months === 0 && days === 0) {
-      years = serverAgeInYears;
+      years = getServerAgeYears(interaction.guild);
     }
 
-    // Calculate start date
-    const _now = new Date();
-    const startDate = new Date();
-    startDate.setFullYear(startDate.getFullYear() - years);
-    startDate.setMonth(startDate.getMonth() - months);
-    startDate.setDate(startDate.getDate() - days);
-    const unixStartDate = Math.floor(startDate.getTime());
+    const { unixStartDate } = computeStartDate(years, months, days);
 
     const match = {
       createdTimestamp: { $gte: unixStartDate },
@@ -204,7 +197,7 @@ export default {
           .setDescription(`**Guess who said this:**\n\n> ${displayContent}`)
           .setColor(0x5865f2)
           .setFooter({
-            text: `Message from ${new Date(message.createdTimestamp).toLocaleDateString()} • Time period: ${formatTimePeriod(years, months, days)}`,
+            text: `Message from ${new Date(message.createdTimestamp).toLocaleDateString()} • Time period: ${formatTimePeriod(years, months, days, "Last year (default)")}`,
           });
 
         if (channel) {
@@ -220,7 +213,7 @@ export default {
 
       // Create buttons
       const row = new ActionRowBuilder().addComponents(
-        allOptions.map((option, _index) =>
+        allOptions.map((option) =>
           new ButtonBuilder()
             .setCustomId(`whosthat_${option.userId}_${option.isCorrect}`)
             .setLabel(option.displayName)
@@ -324,7 +317,7 @@ export default {
 
         // Disable all buttons
         const disabledRow = new ActionRowBuilder().addComponents(
-          allOptions.map((option, _index) => {
+          allOptions.map((option) => {
             const button = new ButtonBuilder()
               .setCustomId(
                 `whosthat_${option.userId}_${option.isCorrect}_disabled`,
@@ -359,7 +352,7 @@ export default {
           .setDescription(`**Guess who said this:**\n\n> ${displayContent}`)
           .setColor(reason === "correct_answer" ? 0x57f287 : 0xed4245)
           .setFooter({
-            text: `Message from ${new Date(message.createdTimestamp).toLocaleDateString()} • Time period: ${formatTimePeriod(years, months, days)}`,
+            text: `Message from ${new Date(message.createdTimestamp).toLocaleDateString()} • Time period: ${formatTimePeriod(years, months, days, "Last year (default)")}`,
           });
 
         if (channel) {
@@ -433,22 +426,3 @@ export default {
     }
   },
 };
-
-// Helper function to format time period
-function formatTimePeriod(years, months, days) {
-  const parts = [];
-  if (years > 0) parts.push(`${years} year${years !== 1 ? "s" : ""}`);
-  if (months > 0) parts.push(`${months} month${months !== 1 ? "s" : ""}`);
-  if (days > 0) parts.push(`${days} day${days !== 1 ? "s" : ""}`);
-
-  if (parts.length === 0) return "Last year (default)";
-  return "Last " + parts.join(", ");
-}
-
-// Fisher-Yates shuffle
-function shuffleArray(array) {
-  for (let i = array.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [array[i], array[j]] = [array[j], array[i]];
-  }
-}

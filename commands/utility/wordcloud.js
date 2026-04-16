@@ -1,105 +1,26 @@
 import { SlashCommandBuilder, AttachmentBuilder } from "discord.js";
-import MongoService from "#root/services/MongoService.js";
 import puppeteer from "puppeteer";
+import {
+  getMongoDb,
+  getServerAgeYears,
+  computeStartDate,
+  formatTimePeriod,
+  getPuppeteerOptions,
+} from "./commandUtils.js";
 
 // Common stop words to filter out
 const STOP_WORDS = new Set([
-  "the",
-  "be",
-  "to",
-  "of",
-  "and",
-  "a",
-  "in",
-  "that",
-  "have",
-  "i",
-  "it",
-  "for",
-  "not",
-  "on",
-  "with",
-  "he",
-  "as",
-  "you",
-  "do",
-  "at",
-  "this",
-  "but",
-  "his",
-  "by",
-  "from",
-  "they",
-  "we",
-  "say",
-  "her",
-  "she",
-  "or",
-  "an",
-  "will",
-  "my",
-  "one",
-  "all",
-  "would",
-  "there",
-  "their",
-  "what",
-  "so",
-  "up",
-  "out",
-  "if",
-  "about",
-  "who",
-  "get",
-  "which",
-  "go",
-  "me",
-  "when",
-  "make",
-  "can",
-  "like",
-  "time",
-  "no",
-  "just",
-  "him",
-  "know",
-  "take",
-  "into",
-  "year",
-  "your",
-  "some",
-  "could",
-  "them",
-  "than",
-  "then",
-  "now",
-  "only",
-  "its",
-  "also",
-  "back",
-  "after",
-  "use",
-  "how",
-  "our",
-  "even",
-  "want",
-  "any",
-  "these",
-  "give",
-  "most",
-  "us",
-  "is",
-  "was",
-  "are",
-  "been",
-  "has",
-  "had",
-  "were",
-  "did",
-  "am",
-  "im",
-  "youre",
-  "dont",
+  "the", "be", "to", "of", "and", "a", "in", "that", "have", "i",
+  "it", "for", "not", "on", "with", "he", "as", "you", "do", "at",
+  "this", "but", "his", "by", "from", "they", "we", "say", "her",
+  "she", "or", "an", "will", "my", "one", "all", "would", "there",
+  "their", "what", "so", "up", "out", "if", "about", "who", "get",
+  "which", "go", "me", "when", "make", "can", "like", "time", "no",
+  "just", "him", "know", "take", "into", "year", "your", "some",
+  "could", "them", "than", "then", "now", "only", "its", "also",
+  "back", "after", "use", "how", "our", "even", "want", "any",
+  "these", "give", "most", "us", "is", "was", "are", "been", "has",
+  "had", "were", "did", "am", "im", "youre", "dont",
 ]);
 
 export default {
@@ -112,12 +33,6 @@ export default {
         .setDescription("The user to generate word cloud for")
         .setRequired(true),
     )
-    // .addIntegerOption(option =>
-    //     option.setName('limit')
-    //         .setDescription('Number of words to include (default: 100)')
-    //         .setRequired(false)
-    //         .setMinValue(10)
-    //         .setMaxValue(200))
     .addIntegerOption((option) =>
       option
         .setName("years")
@@ -144,38 +59,25 @@ export default {
     ),
 
   async execute(interaction) {
-    const localMongo = MongoService.getClient("local");
-    const db = localMongo.db("lupos");
+    const db = getMongoDb();
     const messagesCollection = db.collection("Messages");
-
-    const serverAgeInDays = Math.floor(
-      (Date.now() - interaction.guild.createdTimestamp) / (1000 * 60 * 60 * 24),
-    );
-    const _serverAgeInMonths = Math.floor(serverAgeInDays / 30);
-    const serverAgeInYears = Math.floor(serverAgeInDays / 365);
 
     await interaction.deferReply();
 
     const user = interaction.options.getUser("user");
-    const limit = interaction.options.getInteger("limit") || 150;
+    const limit = 150;
     let years = interaction.options.getInteger("years") || 0;
     const months = interaction.options.getInteger("months") || 0;
     const days = interaction.options.getInteger("days") || 0;
 
     if (years === 0 && months === 0 && days === 0) {
-      years = serverAgeInYears;
+      years = getServerAgeYears(interaction.guild);
     }
 
-    // Calculate start date
-    const startDate = new Date();
+    const { startDate, unixStartDate } = computeStartDate(years, months, days);
     const endDate = new Date();
-    startDate.setFullYear(startDate.getFullYear() - years);
-    startDate.setMonth(startDate.getMonth() - months);
-    startDate.setDate(startDate.getDate() - days);
-    const unixStartDate = Math.floor(startDate.getTime());
 
     try {
-      const _displayName = user.globalName || user.username;
       const formattedStartDate = startDate.toLocaleDateString("en-US", {
         month: "long",
         day: "numeric",
@@ -191,7 +93,6 @@ export default {
       const messages = await messagesCollection
         .find({
           "author.id": user.id,
-          // 'author.bot': { $ne: true },
           createdTimestamp: { $gte: unixStartDate },
         })
         .toArray();
@@ -214,7 +115,7 @@ export default {
       }
 
       // Generate word cloud image
-      const imageBuffer = await generateWordCloudImage(wordFreq, user.username);
+      const imageBuffer = await generateWordCloudImage(wordFreq);
 
       // Create attachment
       const attachment = new AttachmentBuilder(imageBuffer, {
@@ -222,7 +123,7 @@ export default {
       });
 
       await interaction.editReply({
-        content: `**Word Cloud for <@${user.id}>**\nBased on ${messages.length} messages from the last ${formatTimePeriod(years, months, days)} (From ${formattedStartDate} to ${formattedEndDate})`,
+        content: `**Word Cloud for <@${user.id}>**\nBased on ${messages.length} messages from the last ${formatTimePeriod(years, months, days, "1 year (default)")} (From ${formattedStartDate} to ${formattedEndDate})`,
         files: [attachment],
       });
     } catch (error) {
@@ -275,29 +176,19 @@ function processWords(messages, limit) {
 }
 
 // Generate word cloud image using Puppeteer
-async function generateWordCloudImage(words, username) {
-  let puppeteerOptions;
-  if (process.platform === "win32") {
-    puppeteerOptions = { headless: true };
-  } else {
-    puppeteerOptions = {
-      headless: true,
-      executablePath: "/usr/bin/chromium-browser",
-      args: ["--no-sandbox"],
-    };
-  }
-  const browser = await puppeteer.launch(puppeteerOptions);
+async function generateWordCloudImage(words) {
+  const browser = await puppeteer.launch(getPuppeteerOptions());
 
   try {
     const page = await browser.newPage();
     await page.setViewport({ width: 1200, height: 800 });
 
     // Create HTML content with word cloud
-    const html = generateWordCloudHTML(words, username);
+    const html = generateWordCloudHTML(words);
 
     await page.setContent(html, { waitUntil: "networkidle0" });
 
-    // Wait a bit for any animations/layout to settle
+    // Wait for layout to settle
     await new Promise((resolve) => setTimeout(resolve, 500));
 
     // Take screenshot
@@ -313,7 +204,7 @@ async function generateWordCloudImage(words, username) {
 }
 
 // Generate HTML with word cloud using d3-cloud
-function generateWordCloudHTML(words, _username) {
+function generateWordCloudHTML(words) {
   const wordsJson = JSON.stringify(words);
 
   return `
@@ -394,15 +285,4 @@ function generateWordCloudHTML(words, _username) {
 </body>
 </html>
     `;
-}
-
-// Helper function to format time period
-function formatTimePeriod(years, months, days) {
-  const parts = [];
-  if (years > 0) parts.push(`${years} year${years !== 1 ? "s" : ""}`);
-  if (months > 0) parts.push(`${months} month${months !== 1 ? "s" : ""}`);
-  if (days > 0) parts.push(`${days} day${days !== 1 ? "s" : ""}`);
-
-  if (parts.length === 0) return "1 year (default)";
-  return parts.join(", ");
 }
