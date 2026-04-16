@@ -70,69 +70,29 @@ export default {
     }
 
     try {
-      // Use aggregation pipeline for efficiency
-      const [result] = await messagesCollection
-        .aggregate([
-          // Match messages in channel and time period
-          {
-            $match: match,
-          },
-          {
-            $facet: {
-              // Get total message count (including bots)
-              totalCount: [{ $count: "total" }],
-              // Get user statistics (non-bots only)
-              userStats: [
-                {
-                  $match: {
-                    "author.bot": { $ne: true },
-                  },
-                },
-                {
-                  $group: {
-                    _id: "$author.id",
-                    username: { $first: "$author.username" },
-                    avatar: { $first: "$author.defaultAvatarURL" },
-                    count: { $sum: 1 },
-                  },
-                },
-                {
-                  $sort: { count: -1 },
-                },
-                {
-                  $limit: 10,
-                },
-              ],
-              // Get overall statistics
-              allUserStats: [
-                {
-                  $match: {
-                    "author.bot": { $ne: true },
-                  },
-                },
-                {
-                  $group: {
-                    _id: "$author.id",
-                    count: { $sum: 1 },
-                  },
-                },
-                {
-                  $group: {
-                    _id: null,
-                    totalUsers: { $sum: 1 },
-                    totalMessages: { $sum: "$count" },
-                    avgMessages: { $avg: "$count" },
-                  },
-                },
-              ],
+      // Run total count (including bots) and user grouping in parallel.
+      // The user pipeline does a single pass: filter bots → group → sort.
+      const [totalMessages, allUsers] = await Promise.all([
+        messagesCollection.countDocuments(match),
+        messagesCollection
+          .aggregate([
+            { $match: { ...match, "author.bot": { $ne: true } } },
+            {
+              $group: {
+                _id: "$author.id",
+                username: { $first: "$author.username" },
+                count: { $sum: 1 },
+              },
             },
-          },
-        ])
-        .toArray();
+            { $sort: { count: -1 } },
+          ])
+          .toArray(),
+      ]);
 
-      const totalMessages = result.totalCount[0]?.total || 0;
-      const sortedUsers = result.userStats || [];
-      const stats = result.allUserStats[0] || { totalUsers: 0, avgMessages: 0 };
+      const sortedUsers = allUsers.slice(0, 10);
+      const totalUsers = allUsers.length;
+      const totalUserMessages = allUsers.reduce((s, u) => s + u.count, 0);
+      const avgMessages = totalUsers > 0 ? totalUserMessages / totalUsers : 0;
 
       const description = `**Time Period:** ${formatTimePeriod(years, months, days, "Last 7 days (default)")}\n**Channel:** ${channel ? channel.toString() : "All Channels"}\n**Total Messages:** ${totalMessages}\n\n`;
 
@@ -167,7 +127,7 @@ export default {
 
         embed.addFields({
           name: "📈 Statistics",
-          value: `**Active Users:** ${stats.totalUsers}\n**Average Messages/User:** ${stats.avgMessages.toFixed(1)}`,
+          value: `**Active Users:** ${totalUsers}\n**Average Messages/User:** ${avgMessages.toFixed(1)}`,
         });
       }
 
