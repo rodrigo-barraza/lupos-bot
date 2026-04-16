@@ -3,8 +3,13 @@ import {
   AttachmentBuilder,
   EmbedBuilder,
 } from "discord.js";
-import MongoService from "#root/services/MongoService.js";
 import puppeteer from "puppeteer";
+import {
+  getMongoDb,
+  getServerAgeYears,
+  computeStartDate,
+  getPuppeteerOptions,
+} from "./commandUtils.js";
 
 export default {
   data: new SlashCommandBuilder()
@@ -48,15 +53,8 @@ export default {
     ),
 
   async execute(interaction) {
-    const localMongo = MongoService.getClient("local");
-    const db = localMongo.db("lupos");
+    const db = getMongoDb();
     const messagesCollection = db.collection("Messages");
-
-    const serverAgeInDays = Math.floor(
-      (Date.now() - interaction.guild.createdTimestamp) / (1000 * 60 * 60 * 24),
-    );
-    const _serverAgeInMonths = Math.floor(serverAgeInDays / 30);
-    const serverAgeInYears = Math.floor(serverAgeInDays / 365);
 
     await interaction.deferReply();
 
@@ -68,16 +66,11 @@ export default {
     const days = interaction.options.getInteger("days") || 0;
 
     if (years === 0 && months === 0 && days === 0) {
-      years = serverAgeInYears + 1;
+      years = getServerAgeYears(interaction.guild) + 1;
     }
 
-    // Calculate start date
     const now = new Date();
-    const startDate = new Date();
-    startDate.setFullYear(startDate.getFullYear() - years);
-    startDate.setMonth(startDate.getMonth() - months);
-    startDate.setDate(startDate.getDate() - days);
-    const unixStartDate = Math.floor(startDate.getTime());
+    const { startDate, unixStartDate } = computeStartDate(years, months, days);
 
     // Calculate actual days in the period
     const actualDays = Math.ceil(
@@ -246,11 +239,11 @@ export default {
       // Process monthly data
       const yearSet = new Set();
       monthlyMessages.forEach((msg) => yearSet.add(msg.year));
-      const years = Array.from(yearSet).sort();
+      const uniqueYears = Array.from(yearSet).sort();
 
       // Create year x month grid (dynamic years x 12 months)
       const monthlyHeatmapData = [];
-      years.forEach((year) => {
+      uniqueYears.forEach((year) => {
         const yearData = Array(12).fill(0);
         monthlyMessages.forEach((msg) => {
           if (msg.year === year) {
@@ -276,7 +269,6 @@ export default {
         maxCount,
         monthlyHeatmapData,
         maxMonthlyCount,
-        user.username,
       );
 
       // Create attachment
@@ -350,27 +342,12 @@ async function generateHeatmapImage(
   maxHourlyCount,
   monthlyData,
   maxMonthlyCount,
-  username,
 ) {
-  let puppeteerOptions;
-  if (process.platform === "win32") {
-    puppeteerOptions = { headless: true };
-  } else {
-    puppeteerOptions = {
-      headless: true,
-      executablePath: "/usr/bin/chromium-browser",
-      args: ["--no-sandbox"],
-    };
-  }
-
-  const browser = await puppeteer.launch(puppeteerOptions);
+  const browser = await puppeteer.launch(getPuppeteerOptions());
 
   try {
     const page = await browser.newPage();
-    // Increased height to accommodate both heatmaps
-    // await page.setViewport({ width: 1600, height: 1100 });
-    // In generateHeatmapImage function, calculate dynamic height
-    const estimatedHeight = 800 + monthlyData.length * 40; // Base height + monthly rows
+    const estimatedHeight = 800 + monthlyData.length * 40;
     await page.setViewport({
       width: 1600,
       height: Math.max(1100, estimatedHeight),
@@ -382,7 +359,6 @@ async function generateHeatmapImage(
       maxHourlyCount,
       monthlyData,
       maxMonthlyCount,
-      username,
     );
 
     await page.setContent(html, { waitUntil: "networkidle0" });
@@ -409,7 +385,6 @@ function generateHeatmapHTML(
   maxHourlyCount,
   monthlyData,
   maxMonthlyCount,
-  _username,
 ) {
   const hourlyDataJson = JSON.stringify(hourlyData);
   const monthlyDataJson = JSON.stringify(monthlyData);
@@ -754,17 +729,18 @@ function generateHeatmapHTML(
 }
 
 // Helper functions
+const DAYS = [
+  "Monday",
+  "Tuesday",
+  "Wednesday",
+  "Thursday",
+  "Friday",
+  "Saturday",
+  "Sunday",
+];
+
 function getDayName(dayIndex) {
-  const days = [
-    "Monday",
-    "Tuesday",
-    "Wednesday",
-    "Thursday",
-    "Friday",
-    "Saturday",
-    "Sunday",
-  ];
-  return days[dayIndex];
+  return DAYS[dayIndex];
 }
 
 function formatTimeBlock(block) {
@@ -776,20 +752,11 @@ function formatTimeBlock(block) {
 }
 
 function getMostActiveDay(data) {
-  const days = [
-    "Monday",
-    "Tuesday",
-    "Wednesday",
-    "Thursday",
-    "Friday",
-    "Saturday",
-    "Sunday",
-  ];
   const dayCounts = data.map((dayData) =>
     dayData.reduce((sum, count) => sum + count, 0),
   );
   const maxIndex = dayCounts.indexOf(Math.max(...dayCounts));
-  return `${days[maxIndex]} (${dayCounts[maxIndex]} messages)`;
+  return `${DAYS[maxIndex]} (${dayCounts[maxIndex]} messages)`;
 }
 
 function getMostActiveBlocks(data) {
