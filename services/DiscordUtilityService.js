@@ -681,8 +681,20 @@ const DiscordUtilityService = {
     const checkpointCollection = db.collection("MessageScrapeCheckpoints");
 
     // Ensure unique index on `id` — turns upsert lookups from O(n) → O(log n)
-    await collection.createIndex({ id: 1 }, { unique: true, background: true });
-    console.log(`[INDEX] Ensured unique index on "${collectionName}.id"`);
+    // If duplicates exist from previous runs, clean them first then retry.
+    try {
+      await collection.createIndex({ id: 1 }, { unique: true, background: true });
+      console.log(`[INDEX] Ensured unique index on "${collectionName}.id"`);
+    } catch (indexError) {
+      if (indexError.code === 11000) {
+        console.log(`[INDEX] Duplicate keys found — deduplicating before indexing...`);
+        await DiscordUtilityService.deleteDuplicateMessagesByID(mongo, collectionName);
+        await collection.createIndex({ id: 1 }, { unique: true, background: true });
+        console.log(`[INDEX] Unique index created after deduplication`);
+      } else {
+        throw indexError;
+      }
+    }
 
     // ── Resume logic ────────────────────────────────────────────────
     const resumeMap = new Map();
@@ -865,6 +877,9 @@ const DiscordUtilityService = {
       let hasMoreMessages = true;
       let lastMessageDate = null;
 
+      // Pending write promise from previous iteration (pipelined)
+      let pendingWrite = null;
+
       while (hasMoreMessages) {
         try {
           // Direct Discord.js fetch — simpler than the general-purpose wrapper
@@ -873,46 +888,42 @@ const DiscordUtilityService = {
 
           const messages = await channel.messages.fetch(fetchOptions);
 
+          // Wait for previous batch's write to complete before accumulating stats
+          if (pendingWrite) {
+            const result = await pendingWrite;
+            channelMessageCount += result.saved;
+            channelDuplicates += result.duplicates;
+            channelErrors += result.errors;
+            totalMessagesSaved += result.saved;
+            totalDuplicates += result.duplicates;
+            totalErrors += result.errors;
+
+            // Log progress for previously written batch
+            if (result.saved > 0) {
+              console.log(
+                `  [PROGRESS] #${channel.name}: +${result.saved} saved (${result.duplicates} skipped) | Date: ${result._lastDate}`,
+              );
+            } else if (result.duplicates > 0) {
+              console.log(
+                `  [SKIP] #${channel.name}: ${result.duplicates} messages already exist | Date: ${result._lastDate}`,
+              );
+            }
+            pendingWrite = null;
+          }
+
           if (!messages || messages.size === 0) {
             hasMoreMessages = false;
             break;
           }
 
-          // Bulk save via upsert (index-backed, no pre-check needed)
-          const messageBatch = Array.from(messages.values());
-          const result = await bulkSaveNewMessages(messageBatch);
-
-          channelMessageCount += result.saved;
-          channelDuplicates += result.duplicates;
-          channelErrors += result.errors;
-          totalMessagesSaved += result.saved;
-          totalDuplicates += result.duplicates;
-          totalErrors += result.errors;
-
-          // Update pagination cursor
+          // Update pagination cursor immediately (sync — no waiting)
           const lastMessage = messages.last();
           if (lastMessage) {
             lastId = lastMessage.id;
             lastMessageDate = lastMessage.createdAt;
           }
 
-          // Persist checkpoint for crash recovery
-          if (autoResume && lastId) {
-            await checkpointCollection.updateOne(
-              { guildId, channelId: channel.id },
-              {
-                $set: {
-                  lastMessageId: lastId,
-                  lastMessageDate,
-                  channelName: channel.name,
-                  updatedAt: new Date(),
-                },
-              },
-              { upsert: true },
-            );
-          }
-
-          // Check date limit (hoisted — no per-iteration Date construction)
+          // Check date limit
           if (limitDate && lastMessageDate && lastMessageDate < limitDate) {
             console.log(
               `  [DATE LIMIT] #${channel.name}: Reached date limit (${limitDate.toISOString().split("T")[0]}), stopping | Last message: ${lastMessageDate.toISOString()}`,
@@ -920,24 +931,37 @@ const DiscordUtilityService = {
             hasMoreMessages = false;
           }
 
-          // Log progress
-          if (result.saved > 0) {
-            console.log(
-              `  [PROGRESS] #${channel.name}: +${result.saved} saved (${result.duplicates} skipped) | Date: ${lastMessageDate}`,
-            );
-          } else if (result.duplicates > 0) {
-            console.log(
-              `  [SKIP] #${channel.name}: ${result.duplicates} messages already exist | Date: ${lastMessageDate}`,
-            );
-          }
-
           // End of channel history
           if (messages.size < batchSize) {
             hasMoreMessages = false;
           }
 
-          // Brief pause to stay under Discord rate limits
-          await new Promise((resolve) => setTimeout(resolve, 50));
+          // Fire bulkWrite + checkpoint as a pipeline — next fetch starts immediately
+          const messageBatch = Array.from(messages.values());
+          const batchDate = lastMessageDate;
+          pendingWrite = (async () => {
+            const result = await bulkSaveNewMessages(messageBatch);
+
+            // Persist checkpoint for crash recovery
+            if (autoResume && lastId) {
+              await checkpointCollection.updateOne(
+                { guildId, channelId: channel.id },
+                {
+                  $set: {
+                    lastMessageId: lastId,
+                    lastMessageDate: batchDate,
+                    channelName: channel.name,
+                    updatedAt: new Date(),
+                  },
+                },
+                { upsert: true },
+              );
+            }
+
+            return { ...result, _lastDate: batchDate };
+          })();
+
+          // discord.js handles rate limiting internally — no artificial delay needed
         } catch (fetchError) {
           console.error(
             `  [ERROR] Failed to fetch messages from #${channel.name}: ${fetchError.message}`,
@@ -945,6 +969,30 @@ const DiscordUtilityService = {
           channelErrors++;
           totalErrors++;
           hasMoreMessages = false;
+        }
+      }
+
+      // Drain the final pipelined write
+      if (pendingWrite) {
+        try {
+          const result = await pendingWrite;
+          channelMessageCount += result.saved;
+          channelDuplicates += result.duplicates;
+          channelErrors += result.errors;
+          totalMessagesSaved += result.saved;
+          totalDuplicates += result.duplicates;
+          totalErrors += result.errors;
+          if (result.saved > 0) {
+            console.log(
+              `  [PROGRESS] #${channel.name}: +${result.saved} saved (${result.duplicates} skipped) | Date: ${result._lastDate}`,
+            );
+          }
+        } catch (writeError) {
+          console.error(
+            `  [ERROR] Final batch write failed for #${channel.name}: ${writeError.message}`,
+          );
+          channelErrors++;
+          totalErrors++;
         }
       }
 
