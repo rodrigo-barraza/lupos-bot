@@ -2893,6 +2893,7 @@ async function luposOnReadyCloneMessages(client, { localMongo }) {
     config.GUILD_ID_PRIMARY,
     {
       dateLimit: "2025-12-16",
+      autoResume: false,
       categoryIds: [
         "610924121311674415",
         "610921893071028408",
