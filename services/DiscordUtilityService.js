@@ -644,21 +644,27 @@ const transformMessageRoot = (message) => {
 };
 
 const DiscordUtilityService = {
-  // This function fetches and saves all messages from a server to MongoDB.
-  // If the message already exists in the database, it will be skipped.
-  // It does bulk operations to save messages to MongoDB.
-  // It also supports resuming from a checkpoint.
+  // Fetches and saves all messages from a Discord server to MongoDB.
+  // Supports category filtering, date limits, auto-resume via checkpoints,
+  // and concurrent channel processing with bulk upserts.
   async fetchAndSaveAllServerMessages(client, mongo, guildId, options = {}) {
     const {
       collectionName = "Messages",
       concurrencyLimit = 10,
-      resumePoints = null, // Array of { channelId, lastMessageId }
-      batchSize = 100, // Number of messages to process in each bulk operation
-      dateLimit = "2025-11-01", // e.g., '2020-06-15' or new Date(2020, 5, 15) - stops fetching when messages are older than this date
+      resumePoints = null, // Array of { channelId, lastMessageId } — explicit overrides
+      batchSize = 100, // Messages per Discord API call (max 100)
+      dateLimit = "2025-11-01", // Stop when messages are older than this date
       categoryIds = null, // Array of category (parent) IDs to limit which channels are processed
+      autoResume = true, // Persist per-channel checkpoints for crash recovery
     } = options;
 
+    const startTime = Date.now();
+    const limitDate = dateLimit ? new Date(dateLimit) : null;
+
     console.log(`[START] Beginning message fetch for guild: ${guildId}`);
+    if (limitDate) {
+      console.log(`[CONFIG] Date limit: ${limitDate.toISOString().split("T")[0]}`);
+    }
 
     // Get the guild
     const guild = client.guilds.cache.get(guildId);
@@ -669,20 +675,52 @@ const DiscordUtilityService = {
 
     console.log(`[GUILD] Found guild: ${guild.name}`);
 
-    // Create a map of channel IDs to their last message IDs for quick lookup
+    // ── Database setup ──────────────────────────────────────────────
+    const db = mongo.db(MONGO_DB_NAME);
+    const collection = db.collection(collectionName);
+    const checkpointCollection = db.collection("MessageScrapeCheckpoints");
+
+    // Ensure unique index on `id` — turns upsert lookups from O(n) → O(log n)
+    await collection.createIndex({ id: 1 }, { unique: true, background: true });
+    console.log(`[INDEX] Ensured unique index on "${collectionName}.id"`);
+
+    // ── Resume logic ────────────────────────────────────────────────
     const resumeMap = new Map();
+    const completedChannelIds = new Set();
+
     if (resumePoints && Array.isArray(resumePoints)) {
+      // Explicit resume points take priority
       resumePoints.forEach((point) => {
         if (point.channelId && point.lastMessageId) {
           resumeMap.set(point.channelId, point.lastMessageId);
         }
       });
       console.log(
-        `[RESUME] Resuming from ${resumeMap.size} channel checkpoint(s)`,
+        `[RESUME] Using ${resumeMap.size} explicit checkpoint(s)`,
       );
+    } else if (autoResume) {
+      // Load checkpoints from previous runs
+      const checkpoints = await checkpointCollection.find({ guildId }).toArray();
+      for (const cp of checkpoints) {
+        if (cp.completed) {
+          completedChannelIds.add(cp.channelId);
+        } else if (cp.lastMessageId) {
+          resumeMap.set(cp.channelId, cp.lastMessageId);
+        }
+      }
+      if (completedChannelIds.size > 0) {
+        console.log(
+          `[AUTO-RESUME] Skipping ${completedChannelIds.size} already-completed channel(s)`,
+        );
+      }
+      if (resumeMap.size > 0) {
+        console.log(
+          `[AUTO-RESUME] Resuming ${resumeMap.size} in-progress channel(s)`,
+        );
+      }
     }
 
-    // Get all text channels
+    // ── Channel filtering ───────────────────────────────────────────
     let textChannels = guild.channels.cache.filter(
       (channel) => channel.type === ChannelType.GuildText,
     );
@@ -697,8 +735,8 @@ const DiscordUtilityService = {
       );
     }
 
-    // If resumePoints provided, optionally filter to only those channels
-    if (resumeMap.size > 0) {
+    // If explicit resumePoints provided, only process those channels
+    if (resumePoints && resumeMap.size > 0) {
       textChannels = textChannels.filter((channel) =>
         resumeMap.has(channel.id),
       );
@@ -707,69 +745,48 @@ const DiscordUtilityService = {
       );
     }
 
+    // Skip channels completed in a previous run
+    if (completedChannelIds.size > 0) {
+      textChannels = textChannels.filter(
+        (channel) => !completedChannelIds.has(channel.id),
+      );
+    }
+
     console.log(
-      `[CHANNELS] Found ${textChannels.size} text channels to process`,
+      `[CHANNELS] ${textChannels.size} text channel(s) to process`,
     );
 
-    // Statistics tracking
+    // ── Statistics ──────────────────────────────────────────────────
     let totalMessagesSaved = 0;
     let totalDuplicates = 0;
     let totalErrors = 0;
     let channelsProcessed = 0;
 
-    // Get the collection reference
-    const db = mongo.db(MONGO_DB_NAME);
-    const collection = db.collection(collectionName);
-
-    // Helper function to bulk save messages that don't exist
+    // ── Bulk save helper (no pre-check — let bulkWrite + index handle dedup) ──
     const bulkSaveNewMessages = async (messages) => {
       if (!messages || messages.length === 0) {
         return { saved: 0, duplicates: 0, errors: 0 };
       }
 
-      const messageIds = messages.map((m) => m.id);
+      const documents = [];
+      let transformErrorCount = 0;
+
+      for (const message of messages) {
+        try {
+          documents.push(transformMessageRoot(message));
+        } catch (transformError) {
+          console.error(
+            `  [ERROR] Failed to transform message ${message.id}: ${transformError.message}`,
+          );
+          transformErrorCount++;
+        }
+      }
+
+      if (documents.length === 0) {
+        return { saved: 0, duplicates: 0, errors: transformErrorCount };
+      }
 
       try {
-        // First, check which messages already exist
-        const existingDocs = await collection
-          .find({ id: { $in: messageIds } }, { projection: { id: 1, _id: 0 } })
-          .toArray();
-
-        const existingIds = new Set(existingDocs.map((doc) => doc.id));
-
-        // Filter out messages that already exist
-        const newMessages = messages.filter((m) => !existingIds.has(m.id));
-        const duplicateCount = messages.length - newMessages.length;
-
-        if (newMessages.length === 0) {
-          return { saved: 0, duplicates: duplicateCount, errors: 0 };
-        }
-
-        // Transform messages to documents
-        const documents = [];
-        const transformErrors = [];
-
-        for (const message of newMessages) {
-          try {
-            const doc = transformMessageRoot(message);
-            documents.push(doc);
-          } catch (transformError) {
-            console.error(
-              `  [ERROR] Failed to transform message ${message.id}: ${transformError.message}`,
-            );
-            transformErrors.push(message.id);
-          }
-        }
-
-        if (documents.length === 0) {
-          return {
-            saved: 0,
-            duplicates: duplicateCount,
-            errors: transformErrors.length,
-          };
-        }
-
-        // Use bulkWrite with upsert for safety against race conditions
         const bulkOps = documents.map((doc) => ({
           updateOne: {
             filter: { id: doc.id },
@@ -782,18 +799,20 @@ const DiscordUtilityService = {
 
         return {
           saved: result.upsertedCount,
-          duplicates: duplicateCount + (result.matchedCount || 0),
-          errors: transformErrors.length,
+          duplicates: result.matchedCount || 0,
+          errors: transformErrorCount,
         };
       } catch (error) {
-        // Handle bulk write errors
         if (error.writeErrors) {
           const savedCount = error.result?.nUpserted || 0;
-          const errorCount = error.writeErrors.length;
           console.error(
-            `  [ERROR] Bulk write partial failure: ${savedCount} saved, ${errorCount} errors`,
+            `  [ERROR] Bulk write partial failure: ${savedCount} saved, ${error.writeErrors.length} errors`,
           );
-          return { saved: savedCount, duplicates: 0, errors: errorCount };
+          return {
+            saved: savedCount,
+            duplicates: 0,
+            errors: error.writeErrors.length + transformErrorCount,
+          };
         }
 
         console.error(`  [ERROR] Bulk save failed: ${error.message}`);
@@ -801,7 +820,7 @@ const DiscordUtilityService = {
       }
     };
 
-    // Create a simple concurrency limiter
+    // ── Concurrency limiter ─────────────────────────────────────────
     const createConcurrencyLimiter = (limit) => {
       let activeCount = 0;
       const queue = [];
@@ -810,7 +829,6 @@ const DiscordUtilityService = {
         while (activeCount >= limit) {
           await new Promise((resolve) => queue.push(resolve));
         }
-
         activeCount++;
         try {
           return await fn();
@@ -826,14 +844,14 @@ const DiscordUtilityService = {
 
     const limiter = createConcurrencyLimiter(concurrencyLimit);
 
-    // Process a single channel
+    // ── Process a single channel ────────────────────────────────────
     const processChannel = async (channel) => {
       const channelStartTime = Date.now();
       let channelMessageCount = 0;
       let channelDuplicates = 0;
       let channelErrors = 0;
 
-      // Check if we should resume from a specific message
+      // Use checkpoint (auto or explicit) if available
       let lastId = resumeMap.get(channel.id) || null;
 
       if (lastId) {
@@ -849,26 +867,19 @@ const DiscordUtilityService = {
 
       while (hasMoreMessages) {
         try {
-          // Fetch messages using the existing fetchMessages function
-          const messages = await DiscordUtilityService.fetchMessages(
-            client,
-            channel.id,
-            {
-              limit: batchSize,
-              before: lastId,
-              cache: false, // Don't cache to save memory
-            },
-          );
+          // Direct Discord.js fetch — simpler than the general-purpose wrapper
+          const fetchOptions = { limit: batchSize, cache: false };
+          if (lastId) fetchOptions.before = lastId;
+
+          const messages = await channel.messages.fetch(fetchOptions);
 
           if (!messages || messages.size === 0) {
             hasMoreMessages = false;
             break;
           }
 
-          // Convert to array for bulk processing
+          // Bulk save via upsert (index-backed, no pre-check needed)
           const messageBatch = Array.from(messages.values());
-
-          // Bulk save the messages
           const result = await bulkSaveNewMessages(messageBatch);
 
           channelMessageCount += result.saved;
@@ -878,22 +889,35 @@ const DiscordUtilityService = {
           totalDuplicates += result.duplicates;
           totalErrors += result.errors;
 
-          // Update lastId for pagination
+          // Update pagination cursor
           const lastMessage = messages.last();
           if (lastMessage) {
             lastId = lastMessage.id;
             lastMessageDate = lastMessage.createdAt;
           }
 
-          // Check if we've reached the date limit
-          if (dateLimit && lastMessageDate) {
-            const limitDate = new Date(dateLimit);
-            if (lastMessageDate < limitDate) {
-              console.log(
-                `  [DATE LIMIT] #${channel.name}: Reached date limit (${limitDate.toISOString().split("T")[0]}), stopping | Last message: ${lastMessageDate.toISOString()}`,
-              );
-              hasMoreMessages = false;
-            }
+          // Persist checkpoint for crash recovery
+          if (autoResume && lastId) {
+            await checkpointCollection.updateOne(
+              { guildId, channelId: channel.id },
+              {
+                $set: {
+                  lastMessageId: lastId,
+                  lastMessageDate,
+                  channelName: channel.name,
+                  updatedAt: new Date(),
+                },
+              },
+              { upsert: true },
+            );
+          }
+
+          // Check date limit (hoisted — no per-iteration Date construction)
+          if (limitDate && lastMessageDate && lastMessageDate < limitDate) {
+            console.log(
+              `  [DATE LIMIT] #${channel.name}: Reached date limit (${limitDate.toISOString().split("T")[0]}), stopping | Last message: ${lastMessageDate.toISOString()}`,
+            );
+            hasMoreMessages = false;
           }
 
           // Log progress
@@ -907,12 +931,12 @@ const DiscordUtilityService = {
             );
           }
 
-          // If we got less than batchSize messages, we've reached the end
+          // End of channel history
           if (messages.size < batchSize) {
             hasMoreMessages = false;
           }
 
-          // Small delay to avoid rate limiting
+          // Brief pause to stay under Discord rate limits
           await new Promise((resolve) => setTimeout(resolve, 50));
         } catch (fetchError) {
           console.error(
@@ -920,8 +944,23 @@ const DiscordUtilityService = {
           );
           channelErrors++;
           totalErrors++;
-          hasMoreMessages = false; // Stop trying this channel
+          hasMoreMessages = false;
         }
+      }
+
+      // Mark channel as completed so future runs skip it
+      if (autoResume) {
+        await checkpointCollection.updateOne(
+          { guildId, channelId: channel.id },
+          {
+            $set: {
+              completed: true,
+              channelName: channel.name,
+              updatedAt: new Date(),
+            },
+          },
+          { upsert: true },
+        );
       }
 
       channelsProcessed++;
@@ -937,24 +976,22 @@ const DiscordUtilityService = {
       };
     };
 
-    // Process all channels with concurrency limit
+    // ── Dispatch all channels ───────────────────────────────────────
     const channelPromises = [];
-
     for (const channel of textChannels.values()) {
-      const promise = limiter.run(() => processChannel(channel));
-      channelPromises.push(promise);
+      channelPromises.push(limiter.run(() => processChannel(channel)));
     }
 
-    // Wait for all channels to complete
     await Promise.all(channelPromises);
 
-    const _totalDuration = ((Date.now() - Date.now()) / 1000).toFixed(2);
+    const totalDuration = ((Date.now() - startTime) / 1000).toFixed(2);
 
     console.log(`\n[FINISHED] Message fetch complete for guild: ${guild.name}`);
     console.log(`  - Channels processed: ${channelsProcessed}`);
     console.log(`  - Messages saved: ${totalMessagesSaved}`);
     console.log(`  - Duplicates skipped: ${totalDuplicates}`);
     console.log(`  - Errors: ${totalErrors}`);
+    console.log(`  - Duration: ${totalDuration}s`);
 
     return {
       guildId,
@@ -963,6 +1000,7 @@ const DiscordUtilityService = {
       totalMessagesSaved,
       totalDuplicates,
       totalErrors,
+      totalDuration: parseFloat(totalDuration),
     };
   },
   async deleteDuplicateMessagesByID(mongo, collectionName = "Messages") {
