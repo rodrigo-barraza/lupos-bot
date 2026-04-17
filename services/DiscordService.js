@@ -1469,6 +1469,7 @@ Respond with ONLY "yes" or "no". Nothing else.`,
     //   - Clock Crew data (if applicable)
     const agentContext = {
       guildId: message.guildId || null,
+      channelId: message.channelId || null,
       aprilFoolsMode: APRIL_FOOLS_MODE,
     };
 
@@ -2891,7 +2892,7 @@ async function luposOnReadyCloneMessages(client, { localMongo }) {
     localMongo,
     config.GUILD_ID_PRIMARY,
     {
-      dateLimit: "2026-01-16",
+      dateLimit: "2026-04-08",
       categoryIds: [
         "610924121311674415",
         "610921893071028408",
