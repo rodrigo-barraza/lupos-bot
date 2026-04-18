@@ -1345,6 +1345,9 @@ Respond with ONLY "yes" or "no". Nothing else.`,
       }
     }
     // If it mentions a user with an avatar, use that avatar as the image
+    // Track which user IDs have already had their avatar added to prevent
+    // duplicates across tagged mentions and untagged name-match paths.
+    const avatarUserIdsAdded = new Set();
     if (
       message.mentions &&
       message.mentions.users.size > 0
@@ -1383,6 +1386,8 @@ Respond with ONLY "yes" or "no". Nothing else.`,
         // Attach avatar images as base64 references for generate_image
         // (no text injection — avatar URLs are already per-participant in the system prompt)
         for (const mentionImg of mentionsImageUrls) {
+          if (avatarUserIdsAdded.has(mentionImg.userId)) continue;
+          avatarUserIdsAdded.add(mentionImg.userId);
           const userDisplayName = await DiscordUtilityService.getDisplayName(
             message,
             mentionImg.userId,
@@ -1398,6 +1403,7 @@ Respond with ONLY "yes" or "no". Nothing else.`,
 
       for (const matchedId of untaggedMatchedUserIds) {
         // Skip if already handled by @mention block above
+        if (avatarUserIdsAdded.has(matchedId)) continue;
         if (mentionsImageUrls.some((m) => m.userId === matchedId)) continue;
         // Skip bot and replied-to user
         if (matchedId === bot.id || matchedId === repliedUserId) continue;
@@ -1428,9 +1434,11 @@ Respond with ONLY "yes" or "no". Nothing else.`,
       // Attach untagged user avatars as base64 references for generate_image
       // (no text injection — avatar URLs are already per-participant in the system prompt)
       const uncaptionedUrls = mentionsImageUrls.filter(
-        (m) => !imageUrls.includes(m.url),
+        (m) => !avatarUserIdsAdded.has(m.userId) && !imageUrls.includes(m.url),
       );
       for (const mentionImg of uncaptionedUrls) {
+        if (avatarUserIdsAdded.has(mentionImg.userId)) continue;
+        avatarUserIdsAdded.add(mentionImg.userId);
         const userDisplayName = await DiscordUtilityService.getDisplayName(
           message,
           mentionImg.userId,
