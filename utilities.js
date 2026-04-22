@@ -35,6 +35,17 @@ const utilities = {
     }
   },
 
+  /**
+   * Convert bare @SNOWFLAKE_ID patterns to proper Discord mention syntax.
+   * The AI sometimes outputs "@124296008548089858" instead of "<@124296008548089858>".
+   * Discord snowflake IDs are 17-20 digit numbers.
+   * Only matches @ID patterns that are NOT already wrapped in <@...>.
+   */
+  fixBareMentions(string) {
+    // Match @DIGITS that are NOT preceded by < (which would mean it's already <@ID>)
+    return string.replace(/(?<!<)@(\d{17,20})(?!>)/g, '<@$1>');
+  },
+
   removeMentions(string) {
     return string
       .replace(/@here/g, "꩜here")

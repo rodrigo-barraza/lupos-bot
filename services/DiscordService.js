@@ -294,7 +294,7 @@ async function generateDescription(
   }
 
   if (user?.id) {
-    systemPrompt += `\n- Discord user ID: ${user.id}`;
+    systemPrompt += `\n- Discord user ID tag (use this to mention/tag them): <@${user.id}>`;
   }
   if (member?.nickname) {
     systemPrompt += `\n- Nickname: ${member?.nickname}`;
@@ -1612,6 +1612,7 @@ Respond with ONLY "yes" or "no". Nothing else.`,
     }
 
     // Rodrigo: Cleans the response
+    generatedText = utilities.fixBareMentions(generatedText);
     generatedText = utilities.removeMentions(generatedText);
     generatedText = CensorService.removeFlaggedWords(generatedText);
 
