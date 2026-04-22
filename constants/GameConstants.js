@@ -70,3 +70,10 @@ export const ACCOUNT_AGE_THRESHOLD_MS = 28 * MS_PER_DAY; // 4 weeks
  * MongoDB database name.
  */
 export const MONGO_DB_NAME = "lupos";
+
+/**
+ * Light cycle palette names.
+ * Passed to LightsService.cycleColor() as the second argument.
+ */
+export const DEFAULT_LIGHT_CYCLE = "purples";
+export const RAINBOW_LIGHT_CYCLE = "rainbow";

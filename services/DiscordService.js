@@ -59,6 +59,8 @@ import {
   YOUTUBE_BUTTON_ACTIONS,
   MS_PER_DAY,
   MONGO_DB_NAME,
+  DEFAULT_LIGHT_CYCLE,
+  RAINBOW_LIGHT_CYCLE,
 } from "#root/constants.js";
 import CensorService from "#root/services/CensorService.js";
 import { kickIfTooNew, kickIfForbiddenCombo, purgeByAccountAge } from "#root/services/AccountGuardService.js";
@@ -1628,7 +1630,7 @@ Respond with ONLY "yes" or "no". Nothing else.`,
 
 async function replyMessage(queuedDatum, localMongo) {
   // Rodrigo: This function is called when a message is received or updated on Discord.
-  LightsService.cycleColor(config.PRIMARY_LIGHT_ID, "purples");
+  LightsService.cycleColor(config.PRIMARY_LIGHT_ID, DEFAULT_LIGHT_CYCLE);
   const message = queuedDatum.message;
   const _messages = queuedDatum.recentMessages;
   const actionType = queuedDatum.actionType;
@@ -1682,7 +1684,7 @@ async function replyMessage(queuedDatum, localMongo) {
 
   // CHECK IF WE CAN GENERATE AN IMAGE
 
-  LightsService.cycleColor(config.PRIMARY_LIGHT_ID, "purples");
+  LightsService.cycleColor(config.PRIMARY_LIGHT_ID, DEFAULT_LIGHT_CYCLE);
   // Rodrigo: Generate a custom emoji reaction based on the message content
   const customEmojiReact =
     await AIService.generateTextCustomEmojiReactFromMessage(
@@ -1699,7 +1701,7 @@ async function replyMessage(queuedDatum, localMongo) {
   } else {
     // Handle case where no custom emoji is generated
   }
-  LightsService.cycleColor(config.PRIMARY_LIGHT_ID, "purples");
+  LightsService.cycleColor(config.PRIMARY_LIGHT_ID, DEFAULT_LIGHT_CYCLE);
 
   // Image detection is no longer needed — the agent decides autonomously
   // whether to generate images via the generate_image tool.
@@ -1721,7 +1723,7 @@ async function replyMessage(queuedDatum, localMongo) {
     userMentionsCollection,
   } = await extractContentFromMessages(queuedDatum, localMongo);
 
-  LightsService.cycleColor(config.PRIMARY_LIGHT_ID, "purples");
+  LightsService.cycleColor(config.PRIMARY_LIGHT_ID, DEFAULT_LIGHT_CYCLE);
 
   // Check if message was deleted during content extraction
   if (isMessageCancelled(message.id)) {
@@ -1755,13 +1757,13 @@ async function replyMessage(queuedDatum, localMongo) {
 
   // (Image conversations are already saved per-call inside generateImage)
 
-  LightsService.cycleColor(config.PRIMARY_LIGHT_ID, "purples");
+  LightsService.cycleColor(config.PRIMARY_LIGHT_ID, DEFAULT_LIGHT_CYCLE);
   // GENERATE SUMMARY — use first ~5 words of the agent response instead of a separate LLM call
   const textSummary = generatedTextResponse
     ? `💬 ${generatedTextResponse.replace(/[*_~`#>]/g, "").split(/\s+/).slice(0, 5).join(" ").substring(0, 100)}…`
     : "";
   DiscordUtilityService.setUserActivity(client, textSummary);
-  LightsService.cycleColor(config.PRIMARY_LIGHT_ID, "purples");
+  LightsService.cycleColor(config.PRIMARY_LIGHT_ID, DEFAULT_LIGHT_CYCLE);
   if (!generatedTextResponse) {
     await message.reply("...");
     lastMessageSentTime = DateTime.now().toISO();
@@ -1784,7 +1786,7 @@ ${combinedGuildInformation && combinedChannelInformation ? `URL: ${utilities.get
       return;
     }
     await message.fetch();
-    LightsService.cycleColor(config.PRIMARY_LIGHT_ID, "purples");
+    LightsService.cycleColor(config.PRIMARY_LIGHT_ID, DEFAULT_LIGHT_CYCLE);
     const messageSent = await DiscordUtilityService.sendMessageInChunks(
       "reply",
       message,
@@ -1792,7 +1794,7 @@ ${combinedGuildInformation && combinedChannelInformation ? `URL: ${utilities.get
       generatedImage,
     );
     repliedMessagesCollection.set(message.id, messageSent.id);
-    LightsService.cycleColor(config.PRIMARY_LIGHT_ID, "purples");
+    LightsService.cycleColor(config.PRIMARY_LIGHT_ID, DEFAULT_LIGHT_CYCLE);
   } catch (error) {
     console.warn(`❌ [DiscordService:replyMessage] MESSAGE NOT FOUND (OR DELETED)
             ${error}
@@ -1910,7 +1912,7 @@ ${combinedGuildInformation && combinedChannelInformation ? `URL: ${utilities.get
   CurrentService.clearModelTypes();
   CurrentService.clearTraceId();
 
-  LightsService.cycleColor(config.PRIMARY_LIGHT_ID, "purples");
+  LightsService.cycleColor(config.PRIMARY_LIGHT_ID, DEFAULT_LIGHT_CYCLE);
   return;
 }
 
@@ -1964,7 +1966,7 @@ async function extractContentFromMessages(
   _maxSimultaneous = 50,
 ) {
   const functionName = "extractContentFromMessages";
-  LightsService.cycleColor(config.PRIMARY_LIGHT_ID, "purples");
+  LightsService.cycleColor(config.PRIMARY_LIGHT_ID, DEFAULT_LIGHT_CYCLE);
   const { message, recentMessages } = queuedDatum;
   const newestMessage = recentMessages.last();
 
@@ -2433,11 +2435,7 @@ async function extractContentFromMessages(
         // Rodrigo: This message has reactions, so let's add them to the content
         let reactionsContent = "";
         if (recentMessage.reactions?.cache?.size > 0) {
-          reactionsContent = `\n[REACTIONS]`;
-          for (const reaction of recentMessage.reactions.cache.values()) {
-            const byMe = reaction.me ? " (by you, Lupos)" : "";
-            reactionsContent += `\n- ${reaction.emoji.name} x ${reaction.count}${byMe}`;
-          }
+          reactionsContent = `\n[REACTIONS]\n${utilities.formatReactions(recentMessage.reactions.cache, "list")}`;
         }
 
         let _replyContent = "";
@@ -2594,12 +2592,8 @@ async function extractContentFromMessages(
         // Add reactions
         const isCurrentMessage = recentMessage.id !== message.id;
         if (recentMessage.reactions?.cache?.size > 0 && !isCurrentMessage) {
-          const reactions = recentMessage.reactions.cache.map((reaction) => {
-            const byMe = reaction.me ? " (by you, Lupos)" : "";
-            return `${reaction.emoji.name}${byMe}`;
-          });
           modifiedContent += `\nNumber of reactions in this message: ${recentMessage.reactions.cache.size}`;
-          modifiedContent += `\nReaction list: ${reactions.join(", ")}`;
+          modifiedContent += `\nReaction list: ${utilities.formatReactions(recentMessage.reactions.cache, "inline")}`;
         }
 
         const msgEntry = {
@@ -2642,105 +2636,55 @@ async function extractContentFromMessages(
 async function generateRolesEmbedMessage(client) {
   // get the original message and edit it to show the new role count on the button
   // re-render the buttons with the new role count
-  const classesEmbed = new EmbedBuilder()
-    .setTitle("Pick Your WoW Classes")
-    .setDescription("Which classes do you play as?")
-    .setColor("#00FF00");
-
   const roles = client.guilds.cache
     .get(config.GUILD_ID_PRIMARY)
     .roles.cache.sort((a, b) => a.rawPosition - b.rawPosition)
     .reverse();
 
-  const filteredClasses = roles.filter((role) =>
-    warcraftClasses.some((videogameRole) => videogameRole.id === role.id),
-  );
-  const classesToArray = filteredClasses.map((role) => role);
+  /**
+   * Build a role-picker embed + button rows for a given role source array.
+   * @param {string} title
+   * @param {string} description
+   * @param {Array} sourceArray - e.g. warcraftClasses, warcraftFactions, rolesVideogames
+   * @param {{ sort?: boolean }} [options]
+   * @returns {{ embed: EmbedBuilder, rows: ActionRowBuilder[] }}
+   */
+  function buildRolePickerSection(title, description, sourceArray, options = {}) {
+    const maxButtonsPerRow = 5;
+    const embed = new EmbedBuilder()
+      .setTitle(title)
+      .setDescription(description)
+      .setColor("#00FF00");
 
-  const classesRows = [];
-  const maxButtonsPerRow = 5;
-  for (let i = 0; i < classesToArray.length; i += maxButtonsPerRow) {
-    const row = new ActionRowBuilder();
-    const currentRoles = classesToArray.slice(i, i + maxButtonsPerRow);
-    for (const role of currentRoles) {
-      const _emoji =
-        warcraftClasses.find((videogameRole) => videogameRole.id === role.id)
-          ?.emojiId || null;
-      const button = new ButtonBuilder()
-        .setLabel(`${role.name} (${role.members.size})`)
-        .setStyle(ButtonStyle.Secondary)
-        .setCustomId(`pick-role-${role.id}`)
-        // emoji is in warcraftClasses as emojiId
-        .setEmoji(
-          warcraftClasses.find((warcraftClass) => warcraftClass.id === role.id)
-            ?.emojiId || null,
-        );
-      row.addComponents(button);
-    }
-    classesRows.push(row);
-  }
-
-  const factionEmbed = new EmbedBuilder()
-    .setTitle("Pick Your WoW Faction")
-    .setDescription("Which faction do you play as?")
-    .setColor("#00FF00");
-
-  const filteredFactions = roles.filter((role) =>
-    warcraftFactions.some((videogameRole) => videogameRole.id === role.id),
-  );
-  const factionsToArray = filteredFactions.map((role) => role);
-
-  const factionsRows = [];
-  for (let i = 0; i < factionsToArray.length; i += maxButtonsPerRow) {
-    const row = new ActionRowBuilder();
-    const currentRoles = factionsToArray.slice(i, i + maxButtonsPerRow);
-    for (const role of currentRoles) {
-      const button = new ButtonBuilder()
-        .setLabel(`${role.name} (${role.members.size})`)
-        .setStyle(ButtonStyle.Secondary)
-        .setCustomId(`pick-role-${role.id}`)
-        .setEmoji(
-          warcraftFactions.find(
-            (warcraftFaction) => warcraftFaction.id === role.id,
-          )?.emojiId || null,
-        );
-      row.addComponents(button);
-    }
-    factionsRows.push(row);
-  }
-
-  const videogamesEmbed = new EmbedBuilder()
-    .setTitle("Pick Your Videogames")
-    .setDescription("Which videogames do you play?")
-    .setColor("#00FF00");
-
-  const filteredVideogames = roles.filter((role) =>
-    rolesVideogames.some((videogameRole) => videogameRole.id === role.id),
-  );
-  const videogamesToArray = filteredVideogames.map((role) => role);
-
-  const videogamesRows = [];
-  for (let i = 0; i < videogamesToArray.length; i += maxButtonsPerRow) {
-    const row = new ActionRowBuilder();
-    const sortedVideogames = videogamesToArray.sort((a, b) =>
-      a.name.localeCompare(b.name),
+    let filtered = roles.filter((role) =>
+      sourceArray.some((src) => src.id === role.id),
     );
-    const currentRoles = sortedVideogames.slice(i, i + maxButtonsPerRow);
-    for (const role of currentRoles) {
-      const emoji =
-        rolesVideogames.find((videogameRole) => videogameRole.id === role.id)
-          ?.emojiId || null;
-      const button = new ButtonBuilder()
-        .setLabel(`${role.name} (${role.members.size})`)
-        .setStyle(ButtonStyle.Secondary)
-        .setCustomId(`pick-role-${role.id}`);
-      if (emoji) {
-        button.setEmoji(emoji);
-      }
-      row.addComponents(button);
+    if (options.sort) {
+      filtered = filtered.sort((a, b) => a.name.localeCompare(b.name));
     }
-    videogamesRows.push(row);
+    const rolesArray = filtered.map((role) => role);
+
+    const rows = [];
+    for (let i = 0; i < rolesArray.length; i += maxButtonsPerRow) {
+      const row = new ActionRowBuilder();
+      const currentRoles = rolesArray.slice(i, i + maxButtonsPerRow);
+      for (const role of currentRoles) {
+        const emoji = sourceArray.find((src) => src.id === role.id)?.emojiId || null;
+        const button = new ButtonBuilder()
+          .setLabel(`${role.name} (${role.members.size})`)
+          .setStyle(ButtonStyle.Secondary)
+          .setCustomId(`pick-role-${role.id}`);
+        if (emoji) button.setEmoji(emoji);
+        row.addComponents(button);
+      }
+      rows.push(row);
+    }
+    return { embed, rows };
   }
+
+  const classes = buildRolePickerSection("Pick Your WoW Classes", "Which classes do you play as?", warcraftClasses);
+  const factions = buildRolePickerSection("Pick Your WoW Faction", "Which faction do you play as?", warcraftFactions);
+  const videogames = buildRolePickerSection("Pick Your Videogames", "Which videogames do you play?", rolesVideogames, { sort: true });
 
   // if the channel is empty, create a new message
   const channel = DiscordUtilityService.getChannelById(
@@ -2758,12 +2702,9 @@ async function generateRolesEmbedMessage(client) {
   // await channel.bulkDelete(100);
   // if the channel is empty, post message, otherwise edit the first message
   if (messagesCacheSize === 0) {
-    await channel.send({ embeds: [factionEmbed], components: factionsRows });
-    await channel.send({ embeds: [classesEmbed], components: classesRows });
-    await channel.send({
-      embeds: [videogamesEmbed],
-      components: videogamesRows,
-    });
+    await channel.send({ embeds: [factions.embed], components: factions.rows });
+    await channel.send({ embeds: [classes.embed], components: classes.rows });
+    await channel.send({ embeds: [videogames.embed], components: videogames.rows });
 
     const guildMastersEmbed = new EmbedBuilder()
       .setTitle("Guild Masters / Officers")
@@ -2784,12 +2725,9 @@ async function generateRolesEmbedMessage(client) {
     const message1 = allMessages.at(allMessages.size - 1);
     const message2 = allMessages.at(allMessages.size - 2);
     const message3 = allMessages.at(allMessages.size - 3);
-    await message1.edit({ embeds: [factionEmbed], components: factionsRows });
-    await message2.edit({ embeds: [classesEmbed], components: classesRows });
-    await message3.edit({
-      embeds: [videogamesEmbed],
-      components: videogamesRows,
-    });
+    await message1.edit({ embeds: [factions.embed], components: factions.rows });
+    await message2.edit({ embeds: [classes.embed], components: classes.rows });
+    await message3.edit({ embeds: [videogames.embed], components: videogames.rows });
     return;
   }
 }
@@ -2965,6 +2903,77 @@ async function luposOnReadyPurgeYoungAccounts(client) {
   });
 }
 
+/**
+ * Check if a message or its replied-to message contains flagged words.
+ * If flagged, sends a reply and returns true; otherwise returns false.
+ * @param {Message} message
+ * @returns {Promise<boolean>} true if message was rejected
+ */
+async function rejectIfFlaggedContent(message) {
+  const FLAGGED_REPLY = "beep boop, no slurs, ya dumbass";
+
+  // Check direct message content
+  if (message.content && CensorService.containsFlaggedWords(message.content)) {
+    console.log(`⛔ [DiscordService] Message contains flagged words, ignoring.`);
+    try { await message.reply(FLAGGED_REPLY); } catch (e) { console.log("Error sending flagged words response:", e); }
+    return true;
+  }
+
+  // Check replied-to message content
+  if (message.reference) {
+    try {
+      const repliedMessage = await message.channel.messages.fetch(message.reference.messageId);
+      if (repliedMessage.content && CensorService.containsFlaggedWords(repliedMessage.content)) {
+        console.log(`⛔ [DiscordService] Replied message contains flagged words, ignoring.`);
+        try { await message.reply(FLAGGED_REPLY); } catch (e) { console.log("Error sending flagged words response:", e); }
+        return true;
+      }
+    } catch (error) {
+      console.log("Error fetching replied message:", error);
+    }
+  }
+
+  return false;
+}
+
+/**
+ * Send a self-destructing maintenance mode countdown message.
+ * Randomly selects an explosion GIF and counts down from 10s before deleting.
+ * @param {Message} message
+ */
+async function sendMaintenanceCountdown(message) {
+  let secondsRemaining = 10;
+  const randomExplosionGif =
+    EXPLOSION_GIFS[Math.floor(Math.random() * EXPLOSION_GIFS.length)];
+
+  try {
+    const sentMessage = await message.reply(
+      `I AM CURRENTLY UNDER MAINTENANCE, TRY AGAIN LATER.\nMESSAGE SELF DESTRUCTING IN ${secondsRemaining} SECONDS`,
+    );
+
+    const interval = setInterval(async () => {
+      secondsRemaining--;
+      try {
+        if (secondsRemaining <= 0) {
+          clearInterval(interval);
+          await sentMessage.delete();
+        } else if (secondsRemaining < 3) {
+          await sentMessage.edit(randomExplosionGif);
+        } else {
+          await sentMessage.edit(
+            `I AM CURRENTLY UNDER MAINTENANCE, TRY AGAIN LATER.\nMESSAGE SELF DESTRUCTING IN ${secondsRemaining} SECONDS`,
+          );
+        }
+      } catch (error) {
+        console.error(error);
+        clearInterval(interval);
+      }
+    }, 1000);
+  } catch (error) {
+    console.error(error);
+  }
+}
+
 async function processMessage(
   client,
   { _mongo, localMongo },
@@ -2988,53 +2997,9 @@ async function processMessage(
     return;
   }
 
-  // Check for flagged words and ignore the message if found
-  if (
-    !isSelfMessage &&
-    !isMessageFromBot &&
-    isMentioningBot &&
-    message.content &&
-    CensorService.containsFlaggedWords(message.content)
-  ) {
-    console.log(
-      `⛔ [DiscordService:replyMessage] Message contains flagged words, ignoring.`,
-    );
-    try {
-      await message.reply("beep boop, no slurs, ya dumbass");
-    } catch (error) {
-      console.log("Error sending flagged words response:", error);
-    }
-    return;
-  }
-
-  // Check if replying to a message with flagged words
-  if (
-    !isSelfMessage &&
-    !isMessageFromBot &&
-    isMentioningBot &&
-    message.reference
-  ) {
-    try {
-      const repliedMessage = await message.channel.messages.fetch(
-        message.reference.messageId,
-      );
-      if (
-        repliedMessage.content &&
-        CensorService.containsFlaggedWords(repliedMessage.content)
-      ) {
-        console.log(
-          `⛔ [DiscordService:replyMessage] Replied message contains flagged words, ignoring.`,
-        );
-        try {
-          await message.reply("beep boop, no slurs, ya dumbass");
-        } catch (error) {
-          console.log("Error sending flagged words response:", error);
-        }
-        return;
-      }
-    } catch (error) {
-      console.log("Error fetching replied message:", error);
-    }
+  // Check for flagged words in message content or replied-to content
+  if (!isSelfMessage && !isMessageFromBot && isMentioningBot) {
+    if (await rejectIfFlaggedContent(message)) return;
   }
 
   try {
@@ -3081,7 +3046,7 @@ URL: ${utilities.getDiscordMessageUrl(message.guild?.id, message.channel.id, mes
   }
 
   if (message.channelId !== config.CHANNEL_ID_JUKEBOX_EXCEPTION) {
-    LightsService.cycleColor(config.PRIMARY_LIGHT_ID, "rainbow");
+    LightsService.cycleColor(config.PRIMARY_LIGHT_ID, RAINBOW_LIGHT_CYCLE);
   }
 
   if (isMessageWithoutSelfMention) {
@@ -3126,42 +3091,7 @@ URL: ${utilities.getDiscordMessageUrl(message.guild?.id, message.channel.id, mes
   if (config.UNDER_MAINTENANCE && message.author.id !== '166745313258897409') {
     // Only the owner can interact with Lupos during maintenance
     if (message.guild?.id === config.GUILD_ID_PRIMARY) {
-      let secondsRemaining = 10;
-      // Randomly select an explosion GIF
-      const randomExplosionGif =
-        EXPLOSION_GIFS[Math.floor(Math.random() * EXPLOSION_GIFS.length)];
-
-      try {
-        // Send initial message and store it
-        const sentMessage = await message.reply(
-          `I AM CURRENTLY UNDER MAINTENANCE, TRY AGAIN LATER.\nMESSAGE SELF DESTRUCTING IN ${secondsRemaining} SECONDS`,
-        );
-
-        const interval = setInterval(async () => {
-          secondsRemaining--;
-
-          try {
-            if (secondsRemaining <= 0) {
-              clearInterval(interval);
-              // Delete the bot's reply
-              await sentMessage.delete();
-            } else if (secondsRemaining < 3) {
-              // Show explosion GIF right before deletion
-              await sentMessage.edit(randomExplosionGif);
-            } else {
-              // Update the countdown
-              await sentMessage.edit(
-                `I AM CURRENTLY UNDER MAINTENANCE, TRY AGAIN LATER.\nMESSAGE SELF DESTRUCTING IN ${secondsRemaining} SECONDS`,
-              );
-            }
-          } catch (error) {
-            console.error(error);
-            clearInterval(interval);
-          }
-        }, 1000);
-      } catch (error) {
-        console.error(error);
-      }
+      await sendMaintenanceCountdown(message);
     }
     return;
   }
@@ -4168,21 +4098,10 @@ async function generateAttachmentsResponse(
   return { modifiedContent, messageImageUrls };
 }
 
-async function generateEmojiResponse(message, isReply = false) {
-  // if emojis
-  const who = "";
-  if (isReply) {
-    // who = `Original `;
-  }
-  let content = "";
-  if (message.reactions.cache.size > 0) {
-    const repliedReactions = message.reactions.cache.map((reaction) => {
-      return `${reaction.emoji.name}`;
-    });
-    content += `\n${who}Reactions (${message.reactions.cache.size}):`;
-    content += `\n  • ${repliedReactions.join(", ")}`;
-  }
-  return content;
+async function generateEmojiResponse(message, _isReply = false) {
+  if (!message.reactions?.cache?.size) return "";
+  const names = utilities.formatReactions(message.reactions.cache, "names");
+  return `\nReactions (${message.reactions.cache.size}):\n  • ${names}`;
 }
 
 const DiscordService = {
@@ -4227,152 +4146,45 @@ const DiscordService = {
       { mongo, localMongo },
       luposOnReady,
     );
-    // I need a mode that processes all messages in the server and saves them to mongo
-    if (mode === "services") {
-      DiscordUtilityService.onEventMessageCreate(
-        luposClient,
-        { mongo, localMongo },
-        luposOnMessageCreateCloneMessage,
-      );
-      DiscordUtilityService.onEventMessageUpdate(
-        luposClient,
-        { mongo, localMongo },
-        luposOnMessageUpdateCloneMessage,
-      );
-      DiscordUtilityService.onEventGuildMemberAdd(
-        luposClient,
-        mongo,
-        luposOnGuildMemberAdd,
-      );
-      DiscordUtilityService.onEventGuildMemberUpdate(
-        luposClient,
-        mongo,
-        luposOnGuildMemberUpdate,
-      );
-      DiscordUtilityService.onEventMessageReactionAdd(
-        luposClient,
-        mongo,
-        luposOnReactionCreateQueue,
-      );
-      DiscordUtilityService.onEventPresenceUpdate(
-        luposClient,
-        luposOnPresenceUpdate,
-      );
-      DiscordUtilityService.onEventGuildMemberRemove(
-        luposClient,
-        mongo,
-        luposOnGuildMemberRemove,
-      );
-      DiscordUtilityService.onEventVoiceStateUpdate(
-        luposClient,
-        mongo,
-        luposOnVoiceStateUpdate,
-      );
-      DiscordUtilityService.onEventInteractionCreate(
-        luposClient,
-        mongo,
-        luposOnInteractionCreate,
-      );
-      DiscordUtilityService.onEventMessageDelete(
-        luposClient,
-        mongo,
-        luposOnMessageDelete,
-      );
+    // ─── Data-driven event registration ─────────────────────────────
+    // Each entry: [registrationMethod, ...args]
+    // "mongoBoth" = { mongo, localMongo }, "mongo" = mongo only, "none" = no db arg
+    const cloneEvents = [
+      ["onEventMessageCreate",      { mongo, localMongo }, luposOnMessageCreateCloneMessage],
+      ["onEventMessageUpdate",      { mongo, localMongo }, luposOnMessageUpdateCloneMessage],
+    ];
+    const messageEvents = [
+      ["onEventMessageCreate",      { mongo, localMongo }, luposOnMessageCreate],
+      ["onEventMessageUpdate",      { mongo, localMongo }, luposOnMessageUpdate],
+    ];
+    const guildEvents = [
+      ["onEventGuildMemberAdd",     mongo, luposOnGuildMemberAdd],
+      ["onEventGuildMemberUpdate",  mongo, luposOnGuildMemberUpdate],
+    ];
+    const interactionEvents = [
+      ["onEventMessageReactionAdd", mongo, luposOnReactionCreateQueue],
+      ["onEventInteractionCreate",  mongo, luposOnInteractionCreate],
+      ["onEventMessageDelete",      mongo, luposOnMessageDelete],
+      ["onEventPresenceUpdate",     luposOnPresenceUpdate],
+      ["onEventGuildMemberRemove",  mongo, luposOnGuildMemberRemove],
+      ["onEventVoiceStateUpdate",   mongo, luposOnVoiceStateUpdate],
+    ];
 
-      // I want to also edit this messageId: '1445112669265985718', in serverId: '609471635308937237', in channelId: '1400554512472866926' to say editted message
-      // and console.log the res.headers
-      // const channelId = '1400554512472866926';
-      // const messageId = '1445112669265985718';
-      // const serverId = '609471635308937237';
-      // const newContent = `editted message.`;
-      // fetch(`https://discord.com/api/v10/channels/${channelId}/messages/${messageId}`, {
-      //     method: 'PATCH',
-      //     headers: { 'Authorization': `Bot ${config.LUPOS_TOKEN}`, 'Content-Type': 'application/json' },
-      //     body: JSON.stringify({ content: newContent })
-      // })
-      // .then(res => {
-      //     console.log('Edit Message Status:', res.status);
-      //     console.log('\n=== Rate Limit Headers After Edit ===');
-      //     console.log('res.headers:', res.headers);
-      //     return res.json();
-      // })
-      // .then(data => console.log('\nEdited Message:', data.content))
-      // .catch(error => console.error('Error editing message:', error));
-    } else if (mode === "messages") {
-      DiscordUtilityService.onEventMessageCreate(
-        luposClient,
-        { mongo, localMongo },
-        luposOnMessageCreate,
-      );
+    const EVENT_REGISTRATIONS = {
+      services: [...cloneEvents, ...guildEvents, ...interactionEvents],
+      messages: [...messageEvents],
+      default:  [...cloneEvents, ...guildEvents, ...messageEvents, ...interactionEvents],
+    };
+
+    const eventsToRegister = EVENT_REGISTRATIONS[mode] || EVENT_REGISTRATIONS.default;
+    for (const [method, ...args] of eventsToRegister) {
+      DiscordUtilityService[method](luposClient, ...args);
+    }
+
+    // Log readiness for message-processing modes
+    if (mode !== "services") {
       console.log(...LogFormatter.readyToProcessMessages());
-      DiscordUtilityService.onEventMessageUpdate(
-        luposClient,
-        { mongo, localMongo },
-        luposOnMessageUpdate,
-      );
       console.log(...LogFormatter.readyToProcessMessageUpdates());
-    } else {
-      DiscordUtilityService.onEventMessageCreate(
-        luposClient,
-        { mongo, localMongo },
-        luposOnMessageCreateCloneMessage,
-      );
-      DiscordUtilityService.onEventMessageUpdate(
-        luposClient,
-        { mongo, localMongo },
-        luposOnMessageUpdateCloneMessage,
-      );
-      DiscordUtilityService.onEventGuildMemberAdd(
-        luposClient,
-        mongo,
-        luposOnGuildMemberAdd,
-      );
-      DiscordUtilityService.onEventGuildMemberUpdate(
-        luposClient,
-        mongo,
-        luposOnGuildMemberUpdate,
-      );
-      DiscordUtilityService.onEventMessageCreate(
-        luposClient,
-        { mongo, localMongo },
-        luposOnMessageCreate,
-      );
-      console.log(...LogFormatter.readyToProcessMessages());
-      DiscordUtilityService.onEventMessageUpdate(
-        luposClient,
-        { mongo, localMongo },
-        luposOnMessageUpdate,
-      );
-      console.log(...LogFormatter.readyToProcessMessageUpdates());
-      DiscordUtilityService.onEventMessageReactionAdd(
-        luposClient,
-        mongo,
-        luposOnReactionCreateQueue,
-      );
-      DiscordUtilityService.onEventInteractionCreate(
-        luposClient,
-        mongo,
-        luposOnInteractionCreate,
-      );
-      DiscordUtilityService.onEventMessageDelete(
-        luposClient,
-        mongo,
-        luposOnMessageDelete,
-      );
-      DiscordUtilityService.onEventPresenceUpdate(
-        luposClient,
-        luposOnPresenceUpdate,
-      );
-      DiscordUtilityService.onEventGuildMemberRemove(
-        luposClient,
-        mongo,
-        luposOnGuildMemberRemove,
-      );
-      DiscordUtilityService.onEventVoiceStateUpdate(
-        luposClient,
-        mongo,
-        luposOnVoiceStateUpdate,
-      );
     }
     updateLastMessageSentTime();
 

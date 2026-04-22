@@ -1103,22 +1103,22 @@ const DiscordUtilityService = {
       totalDeleted: totalDeleted,
     };
   },
+  /**
+   * Shared username sanitization: replaces spaces with underscores,
+   * removes non-word characters.
+   * @param {string} name
+   * @returns {string}
+   */
+  _sanitizeUsername(name) {
+    if (!name) return "default";
+    return name.replace(/\s+/g, "_").replace(/[^\w]/gi, "") || "default";
+  },
   getUsernameNoSpaces(message) {
     const name =
       message?.author?.displayName ||
       message?.author?.username ||
       message?.user?.username;
-    let username = "default";
-    if (name) {
-      username = name
-        ? name.replace(/\s+/g, "_").replace(/[^\w\s]/gi, "")
-        : message?.author?.username || message?.user?.username;
-      if (!username) {
-        username =
-          message?.author?.username || message?.user?.username || "default";
-      }
-    }
-    return username;
+    return DiscordUtilityService._sanitizeUsername(name);
   },
   // async saveMessageToMongo(message, mongo, collectionName='msgs') {
   //     const db = mongo.db("lupos");
@@ -1225,12 +1225,9 @@ const DiscordUtilityService = {
     return displayName;
   },
   getCleanUsernameFromUser(user) {
-    // Removes periods and hashes with underscores and removes any non-alphanumeric characters
-    let username = user?.username;
-    if (username) {
-      username = username.replace(/[.#]/g, "_").replace(/[^\w]/gi, "");
-    }
-    return username;
+    // Replaces periods/hashes with underscores first, then delegates to shared sanitizer
+    const raw = user?.username?.replace(/[.#]/g, "_");
+    return DiscordUtilityService._sanitizeUsername(raw);
   },
   async getDisplayName(message, userId) {
     let displayName;
@@ -1254,11 +1251,12 @@ const DiscordUtilityService = {
     }
     return displayName;
   },
+  /**
+   * Resolve display name from a user object.
+   * Priority: displayName → globalName → username.
+   */
   getNameFromUser(user) {
-    if (user) {
-      const username = user?.displayName || user?.username || user?.globalName;
-      return username;
-    }
+    return user?.displayName || user?.globalName || user?.username || undefined;
   },
   getUserMentionFromMessage(message) {
     if (message) {

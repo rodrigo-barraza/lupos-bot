@@ -11,4 +11,6 @@ export {
   YOUTUBE_BUTTON_ACTIONS,
   ACCOUNT_AGE_THRESHOLD_MS,
   MONGO_DB_NAME,
+  DEFAULT_LIGHT_CYCLE,
+  RAINBOW_LIGHT_CYCLE,
 } from "./constants/GameConstants.js";

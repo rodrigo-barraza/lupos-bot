@@ -525,6 +525,32 @@ const utilities = {
       clearTimeout(timer);
     }
   },
+  /**
+   * Format a Discord.js reactions cache into a human-readable string.
+   * @param {Collection} reactionsCache - Discord.js message.reactions.cache
+   * @param {"list"|"inline"|"names"} [format="list"]
+   *   - "list":   "\n- emoji x count (by you, Lupos)"
+   *   - "inline": "emoji(by you, Lupos), emoji2"
+   *   - "names":  "emoji, emoji2" (names only, no counts)
+   * @returns {string} Formatted string, or "" if no reactions
+   */
+  formatReactions(reactionsCache, format = "list") {
+    if (!reactionsCache?.size) return "";
+    const entries = [...reactionsCache.values()];
+    switch (format) {
+      case "inline":
+        return entries
+          .map((r) => `${r.emoji.name}${r.me ? " (by you, Lupos)" : ""}`)
+          .join(", ");
+      case "names":
+        return entries.map((r) => r.emoji.name).join(", ");
+      case "list":
+      default:
+        return entries
+          .map((r) => `- ${r.emoji.name} x ${r.count}${r.me ? " (by you, Lupos)" : ""}`)
+          .join("\n");
+    }
+  },
 };
 
 export default utilities;

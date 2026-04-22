@@ -57,6 +57,20 @@ function assembleConversation(systemMessage, userMessage, message) {
   return conversation;
 }
 
+/**
+ * Maps caption type → MongoDB collection name.
+ * Adding a new type is a single-line addition.
+ */
+const CAPTION_COLLECTION_MAP = {
+  IMAGE:   "ImageCaptions",
+  EMOJI:   "EmojiCaptions",
+  STICKER: "StickerCaptions",
+  VIDEO:   "VideoCaptions",
+  AVATAR:  "AvatarCaptions",
+  BANNER:  "BannerCaptions",
+  SMALL:   "SmallCaptions",
+};
+
 const AIService = {
   /**
    * Returns trace params for PrismService calls.
@@ -339,38 +353,15 @@ const AIService = {
   },
   // Caption images and store data in MongoDB
   async captionImages(imageUrls, localMongo, type) {
-    // type = ['image', 'emoji', 'sticker', video']
     const images = [];
     const imagesMap = new Map();
-    if (
-      type === "IMAGE" ||
-      type === "EMOJI" ||
-      type === "STICKER" ||
-      type === "VIDEO" ||
-      type === "AVATAR" ||
-      type === "BANNER" ||
-      type === "SMALL"
-    ) {
+    const collectionName = CAPTION_COLLECTION_MAP[type];
+    if (collectionName) {
       const db = localMongo.db(MONGO_DB_NAME);
-      let collection;
-      let prompt = `Describe this ${type.toLowerCase()}. Make no mention about the quality, resolution, or pixelation.`;
-
-      if (type === "IMAGE") {
-        collection = db.collection("ImageCaptions");
-      } else if (type === "EMOJI") {
-        collection = db.collection("EmojiCaptions");
-      } else if (type === "STICKER") {
-        collection = db.collection("StickerCaptions");
-      } else if (type === "VIDEO") {
-        collection = db.collection("VideoCaptions");
-      } else if (type === "AVATAR") {
-        collection = db.collection("AvatarCaptions");
-      } else if (type === "BANNER") {
-        collection = db.collection("BannerCaptions");
-      } else if (type === "SMALL") {
-        collection = db.collection("SmallCaptions");
-        prompt = `Describe this image in a short sentence, 10 words or less. Make no mention about the quality, resolution, or pixelation.`;
-      }
+      const collection = db.collection(collectionName);
+      const prompt = type === "SMALL"
+        ? `Describe this image in a short sentence, 10 words or less. Make no mention about the quality, resolution, or pixelation.`
+        : `Describe this ${type.toLowerCase()}. Make no mention about the quality, resolution, or pixelation.`;
 
       if (imageUrls?.length) {
         const isObject = imageUrls[0]?.url;
