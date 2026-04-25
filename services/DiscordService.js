@@ -4112,7 +4112,7 @@ const DiscordService = {
       config.VENDER_TOKEN,
     );
     // Initialize MongoDB client
-    await MongoService.createClient("local", config.LOCAL_DATABASE_URL);
+    await MongoService.createClient("local", config.DATABASE_URL);
     const mongo = MongoService.getClient("local");
     DiscordUtilityService.onEventClientReady(
       venderClient,
@@ -4136,11 +4136,10 @@ const DiscordService = {
       "lupos",
       config.LUPOS_TOKEN,
     );
-    // Initialize MongoDB clients
-    await MongoService.createClient("cloud", config.DATABASE_URL);
-    await MongoService.createClient("local", config.LOCAL_DATABASE_URL);
-    const mongo = MongoService.getClient("cloud");
-    const localMongo = MongoService.getClient("local");
+    // Initialize MongoDB client
+    await MongoService.createClient("local", config.DATABASE_URL);
+    const mongo = MongoService.getClient("local");
+    const localMongo = mongo;
     DiscordUtilityService.onEventClientReady(
       luposClient,
       { mongo, localMongo },
@@ -4224,7 +4223,7 @@ const DiscordService = {
       "lupos",
       config.LUPOS_TOKEN,
     );
-    await MongoService.createClient("local", config.LOCAL_DATABASE_URL);
+    await MongoService.createClient("local", config.DATABASE_URL);
     const localMongo = MongoService.getClient("local");
     DiscordUtilityService.onEventClientReady(
       luposClient,
@@ -4237,7 +4236,7 @@ const DiscordService = {
       "lupos",
       config.LUPOS_TOKEN,
     );
-    await MongoService.createClient("local", config.LOCAL_DATABASE_URL);
+    await MongoService.createClient("local", config.DATABASE_URL);
     const localMongo = MongoService.getClient("local");
     DiscordUtilityService.onEventClientReady(
       luposClient,

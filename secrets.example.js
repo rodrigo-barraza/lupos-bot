@@ -23,8 +23,7 @@ export default {
 	"PRISM_API_URL": "http://localhost:7777",
 
 	// ─── Database ──────────────────────────────────────────────────
-	"DATABASE_URL": "",
-	"LOCAL_DATABASE_URL": "mongodb://192.168.86.2:27017/?directConnection=true&replicaSet=rs0",
+	"DATABASE_URL": "mongodb://user:password@192.168.86.2:27017/?directConnection=true&replicaSet=rs0&authSource=admin",
 
 	// ─── Service URLs ──────────────────────────────────────────────
 	"LIGHTS_URL": "http://localhost:4444",
