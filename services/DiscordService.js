@@ -37,7 +37,6 @@ import DiscordUtilityService from "#root/services/DiscordUtilityService.js";
 // import MessageService from "#root/services/MessageService.js";
 import AIService from "#root/services/AIService.js";
 import CurrentService from "#root/services/CurrentService.js";
-import TrendsService from "#root/services/TrendsService.js";
 // JOBS
 import BirthdayJob from "#root/jobs/scheduled/BirthdayJob.js";
 import ActivityRoleAssignmentJob from "#root/jobs/scheduled/ActivityRoleAssignmentJob.js";
@@ -1500,17 +1499,6 @@ Respond with ONLY "yes" or "no". Nothing else.`,
       agentContext.serverContext = serverCtx;
     }
 
-    // Trending data (trends, products, events, earthquakes, space)
-    try {
-      const trendingSummary = await TrendsService.getTrendingSummary();
-      if (trendingSummary) {
-        agentContext.trendingData = trendingSummary;
-      }
-    } catch (trendsErr) {
-      console.warn(
-        `📈 [DiscordService] Trends retrieval failed: ${trendsErr.message}`,
-      );
-    }
 
     // Image context (captions, labels from attached/replied images)
     if (edittedMessageCleanContent?.trim()) {

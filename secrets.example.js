@@ -16,9 +16,6 @@ export default {
 	"VENDER_TOKEN": "",
 	"LUPOS_TOKEN": "",
 
-	// ─── API Keys ──────────────────────────────────────────────────
-	"GOOGLE_KEY": "",
-
 	// ─── Prism ─────────────────────────────────────────────────────
 	"PRISM_API_URL": "http://localhost:7777",
 
@@ -28,10 +25,7 @@ export default {
 	// ─── Service URLs ──────────────────────────────────────────────
 	"LIGHTS_URL": "http://localhost:4444",
 	"TOOLS_API_URL": "http://localhost:5590",
-	"TREND_API_URL": "http://localhost:5570",
-	"PRODUCT_API_URL": "http://localhost:5560",
-	"EVENT_API_URL": "http://localhost:5556",
-	"WEATHER_API_URL": "http://localhost:5555",
+
 
 	// ─── Discord IDs — Ignore Lists ────────────────────────────────
 	"ROLES_IDS_IGNORE": ["1394148043153997935"],
@@ -92,7 +86,7 @@ export default {
 
 	// ─── Feature Flags ─────────────────────────────────────────────
 	"DEATHROLL_SEASON": 1,
-	"GENERATE_IMAGE": true,
+
 	"ASSISTANT_MESSAGE": "",
 
 	// ─── Home Automation ───────────────────────────────────────────
@@ -103,10 +97,7 @@ export default {
 
 	"ANTHROPIC_LANGUAGE_MODEL_SMART": "claude-sonnet-4-6",
 	"ANTHROPIC_LANGUAGE_MODEL_FAST": "claude-haiku-4-5-20251001",
-	"ANTHROPIC_LANGUAGE_MODEL_CLAUDE_SONNET_4": "claude-sonnet-4-6",
 
-	"OPENAI_LANGUAGE_MODEL_GPT5_MINI": "gpt-5-mini",
-	"OPENAI_LANGUAGE_MODEL_GPT5_NANO": "gpt-5-nano",
 	"OPENAI_LANGUAGE_MODEL_GPT4_1_NANO": "gpt-4.1-nano",
 
 	"LANGUAGE_MODEL_OPENAI": "gpt-4",
