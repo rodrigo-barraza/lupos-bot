@@ -51,9 +51,17 @@ function main() {
       res.setHeader("Access-Control-Allow-Credentials", true);
       next();
     });
+    app.get("/health", (_req, res) => {
+      res.json({
+        name: "Lupos",
+        status: "ok",
+        uptime: process.uptime(),
+        mode: mode || "default",
+      });
+    });
     app.use("/", services());
-    app.listen(config.SERVER_PORT, () => {
-      console.log(`Server listening on port ${config.SERVER_PORT}`);
+    app.listen(config.SERVER_PORT, "0.0.0.0", () => {
+      console.log(`Server listening on 0.0.0.0:${config.SERVER_PORT}`);
     });
 
     // HOME ASSISTANT
