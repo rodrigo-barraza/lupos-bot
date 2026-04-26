@@ -1,0 +1,26 @@
+services:
+  lupos:
+    image: lupos:latest
+    container_name: lupos
+    restart: unless-stopped
+    ports:
+      - "1337:1337"
+    env_file:
+      - .env
+    # Chromium needs larger shared memory in Docker
+    shm_size: "256m"
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "-O", "/dev/null", "http://localhost:1337/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    deploy:
+      resources:
+        limits:
+          memory: 512M

@@ -13,7 +13,9 @@
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "format": "prettier --write \"**/*.js\"",
-    "format:check": "prettier --check \"**/*.js\""
+    "format:check": "prettier --check \"**/*.js\"",
+    "deploy": "bash deploy.sh",
+    "deploy:dry": "bash deploy.sh --dry-run"
   },
   "keywords": [],
   "author": "",
