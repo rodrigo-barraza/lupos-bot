@@ -148,7 +148,7 @@ npm run format:check # Check formatting
 
 ## ☀️ Part of [Sun](https://github.com/rodrigo-barraza)
 
-Lupos is one service in the Sun ecosystem — a collection of composable backend services and frontends designed to be mixed and matched.
+Lupos is one service in a collection of composable backend services and frontends by Rodrigo Barraza.
 
 ---
 
