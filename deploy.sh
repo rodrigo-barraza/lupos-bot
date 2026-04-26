@@ -162,7 +162,7 @@ if $HAS_SSH; then
       | grep -v 'latest' \
       | awk '{print \$2}' \
       | xargs -r sudo ${DOCKER_BIN} rmi 2>/dev/null || true"
-    ssh "$NAS_HOST" "sudo ${DOCKER_BIN} image prune -f" 2>/dev/null | sed 's/^/  /'
+    ssh "$NAS_HOST" "sudo ${DOCKER_BIN} image prune -f" 2>/dev/null | sed 's/^/  /' || true
   fi
 
 else
