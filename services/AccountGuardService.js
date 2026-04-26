@@ -5,7 +5,7 @@
  * luposOnGuildMemberAdd() and luposOnReadyDeleteNewAccounts().
  */
 
-import config from "#root/secrets.js";
+import config from "#root/config.js";
 import { ACCOUNT_AGE_THRESHOLD_MS, MS_PER_DAY } from "#root/constants.js";
 
 /**

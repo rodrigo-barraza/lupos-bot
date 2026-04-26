@@ -1,5 +1,5 @@
 import { MessageConstant, ClockCrewConstants } from "#root/constants.js";
-import config from "#root/secrets.js";
+import config from "#root/config.js";
 const { ASSISTANT_MESSAGE } = config;
 
 const MessageService = {

@@ -2,7 +2,7 @@
 import { DateTime } from "luxon";
 import utilities from "#root/utilities.js";
 const { consoleLog } = utilities;
-import config from "#root/secrets.js";
+import config from "#root/config.js";
 import { Collection, ChannelType, Events, ActivityType } from "discord.js";
 import { MS_PER_DAY, MONGO_DB_NAME } from "#root/constants.js";
 import ScraperService from "#root/services/ScraperService.js";

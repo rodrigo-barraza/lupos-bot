@@ -15,7 +15,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 // CONFIG
-import config from "#root/secrets.js";
+import config from "#root/config.js";
 // ARRAYS
 import {
   rolesVideogames,

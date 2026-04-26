@@ -1,6 +1,6 @@
 import StatService from "#root/services/StatService.js";
 import AIService from "#root/services/AIService.js";
-import config from "#root/secrets.js";
+import config from "#root/config.js";
 
 const hungerStat = StatService.create("hunger", {
   min: 0,

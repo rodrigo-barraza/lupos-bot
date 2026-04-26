@@ -5,7 +5,7 @@ process.env.NODE_NO_WARNINGS = "stream/web";
 
 // Dependencies
 // import { MongoClient } from 'mongodb';
-import config from "./secrets.js";
+import config from "./config.js";
 // const utilities = require('./libraries/utilities.js');
 import DiscordService from "./services/DiscordService.js";
 import LogFormatter from "./formatters/LogFormatter.js";

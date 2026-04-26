@@ -9,7 +9,7 @@
 // No local browser dependencies required.
 // ============================================================
 
-import config from "#root/secrets.js";
+import config from "#root/config.js";
 import utilities from "#root/utilities.js";
 
 const TOOLS_API_URL = config.TOOLS_API_URL || "http://localhost:5590";

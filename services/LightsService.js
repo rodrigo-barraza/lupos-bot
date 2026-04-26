@@ -1,4 +1,4 @@
-import config from "#root/secrets.js";
+import config from "#root/config.js";
 
 const { LIGHTS_URL } = config;
 

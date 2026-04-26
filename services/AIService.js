@@ -5,7 +5,7 @@ import crypto from "crypto";
 
 // import { DateTime } from 'luxon';
 // Config
-import config from "#root/secrets.js";
+import config from "#root/config.js";
 import { MONGO_DB_NAME } from "#root/constants.js";
 // Formatters
 import LogFormatter from "#root/formatters/LogFormatter.js";
