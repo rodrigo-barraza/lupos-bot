@@ -153,7 +153,7 @@ if $HAS_SSH; then
 
     # Restart container
     info "Restarting container..."
-    ssh "$NAS_HOST" "cd '${NAS_COMPOSE_DIR}' && sudo ${DOCKER_BIN} compose up -d --force-recreate"
+    ssh "$NAS_HOST" "cd '${NAS_COMPOSE_DIR}' && sudo ${DOCKER_BIN} compose down --remove-orphans && sudo ${DOCKER_BIN} compose up -d"
     ok "Container restarted"
 
     # Clean up old SHA-tagged images (keeps only :latest)
