@@ -172,20 +172,16 @@ router.get("/guild/members", async (req, res) => {
       });
     }
 
-    // Also count total members and bots
-    const botMembers = guild.members.cache.filter(
-      (m) =>
-        m.user.bot &&
-        m.presence &&
-        m.presence.status !== "offline",
-    );
+    // Collect bots — presence data is unreliable for bots (GUILD_PRESENCES
+    // doesn't track them), so any cached bot is treated as online.
+    const botMembers = guild.members.cache.filter((m) => m.user.bot);
 
     const bots = botMembers.map((m) => ({
       id: m.id,
       displayName: m.displayName,
       username: m.user.username,
       avatarUrl: buildAvatarUrl(m.user, m),
-      status: m.presence?.status || "offline",
+      status: m.presence?.status || "online",
       isBot: true,
       roleColor: m.displayHexColor !== "#000000" ? m.displayHexColor : null,
     }));
