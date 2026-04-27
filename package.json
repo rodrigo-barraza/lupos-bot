@@ -9,6 +9,7 @@
   },
   "scripts": {
     "dev": "node boot.js mode=messages",
+    "clone:messages": "node boot.js mode=clone:messages",
     "test": "node --experimental-vm-modules node_modules/.bin/jest",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
