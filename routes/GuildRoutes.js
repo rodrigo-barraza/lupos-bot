@@ -108,16 +108,20 @@ router.get("/guild/members", async (req, res) => {
         !m.user.bot,
     );
 
-    // Build role hierarchy for grouping
+    // Build role hierarchy for grouping.
+    // Only hoisted roles (role.hoist === true) appear as sidebar
+    // category headers — mirrors Discord's own member list behavior.
     const roleMap = new Map();
     const ungrouped = [];
 
     for (const [, member] of onlineMembers) {
-      // Get highest non-@everyone role
-      const highestRole = member.roles.cache
+      // Get all non-@everyone roles sorted highest first
+      const sortedRoles = member.roles.cache
         .filter((r) => r.id !== guild.id) // Exclude @everyone
-        .sort((a, b) => b.position - a.position)
-        .first();
+        .sort((a, b) => b.position - a.position);
+
+      // Find the highest hoisted role for sidebar grouping
+      const hoistedRole = sortedRoles.find((r) => r.hoist);
 
       const memberData = {
         id: member.id,
@@ -130,17 +134,17 @@ router.get("/guild/members", async (req, res) => {
         roleColor: member.displayHexColor !== "#000000" ? member.displayHexColor : null,
       };
 
-      if (highestRole) {
-        if (!roleMap.has(highestRole.id)) {
-          roleMap.set(highestRole.id, {
-            id: highestRole.id,
-            name: highestRole.name,
-            color: highestRole.hexColor !== "#000000" ? highestRole.hexColor : null,
-            position: highestRole.position,
+      if (hoistedRole) {
+        if (!roleMap.has(hoistedRole.id)) {
+          roleMap.set(hoistedRole.id, {
+            id: hoistedRole.id,
+            name: hoistedRole.name,
+            color: hoistedRole.hexColor !== "#000000" ? hoistedRole.hexColor : null,
+            position: hoistedRole.position,
             members: [],
           });
         }
-        roleMap.get(highestRole.id).members.push(memberData);
+        roleMap.get(hoistedRole.id).members.push(memberData);
       } else {
         ungrouped.push(memberData);
       }
