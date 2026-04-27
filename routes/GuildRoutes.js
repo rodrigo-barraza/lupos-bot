@@ -76,8 +76,15 @@ router.get("/guild/members", async (req, res) => {
       return res.status(404).json({ error: "Guild not found" });
     }
 
-    // Fetch all members to populate presences (cache may be incomplete)
-    await guild.members.fetch({ withPresences: true });
+    // Fetch all members to populate presences (cache may be incomplete).
+    // Gracefully fall back to cache if the fetch fails (rate-limit, timeout, etc.)
+    try {
+      await guild.members.fetch({ withPresences: true });
+    } catch (fetchErr) {
+      console.warn(
+        `[guild/members] guild.members.fetch failed, falling back to cache: ${fetchErr.message}`,
+      );
+    }
 
     // Collect online members (online, idle, dnd — not offline)
     const onlineMembers = guild.members.cache.filter(
@@ -175,8 +182,8 @@ router.get("/guild/members", async (req, res) => {
       bots,
     });
   } catch (error) {
-    console.error("[guild/members] Error:", error.message);
-    res.status(500).json({ error: "Failed to fetch members" });
+    console.error("[guild/members] Error:", error.message, error.stack);
+    res.status(500).json({ error: "Failed to fetch members", detail: error.message });
   }
 });
 
