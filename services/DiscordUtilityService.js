@@ -872,12 +872,20 @@ const DiscordUtilityService = {
 
     const limiter = createConcurrencyLimiter(concurrencyLimit);
 
+    // ── User ID for deleted message cleanup ─────────────────────────
+    // After scraping each channel, remove messages from this user that
+    // exist in MongoDB but were deleted from Discord.
+    const CLEANUP_USER_ID = "166745313258897409";
+
     // ── Process a single channel ────────────────────────────────────
     const processChannel = async (channel) => {
       const channelStartTime = Date.now();
       let channelMessageCount = 0;
       let channelDuplicates = 0;
       let channelErrors = 0;
+
+      // Track message IDs from the target user found on Discord
+      const discordUserMessageIds = new Set();
 
       // Use checkpoint (auto or explicit) if available
       let lastId = resumeMap.get(channel.id) || null;
@@ -932,6 +940,13 @@ const DiscordUtilityService = {
             break;
           }
 
+          // Track message IDs from the target user
+          for (const msg of messages.values()) {
+            if (msg.author?.id === CLEANUP_USER_ID) {
+              discordUserMessageIds.add(msg.id);
+            }
+          }
+
           // Update pagination cursor immediately (sync — no waiting)
           const lastMessage = messages.last();
           if (lastMessage) {
@@ -974,7 +989,11 @@ const DiscordUtilityService = {
               );
             }
 
-            return { ...result, _lastDate: batchDate };
+            // Attach date for logging
+            result._lastDate = batchDate
+              ? batchDate.toISOString().split("T")[0]
+              : "unknown";
+            return result;
           })();
 
           // discord.js handles rate limiting internally — no artificial delay needed
@@ -1009,6 +1028,37 @@ const DiscordUtilityService = {
           );
           channelErrors++;
           totalErrors++;
+        }
+      }
+
+      // ── Cleanup: purge deleted messages from target user ──────────
+      // Compare MongoDB messages by this user in this channel against
+      // what was found on Discord — delete any orphans.
+      if (discordUserMessageIds.size > 0 || !limitDate) {
+        try {
+          const mongoUserMessages = await collection
+            .find(
+              { channelId: channel.id, "author.id": CLEANUP_USER_ID },
+              { projection: { id: 1 } },
+            )
+            .toArray();
+
+          const orphanIds = mongoUserMessages
+            .filter((doc) => !discordUserMessageIds.has(doc.id))
+            .map((doc) => doc.id);
+
+          if (orphanIds.length > 0) {
+            const deleteResult = await collection.deleteMany({
+              id: { $in: orphanIds },
+            });
+            console.log(
+              `  [CLEANUP] #${channel.name}: Removed ${deleteResult.deletedCount} deleted message(s) from user ${CLEANUP_USER_ID}`,
+            );
+          }
+        } catch (cleanupErr) {
+          console.warn(
+            `  [CLEANUP] #${channel.name}: cleanup failed: ${cleanupErr.message}`,
+          );
         }
       }
 

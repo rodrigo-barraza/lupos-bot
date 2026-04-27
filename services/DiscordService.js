@@ -3202,7 +3202,7 @@ async function luposOnMessageUpdate(
 }
 
 // Whenever a message is deleted in WHITEMANE, post it in the deleted-message channel
-async function luposOnMessageDelete(client, message) {
+async function luposOnMessageDelete(client, mongo, message) {
   // Fetch partial messages
   if (message.partial) {
     try {
@@ -3231,6 +3231,24 @@ async function luposOnMessageDelete(client, message) {
   cancelledMessageIds.add(deletedMessageId);
   // Auto-cleanup after 5 minutes to prevent memory leaks
   setTimeout(() => cancelledMessageIds.delete(deletedMessageId), 5 * 60 * 1000);
+
+  // ── Delete from MongoDB for target user ────────────────────────
+  // When user 166745313258897409 deletes their messages, also purge
+  // from our Messages collection to respect their intent.
+  const CLEANUP_USER_ID = "166745313258897409";
+  if (message.author?.id === CLEANUP_USER_ID) {
+    try {
+      const db = mongo.db(MONGO_DB_NAME);
+      const result = await db.collection("Messages").deleteOne({ id: deletedMessageId });
+      if (result.deletedCount > 0) {
+        console.log(
+          `🗑️ [DiscordService] Deleted message ${deletedMessageId} from MongoDB (user: ${CLEANUP_USER_ID})`,
+        );
+      }
+    } catch (dbError) {
+      console.warn(`🗑️ [DiscordService] MongoDB delete failed for ${deletedMessageId}: ${dbError.message}`);
+    }
+  }
 
   // Early returns for invalid cases
   if (message.author?.bot) return;
