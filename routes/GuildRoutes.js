@@ -14,6 +14,19 @@ import config from "#root/config.js";
 const router = Router();
 
 /**
+ * Middleware: reject requests if the Discord client isn't ready yet.
+ * Prevents 500s from empty guild cache during the login→ready window.
+ */
+router.use((req, res, next) => {
+  const client = DiscordWrapper.getClient("lupos");
+  if (!client?.isReady()) {
+    res.set("Retry-After", "5");
+    return res.status(503).json({ error: "Discord client is not ready yet" });
+  }
+  next();
+});
+
+/**
  * Build a Discord CDN avatar URL from a User or GuildMember.
  */
 function buildAvatarUrl(user, member) {
