@@ -12,7 +12,7 @@
 import config from "#root/config.js";
 import utilities from "#root/utilities.js";
 
-const TOOLS_API_URL = config.TOOLS_API_URL || "http://localhost:5590";
+const TOOLS_SERVICE_URL = config.TOOLS_SERVICE_URL || "http://localhost:5590";
 const SCRAPE_TIMEOUT_MS = 15_000;
 
 /**
@@ -22,7 +22,7 @@ const SCRAPE_TIMEOUT_MS = 15_000;
  * @returns {Promise<object>} Metadata object ({ title, description, image, video, keywords, ... })
  */
 async function fetchMetadata(url) {
-  const endpoint = `${TOOLS_API_URL}/utility/scrape/metadata?url=${encodeURIComponent(url)}`;
+  const endpoint = `${TOOLS_SERVICE_URL}/utility/scrape/metadata?url=${encodeURIComponent(url)}`;
   const result = await utilities.fetchWithTimeout(endpoint, SCRAPE_TIMEOUT_MS);
   return result ?? {};
 }

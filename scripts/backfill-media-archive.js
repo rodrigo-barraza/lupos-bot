@@ -22,7 +22,7 @@ import { createVaultClient } from "../utils/vault-client.js";
 // ─── Boot: resolve secrets ──────────────────────────────────────
 const vault = createVaultClient({
   localEnvFile: "./.env",
-  fallbackEnvFile: "../vault/.env",
+  fallbackEnvFile: "../vault-service/.env",
 });
 const secrets = await vault.fetch();
 for (const [key, value] of Object.entries(secrets)) {

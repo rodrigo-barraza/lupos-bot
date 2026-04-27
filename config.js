@@ -6,14 +6,14 @@
 // ============================================================
 
 import {
-  LUPOS_PORT,
+  LUPOS_BOT_PORT,
   UNDER_MAINTENANCE,
   VENDER_TOKEN,
   LUPOS_TOKEN,
-  PRISM_URL,
+  PRISM_SERVICE_URL,
   MONGO_URI,
-  LIGHTS_URL,
-  TOOLS_API_URL,
+  LIGHTS_SERVICE_URL,
+  TOOLS_SERVICE_URL,
   MINIO_ENDPOINT,
   MINIO_ACCESS_KEY,
   MINIO_SECRET_KEY,
@@ -67,7 +67,7 @@ import {
 
 const config = {
   // ─── Server ────────────────────────────────────────────────────
-  SERVER_PORT: LUPOS_PORT || 1337,
+  SERVER_PORT: LUPOS_BOT_PORT || 1337,
 
   // ─── Maintenance ───────────────────────────────────────────────
   UNDER_MAINTENANCE,
@@ -77,14 +77,14 @@ const config = {
   LUPOS_TOKEN,
 
   // ─── Prism ─────────────────────────────────────────────────────
-  PRISM_API_URL: PRISM_URL || "http://localhost:7777",
+  PRISM_API_URL: PRISM_SERVICE_URL || "http://localhost:7777",
 
   // ─── Database ──────────────────────────────────────────────────
   DATABASE_URL: MONGO_URI,
 
   // ─── Service URLs ──────────────────────────────────────────────
-  LIGHTS_URL: LIGHTS_URL || "http://localhost:4444",
-  TOOLS_API_URL: TOOLS_API_URL || "http://localhost:5590",
+  LIGHTS_SERVICE_URL: LIGHTS_SERVICE_URL || "http://localhost:4444",
+  TOOLS_SERVICE_URL: TOOLS_SERVICE_URL || "http://localhost:5590",
 
   // ─── MinIO (Optional — media archival) ──────────────────────────
   MINIO_ENDPOINT,

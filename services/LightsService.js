@@ -1,6 +1,6 @@
 import config from "#root/config.js";
 
-const { LIGHTS_URL } = config;
+const { LIGHTS_SERVICE_URL } = config;
 
 export default class LightsService {
   static currentColor = null;
@@ -18,7 +18,7 @@ export default class LightsService {
         options.headers = { "Content-Type": "application/json" };
         options.body = JSON.stringify(body);
       }
-      const response = await fetch(`${LIGHTS_URL}${path}`, options);
+      const response = await fetch(`${LIGHTS_SERVICE_URL}${path}`, options);
       return await response.json();
     } catch {
       return null;

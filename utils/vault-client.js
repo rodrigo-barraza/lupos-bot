@@ -8,7 +8,7 @@
 //   1. process.env (manual env vars, Docker --env)
 //   2. Local .env  (project-level overrides for local dev)
 //   3. Vault       (production secret server)
-//   4. Fallback    (shared vault/.env for offline dev)
+//   4. Fallback    (shared vault-service/.env for offline dev)
 //
 // Usage (in any service's boot.js):
 //
@@ -16,7 +16,7 @@
 //
 //   const vault = createVaultClient({
 //     localEnvFile: "./.env",           // project-level overrides
-//     fallbackEnvFile: "../vault/.env", // shared fallback
+//     fallbackEnvFile: "../vault-service/.env", // shared fallback
 //   });
 //   const secrets = await vault.fetch();
 //
@@ -25,7 +25,7 @@
 //   Fill in only the values you need to override.
 //
 // Configuration:
-//   The client reads VAULT_URL and VAULT_TOKEN from process.env
+//   The client reads VAULT_SERVICE_URL and VAULT_SERVICE_TOKEN from process.env
 //   (or from the local .env), or you can pass them directly.
 // ============================================================
 
@@ -33,7 +33,7 @@ import { readFileSync, existsSync } from "fs";
 import { resolve } from "path";
 
 // ── Default Configuration ──────────────────────────────────────
-const DEFAULT_VAULT_URL = "http://192.168.86.2:5599";
+const DEFAULT_VAULT_SERVICE_URL = "http://192.168.86.2:5599";
 const FETCH_TIMEOUT_MS = 3_000;
 
 /**
@@ -102,7 +102,7 @@ export function createVaultClient(options = {}) {
      * Merge order (later sources fill in gaps, never overwrite):
      *   1. Local .env       → project-level overrides
      *   2. Vault service    → production secrets
-     *   3. Fallback .env    → shared vault/.env for offline dev
+     *   3. Fallback .env    → shared vault-service/.env for offline dev
      *
      * Returns: plain object of { KEY: "value" } pairs.
      */
@@ -119,8 +119,8 @@ export function createVaultClient(options = {}) {
       }
 
       // Resolve vault connection from local overrides or process.env
-      const vaultUrl = options.vaultUrl || merged.VAULT_URL || process.env.VAULT_URL || DEFAULT_VAULT_URL;
-      const vaultToken = options.vaultToken || merged.VAULT_TOKEN || process.env.VAULT_TOKEN || "";
+      const vaultUrl = options.vaultUrl || merged.VAULT_SERVICE_URL || process.env.VAULT_SERVICE_URL || DEFAULT_VAULT_SERVICE_URL;
+      const vaultToken = options.vaultToken || merged.VAULT_SERVICE_TOKEN || process.env.VAULT_SERVICE_TOKEN || "";
 
       // ── 2. Vault service ────────────────────────────────────
       if (vaultToken) {
@@ -156,7 +156,7 @@ export function createVaultClient(options = {}) {
           console.warn(`⚠️  Vault unreachable (${err.message})`);
         }
       } else {
-        console.warn("⚠️  No VAULT_TOKEN set — skipping Vault");
+        console.warn("⚠️  No VAULT_SERVICE_TOKEN set — skipping Vault");
       }
 
       // ── 3. Fallback: shared .env file ───────────────────────
