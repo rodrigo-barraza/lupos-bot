@@ -2825,16 +2825,7 @@ async function luposOnReadyCloneMessages(client, { localMongo }) {
   await DiscordUtilityService.fetchAndSaveAllServerMessages(
     client,
     localMongo,
-    config.GUILD_ID_PRIMARY,
-    {
-      dateLimit: "2025-12-16",
-      autoResume: false,
-      categoryIds: [
-        "610924121311674415",
-        "610921893071028408",
-        "609652454375555082",
-      ],
-    },
+    "249010731910037507",
   );
 }
 
@@ -4236,6 +4227,8 @@ const DiscordService = {
       { localMongo },
       luposOnReadyCloneMessages,
     );
+    // Also handle deletes during scraping
+    DiscordUtilityService.onEventMessageDelete(luposClient, localMongo, luposOnMessageDelete);
   },
   async deleteDuplicateMessages() {
     const luposClient = DiscordWrapper.createClient(

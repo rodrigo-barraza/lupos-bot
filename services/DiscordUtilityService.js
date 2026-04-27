@@ -795,6 +795,7 @@ const DiscordUtilityService = {
               const archiveMap = await MediaArchivalService.archiveMessageMedia(message);
               if (Object.keys(archiveMap).length > 0) {
                 doc.mediaArchive = archiveMap;
+                MediaArchivalService.rewriteDocumentUrls(doc, archiveMap);
               }
             } catch (archiveErr) {
               console.warn(`  [ARCHIVE] Media archival failed for ${message.id}: ${archiveErr.message}`);
@@ -1203,6 +1204,7 @@ const DiscordUtilityService = {
         const archiveMap = await MediaArchivalService.archiveMessageMedia(message);
         if (Object.keys(archiveMap).length > 0) {
           messageObject.mediaArchive = archiveMap;
+          MediaArchivalService.rewriteDocumentUrls(messageObject, archiveMap);
         }
       } catch (err) {
         console.warn(`📦 Media archival failed for message ${message.id}: ${err.message}`);
@@ -1226,6 +1228,7 @@ const DiscordUtilityService = {
         const archiveMap = await MediaArchivalService.archiveMessageMedia(message);
         if (Object.keys(archiveMap).length > 0) {
           messageObject.mediaArchive = archiveMap;
+          MediaArchivalService.rewriteDocumentUrls(messageObject, archiveMap);
         }
       } catch (err) {
         console.warn(`📦 Media archival failed for message ${message.id}: ${err.message}`);

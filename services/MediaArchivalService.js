@@ -302,7 +302,9 @@ const MediaArchivalService = {
       // Direct image URLs in content
       const contentUrls = message.content.match(/https?:\/\/[^\s]+/g);
       if (contentUrls) {
-        for (const contentUrl of contentUrls) {
+        for (let contentUrl of contentUrls) {
+          // Strip trailing angle brackets, parens, punctuation from Discord markdown
+          contentUrl = contentUrl.replace(/[>)}\].,;:!?]+$/, "");
           if (contentUrl.includes("tenor.com/view/")) continue; // Already handled
           try {
             const isImage = await utilities.isImageUrl(contentUrl);
@@ -337,6 +339,48 @@ const MediaArchivalService = {
     }
 
     return results;
+  },
+
+  /**
+   * Rewrite ephemeral Discord CDN URLs in a transformed message document
+   * with permanent MinIO public URLs from the archive map.
+   *
+   * Mutates the document in-place. Only rewrites URLs that were
+   * successfully archived (present in archiveMap).
+   *
+   * @param {object} doc - Transformed message document (from transformMessageRoot)
+   * @param {Object<string, object>} archiveMap - { originalUrl → { publicUrl, ... } }
+   */
+  rewriteDocumentUrls(doc, archiveMap) {
+    if (!archiveMap || Object.keys(archiveMap).length === 0) return;
+
+    const rewrite = (url) => archiveMap[url]?.publicUrl || url;
+
+    // Attachments
+    if (doc.attachments?.length) {
+      for (const att of doc.attachments) {
+        if (att.url) att.url = rewrite(att.url);
+        if (att.proxyURL) att.proxyURL = rewrite(att.proxyURL);
+      }
+    }
+
+    // Stickers
+    if (doc.stickers?.length) {
+      for (const sticker of doc.stickers) {
+        if (sticker.url) sticker.url = rewrite(sticker.url);
+      }
+    }
+
+    // Embeds
+    if (doc.embeds?.length) {
+      for (const embed of doc.embeds) {
+        if (embed.image?.url) embed.image.url = rewrite(embed.image.url);
+        if (embed.image?.proxyURL) embed.image.proxyURL = rewrite(embed.image.proxyURL);
+        if (embed.thumbnail?.url) embed.thumbnail.url = rewrite(embed.thumbnail.url);
+        if (embed.thumbnail?.proxyURL) embed.thumbnail.proxyURL = rewrite(embed.thumbnail.proxyURL);
+        if (embed.video?.proxyURL) embed.video.proxyURL = rewrite(embed.video.proxyURL);
+      }
+    }
   },
 };
 
