@@ -12,7 +12,7 @@
 # ============================================================
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-IMAGE_NAME="lupos"
+IMAGE_NAME="lupos-bot"
 DISPLAY_NAME="🐺 Lupos"
 
 source "${SCRIPT_DIR}/../deploy/lib.sh"
