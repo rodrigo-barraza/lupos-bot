@@ -1121,6 +1121,265 @@ const DiscordUtilityService = {
       totalDuration: parseFloat(totalDuration),
     };
   },
+
+  /**
+   * Purge deleted messages for specific users.
+   * Queries MongoDB for all messages by the given user IDs, then verifies
+   * each one against Discord. Messages that no longer exist (404/10008)
+   * are deleted from MongoDB.
+   *
+   * @param {import('discord.js').Client} client
+   * @param {import('mongodb').MongoClient} mongo
+   * @param {string} guildId
+   * @param {string[]} userIds - Discord user IDs to reconcile
+   * @param {object} [options]
+   * @param {string} [options.collectionName='Messages']
+   * @param {number} [options.concurrencyLimit=5] - Parallel Discord API checks
+   */
+  async purgeDeletedMessagesForUsers(client, mongo, guildId, userIds, options = {}) {
+    const {
+      collectionName = "Messages",
+      concurrencyLimit = 5,
+    } = options;
+
+    const startTime = Date.now();
+    const db = mongo.db(MONGO_DB_NAME);
+    const collection = db.collection(collectionName);
+    const guild = client.guilds.cache.get(guildId);
+
+    if (!guild) {
+      console.error(`[CLEANUP] Guild ${guildId} not found`);
+      return { verified: 0, deleted: 0, errors: 0 };
+    }
+
+    // Find all messages in MongoDB by these users in this guild
+    const mongoMessages = await collection
+      .find(
+        { guildId, "author.id": { $in: userIds } },
+        { projection: { id: 1, channelId: 1, "author.id": 1 } },
+      )
+      .toArray();
+
+    console.log(`[CLEANUP] Found ${mongoMessages.length} message(s) from ${userIds.length} tracked user(s) to verify`);
+    if (mongoMessages.length === 0) return { verified: 0, deleted: 0, errors: 0 };
+
+    // Group by channel for efficient processing
+    const byChannel = new Map();
+    for (const doc of mongoMessages) {
+      if (!byChannel.has(doc.channelId)) byChannel.set(doc.channelId, []);
+      byChannel.get(doc.channelId).push(doc.id);
+    }
+
+    let totalVerified = 0;
+    let totalDeleted = 0;
+    let totalErrors = 0;
+
+    for (const [channelId, messageIds] of byChannel) {
+      const channel = guild.channels.cache.get(channelId);
+      if (!channel) {
+        console.warn(`  [CLEANUP] Channel ${channelId} not in cache — skipping ${messageIds.length} message(s)`);
+        totalErrors += messageIds.length;
+        continue;
+      }
+
+      const orphanIds = [];
+
+      // Process in concurrency-limited chunks
+      for (let i = 0; i < messageIds.length; i += concurrencyLimit) {
+        const chunk = messageIds.slice(i, i + concurrencyLimit);
+        const results = await Promise.allSettled(
+          chunk.map(async (msgId) => {
+            try {
+              await channel.messages.fetch(msgId);
+              return { exists: true, id: msgId };
+            } catch (err) {
+              // 10008 = Unknown Message (deleted)
+              if (err.code === 10008) {
+                return { exists: false, id: msgId };
+              }
+              // Other errors (permissions, rate limit) — don't assume deleted
+              throw err;
+            }
+          }),
+        );
+
+        for (const result of results) {
+          if (result.status === "fulfilled") {
+            if (result.value.exists) {
+              totalVerified++;
+            } else {
+              orphanIds.push(result.value.id);
+            }
+          } else {
+            totalErrors++;
+            console.warn(`  [CLEANUP] Error checking message in #${channel.name}: ${result.reason?.message}`);
+          }
+        }
+      }
+
+      if (orphanIds.length > 0) {
+        const deleteResult = await collection.deleteMany({ id: { $in: orphanIds } });
+        totalDeleted += deleteResult.deletedCount;
+        console.log(
+          `  [CLEANUP] #${channel.name}: Removed ${deleteResult.deletedCount} deleted message(s)`,
+        );
+      } else {
+        console.log(
+          `  [CLEANUP] #${channel.name}: All ${messageIds.length} message(s) still exist`,
+        );
+      }
+    }
+
+    const duration = ((Date.now() - startTime) / 1000).toFixed(2);
+    console.log(`[CLEANUP] Complete — verified: ${totalVerified}, deleted: ${totalDeleted}, errors: ${totalErrors} (${duration}s)`);
+
+    return { verified: totalVerified, deleted: totalDeleted, errors: totalErrors };
+  },
+
+  /**
+   * Backfill media archive for messages that still have Discord CDN URLs.
+   * Finds messages missing `mediaArchive` that have attachments, downloads
+   * the media to MinIO, and updates the document with permanent URLs.
+   *
+   * @param {import('discord.js').Client} client - Discord client for fetching fresh URLs
+   * @param {import('mongodb').MongoClient} mongo
+   * @param {object} [options]
+   * @param {string} [options.collectionName='Messages']
+   * @param {string[]} [options.authorIds] - Limit to specific author IDs (null = all)
+   * @param {string} [options.guildId] - Limit to specific guild
+   * @param {number} [options.batchSize=50] - Documents per processing batch
+   */
+  async backfillMediaArchive(client, mongo, options = {}) {
+    const {
+      collectionName = "Messages",
+      authorIds = null,
+      guildId = null,
+      batchSize = 50,
+    } = options;
+
+    if (!MediaArchivalService.isAvailable()) {
+      console.error("[BACKFILL] MinIO not available — cannot backfill media");
+      return { processed: 0, archived: 0, errors: 0 };
+    }
+
+    const startTime = Date.now();
+    const db = mongo.db(MONGO_DB_NAME);
+    const collection = db.collection(collectionName);
+
+    // Build query: messages with media but no/empty mediaArchive
+    const query = {
+      $and: [
+        {
+          $or: [
+            { mediaArchive: { $exists: false } },
+            { mediaArchive: { $eq: {} } },
+          ],
+        },
+        {
+          $or: [
+            { "attachments.0": { $exists: true } },
+            { "stickers.0": { $exists: true } },
+            { "embeds.0": { $exists: true } },
+          ],
+        },
+      ],
+    };
+    if (authorIds) query["author.id"] = { $in: authorIds };
+    if (guildId) query.guildId = guildId;
+
+    const totalCount = await collection.countDocuments(query);
+    console.log(`[BACKFILL] Found ${totalCount} message(s) needing media archival`);
+    if (totalCount === 0) return { processed: 0, archived: 0, errors: 0 };
+
+    // Load all docs, group by channel
+    const docs = await collection.find(query).batchSize(batchSize).toArray();
+    const byChannel = new Map();
+    for (const doc of docs) {
+      if (!byChannel.has(doc.channelId)) byChannel.set(doc.channelId, []);
+      byChannel.get(doc.channelId).push(doc);
+    }
+
+    const guild = guildId ? client.guilds.cache.get(guildId) : null;
+    let processed = 0;
+    let archived = 0;
+    let errors = 0;
+
+    for (const [channelId, channelDocs] of byChannel) {
+      // Resolve channel from guild cache or client channels
+      const channel = guild
+        ? guild.channels.cache.get(channelId)
+        : client.channels.cache.get(channelId);
+
+      if (!channel) {
+        console.warn(`  [BACKFILL] Channel ${channelId} not in cache — skipping ${channelDocs.length} message(s)`);
+        // Mark as empty mediaArchive so we don't retry endlessly
+        for (const doc of channelDocs) {
+          await collection.updateOne({ _id: doc._id }, { $set: { mediaArchive: {} } });
+          processed++;
+        }
+        continue;
+      }
+
+      for (const doc of channelDocs) {
+        processed++;
+
+        try {
+          // Fetch the live message from Discord to get fresh CDN URLs
+          let liveMessage;
+          try {
+            liveMessage = await channel.messages.fetch(doc.id);
+          } catch (fetchErr) {
+            if (fetchErr.code === 10008) {
+              // Message was deleted — mark and skip
+              console.log(`  [BACKFILL] Message ${doc.id} deleted from Discord — marking empty`);
+              await collection.updateOne({ _id: doc._id }, { $set: { mediaArchive: {} } });
+              continue;
+            }
+            throw fetchErr;
+          }
+
+          // Use the standard archival pipeline on the live message
+          const archiveMap = await MediaArchivalService.archiveMessageMedia(liveMessage);
+
+          if (Object.keys(archiveMap).length > 0) {
+            // Transform fresh doc and rewrite URLs
+            const freshDoc = transformMessageRoot(liveMessage);
+            MediaArchivalService.rewriteDocumentUrls(freshDoc, archiveMap);
+
+            await collection.updateOne(
+              { _id: doc._id },
+              {
+                $set: {
+                  mediaArchive: archiveMap,
+                  attachments: freshDoc.attachments,
+                  stickers: freshDoc.stickers,
+                  embeds: freshDoc.embeds,
+                },
+              },
+            );
+            archived++;
+          } else {
+            // No media found on live message — mark as processed
+            await collection.updateOne({ _id: doc._id }, { $set: { mediaArchive: {} } });
+          }
+
+          if (processed % 25 === 0) {
+            console.log(`  [BACKFILL] Progress: ${processed}/${totalCount} processed, ${archived} archived`);
+          }
+        } catch (err) {
+          errors++;
+          console.error(`  [BACKFILL] Error processing message ${doc.id}: ${err.message}`);
+          // Mark failed so we don't retry on next run (can be cleared manually)
+          await collection.updateOne({ _id: doc._id }, { $set: { mediaArchive: {} } });
+        }
+      }
+    }
+
+    const duration = ((Date.now() - startTime) / 1000).toFixed(2);
+    console.log(`[BACKFILL] Complete — processed: ${processed}, archived: ${archived}, errors: ${errors} (${duration}s)`);
+
+    return { processed, archived, errors };
+  },
   async deleteDuplicateMessagesByID(mongo, collectionName = "Messages") {
     const db = mongo.db(MONGO_DB_NAME);
     const collection = db.collection(collectionName);

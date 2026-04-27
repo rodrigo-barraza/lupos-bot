@@ -2827,6 +2827,12 @@ async function luposOnReadyCloneMessages(client, { localMongo }) {
     localMongo,
     "249010731910037507",
   );
+
+  // Backfill media archive for Lupos messages with Discord CDN URLs
+  await DiscordUtilityService.backfillMediaArchive(client, localMongo, {
+    authorIds: ["1198099566088699904"],
+    guildId: "249010731910037507",
+  });
 }
 
 async function luposOnReadyDeleteDuplicateMessages(client, { localMongo }) {
