@@ -10,6 +10,8 @@ import config from "./config.js";
 import DiscordService from "./services/DiscordService.js";
 import LogFormatter from "./formatters/LogFormatter.js";
 // const MongoWrapper = require('./wrappers/MongoWrapper.js');
+import MinioWrapper from "./wrappers/MinioWrapper.js";
+import MediaArchivalService from "./services/MediaArchivalService.js";
 
 import express from "express";
 const app = express();
@@ -19,9 +21,30 @@ import services from "./services/services.js";
 const args = process.argv.slice(2);
 const mode = args.find((arg) => arg.startsWith("mode="))?.split("=")[1];
 
-function main() {
+async function main() {
   try {
     console.log(...LogFormatter.luposInitializing());
+
+    // ─── MinIO initialization (optional — graceful degradation) ───
+    if (
+      config.MINIO_ENDPOINT &&
+      config.MINIO_ACCESS_KEY &&
+      config.MINIO_SECRET_KEY &&
+      config.MINIO_BUCKET_NAME
+    ) {
+      await MinioWrapper.init(
+        config.MINIO_ENDPOINT,
+        config.MINIO_ACCESS_KEY,
+        config.MINIO_SECRET_KEY,
+        config.MINIO_BUCKET_NAME,
+      );
+      if (MinioWrapper.isAvailable()) {
+        await MediaArchivalService.ensureIndexes();
+      }
+    } else {
+      console.log("📦 MinIO not configured — media archival disabled");
+    }
+
     if (mode === "clone:messages") {
       DiscordService.cloneMessages();
     } else if (mode === "delete:duplicates") {
@@ -57,6 +80,7 @@ function main() {
         status: "ok",
         uptime: process.uptime(),
         mode: mode || "default",
+        minioAvailable: MinioWrapper.isAvailable(),
       });
     });
     app.use("/", services());
@@ -73,3 +97,4 @@ function main() {
 }
 
 main();
+

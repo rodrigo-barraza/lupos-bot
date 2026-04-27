@@ -14,6 +14,10 @@ import {
   MONGO_URI,
   LIGHTS_URL,
   TOOLS_API_URL,
+  MINIO_ENDPOINT,
+  MINIO_ACCESS_KEY,
+  MINIO_SECRET_KEY,
+  LUPOS_MINIO_BUCKET_NAME,
   ROLES_IDS_IGNORE,
   USER_IDS_IGNORE,
   CHANNEL_IDS_JUKEBOX,
@@ -81,6 +85,12 @@ const config = {
   // ─── Service URLs ──────────────────────────────────────────────
   LIGHTS_URL: LIGHTS_URL || "http://localhost:4444",
   TOOLS_API_URL: TOOLS_API_URL || "http://localhost:5590",
+
+  // ─── MinIO (Optional — media archival) ──────────────────────────
+  MINIO_ENDPOINT,
+  MINIO_ACCESS_KEY,
+  MINIO_SECRET_KEY,
+  MINIO_BUCKET_NAME: LUPOS_MINIO_BUCKET_NAME,
 
   // ─── Discord IDs — Ignore Lists ────────────────────────────────
   ROLES_IDS_IGNORE,

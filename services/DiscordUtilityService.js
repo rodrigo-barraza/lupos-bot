@@ -8,6 +8,7 @@ import { MS_PER_DAY, MONGO_DB_NAME } from "#root/constants.js";
 import ScraperService from "#root/services/ScraperService.js";
 import LightsService from "#root/services/LightsService.js";
 import LogFormatter from "#root/formatters/LogFormatter.js";
+import MediaArchivalService from "#root/services/MediaArchivalService.js";
 
 async function fetchMessagesWithOptionalLastId(
   client,
@@ -275,18 +276,19 @@ const transformEmbeds = (embeds) => {
   return embeds.map((embed) => ({
     author: transformUser(embed.author, true),
     color: embed.color,
-    // data: embed.data,
+    data: embed.data,
     description: embed.description,
-    // fields: embed.fields,
-    // footer: embed.footer,
+    fields: embed.fields,
+    footer: embed.footer,
     hexColor: embed.hexColor,
-    // image: embed.image,
+    image: embed.image,
     length: embed.length,
-    // provider: embed.provider,
+    provider: embed.provider,
+    thumbnail: embed.thumbnail,
     timestamp: embed.timestamp,
     title: embed.title,
     url: embed.url,
-    // video: embed.video,
+    video: embed.video,
   }));
 };
 
@@ -785,7 +787,21 @@ const DiscordUtilityService = {
 
       for (const message of messages) {
         try {
-          documents.push(transformMessageRoot(message));
+          const doc = transformMessageRoot(message);
+
+          // Archive media to MinIO (content-addressable, deduped by SHA-256)
+          if (MediaArchivalService.isAvailable()) {
+            try {
+              const archiveMap = await MediaArchivalService.archiveMessageMedia(message);
+              if (Object.keys(archiveMap).length > 0) {
+                doc.mediaArchive = archiveMap;
+              }
+            } catch (archiveErr) {
+              console.warn(`  [ARCHIVE] Media archival failed for ${message.id}: ${archiveErr.message}`);
+            }
+          }
+
+          documents.push(doc);
         } catch (transformError) {
           console.error(
             `  [ERROR] Failed to transform message ${message.id}: ${transformError.message}`,
@@ -1131,6 +1147,18 @@ const DiscordUtilityService = {
     const collection = db.collection(collectionName);
     const messageObject = transformMessageRoot(message);
 
+    // Archive media to MinIO (content-addressable, deduped by SHA-256)
+    if (MediaArchivalService.isAvailable()) {
+      try {
+        const archiveMap = await MediaArchivalService.archiveMessageMedia(message);
+        if (Object.keys(archiveMap).length > 0) {
+          messageObject.mediaArchive = archiveMap;
+        }
+      } catch (err) {
+        console.warn(`📦 Media archival failed for message ${message.id}: ${err.message}`);
+      }
+    }
+
     await collection.updateOne(
       { id: messageObject.id },
       { $setOnInsert: messageObject },
@@ -1141,6 +1169,18 @@ const DiscordUtilityService = {
     const db = mongo.db(MONGO_DB_NAME);
     const collection = db.collection(collectionName);
     const messageObject = transformMessageRoot(message);
+
+    // Archive media to MinIO (content-addressable, deduped by SHA-256)
+    if (MediaArchivalService.isAvailable()) {
+      try {
+        const archiveMap = await MediaArchivalService.archiveMessageMedia(message);
+        if (Object.keys(archiveMap).length > 0) {
+          messageObject.mediaArchive = archiveMap;
+        }
+      } catch (err) {
+        console.warn(`📦 Media archival failed for message ${message.id}: ${err.message}`);
+      }
+    }
 
     await collection.updateOne(
       { id: messageObject.id },
