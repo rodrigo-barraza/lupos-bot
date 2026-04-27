@@ -2,9 +2,13 @@ import express from "express";
 const router = new express.Router();
 // const WebHookService = require('./WebHookService/WebHookService');
 import AIService from "#root/services/AIService.js";
+import guildRoutes from "#root/routes/GuildRoutes.js";
 
 const routes = () => {
   // WebHookService(router);
+
+  // ── Guild data routes (channels, members) ───────────────────────
+  router.use("/", guildRoutes);
 
   router.get("/transcribe/:audioUrl", async (req, res) => {
     try {

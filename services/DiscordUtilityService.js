@@ -458,6 +458,7 @@ const transformMember = (member, concise = false) => {
       return {
         id: member.id,
         displayName: member.displayName,
+        displayHexColor: member.displayHexColor,
         nickname: member.nickname,
         joinedAt: member.joinedAt,
         joinedTimestamp: member.joinedTimestamp,
@@ -816,13 +817,31 @@ const DiscordUtilityService = {
       }
 
       try {
-        const bulkOps = documents.map((doc) => ({
-          updateOne: {
-            filter: { id: doc.id },
-            update: { $setOnInsert: doc },
-            upsert: true,
-          },
-        }));
+        const bulkOps = documents.map((doc) => {
+          // Fields we always want to update (even on existing documents)
+          const backfill = {
+            "member.displayHexColor": doc.member?.displayHexColor || null,
+            "member.displayName": doc.member?.displayName || null,
+          };
+
+          // Clone for $setOnInsert and strip backfill paths to avoid conflict
+          const insertDoc = { ...doc };
+          if (insertDoc.member) {
+            const { displayHexColor: _dhc, displayName: _dn, ...restMember } = insertDoc.member;
+            insertDoc.member = restMember;
+          }
+
+          return {
+            updateOne: {
+              filter: { id: doc.id },
+              update: {
+                $setOnInsert: insertDoc,
+                $set: backfill,
+              },
+              upsert: true,
+            },
+          };
+        });
 
         const result = await collection.bulkWrite(bulkOps, { ordered: false });
 
@@ -871,9 +890,7 @@ const DiscordUtilityService = {
       return { run };
     };
 
-    const limiter = createConcurrencyLimiter(concurrencyLimit);
-
-    // ── User IDs for deleted message cleanup ────────────────────────
+    const limiter = createConcurrencyLimiter(concurrencyLimit);    // ── User IDs for deleted message cleanup ────────────────────────
     // After scraping each channel, remove messages from these users
     // that exist in MongoDB but were deleted from Discord.
     const CLEANUP_USER_IDS = [
