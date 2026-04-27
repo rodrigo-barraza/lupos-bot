@@ -659,6 +659,7 @@ const DiscordUtilityService = {
       dateLimit = "2025-11-01", // Stop when messages are older than this date
       categoryIds = null, // Array of category (parent) IDs to limit which channels are processed
       channelIds = null, // Array of specific channel IDs to process (takes precedence over categoryIds)
+      forceUpdate = false, // When true, overwrite existing documents entirely (for rescraping)
       autoResume = true, // Persist per-channel checkpoints for crash recovery
     } = options;
 
@@ -828,7 +829,18 @@ const DiscordUtilityService = {
 
       try {
         const bulkOps = documents.map((doc) => {
-          // Fields we always want to update (even on existing documents)
+          // Force update mode: overwrite entire document (for rescraping)
+          if (forceUpdate) {
+            return {
+              updateOne: {
+                filter: { id: doc.id },
+                update: { $set: doc },
+                upsert: true,
+              },
+            };
+          }
+
+          // Normal mode: only insert new, backfill specific fields on existing
           const backfill = {
             "member.displayHexColor": doc.member?.displayHexColor || null,
             "member.displayName": doc.member?.displayName || null,

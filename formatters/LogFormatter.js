@@ -661,48 +661,8 @@ const LogFormatter = {
   },
 
   luposInitializing() {
-    const c = {
-      cyan: '\x1b[36m',
-      magenta: '\x1b[35m',
-      yellow: '\x1b[33m',
-      dim: '\x1b[2m',
-      bright: '\x1b[1m',
-      reset: '\x1b[0m',
-      bg: '\x1b[40m',
-      dimCyan: '\x1b[2;36m',
-      dimMagenta: '\x1b[2;35m',
-      white: '\x1b[37m',
-    };
-
-    const banner = `${c.bg}
-${c.dimCyan}  ══════════════════════════════════════════════════════════════════${c.reset}${c.bg}
-${c.dim}${c.cyan}   ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░${c.reset}${c.bg}
-${c.cyan}                          ${c.bright}${c.magenta}▓▓▓▓▓▓▓${c.reset}${c.bg}
-${c.cyan}                       ${c.bright}${c.magenta}▓▓▓▓▓▓▓▓▓▓▓▓▓${c.reset}${c.bg}
-${c.cyan}                ${c.bright}${c.magenta}▓▓    ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓${c.reset}${c.bg}
-${c.cyan}               ${c.bright}${c.magenta}▓▓▓▓  ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓${c.reset}${c.bg}
-${c.cyan}              ${c.bright}${c.magenta}▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓  ▓▓▓▓▓▓▓▓▓▓${c.reset}${c.bg}
-${c.cyan}             ${c.bright}${c.magenta}▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓  ▓  ▓▓▓▓▓▓▓▓${c.reset}${c.bg}
-${c.cyan}             ${c.bright}${c.magenta}▓▓▓▓▓▓▓▓▓▓▓▓▓▓  ▓▓  ▓▓▓▓▓▓▓▓${c.reset}${c.bg}
-${c.cyan}            ${c.bright}${c.magenta}▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓${c.reset}${c.bg}
-${c.cyan}           ${c.bright}${c.magenta}▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓${c.reset}${c.bg}
-${c.cyan}          ${c.bright}${c.magenta}▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓${c.reset}${c.bg}
-${c.cyan}          ${c.bright}${c.magenta}▓▓▓▓  ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓  ▓▓▓▓▓${c.reset}${c.bg}
-${c.cyan}         ${c.bright}${c.magenta}▓▓▓     ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓     ▓▓▓${c.reset}${c.bg}
-${c.cyan}         ${c.bright}${c.magenta}▓▓       ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓       ▓▓${c.reset}${c.bg}
-${c.cyan}                   ${c.bright}${c.magenta}▓▓▓▓▓▓▓▓▓▓▓${c.reset}${c.bg}
-${c.cyan}                    ${c.bright}${c.magenta}▓▓     ▓▓${c.reset}${c.bg}
-${c.dim}${c.cyan}   ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░${c.reset}${c.bg}
-${c.bright}${c.cyan}   ██${c.reset}${c.bg} ${c.bright}${c.cyan}     ██${c.reset}${c.bg} ${c.bright}${c.cyan}██  ██${c.reset}${c.bg} ${c.bright}${c.cyan}██████${c.reset}${c.bg}  ${c.bright}${c.cyan}██████${c.reset}${c.bg}  ${c.bright}${c.cyan}██████${c.reset}${c.bg}    ${c.dim}${c.white}D I S C O R D${c.reset}${c.bg}
-${c.bright}${c.cyan}   ██${c.reset}${c.bg} ${c.bright}${c.cyan}     ██${c.reset}${c.bg} ${c.bright}${c.cyan}██  ██${c.reset}${c.bg} ${c.bright}${c.cyan}██${c.reset}${c.bg}  ${c.bright}${c.cyan}██${c.reset}${c.bg} ${c.bright}${c.cyan}██${c.reset}${c.bg}  ${c.bright}${c.cyan}██${c.reset}${c.bg} ${c.bright}${c.cyan}██${c.reset}${c.bg}        ${c.dim}${c.white}S E N T I N E L${c.reset}${c.bg}
-${c.bright}${c.cyan}   ██${c.reset}${c.bg} ${c.bright}${c.cyan}     ██${c.reset}${c.bg} ${c.bright}${c.cyan}██  ██${c.reset}${c.bg} ${c.bright}${c.cyan}██████${c.reset}${c.bg}  ${c.bright}${c.cyan}██${c.reset}${c.bg}  ${c.bright}${c.cyan}██${c.reset}${c.bg} ${c.bright}${c.cyan}██████${c.reset}${c.bg}
-${c.bright}${c.cyan}   ██${c.reset}${c.bg} ${c.bright}${c.cyan}     ██${c.reset}${c.bg} ${c.bright}${c.cyan}██  ██${c.reset}${c.bg} ${c.bright}${c.cyan}██${c.reset}${c.bg}     ${c.bright}${c.cyan}██${c.reset}${c.bg}  ${c.bright}${c.cyan}██${c.reset}${c.bg}     ${c.bright}${c.cyan}██${c.reset}${c.bg}   ${c.dim}${c.yellow}v1.0${c.reset}${c.bg}
-${c.bright}${c.cyan}   ██████${c.reset}${c.bg} ${c.bright}${c.cyan}██████${c.reset}${c.bg} ${c.bright}${c.cyan}██${c.reset}${c.bg}     ${c.bright}${c.cyan}██████${c.reset}${c.bg}  ${c.bright}${c.cyan}██████${c.reset}${c.bg}    ${c.dim}${c.yellow}S U N  E C O S Y S T E M${c.reset}${c.bg}
-${c.dimCyan}  ══════════════════════════════════════════════════════════════════${c.reset}${c.bg}
-${c.dim}${c.yellow}   ► Initializing ...${c.reset}
-`;
-
-    console.log(banner);
+    console.log('\x1b[36m🐺 Lupos\x1b[0m \x1b[2m— Discord Sentinel · Sun Ecosystem · v1.0\x1b[0m');
+    console.log('\x1b[2;33m   ► Initializing ...\x1b[0m');
     return [''];
   },
   readyToProcessMessages() {

@@ -2845,7 +2845,7 @@ async function luposOnReadyRescrapeChannels(client, { localMongo, channelIds }) 
     client,
     localMongo,
     "249010731910037507",
-    { channelIds, dateLimit: "2025-01-01", autoResume: false },
+    { channelIds, dateLimit: "2025-01-01", autoResume: false, forceUpdate: true },
   );
   console.log("[rescrape:channels] Done.");
   process.exit(0);
