@@ -20,6 +20,8 @@ import services from "./services/services.js";
 // Parse command line arguments
 const args = process.argv.slice(2);
 const mode = args.find((arg) => arg.startsWith("mode="))?.split("=")[1];
+const channelIdsArg = args.find((arg) => arg.startsWith("channels="))?.split("=")[1];
+const channelIds = channelIdsArg ? channelIdsArg.split(",").filter(Boolean) : null;
 
 async function main() {
   try {
@@ -47,6 +49,8 @@ async function main() {
 
     if (mode === "clone:messages") {
       DiscordService.cloneMessages();
+    } else if (mode === "rescrape:channels") {
+      DiscordService.rescrapeChannels(channelIds);
     } else if (mode === "delete:duplicates") {
       DiscordService.deleteDuplicateMessages();
     } else if (mode === "delete:newAccounts") {

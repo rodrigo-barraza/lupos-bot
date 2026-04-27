@@ -204,4 +204,49 @@ router.get("/guild/members", async (req, res) => {
   }
 });
 
+// ─── POST /guild/rescrape ───────────────────────────────────────
+// Triggers a targeted rescrape of specific channels to refresh
+// embed data and other message fields in MongoDB.
+// Body: { guildId?, channelIds: ["..."], dateLimit? }
+
+router.post("/guild/rescrape", async (req, res) => {
+  try {
+    const guildId = req.body.guildId || config.GUILD_ID_CLOCK_CREW;
+    const { channelIds, dateLimit = "2025-01-01" } = req.body;
+
+    if (!channelIds || !Array.isArray(channelIds) || channelIds.length === 0) {
+      return res.status(400).json({ error: "channelIds array is required" });
+    }
+
+    const client = DiscordWrapper.getClient("lupos");
+    const MongoService = (await import("#root/services/MongoService.js")).default;
+    const DiscordUtilityService = (await import("#root/services/DiscordUtilityService.js")).default;
+    const localMongo = MongoService.getClient("local");
+
+    // Respond immediately — the scrape runs in the background
+    res.json({
+      status: "started",
+      guildId,
+      channelIds,
+      dateLimit,
+      message: `Rescraping ${channelIds.length} channel(s) in the background`,
+    });
+
+    // Fire and forget
+    DiscordUtilityService.fetchAndSaveAllServerMessages(
+      client,
+      localMongo,
+      guildId,
+      { channelIds, dateLimit, autoResume: false },
+    ).then(() => {
+      console.log(`[guild/rescrape] Completed rescrape of ${channelIds.length} channel(s)`);
+    }).catch((err) => {
+      console.error("[guild/rescrape] Error:", err.message);
+    });
+  } catch (error) {
+    console.error("[guild/rescrape] Error:", error.message, error.stack);
+    res.status(500).json({ error: "Failed to start rescrape", detail: error.message });
+  }
+});
+
 export default router;

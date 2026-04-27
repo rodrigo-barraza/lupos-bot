@@ -658,6 +658,7 @@ const DiscordUtilityService = {
       batchSize = 100, // Messages per Discord API call (max 100)
       dateLimit = "2025-11-01", // Stop when messages are older than this date
       categoryIds = null, // Array of category (parent) IDs to limit which channels are processed
+      channelIds = null, // Array of specific channel IDs to process (takes precedence over categoryIds)
       autoResume = true, // Persist per-channel checkpoints for crash recovery
     } = options;
 
@@ -740,8 +741,17 @@ const DiscordUtilityService = {
       (channel) => channel.type === ChannelType.GuildText,
     );
 
-    // Filter by category IDs if provided
-    if (categoryIds && Array.isArray(categoryIds) && categoryIds.length > 0) {
+    // Filter by specific channel IDs if provided (takes precedence)
+    if (channelIds && Array.isArray(channelIds) && channelIds.length > 0) {
+      textChannels = textChannels.filter(
+        (channel) => channelIds.includes(channel.id),
+      );
+      console.log(
+        `[CHANNELS] Filtering to ${channelIds.length} specific channel(s) — ${textChannels.size} matched`,
+      );
+    }
+    // Otherwise filter by category IDs if provided
+    else if (categoryIds && Array.isArray(categoryIds) && categoryIds.length > 0) {
       textChannels = textChannels.filter(
         (channel) => channel.parentId && categoryIds.includes(channel.parentId),
       );
@@ -1717,9 +1727,9 @@ const DiscordUtilityService = {
     );
   },
   // Event Handlers
-  onEventClientReady(client, { mongo, localMongo }, customFunction) {
+  onEventClientReady(client, options, customFunction) {
     return client.on(Events.ClientReady, async () => {
-      customFunction(client, { mongo, localMongo });
+      customFunction(client, options);
     });
   },
   onEventMessageCreate(client, { mongo, localMongo }, customFunction) {

@@ -2835,6 +2835,22 @@ async function luposOnReadyCloneMessages(client, { localMongo }) {
   });
 }
 
+async function luposOnReadyRescrapeChannels(client, { localMongo, channelIds }) {
+  if (!channelIds || channelIds.length === 0) {
+    console.error("[rescrape:channels] No channel IDs provided. Usage: npm run rescrape:channels -- channels=id1,id2");
+    process.exit(1);
+  }
+  console.log(`[rescrape:channels] Rescraping ${channelIds.length} channel(s): ${channelIds.join(", ")}`);
+  await DiscordUtilityService.fetchAndSaveAllServerMessages(
+    client,
+    localMongo,
+    "249010731910037507",
+    { channelIds, dateLimit: "2025-01-01", autoResume: false },
+  );
+  console.log("[rescrape:channels] Done.");
+  process.exit(0);
+}
+
 async function luposOnReadyDeleteDuplicateMessages(client, { localMongo }) {
   await DiscordUtilityService.deleteDuplicateMessagesByID(localMongo);
 }
@@ -4233,6 +4249,19 @@ const DiscordService = {
     );
     // Also handle deletes during scraping
     DiscordUtilityService.onEventMessageDelete(luposClient, localMongo, luposOnMessageDelete);
+  },
+  async rescrapeChannels(channelIds) {
+    const luposClient = DiscordWrapper.createClient(
+      "lupos",
+      config.LUPOS_TOKEN,
+    );
+    await MongoService.createClient("local", config.DATABASE_URL);
+    const localMongo = MongoService.getClient("local");
+    DiscordUtilityService.onEventClientReady(
+      luposClient,
+      { localMongo, channelIds },
+      luposOnReadyRescrapeChannels,
+    );
   },
   async deleteDuplicateMessages() {
     const luposClient = DiscordWrapper.createClient(

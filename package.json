@@ -10,6 +10,7 @@
   "scripts": {
     "dev": "node boot.js mode=messages",
     "clone:messages": "node boot.js mode=clone:messages",
+    "rescrape:channels": "node boot.js mode=rescrape:channels",
     "test": "node --experimental-vm-modules node_modules/.bin/jest",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
