@@ -1,7 +1,7 @@
 services:
   lupos-bot:
     image: lupos-bot:latest
-    container_name: lupos
+    container_name: lupos-bot
     restart: unless-stopped
     ports:
       - "1337:1337"
