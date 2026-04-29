@@ -15,4 +15,4 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 IMAGE_NAME="lupos-bot"
 DISPLAY_NAME="🐺 Lupos Bot"
 
-source "${SCRIPT_DIR}/../deploy/lib.sh"
+source "${SCRIPT_DIR}/../deploy-kit/lib.sh"
