@@ -12,7 +12,7 @@
 import config from "#root/config.js";
 import utilities from "#root/utilities.js";
 
-const TOOLS_SERVICE_URL = config.TOOLS_SERVICE_URL || "http://localhost:5590";
+const TOOLS_SERVICE_URL = config.TOOLS_SERVICE_URL;
 const SCRAPE_TIMEOUT_MS = 15_000;
 
 /**

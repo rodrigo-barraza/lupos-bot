@@ -3,8 +3,7 @@ services:
     image: lupos-bot:latest
     container_name: lupos-bot
     restart: unless-stopped
-    ports:
-      - "1337:1337"
+    network_mode: host
     env_file:
       - .env
     # Chromium needs larger shared memory in Docker
