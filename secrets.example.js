@@ -28,7 +28,7 @@
 // ... (see vault-service/.env.example for all Discord IDs and model configs)
 
 // MinIO (Optional — media archival disabled if not set)
-// MINIO_ENDPOINT=http://192.168.86.2:9000
+// MINIO_ENDPOINT=http://<host>:9000
 // MINIO_ACCESS_KEY=
 // MINIO_SECRET_KEY=
 // LUPOS_MINIO_BUCKET_NAME=discord-media

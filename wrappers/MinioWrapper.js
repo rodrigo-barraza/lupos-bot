@@ -7,7 +7,7 @@ let endpointUrl = null;
 const MinioWrapper = {
   /**
    * Initialize the MinIO client and ensure the bucket exists.
-   * @param {string} endpoint - e.g. "http://192.168.86.2:9000"
+   * @param {string} endpoint - e.g. "http://<host>:9000"
    * @param {string} accessKey
    * @param {string} secretKey
    * @param {string} bucket
@@ -63,7 +63,7 @@ const MinioWrapper = {
 
   /**
    * Get the base URL for direct public access to objects in the bucket.
-   * e.g. "http://192.168.86.2:9000/lupos"
+   * e.g. "http://<host>:9000/lupos"
    * @returns {string|null}
    */
   getBucketUrl() {
