@@ -12,6 +12,7 @@ import {
   formatTimePeriod,
   shuffleArray,
 } from "./commandUtils.js";
+import { WRONG_GUESS_ROASTS } from "../../constants/GuessWhoConstants.js";
 
 export default {
   data: new SlashCommandBuilder()
@@ -120,7 +121,7 @@ export default {
       // Create message link
       const messageLink = `https://discord.com/channels/${message.guildId}/${message.channelId}/${message.id}`;
 
-      // Get 3 other random users from the same time period as decoys
+      // Get 7 other random users from the same time period as decoys
       const decoyUsers = await messagesCollection
         .aggregate([
           {
@@ -137,11 +138,11 @@ export default {
               avatar: { $first: "$author.defaultAvatarURL" },
             },
           },
-          { $sample: { size: 3 } },
+          { $sample: { size: 7 } },
         ])
         .toArray();
 
-      if (decoyUsers.length < 3) {
+      if (decoyUsers.length < 7) {
         await interaction.editReply({
           content:
             "Not enough active users found for a proper game. Try a longer time period!",
@@ -190,12 +191,26 @@ export default {
         displayContent = displayContent.substring(0, 497) + "...";
       }
 
-      // Create embed with timer
-      const createEmbed = (timeRemaining) => {
+      // ─── Live Guess Feed State ────────────────────────────────────
+      const guesses = new Map();
+      const guessLog = []; // Public log of all guesses as they happen
+      const eliminatedOptionIds = new Set(); // Track eliminated wrong choices
+
+      // Build the embed with live guess feed
+      const createEmbed = (timeRemaining, status = "active") => {
+        const color =
+          status === "correct"
+            ? 0x57f287
+            : status === "timeout"
+              ? 0xed4245
+              : 0x5865f2;
+        const titleSuffix =
+          status === "active" ? `⏱️ ${timeRemaining}s` : "⏱️ ENDED";
+
         const embed = new EmbedBuilder()
-          .setTitle(`❓ Guess Who? ⏱️ ${timeRemaining}s`)
+          .setTitle(`❓ Guess Who? ${titleSuffix}`)
           .setDescription(`**Guess who said this:**\n\n> ${displayContent}`)
-          .setColor(0x5865f2)
+          .setColor(color)
           .setFooter({
             text: `Message from ${new Date(message.createdTimestamp).toLocaleDateString()} • Time period: ${formatTimePeriod(years, months, days, "Last year (default)")}`,
           });
@@ -208,27 +223,45 @@ export default {
           });
         }
 
+        // Live guess feed — the spectacle
+        if (guessLog.length > 0) {
+          const remaining = allOptions.filter(
+            (o) => !eliminatedOptionIds.has(o.userId),
+          ).length;
+          embed.addFields({
+            name: `📋 Guesses (${remaining} option${remaining !== 1 ? "s" : ""} remaining)`,
+            value: guessLog.join("\n"),
+          });
+        }
+
         return embed;
       };
 
-      // Create buttons
-      const row = new ActionRowBuilder().addComponents(
-        allOptions.map((option) =>
-          new ButtonBuilder()
+      // Build buttons across two rows (Discord max 5 per ActionRow)
+      const createButtons = () => {
+        const buttons = allOptions.map((option) => {
+          const eliminated = eliminatedOptionIds.has(option.userId);
+          return new ButtonBuilder()
             .setCustomId(`whosthat_${option.userId}_${option.isCorrect}`)
-            .setLabel(option.displayName)
-            .setStyle(ButtonStyle.Primary),
-        ),
-      );
+            .setLabel(
+              eliminated ? `✕ ${option.displayName}` : option.displayName,
+            )
+            .setStyle(eliminated ? ButtonStyle.Secondary : ButtonStyle.Primary)
+            .setDisabled(eliminated);
+        });
+        const row1 = new ActionRowBuilder().addComponents(buttons.slice(0, 4));
+        const row2 = new ActionRowBuilder().addComponents(buttons.slice(4));
+        return [row1, row2];
+      };
 
       const response = await interaction.editReply({
         embeds: [createEmbed(60)],
-        components: [row],
+        components: createButtons(),
       });
 
-      // Timer update logic
+      // Timer update logic — update every 5s instead of 1s to reduce API spam
       const startTime = Date.now();
-      const timeLimit = 60000; // 60 seconds
+      const timeLimit = 60000;
       // eslint-disable-next-line prefer-const
       let timerInterval;
 
@@ -240,7 +273,7 @@ export default {
           try {
             await response.edit({
               embeds: [createEmbed(remaining)],
-              components: [row],
+              components: createButtons(),
             });
           } catch {
             clearInterval(timerInterval);
@@ -248,15 +281,13 @@ export default {
         }
       };
 
-      // Start timer updates
-      timerInterval = setInterval(updateTimer, 1000);
+      // Update every 5 seconds to reduce rate limit pressure
+      timerInterval = setInterval(updateTimer, 5000);
 
       // Create collector for button interactions
       const collector = response.createMessageComponentCollector({
         time: timeLimit,
       });
-
-      const guesses = new Map(); // Track who guessed what
 
       collector.on("collect", async (i) => {
         // Check if user already guessed
@@ -275,7 +306,7 @@ export default {
         const pointsChange = isCorrect ? 1 : -2;
 
         // Update score in database
-        await scoresCollection.updateOne(
+        const updatedDoc = await scoresCollection.findOneAndUpdate(
           {
             userId: i.user.id,
             guildId: interaction.guildId,
@@ -287,8 +318,10 @@ export default {
               lastUpdated: new Date(),
             },
           },
-          { upsert: true },
+          { upsert: true, returnDocument: "after" },
         );
+
+        const currentScore = updatedDoc?.score ?? pointsChange;
 
         guesses.set(i.user.id, {
           guessedUserId: userId,
@@ -298,15 +331,48 @@ export default {
         });
 
         if (isCorrect) {
-          await i.reply({
-            content: `✅ Correct! It was **${userDisplayNames.get(correctUserId)}**! (+1 point)`,
-            ephemeral: true,
-          });
+          // Add winning guess to the live feed
+          guessLog.push(
+            `${guessLog.length + 1}. <@${i.user.id}> guessed **${userDisplayNames.get(userId)}** ✅ (+1 → **${currentScore}** pts)`,
+          );
+
+          // Acknowledge the button press (required by Discord)
+          await i.deferUpdate();
           collector.stop("correct_answer");
         } else {
-          await i.reply({
-            content: `❌ Wrong guess! (-2 points)`,
-            ephemeral: true,
+          // Eliminate the wrong option
+          eliminatedOptionIds.add(userId);
+
+          // Add wrong guess to the live feed — PUBLIC, not ephemeral!
+          const roast =
+            WRONG_GUESS_ROASTS[
+              Math.floor(Math.random() * WRONG_GUESS_ROASTS.length)
+            ];
+          guessLog.push(
+            `${guessLog.length + 1}. <@${i.user.id}> guessed ~~${userDisplayNames.get(userId)}~~ ❌ (-2 → **${currentScore}** pts)\n-# *${roast}*`,
+          );
+
+          // Check if only the correct answer remains (process of elimination)
+          const remainingOptions = allOptions.filter(
+            (o) => !eliminatedOptionIds.has(o.userId),
+          );
+          if (remainingOptions.length === 1) {
+            await i.deferUpdate();
+            collector.stop("all_eliminated");
+            return;
+          }
+
+          // Update embed with new guess log and eliminated buttons
+          await i.update({
+            embeds: [
+              createEmbed(
+                Math.max(
+                  0,
+                  Math.ceil((timeLimit - (Date.now() - startTime)) / 1000),
+                ),
+              ),
+            ],
+            components: createButtons(),
           });
         }
       });
@@ -315,24 +381,28 @@ export default {
         // Clear timer interval
         clearInterval(timerInterval);
 
-        // Disable all buttons
-        const disabledRow = new ActionRowBuilder().addComponents(
-          allOptions.map((option) => {
-            const button = new ButtonBuilder()
-              .setCustomId(
-                `whosthat_${option.userId}_${option.isCorrect}_disabled`,
-              )
-              .setLabel(option.displayName)
-              .setDisabled(true);
+        // Disable all buttons and highlight correct answer
+        const disabledButtons = allOptions.map((option) => {
+          const button = new ButtonBuilder()
+            .setCustomId(
+              `whosthat_${option.userId}_${option.isCorrect}_disabled`,
+            )
+            .setLabel(option.displayName)
+            .setDisabled(true);
 
-            if (option.isCorrect) {
-              button.setStyle(ButtonStyle.Success);
-            } else {
-              button.setStyle(ButtonStyle.Secondary);
-            }
+          if (option.isCorrect) {
+            button.setStyle(ButtonStyle.Success);
+          } else {
+            button.setStyle(ButtonStyle.Secondary);
+          }
 
-            return button;
-          }),
+          return button;
+        });
+        const disabledRow1 = new ActionRowBuilder().addComponents(
+          disabledButtons.slice(0, 4),
+        );
+        const disabledRow2 = new ActionRowBuilder().addComponents(
+          disabledButtons.slice(4),
         );
 
         // Fetch current scores for all players who participated
@@ -346,45 +416,60 @@ export default {
 
         const scoreMap = new Map(scores.map((s) => [s.userId, s.score]));
 
-        // Create final embed without timer
-        const finalEmbed = new EmbedBuilder()
-          .setTitle("❓ Guess Who? ⏱️ ENDED")
-          .setDescription(`**Guess who said this:**\n\n> ${displayContent}`)
-          .setColor(reason === "correct_answer" ? 0x57f287 : 0xed4245)
-          .setFooter({
-            text: `Message from ${new Date(message.createdTimestamp).toLocaleDateString()} • Time period: ${formatTimePeriod(years, months, days, "Last year (default)")}`,
-          });
+        // Determine final status
+        const wasGuessed =
+          reason === "correct_answer" || reason === "all_eliminated";
+        const finalStatus = wasGuessed ? "correct" : "timeout";
+
+        // Create final embed
+        const finalEmbed = createEmbed(0, finalStatus);
+
+        // Clear default fields and rebuild for final state
+        finalEmbed.spliceFields(0, finalEmbed.data.fields?.length || 0);
 
         if (channel) {
           finalEmbed.addFields({
-            name: "Message",
+            name: "📎 Message Link",
             value: messageLink,
             inline: true,
           });
         }
 
-        // Separate correct and incorrect guesses with scores
+        // Show the full guess log in the final embed
+        if (guessLog.length > 0) {
+          finalEmbed.addFields({
+            name: "📋 Guess Log",
+            value: guessLog.join("\n"),
+          });
+        }
+
+        // Correct/incorrect summary
         const correctGuesses = [];
         const incorrectGuesses = [];
 
-        for (const [userId, data] of guesses.entries()) {
-          const currentScore = scoreMap.get(userId) || 0;
+        for (const [usrId, data] of guesses.entries()) {
+          const currentScore = scoreMap.get(usrId) || 0;
           const pointsDisplay =
             data.pointsChange > 0 ? `+${data.pointsChange}` : data.pointsChange;
 
           if (data.isCorrect) {
             correctGuesses.push(
-              `<@${userId}> (${pointsDisplay} → **${currentScore}** points)`,
+              `<@${usrId}> (${pointsDisplay} → **${currentScore}** points)`,
             );
           } else {
             incorrectGuesses.push(
-              `<@${userId}> guessed ${data.guessedName} (${pointsDisplay} → **${currentScore}** points)`,
+              `<@${usrId}> guessed ${data.guessedName} (${pointsDisplay} → **${currentScore}** points)`,
             );
           }
         }
 
-        if (reason === "correct_answer") {
-          if (correctGuesses.length > 0) {
+        if (wasGuessed) {
+          if (reason === "all_eliminated") {
+            finalEmbed.addFields({
+              name: "🎯 Process of Elimination!",
+              value: `All wrong answers eliminated — it was **${userDisplayNames.get(correctUserId)}**!`,
+            });
+          } else if (correctGuesses.length > 0) {
             finalEmbed.addFields({
               name: "🎉 Winner(s)",
               value: correctGuesses.join("\n"),
@@ -395,26 +480,11 @@ export default {
             name: "⏱️ Time's Up!",
             value: `The correct answer was **${userDisplayNames.get(correctUserId)}**`,
           });
-
-          if (correctGuesses.length > 0) {
-            finalEmbed.addFields({
-              name: "✅ Correct Guesses",
-              value: correctGuesses.join("\n"),
-            });
-          }
-        }
-
-        // Add incorrect guesses field
-        if (incorrectGuesses.length > 0) {
-          finalEmbed.addFields({
-            name: "❌ Incorrect Guesses",
-            value: incorrectGuesses.join("\n"),
-          });
         }
 
         await response.edit({
           embeds: [finalEmbed],
-          components: [disabledRow],
+          components: [disabledRow1, disabledRow2],
         });
       });
     } catch (error) {
