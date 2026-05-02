@@ -7,6 +7,10 @@ services:
       - "1337:1337"
     env_file:
       - .env
+    environment:
+      - TZ=America/Los_Angeles
+    volumes:
+      - /usr/share/zoneinfo/America/Los_Angeles:/etc/localtime:ro
     # Chromium needs larger shared memory in Docker
     shm_size: "256m"
     healthcheck:
