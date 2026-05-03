@@ -72,10 +72,13 @@ export default {
 
     const { unixStartDate } = computeStartDate(years, months, days);
 
+    const invokerId = interaction.user.id;
+
     const match = {
       createdTimestamp: { $gte: unixStartDate },
       guildId: interaction.guildId,
       "author.bot": { $ne: true },
+      "author.id": { $ne: invokerId },
       content: {
         $exists: true,
         $ne: "",
@@ -128,7 +131,7 @@ export default {
             $match: {
               ...match,
               guildId: interaction.guildId,
-              "author.id": { $ne: correctUserId },
+              "author.id": { $ne: correctUserId, $nin: [invokerId] },
             },
           },
           {
