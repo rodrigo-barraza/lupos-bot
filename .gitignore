@@ -7,3 +7,6 @@ secrets.js
 .env.deploy
 .vscode/settings.json
 *:Zone.Identifier
+
+# logs
+*.log
