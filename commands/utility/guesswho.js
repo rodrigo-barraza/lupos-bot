@@ -278,8 +278,11 @@ export default {
               embeds: [createEmbed(remaining)],
               components: createButtons(),
             });
-          } catch {
-            clearInterval(timerInterval);
+          } catch (err) {
+            // 50027 = token expired, stop polling entirely
+            if (err.code === 50027) {
+              clearInterval(timerInterval);
+            }
           }
         }
       };
@@ -485,17 +488,32 @@ export default {
           });
         }
 
-        await response.edit({
-          embeds: [finalEmbed],
-          components: [disabledRow1, disabledRow2],
-        });
+        try {
+          await response.edit({
+            embeds: [finalEmbed],
+            components: [disabledRow1, disabledRow2],
+          });
+        } catch (editError) {
+          // Token expired (50027) — fall back to a regular channel message
+          console.error("Failed to edit guesswho final embed (token likely expired):", editError.code);
+          try {
+            await interaction.channel?.send({
+              embeds: [finalEmbed],
+              components: [disabledRow1, disabledRow2],
+            });
+          } catch { /* channel send also failed, nothing we can do */ }
+        }
       });
     } catch (error) {
       console.error("Error in guesswho command:", error);
-      await interaction.editReply({
-        content:
-          "An error occurred while fetching a message. Please try again later.",
-      });
+      try {
+        await interaction.editReply({
+          content:
+            "An error occurred while fetching a message. Please try again later.",
+        });
+      } catch {
+        // Interaction token already expired — nothing we can do
+      }
     }
   },
 };
