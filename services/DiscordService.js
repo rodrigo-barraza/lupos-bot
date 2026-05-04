@@ -1752,7 +1752,7 @@ async function replyMessage(queuedDatum, localMongo) {
     : "";
   DiscordUtilityService.setUserActivity(client, textSummary);
   LightsService.cycleColor(config.PRIMARY_LIGHT_ID, DEFAULT_LIGHT_CYCLE);
-  if (!generatedTextResponse) {
+  if (!generatedTextResponse && !generatedImage) {
     await message.reply("...");
     lastMessageSentTime = DateTime.now().toISO();
     LightsService.setState({ color: "red" }, config.PRIMARY_LIGHT_ID);
