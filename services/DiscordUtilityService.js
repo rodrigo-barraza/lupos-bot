@@ -2049,6 +2049,24 @@ const DiscordUtilityService = {
       imageDescription = imagePrompt.substring(0, 1000);
     }
 
+    // Handle image-only response (agent generated an image but no text)
+    if ((!generatedTextResponse || generatedTextResponse.length === 0) && encodedImageDataBase64) {
+      // encodedImageDataBase64 may be a Buffer (from agent) or a base64 string (legacy)
+      const imageAttachment = Buffer.isBuffer(encodedImageDataBase64)
+        ? encodedImageDataBase64
+        : Buffer.from(encodedImageDataBase64, "base64");
+      const files = [{
+        attachment: imageAttachment,
+        name: fileName,
+        description: imageDescription,
+      }];
+      if (sendOrReply === "send") {
+        return await message.channel.send({ files });
+      } else {
+        return await message.reply({ files });
+      }
+    }
+
     for (
       let i = 0;
       i < generatedTextResponse.length;
@@ -2071,8 +2089,12 @@ const DiscordUtilityService = {
         encodedImageDataBase64 &&
         i + messageChunkSizeLimit >= generatedTextResponse.length
       ) {
+        // encodedImageDataBase64 may be a Buffer (from agent) or a base64 string (legacy)
+        const imageAttachment = Buffer.isBuffer(encodedImageDataBase64)
+          ? encodedImageDataBase64
+          : Buffer.from(encodedImageDataBase64, "base64");
         files.push({
-          attachment: Buffer.from(encodedImageDataBase64, "base64"),
+          attachment: imageAttachment,
           name: fileName,
           description: imageDescription,
         });
