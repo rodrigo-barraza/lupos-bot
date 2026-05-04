@@ -5,6 +5,8 @@
  * when users play specific games.
  */
 
+import { MS_PER_DAY } from "@rodrigo-barraza/utilities";
+
 export const GAME_ROLE_MAPPINGS = [
   { activityName: "apex legends", roleName: "apex legends" },
   { activityName: "ashes of creation", roleName: "ashes of creation" },
@@ -59,7 +61,7 @@ export const YOUTUBE_BUTTON_ACTIONS = {
 /**
  * Time constants.
  */
-export const MS_PER_DAY = 24 * 60 * 60 * 1000;
+export { MS_PER_DAY };
 
 /**
  * Account guard constants.
