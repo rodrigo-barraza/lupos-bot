@@ -146,10 +146,6 @@ npm run format       # Format with Prettier
 npm run format:check # Check formatting
 ```
 
-## ☀️ Part of [Sun](https://github.com/rodrigo-barraza)
-
-Lupos is one service in a collection of composable backend services and frontends by Rodrigo Barraza.
-
 ---
 
 ## 📝 Development Notes & Logs

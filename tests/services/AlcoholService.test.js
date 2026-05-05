@@ -1,27 +1,46 @@
-import {
-  jest,
-  describe,
-  test,
-  it,
-  expect,
-  beforeEach,
-  afterEach,
-  beforeAll,
-  afterAll,
-} from "@jest/globals";
-jest.unstable_mockModule("../../services/DiscordService", () => ({
-  default: {
-    generateInCharacterResponse2Special: jest.fn(),
-  },
-}));
+// Mock StatService — the factory that AlcoholService delegates to
+vi.mock("../../services/StatService", () => {
+  let level = 0;
+  const mockStat = {
+    getLevel: vi.fn(() => level),
+    setLevel: vi.fn((v) => {
+      level = Math.max(0, Math.min(10, v));
+      return level;
+    }),
+    increase: vi.fn((m = 1) => {
+      level = Math.min(10, level + m);
+      return level;
+    }),
+    decrease: vi.fn((m = 1) => {
+      level = Math.max(0, level - m);
+      return level;
+    }),
+    getName: vi.fn(() => "alcohol"),
+    reset: vi.fn(() => {
+      level = 0;
+      return level;
+    }),
+  };
+  return {
+    default: {
+      create: vi.fn(() => mockStat),
+    },
+    __mockStat: mockStat,
+    __resetLevel: () => {
+      level = 0;
+    },
+  };
+});
 
 const AlcoholService = (await import("../../services/AlcoholService.js"))
   .default;
+const { __resetLevel } = await import("../../services/StatService");
 
 describe("AlcoholService", () => {
   beforeEach(() => {
+    __resetLevel();
     AlcoholService.setAlcoholLevel(0);
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   test("should initialize with an alcohol level of 0", () => {
@@ -40,11 +59,11 @@ describe("AlcoholService", () => {
     expect(AlcoholService.getAlcoholLevel()).toBe(6);
   });
 
-  test("increaseAlcoholLevel should not exceed 100", () => {
-    AlcoholService.setAlcoholLevel(100);
+  test("increaseAlcoholLevel should not exceed 10", () => {
+    AlcoholService.setAlcoholLevel(10);
     const newLevel = AlcoholService.increaseAlcoholLevel();
-    expect(newLevel).toBe(100);
-    expect(AlcoholService.getAlcoholLevel()).toBe(100);
+    expect(newLevel).toBe(10);
+    expect(AlcoholService.getAlcoholLevel()).toBe(10);
   });
 
   test("decreaseAlcoholLevel should decrease the level by 1", () => {

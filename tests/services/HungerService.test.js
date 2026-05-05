@@ -1,17 +1,6 @@
-import {
-  jest,
-  describe,
-  test,
-  it,
-  expect,
-  beforeEach,
-  afterEach,
-  beforeAll,
-  afterAll,
-} from "@jest/globals";
-jest.unstable_mockModule("../../services/AIService", () => ({
+vi.mock("../../services/AIService", () => ({
   default: {
-    generateInCharacterResponse2Special: jest
+    generateInCharacterResponse2Special: vi
       .fn()
       .mockResolvedValue("Mocked response"),
   },
@@ -22,7 +11,7 @@ const HungerService = (await import("../../services/HungerService.js")).default;
 describe("HungerService", () => {
   beforeEach(() => {
     HungerService.setHungerLevel(0);
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   test("should initialize with a hunger level of 0", () => {

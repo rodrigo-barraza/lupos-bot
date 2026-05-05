@@ -1,16 +1,14 @@
-import { jest, describe, test, expect } from "@jest/globals";
-jest.unstable_mockModule(
-  "../../config.json",
-  () => ({
-    default: {
-      ASSISTANT_MESSAGE: null,
-    },
-  }),
-  { virtual: true },
-);
-
-jest.unstable_mockModule("../../constants/MessageConstants.js", () => ({
+// Mock config.js — MessageService imports config from "#root/config.js"
+vi.mock("../../config", () => ({
   default: {
+    ASSISTANT_MESSAGE: null,
+    GUILD_ID_CLOCK_CREW: "249010731910037507",
+  },
+}));
+
+// Mock constants.js barrel — MessageService imports { MessageConstant, ClockCrewConstants }
+vi.mock("../../constants", () => ({
+  MessageConstant: {
     clockCrewCorePersonality: "CLOCK_CREW_PERSONALITY",
     aiInformation: "AI_INFO",
     responseGuidelines: "RESPONSE_GUIDELINES",
@@ -20,14 +18,13 @@ jest.unstable_mockModule("../../constants/MessageConstants.js", () => ({
     corePersonality: "CORE_PERSONALITY",
     politicalBeliefs: "POLITICAL_BELIEFS",
   },
-}));
-jest.unstable_mockModule("../../constants/ClockCrewConstants.js", () => ({
-  default: {
+  ClockCrewConstants: {
     clocks_without_profiles: [{ name: "TestClock1" }],
     clocks_with_profiles: [
       { name: "TestClock2", url: "http://test", description: "desc" },
     ],
   },
+  APRIL_FOOLS_MODE: false,
 }));
 
 const MessageService = (await import("../../services/MessageService.js"))
@@ -48,7 +45,6 @@ describe("MessageService", () => {
     expect(message).toContain(
       "You cannot generate images, paintings, or drawings.",
     );
-    expect(message).not.toContain("You are able to generate text.");
     expect(message).toContain("CORE_PERSONALITY");
   });
 

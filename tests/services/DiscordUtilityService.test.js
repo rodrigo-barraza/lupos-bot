@@ -1,15 +1,3 @@
-import {
-  jest,
-  describe,
-  test,
-  it,
-  expect,
-  beforeEach,
-  afterEach,
-  beforeAll,
-  afterAll,
-} from "@jest/globals";
-
 const DiscordUtilityService = (
   await import("../../services/DiscordUtilityService.js")
 ).default;
@@ -41,15 +29,17 @@ describe("DiscordUtilityService - Pure Functions", () => {
       );
     });
 
-    test("should return username second if displayName missing", () => {
+    test("should return globalName second if displayName missing", () => {
       const mockUser = { username: "TestUser", globalName: "GlobalTest" };
-      expect(DiscordUtilityService.getNameFromUser(mockUser)).toBe("TestUser");
-    });
-
-    test("should return globalName third", () => {
-      const mockUser = { globalName: "GlobalTest" };
       expect(DiscordUtilityService.getNameFromUser(mockUser)).toBe(
         "GlobalTest",
+      );
+    });
+
+    test("should return username third if displayName and globalName missing", () => {
+      const mockUser = { username: "TestUser" };
+      expect(DiscordUtilityService.getNameFromUser(mockUser)).toBe(
+        "TestUser",
       );
     });
 

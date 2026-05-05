@@ -1,29 +1,30 @@
-import {
-  jest,
-  describe,
-  test,
-  it,
-  expect,
-  beforeEach,
-  afterEach,
-  beforeAll,
-  afterAll,
-} from "@jest/globals";
-
-jest.unstable_mockModule("express", () => {
+vi.mock("express", () => {
+  const routerInstance = {
+    get: vi.fn(),
+    use: vi.fn(),
+  };
+  // Must be a real function so `new express.Router()` works
+  function RouterConstructor() {
+    return routerInstance;
+  }
+  const express = {
+    Router: RouterConstructor,
+  };
   return {
-    default: {
-      Router: jest.fn(() => ({
-        get: jest.fn(),
-      })),
-    },
+    default: express,
+    Router: RouterConstructor,
   };
 });
 
-jest.unstable_mockModule("../../services/AIService", () => ({
+vi.mock("../../services/AIService", () => ({
   default: {
-    transcribeSpeech: jest.fn(),
+    transcribeSpeech: vi.fn(),
   },
+}));
+
+// Mock GuildRoutes — services.js imports it via #root/routes/GuildRoutes.js
+vi.mock("../../routes/GuildRoutes", () => ({
+  default: vi.fn(),
 }));
 
 const routes = (await import("../../services/services.js")).default;
@@ -33,7 +34,7 @@ describe("services.js (Express Routes)", () => {
   let mockRouter;
 
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   test("should register /transcribe/:audioUrl route", () => {
@@ -43,14 +44,20 @@ describe("services.js (Express Routes)", () => {
     expect(mockRouter.get.mock.calls[0][0]).toBe("/transcribe/:audioUrl");
   });
 
+  test("should register guild routes via router.use", () => {
+    mockRouter = routes();
+
+    expect(mockRouter.use).toHaveBeenCalled();
+  });
+
   test("route handler should reject if audioUrl is missing", async () => {
     mockRouter = routes();
     const routeHandler = mockRouter.get.mock.calls[0][1];
 
     const mockReq = { params: { audioUrl: undefined } };
     const mockRes = {
-      status: jest.fn().mockReturnThis(),
-      json: jest.fn(),
+      status: vi.fn().mockReturnThis(),
+      json: vi.fn(),
     };
 
     await routeHandler(mockReq, mockRes);
@@ -71,8 +78,8 @@ describe("services.js (Express Routes)", () => {
       params: { audioUrl: encodeURIComponent("http://audio.mp3") },
     };
     const mockRes = {
-      status: jest.fn().mockReturnThis(),
-      json: jest.fn(),
+      status: vi.fn().mockReturnThis(),
+      json: vi.fn(),
     };
 
     await routeHandler(mockReq, mockRes);
@@ -96,11 +103,11 @@ describe("services.js (Express Routes)", () => {
       params: { audioUrl: encodeURIComponent("http://audio.mp3") },
     };
     const mockRes = {
-      status: jest.fn().mockReturnThis(),
-      json: jest.fn(),
+      status: vi.fn().mockReturnThis(),
+      json: vi.fn(),
     };
 
-    const consoleSpy = jest
+    const consoleSpy = vi
       .spyOn(console, "error")
       .mockImplementation(() => {});
 

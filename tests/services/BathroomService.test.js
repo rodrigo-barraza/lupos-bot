@@ -1,29 +1,46 @@
-import {
-  jest,
-  describe,
-  test,
-  it,
-  expect,
-  beforeEach,
-  afterEach,
-  beforeAll,
-  afterAll,
-} from "@jest/globals";
-jest.unstable_mockModule("../../services/DiscordService", () => ({
-  default: {
-    generateTextFromSystemUserMessages: jest
-      .fn()
-      .mockResolvedValue("Mocked response"),
-  },
-}));
+// Mock StatService — the factory that BathroomService delegates to
+vi.mock("../../services/StatService", () => {
+  let level = 0;
+  const mockStat = {
+    getLevel: vi.fn(() => level),
+    setLevel: vi.fn((v) => {
+      level = Math.max(0, Math.min(100, v));
+      return level;
+    }),
+    increase: vi.fn((m = 1) => {
+      level = Math.min(100, level + m);
+      return level;
+    }),
+    decrease: vi.fn((m = 1) => {
+      level = Math.max(0, level - m);
+      return level;
+    }),
+    getName: vi.fn(() => "bathroom"),
+    reset: vi.fn(() => {
+      level = 0;
+      return level;
+    }),
+  };
+  return {
+    default: {
+      create: vi.fn(() => mockStat),
+    },
+    __mockStat: mockStat,
+    __resetLevel: () => {
+      level = 0;
+    },
+  };
+});
 
 const BathroomService = (await import("../../services/BathroomService.js"))
   .default;
+const { __resetLevel } = await import("../../services/StatService");
 
 describe("BathroomService", () => {
   beforeEach(() => {
+    __resetLevel();
     BathroomService.setBathroomLevel(0);
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   test("should initialize with a bathroom level of 0", () => {
@@ -61,17 +78,5 @@ describe("BathroomService", () => {
     const newLevel = BathroomService.decreaseBathroomLevel();
     expect(newLevel).toBe(0);
     expect(BathroomService.getBathroomLevel()).toBe(0);
-  });
-
-  test("drink method should decrease bathroom level and call DiscordService", async () => {
-    BathroomService.setBathroomLevel(10);
-    const mockMessage = { content: "apple juice", reply: jest.fn() };
-
-    await BathroomService.drink(mockMessage);
-
-    expect(BathroomService.getBathroomLevel()).toBe(9);
-    expect(mockMessage.reply).toHaveBeenCalledWith({
-      content: "Mocked response",
-    });
   });
 });

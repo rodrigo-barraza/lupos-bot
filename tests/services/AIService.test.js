@@ -1,17 +1,6 @@
-import {
-  jest,
-  describe,
-  test,
-  it,
-  expect,
-  beforeEach,
-  afterEach,
-  beforeAll,
-  afterAll,
-} from "@jest/globals";
-jest.unstable_mockModule("../../services/DiscordUtilityService", () => ({
+vi.mock("../../services/DiscordUtilityService", () => ({
   default: {
-    getUsernameNoSpaces: jest.fn().mockReturnValue("TestUser"),
+    getUsernameNoSpaces: vi.fn().mockReturnValue("TestUser"),
   },
 }));
 
@@ -22,12 +11,12 @@ const _DiscordUtilityService = (
 
 describe("AIService", () => {
   afterEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   describe("generateTextSummaryFromMessage", () => {
     it("should call generateText and return a cropped summary", async () => {
-      const generateTextSpy = jest
+      const generateTextSpy = vi
         .spyOn(AIService, "generateText")
         .mockResolvedValue(
           "😀 A very long string that could potentially exceed one hundred and twenty eight characters just to make sure the substring logic works correctly as expected.",
@@ -49,7 +38,7 @@ describe("AIService", () => {
 
   describe("generateTextCustomEmojiReactFromMessage", () => {
     it("should call generateText and format the result accurately when custom emoji", async () => {
-      const generateTextSpy = jest
+      const generateTextSpy = vi
         .spyOn(AIService, "generateText")
         .mockResolvedValue(" customEmojiMock \n");
 
@@ -60,7 +49,7 @@ describe("AIService", () => {
         user: { id: "bot123" },
         guilds: {
           cache: {
-            get: jest.fn().mockReturnValue({
+            get: vi.fn().mockReturnValue({
               emojis: {
                 cache: new Map([
                   ["1", { id: "111", name: "customEmojiMock" }],
