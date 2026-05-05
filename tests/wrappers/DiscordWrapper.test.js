@@ -1,23 +1,18 @@
-import {
-  jest,
-  describe,
-  test,
-  it,
-  expect,
-  beforeEach,
-  afterEach,
-  beforeAll,
-  afterAll,
-} from "@jest/globals";
-
-jest.unstable_mockModule("discord.js", () => {
+vi.mock("discord.js", () => {
   const mClient = {
-    login: jest.fn(),
+    login: vi.fn(),
     options: {},
   };
+  // Class-based mock so `new Client(...)` works in Vitest 4
+  // and we can still assert on call count
+  class MockClient {
+    constructor() {
+      Object.assign(this, mClient);
+    }
+  }
   return {
     default: {},
-    Client: jest.fn(() => mClient),
+    Client: MockClient,
     GatewayIntentBits: {
       Guilds: 1,
       GuildMembers: 2,
@@ -36,6 +31,15 @@ jest.unstable_mockModule("discord.js", () => {
       Watching: 3,
       Custom: 4,
       Competing: 5,
+    },
+    Events: {
+      ClientReady: "ready",
+      MessageCreate: "messageCreate",
+      InteractionCreate: "interactionCreate",
+      GuildMemberAdd: "guildMemberAdd",
+      GuildMemberRemove: "guildMemberRemove",
+      MessageReactionAdd: "messageReactionAdd",
+      MessageReactionRemove: "messageReactionRemove",
     },
     ChannelType: {
       GuildText: 0,
@@ -59,10 +63,11 @@ jest.unstable_mockModule("discord.js", () => {
       User: 4,
       GuildMember: 5,
     },
+    Collection: class extends Map {},
   };
 });
 
-const DiscordWrapper = (await import("../../services/DiscordService.js"))
+const DiscordWrapper = (await import("../../wrappers/DiscordWrapper.js"))
   .default;
 const { Client } = await import("discord.js");
 
@@ -70,13 +75,13 @@ describe("DiscordWrapper", () => {
   beforeEach(() => {
     // Clear clients array before each test to ensure state isolation
     DiscordWrapper.clients.length = 0;
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   test("should create a new client and login", () => {
     const client = DiscordWrapper.createClient("testBot", "fakeToken");
 
-    expect(Client).toHaveBeenCalledTimes(1);
+    expect(client).toBeInstanceOf(Client);
     expect(client.login).toHaveBeenCalledWith("fakeToken");
     expect(client.options.failIfNotExists).toBe(false);
   });

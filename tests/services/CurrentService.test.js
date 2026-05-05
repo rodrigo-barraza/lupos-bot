@@ -1,15 +1,3 @@
-import {
-  jest,
-  describe,
-  test,
-  it,
-  expect,
-  beforeEach,
-  afterEach,
-  beforeAll,
-  afterAll,
-} from "@jest/globals";
-
 const CurrentService = (await import("../../services/CurrentService.js"))
   .default;
 

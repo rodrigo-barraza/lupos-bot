@@ -1,40 +1,87 @@
-import {
-  jest,
-  describe,
-  test,
-  it,
-  expect,
-  beforeEach,
-  afterEach,
-  beforeAll,
-  afterAll,
-} from "@jest/globals";
-jest.unstable_mockModule("../../services/DiscordService", () => ({
+// Mock discord.js — MoodService imports { ActivityType } from discord.js
+vi.mock("discord.js", () => ({
+  ActivityType: {
+    Playing: 0,
+    Streaming: 1,
+    Listening: 2,
+    Watching: 3,
+    Custom: 4,
+    Competing: 5,
+  },
+}));
+
+// Mock DiscordWrapper — MoodService imports from #root/wrappers/DiscordWrapper.js
+vi.mock("../../wrappers/DiscordWrapper", () => ({
   default: {
-    getClient: jest.fn().mockReturnValue({
+    getClient: vi.fn().mockReturnValue({
       user: {
-        setActivity: jest.fn(),
+        setActivity: vi.fn(),
       },
     }),
   },
 }));
-jest.unstable_mockModule("../../services/DiscordUtilityService", () => ({
+
+// Mock DiscordUtilityService
+vi.mock("../../services/DiscordUtilityService", () => ({
   default: {
-    generateMoodTemperature: jest.fn().mockResolvedValue(0),
+    generateMoodTemperature: vi.fn().mockResolvedValue(0),
   },
 }));
 
+// Mock StatService — MoodService creates a stat with min:-10, max:10
+vi.mock("../../services/StatService", () => {
+  let level = 0;
+  let onChangeFn = null;
+  const mockStat = {
+    getLevel: vi.fn(() => level),
+    setLevel: vi.fn((v) => {
+      level = Math.max(-10, Math.min(10, v));
+      if (onChangeFn) onChangeFn(level, "mood");
+      return level;
+    }),
+    increase: vi.fn((m = 1) => {
+      level = Math.min(10, level + m);
+      if (onChangeFn) onChangeFn(level, "mood");
+      return level;
+    }),
+    decrease: vi.fn((m = 1) => {
+      level = Math.max(-10, level - m);
+      if (onChangeFn) onChangeFn(level, "mood");
+      return level;
+    }),
+    getName: vi.fn(() => "mood"),
+    reset: vi.fn(() => {
+      level = 0;
+      return level;
+    }),
+  };
+  return {
+    default: {
+      create: vi.fn((name, opts) => {
+        if (opts?.onChange) onChangeFn = opts.onChange;
+        return mockStat;
+      }),
+    },
+    __mockStat: mockStat,
+    __resetLevel: () => {
+      level = 0;
+    },
+  };
+});
+
 const MoodService = (await import("../../services/MoodService.js")).default;
-const DiscordWrapper = (await import("../../services/DiscordService.js"))
+const DiscordWrapper = (await import("../../wrappers/DiscordWrapper.js"))
   .default;
 const DiscordUtilityService = (
   await import("../../services/DiscordUtilityService.js")
 ).default;
+const { __resetLevel } = await import("../../services/StatService");
 
 describe("MoodService", () => {
   beforeEach(() => {
+    __resetLevel();
     MoodService.setMoodLevel(0);
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   test("should initialize with a mood level of 0", () => {
@@ -89,10 +136,10 @@ describe("MoodService", () => {
       content: "test message",
     });
 
-    // 5 temperature -> increases mood by 3
+    // temperature 5 → [4, 5, "increase", 3] → increases mood by 3
     expect(MoodService.getMoodLevel()).toBe(3);
     expect(description).toContain(
       "The harmony of your inner world hums a quiet tune",
-    ); // Content description
+    );
   });
 });

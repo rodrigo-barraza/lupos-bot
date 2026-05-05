@@ -1,17 +1,6 @@
-import {
-  jest,
-  describe,
-  test,
-  it,
-  expect,
-  beforeEach,
-  afterEach,
-  beforeAll,
-  afterAll,
-} from "@jest/globals";
-jest.unstable_mockModule("../../services/DiscordService", () => ({
+vi.mock("../../services/DiscordService", () => ({
   default: {
-    generateInCharacterResponse2Special: jest.fn(),
+    generateInCharacterResponse2Special: vi.fn(),
   },
 }));
 
@@ -21,7 +10,7 @@ describe("EnergyService", () => {
   beforeEach(() => {
     // Reset the energy level to 100 before each test
     EnergyService.setEnergyLevel(100);
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   test("should initialize with an energy level of 100", () => {

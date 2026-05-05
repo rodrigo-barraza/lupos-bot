@@ -1,44 +1,30 @@
-import {
-  jest,
-  describe,
-  test,
-  it,
-  expect,
-  beforeEach,
-  afterEach,
-  beforeAll,
-  afterAll,
-} from "@jest/globals";
-
 // Mock all transitive dependencies that pull in heavy native modules
-jest.unstable_mockModule("../../services/DiscordService", () => ({
+vi.mock("../../services/DiscordService", () => ({
   default: {},
 }));
-jest.unstable_mockModule("../../services/AIService", () => ({
+vi.mock("../../services/AIService", () => ({
   default: {
-    generateTextFromSystemUserMessages: jest
-      .fn()
-      .mockResolvedValue("Mocked AI response"),
+    generateText: vi.fn().mockResolvedValue("Mocked AI response"),
   },
 }));
-jest.unstable_mockModule("../../services/MoodService", () => ({
+vi.mock("../../services/MoodService", () => ({
   default: {
-    decreaseMoodLevel: jest.fn(),
+    decreaseMoodLevel: vi.fn(),
   },
 }));
-jest.unstable_mockModule("../../services/HungerService", () => ({
+vi.mock("../../services/HungerService", () => ({
   default: {},
 }));
-jest.unstable_mockModule("../../services/ThirstService", () => ({
+vi.mock("../../services/ThirstService", () => ({
   default: {},
 }));
-jest.unstable_mockModule("../../services/BathroomService", () => ({
+vi.mock("../../services/BathroomService", () => ({
   default: {},
 }));
-jest.unstable_mockModule("../../services/SicknessService", () => ({
+vi.mock("../../services/SicknessService", () => ({
   default: {},
 }));
-jest.unstable_mockModule("../../services/AlcoholService", () => ({
+vi.mock("../../services/AlcoholService", () => ({
   default: {},
 }));
 
@@ -49,7 +35,7 @@ const MoodService = (await import("../../services/MoodService.js")).default;
 describe("YapperService", () => {
   beforeEach(() => {
     YapperService.setYappers([]);
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   test("should handle setting and getting yappers", () => {
@@ -62,7 +48,7 @@ describe("YapperService", () => {
     expect(YapperService.getYappers()).toEqual(mockYappers);
   });
 
-  test("yapperMessage should decrease mood call AI service with formatted prompt", async () => {
+  test("yapperMessage should decrease mood and call AIService.generateText", async () => {
     const mockYappers = [
       { displayName: "User1", count: 50 },
       { displayName: "User2", count: 30 },
@@ -74,19 +60,23 @@ describe("YapperService", () => {
     const response = await YapperService.yapperMessage(mockInteraction);
 
     expect(MoodService.decreaseMoodLevel).toHaveBeenCalledTimes(1);
-    expect(AIService.generateTextFromSystemUserMessages).toHaveBeenCalledTimes(
-      1,
+    expect(AIService.generateText).toHaveBeenCalledTimes(1);
+
+    // Verify the conversation structure passed to generateText
+    const callArgs = AIService.generateText.mock.calls[0][0];
+    expect(callArgs).toHaveProperty("conversation");
+    expect(callArgs).toHaveProperty("modelPerformance", "POWERFUL");
+
+    // Verify system message content includes yapper data
+    const systemMessage = callArgs.conversation.find(
+      (m) => m.role === "system",
     );
+    expect(systemMessage.content).toContain("User1 with 50 recent yaps");
+    expect(systemMessage.content).toContain("User2 with 30 recent yaps");
 
-    const callArgs = AIService.generateTextFromSystemUserMessages.mock.calls[0];
-    const systemContent = callArgs[0];
-    const userContent = callArgs[1];
-    const interactionArg = callArgs[2];
-
-    expect(systemContent).toContain("User1 with 50 recent yaps");
-    expect(systemContent).toContain("User2 with 30 recent yaps");
-    expect(userContent).toContain("top 5 yappers");
-    expect(interactionArg).toBe(mockInteraction);
+    // Verify user message asks about top yappers
+    const userMessage = callArgs.conversation.find((m) => m.role === "user");
+    expect(userMessage.content).toContain("top 5 yappers");
 
     expect(response).toBe("Mocked AI response");
   });

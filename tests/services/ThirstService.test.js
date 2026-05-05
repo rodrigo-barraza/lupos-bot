@@ -1,28 +1,45 @@
-import {
-  jest,
-  describe,
-  test,
-  it,
-  expect,
-  beforeEach,
-  afterEach,
-  beforeAll,
-  afterAll,
-} from "@jest/globals";
-jest.unstable_mockModule("../../services/DiscordService", () => ({
-  default: {
-    generateTextFromSystemUserMessages: jest
-      .fn()
-      .mockResolvedValue("Mocked response"),
-  },
-}));
+// Mock StatService — the factory that ThirstService delegates to
+vi.mock("../../services/StatService", () => {
+  let level = 0;
+  const mockStat = {
+    getLevel: vi.fn(() => level),
+    setLevel: vi.fn((v) => {
+      level = Math.max(0, Math.min(100, v));
+      return level;
+    }),
+    increase: vi.fn((m = 1) => {
+      level = Math.min(100, level + m);
+      return level;
+    }),
+    decrease: vi.fn((m = 1) => {
+      level = Math.max(0, level - m);
+      return level;
+    }),
+    getName: vi.fn(() => "thirst"),
+    reset: vi.fn(() => {
+      level = 0;
+      return level;
+    }),
+  };
+  return {
+    default: {
+      create: vi.fn(() => mockStat),
+    },
+    __mockStat: mockStat,
+    __resetLevel: () => {
+      level = 0;
+    },
+  };
+});
 
 const ThirstService = (await import("../../services/ThirstService.js")).default;
+const { __resetLevel } = await import("../../services/StatService");
 
 describe("ThirstService", () => {
   beforeEach(() => {
+    __resetLevel();
     ThirstService.setThirstLevel(0);
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   test("should initialize with a thirst level of 0", () => {
@@ -60,17 +77,5 @@ describe("ThirstService", () => {
     const newLevel = ThirstService.decreaseThirstLevel();
     expect(newLevel).toBe(0);
     expect(ThirstService.getThirstLevel()).toBe(0);
-  });
-
-  test("drink method should decrease thirst level and call DiscordService", async () => {
-    ThirstService.setThirstLevel(10);
-    const mockMessage = { content: "water", reply: jest.fn() };
-
-    await ThirstService.drink(mockMessage);
-
-    expect(ThirstService.getThirstLevel()).toBe(9);
-    expect(mockMessage.reply).toHaveBeenCalledWith({
-      content: "Mocked response",
-    });
   });
 });

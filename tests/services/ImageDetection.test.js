@@ -12,8 +12,6 @@
  * inputs fall through to it — actual LLM classification is integration-level.
  */
 
-import { describe, test, expect } from "@jest/globals";
-
 // ═══════════════════════════════════════════════════════════════════
 // Extracted regexes — must be kept in sync with DiscordService.js
 // ═══════════════════════════════════════════════════════════════════

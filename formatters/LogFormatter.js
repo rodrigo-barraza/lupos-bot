@@ -661,7 +661,7 @@ const LogFormatter = {
   },
 
   luposInitializing() {
-    console.log('\x1b[36m🐺 Lupos\x1b[0m \x1b[2m— Discord Sentinel · Sun Ecosystem · v1.0\x1b[0m');
+    console.log('\x1b[36m🐺 Lupos\x1b[0m \x1b[2m— Discord Sentinel · v1.0\x1b[0m');
     console.log('\x1b[2;33m   ► Initializing ...\x1b[0m');
     return [''];
   },
