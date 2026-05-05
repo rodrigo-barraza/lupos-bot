@@ -10,6 +10,8 @@ const utilities = {
       }
       const response = await fetch(url);
       if (!response.ok) {
+        // 404 is expected for stale Discord CDN URLs (changed avatars/banners)
+        if (response.status === 404) return null;
         throw new Error(
           `generateFileHash received HTTP ${response.status} for URL: ${url}`,
         );
