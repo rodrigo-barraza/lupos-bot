@@ -46,8 +46,9 @@ export default [
       globals: {
         describe: "readonly",
         it: "readonly",
+        test: "readonly",
         expect: "readonly",
-        jest: "readonly",
+        vi: "readonly",
         beforeEach: "readonly",
         afterEach: "readonly",
         beforeAll: "readonly",

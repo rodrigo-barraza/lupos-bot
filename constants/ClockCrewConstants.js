@@ -460,7 +460,7 @@ const ClockCrewConstants = {
       name: "BobbyClock",
       nicknames: "",
       joinDate: "2005-08-18",
-      description: "Official Clock - Can\&#39;t count past three",
+      description: "Official Clock - Can&#39;t count past three",
     },
     {
       name: "BoltGunClock",
@@ -748,7 +748,7 @@ const ClockCrewConstants = {
       name: "clockradioclock",
       nicknames: "",
       joinDate: "2008-04-14",
-      description: "Administrator - it\'s ok",
+      description: "Administrator - it' s ok",
     },
     {
       name: "CocaColaLightLimeClock",
@@ -1390,7 +1390,7 @@ const ClockCrewConstants = {
       name: "GalaxyClock",
       nicknames: "",
       joinDate: "2005-08-15",
-      description: "How\'s it spinning?",
+      description: "How' s it spinning?",
     },
     {
       name: "GameAndWatchClock",
@@ -1546,7 +1546,7 @@ const ClockCrewConstants = {
       name: "GuillotineClock",
       nicknames: "",
       joinDate: "2005-08-16",
-      description: "It\'s Time To Duel!!",
+      description: "It' s Time To Duel!!",
     },
     {
       name: "GumClock",
@@ -2284,7 +2284,7 @@ const ClockCrewConstants = {
       name: "OranginaClock",
       nicknames: "",
       joinDate: "2006-12-13",
-      description: "Orangina Clock Since 06\'",
+      description: "Orangina Clock Since 06' ",
     },
     {
       name: "OvenMittClock",
@@ -3124,7 +3124,7 @@ const ClockCrewConstants = {
       name: "ToastClock",
       nicknames: "",
       joinDate: "2008-01-06",
-      description: "I\'m back, nigguas",
+      description: "I' m back, nigguas",
     },
     {
       name: "TransformersClock",
@@ -3516,7 +3516,7 @@ const ClockCrewConstants = {
       name: "ActionClock",
       nicknames: "",
       joinDate: "2007-05-23",
-      description: "Hi there, let\'s be friends",
+      description: "Hi there, let' s be friends",
     },
     {
       url: "adobeflashclock.",
@@ -3740,7 +3740,7 @@ const ClockCrewConstants = {
       name: "AnimeClock",
       nicknames: "",
       joinDate: "2006-05-21",
-      description: "I\'m gonna poo in your pants",
+      description: "I' m gonna poo in your pants",
     },
     {
       url: "angrybagelclock.",
@@ -4497,7 +4497,7 @@ Long version: BB10's story involved getting tutored by an older clock in the pas
       name: "BellClock",
       nicknames: "",
       joinDate: "2003-02-27",
-      description: "Official Clock - R.I.P. a pleasured dog :\&#039;(",
+      description: "Official Clock - R.I.P. a pleasured dog :&#039;(",
     },
     {
       url: "beretclock.",
@@ -5178,7 +5178,7 @@ Long version: BB10's story involved getting tutored by an older clock in the pas
       name: "BritClock",
       nicknames: "",
       joinDate: "2004-05-08",
-      description: "If you\'re looking for a cheap sort, set in false anticipation...",
+      description: "If you' re looking for a cheap sort, set in false anticipation...",
     },
     {
       url: "broccoliclock.",
@@ -6517,7 +6517,7 @@ Long version: BB10's story involved getting tutored by an older clock in the pas
       name: "CountClock",
       nicknames: "",
       joinDate: "2005-08-24",
-      description: "HA! HA! I\'m using an",
+      description: "HA! HA! I' m using an",
     },
     {
       url: "counterclock.",
@@ -6726,7 +6726,7 @@ Long version: BB10's story involved getting tutored by an older clock in the pas
       name: "CrustClock",
       nicknames: "",
       joinDate: "2005-08-13",
-      description: "They\'re inviting us to defeat them, we must oblige them!",
+      description: "They' re inviting us to defeat them, we must oblige them!",
     },
     {
       url: "crystalclock.",
@@ -7982,7 +7982,7 @@ Long version: BB10's story involved getting tutored by an older clock in the pas
       name: "FishBagClock",
       nicknames: "",
       joinDate: "2005-12-30",
-      description: "It\'s like at the pet store when you purchase a fish, get it?",
+      description: "It' s like at the pet store when you purchase a fish, get it?",
     },
     {
       url: "fishboy99.",
@@ -9103,7 +9103,7 @@ Long version: BB10's story involved getting tutored by an older clock in the pas
       name: "HateClock",
       nicknames: "",
       joinDate: "2005-08-18",
-      description: "Why can\'t I say that sincerely?",
+      description: "Why can' t I say that sincerely?",
     },
     {
       url: "hatterclock.",
@@ -9431,7 +9431,7 @@ Long version: BB10's story involved getting tutored by an older clock in the pas
       name: "INoodleClock",
       nicknames: "",
       joinDate: "2006-05-09",
-      description: "Been a Clockin\' since \'03",
+      description: "Been a Clockin'  since ' 03",
     },
     {
       url: "inquisitor.",
@@ -9455,7 +9455,7 @@ Long version: BB10's story involved getting tutored by an older clock in the pas
       name: "Insomnia",
       nicknames: "",
       joinDate: "2001-12-01",
-      description: "Official Clock - ain\'t dead yet",
+      description: "Official Clock - ain' t dead yet",
     },
     {
       url: "insulinpumpclock.",
@@ -12125,7 +12125,7 @@ Long version: BB10's story involved getting tutored by an older clock in the pas
       name: "PennyClock",
       nicknames: "",
       joinDate: "2008-08-15",
-      description: "I\'m more of a programmer....",
+      description: "I' m more of a programmer....",
     },
     {
       url: "pennywiseclock.",
@@ -12375,7 +12375,7 @@ Long version: BB10's story involved getting tutored by an older clock in the pas
       name: "PintClock",
       nicknames: "",
       joinDate: "2005-08-13",
-      description: "Official Clock - <MARQUEE><font color=\'red\'><font size=\'9\'>Want to have a <s>sexi</s> manly affair?</MARQUEE></font></font>",
+      description: "Official Clock - <MARQUEE><font color=' red' ><font size=' 9' >Want to have a <s>sexi</s> manly affair?</MARQUEE></font></font>",
     },
     {
       url: "pirateberryclock.",
@@ -12663,7 +12663,7 @@ Long version: BB10's story involved getting tutored by an older clock in the pas
       name: "ProzacClock",
       nicknames: "",
       joinDate: "2007-01-17",
-      description: "It\'s not the beard on the outside that counts, it\'s the beard on the inside.",
+      description: "It' s not the beard on the outside that counts, it' s the beard on the inside.",
     },
     {
       url: "prozac-clock.",
@@ -12671,7 +12671,7 @@ Long version: BB10's story involved getting tutored by an older clock in the pas
       name: "Prozac-Clock",
       nicknames: "",
       joinDate: "2007-01-17",
-      description: "It\'s not the beard on the outside that counts, it\'s the beard on the inside.",
+      description: "It' s not the beard on the outside that counts, it' s the beard on the inside.",
     },
     {
       url: "pruneclock.",
@@ -13292,7 +13292,7 @@ Long version: BB10's story involved getting tutored by an older clock in the pas
       name: "SalmonBerryClock",
       nicknames: "",
       joinDate: "5/18/06",
-      description: "ok really I\'m just Salmonberry",
+      description: "ok really I' m just Salmonberry",
     },
     {
       url: "salsaclock.",
@@ -13324,7 +13324,7 @@ Long version: BB10's story involved getting tutored by an older clock in the pas
       name: "GamblerClock",
       nicknames: "",
       joinDate: "2008-02-19",
-      description: "If you\'re afraid of falling, you fall because you are afraid.",
+      description: "If you' re afraid of falling, you fall because you are afraid.",
     },
     {
       url: "sandwichclock.",
@@ -13548,7 +13548,7 @@ Long version: BB10's story involved getting tutored by an older clock in the pas
       name: "SharpClock",
       nicknames: "",
       joinDate: "2005-08-13",
-      description: "1st King of The Clod\'s",
+      description: "1st King of The Clod' s",
     },
     {
       url: "sharpieclock.",
@@ -13676,7 +13676,7 @@ Long version: BB10's story involved getting tutored by an older clock in the pas
       name: "SilverCherryClock",
       nicknames: "",
       joinDate: "2005-08-20",
-      description: "Official Clock - I have birds everywhere I go, they are in different places but all together. It\&#039;s cool and fun.",
+      description: "Official Clock - I have birds everywhere I go, they are in different places but all together. It&#039;s cool and fun.",
     },
     {
       url: "silverclock.",
@@ -13844,7 +13844,7 @@ Long version: BB10's story involved getting tutored by an older clock in the pas
       name: "SmegheadClock",
       nicknames: "",
       joinDate: "2008-11-26",
-      description: "Official Clock - \'07 user (who signed up in \'08)",
+      description: "Official Clock - ' 07 user (who signed up in ' 08)",
     },
     {
       url: "smoreclock.",
