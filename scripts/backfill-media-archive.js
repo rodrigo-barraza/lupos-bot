@@ -17,7 +17,7 @@
 
 import { MongoClient } from "mongodb";
 import crypto from "crypto";
-import { createVaultClient } from "@rodrigo-barraza/utilities/vault";
+import { createVaultClient } from "@rodrigo-barraza/utilities-library/vault";
 
 // ─── Boot: resolve secrets ──────────────────────────────────────
 const vault = createVaultClient({
