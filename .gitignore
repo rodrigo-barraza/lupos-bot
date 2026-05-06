@@ -2,7 +2,6 @@
 /images
 /recordings
 /voices
-secrets.js
 .env
 .env.deploy
 .vscode/settings.json
