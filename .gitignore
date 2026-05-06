@@ -3,7 +3,6 @@
 /recordings
 /voices
 .env
-.env.deploy
 .vscode/settings.json
 *:Zone.Identifier
 
