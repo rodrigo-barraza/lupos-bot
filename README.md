@@ -107,7 +107,7 @@ lupos-bot/
 | luxon | Date/time handling |
 | play-dl / @distube/ytdl-core | YouTube audio streaming |
 | express | Internal HTTP API for transcription and webhooks |
-| @rodrigo-barraza/utilities | Shared ecosystem utility library |
+| @rodrigo-barraza/utilities-library | Shared ecosystem utility library |
 
 ## Setup
 

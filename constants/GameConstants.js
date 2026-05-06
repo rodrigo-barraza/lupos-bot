@@ -5,7 +5,7 @@
  * when users play specific games.
  */
 
-import { MS_PER_DAY } from "@rodrigo-barraza/utilities";
+import { MS_PER_DAY } from "@rodrigo-barraza/utilities-library";
 
 export const GAME_ROLE_MAPPINGS = [
   { activityName: "apex legends", roleName: "apex legends" },

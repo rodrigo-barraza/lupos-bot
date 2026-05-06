@@ -1,7 +1,7 @@
 // ============================================================
 // Lupos — Boot Sequence
 // ============================================================
-import { createVaultClient } from "@rodrigo-barraza/utilities/vault";
+import { createVaultClient } from "@rodrigo-barraza/utilities-library/vault";
 
 const vault = createVaultClient({
   localEnvFile: "./.env",
