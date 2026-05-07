@@ -1577,7 +1577,7 @@ Respond with ONLY "yes" or "no". Nothing else.`,
     const agentResponse = await PrismService.generateAgentResponse({
       messages: agentConversation,
       type: config.LANGUAGE_MODEL_TYPE,
-      model: config.ANTHROPIC_LANGUAGE_MODEL_SMART,
+      model: config.ANTHROPIC_LANGUAGE_MODEL_FAST,
       agentContext,
       maxTokens: 4096, // Agent needs headroom for tool-call JSON + reasoning + final reply
       temperature: config.LANGUAGE_MODEL_TEMPERATURE,
