@@ -18,7 +18,8 @@ COPY package.json package-lock.json ./
 
 # Skip Puppeteer's bundled Chromium — we use system Chromium
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
-RUN npm ci --omit=dev
+RUN git config --global url."https://github.com/".insteadOf "ssh://git@github.com/" && \
+    npm ci --omit=dev
 
 # ── Stage 2: Runtime ──────────────────────────────────────────
 FROM node:22-slim
