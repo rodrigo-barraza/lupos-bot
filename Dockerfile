@@ -10,7 +10,7 @@
 FROM node:22-slim AS deps
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    python3 make g++ git \
+    python3 make g++ git openssh-client \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
@@ -18,8 +18,8 @@ COPY package.json package-lock.json ./
 
 # Skip Puppeteer's bundled Chromium — we use system Chromium
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
-RUN git config --global url."https://github.com/".insteadOf "ssh://git@github.com/" && \
-    npm ci --omit=dev
+RUN mkdir -p -m 0700 ~/.ssh && ssh-keyscan github.com >> ~/.ssh/known_hosts
+RUN --mount=type=ssh npm ci --omit=dev
 
 # ── Stage 2: Runtime ──────────────────────────────────────────
 FROM node:22-slim
