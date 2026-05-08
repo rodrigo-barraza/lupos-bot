@@ -74,7 +74,12 @@ export async function kickIfForbiddenCombo(member, callerName = "AccountGuard") 
 
   if (!hasBoth) return false;
 
-  // Only kick if they joined the server within the past 4 weeks
+  // Only kick if the Discord account itself is less than 4 weeks old.
+  // Old accounts picking both roles are real users, not spam bots.
+  const accountAge = Date.now() - member.user.createdAt.getTime();
+  if (accountAge >= ACCOUNT_AGE_THRESHOLD_MS) return false;
+
+  // Also skip if they've been in the server longer than 4 weeks
   const joinAge = Date.now() - (member.joinedTimestamp || 0);
   if (joinAge > ACCOUNT_AGE_THRESHOLD_MS) return false;
 

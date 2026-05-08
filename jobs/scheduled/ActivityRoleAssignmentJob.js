@@ -126,7 +126,7 @@ async function assignActivityRoles({
   const topAuthorCounts = authorCounts
     .sort((a, b) => b.count - a.count)
     .slice(0, 5);
-  ``;
+
 
   const topReactorCounts = reactorCounts
     .sort((a, b) => b.count - a.count)
@@ -140,12 +140,12 @@ async function assignActivityRoles({
   const topReactor = topReactorCounts[0];
 
   try {
-    const topAuthorMember = await guild.members.fetch(topAuthor.authorId);
+    const topAuthorMember = await guild.members.fetch(topAuthor.userId);
     const membersWithYapperRole = guild.members.cache.filter((member) =>
       member.roles.cache.some((role) => role.id === roleIdYapper),
     );
 
-    if (previousTopAuthorId !== topAuthor.authorId) {
+    if (previousTopAuthorId !== topAuthor.userId) {
       // Remove the role from all current holders
       await Promise.all(
         membersWithYapperRole.map(async (member) => {
@@ -157,17 +157,17 @@ async function assignActivityRoles({
       );
       // Add the role to the new top author
       await topAuthorMember.roles.add(topAuthorRole);
-      previousTopAuthorId = topAuthor.authorId;
+      previousTopAuthorId = topAuthor.userId;
       // log in database
       const db = mongo.db(MONGO_DB_NAME);
       const collection = db.collection("ActivityRoles");
       await collection.insertOne({
-        userId: topAuthor.authorId,
+        userId: topAuthor.userId,
         roleId: roleIdYapper,
         timestamp: new Date(),
       });
       consoleLog(
-        `${topAuthorMember.userName} has been given the role ${topAuthorRole.name}`,
+        `${topAuthor.userName} has been given the role ${topAuthorRole.name}`,
       );
     }
   } catch (error) {
@@ -207,7 +207,7 @@ async function assignActivityRoles({
         timestamp: new Date(),
       });
       consoleLog(
-        `${topReactorMember.userName} has been given the role ${topReactorRole.name}`,
+        `${topReactor.userName} has been given the role ${topReactorRole.name}`,
       );
     }
   } catch (error) {
