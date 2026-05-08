@@ -253,6 +253,8 @@ const transformTextChannel = (channel, _concise = false) => {
       // parent: channel.parent,
       // Snowflake | null
       parentId: channel.parentId,
+      // Category name (resolved from parent channel)
+      parentName: channel.parent?.name || null,
       // false
       partial: channel.partial,
       // PermissionOverwriteManager
@@ -305,6 +307,11 @@ const transformGuild = (guild, _concise = false) => {
     return {
       id: guild.id,
       name: guild.name,
+      // Persist icon/banner/splash hashes so downstream consumers can
+      // reconstruct CDN URLs without the live Discord.js client.
+      ...(guild.icon && { icon: guild.icon }),
+      ...(guild.banner && { banner: guild.banner }),
+      ...(guild.splash && { splash: guild.splash }),
     };
   }
 };
