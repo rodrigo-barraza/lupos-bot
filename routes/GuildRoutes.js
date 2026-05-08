@@ -249,10 +249,52 @@ router.get("/guild/members", async (req, res) => {
   }
 });
 
+// ─── Background Job Status Tracker ──────────────────────────────
+// Lightweight in-memory map for tracking async job progress.
+// Jobs auto-expire after 1 hour to prevent memory leaks.
+const _jobStatus = new Map();
+let _jobIdCounter = 0;
+const JOB_TTL_MS = 60 * 60 * 1000; // 1 hour
+
+function createJob(type, meta = {}) {
+  const id = `${type}-${++_jobIdCounter}`;
+  const job = {
+    id,
+    type,
+    status: "running",
+    startedAt: new Date().toISOString(),
+    ...meta,
+    result: null,
+    error: null,
+  };
+  _jobStatus.set(id, job);
+  // Auto-expire
+  setTimeout(() => _jobStatus.delete(id), JOB_TTL_MS);
+  return job;
+}
+
+function completeJob(id, result) {
+  const job = _jobStatus.get(id);
+  if (job) {
+    job.status = "completed";
+    job.completedAt = new Date().toISOString();
+    job.result = result;
+  }
+}
+
+function failJob(id, error) {
+  const job = _jobStatus.get(id);
+  if (job) {
+    job.status = "failed";
+    job.completedAt = new Date().toISOString();
+    job.error = error;
+  }
+}
+
 // ─── POST /guild/rescrape ───────────────────────────────────────
 // Triggers a targeted rescrape of specific channels to refresh
 // embed data and other message fields in MongoDB.
-// Body: { guildId?, channelIds: ["..."], dateLimit? }
+// Body: { guildId?, channelIds: [\"...\"], dateLimit?, forceUpdate? }
 
 router.post("/guild/rescrape", async (req, res) => {
   try {
@@ -268,14 +310,13 @@ router.post("/guild/rescrape", async (req, res) => {
     const DiscordUtilityService = (await import("#root/services/DiscordUtilityService.js")).default;
     const localMongo = MongoService.getClient("local");
 
-    // Respond immediately — the scrape runs in the background
+    const job = createJob("rescrape", { guildId, channelIds, dateLimit, forceUpdate });
+
+    // Respond immediately with job ID for status polling
     res.json({
-      status: "started",
-      guildId,
-      channelIds,
-      dateLimit,
-      forceUpdate,
+      ...job,
       message: `Rescraping ${channelIds.length} channel(s) in the background${forceUpdate ? " (force update)" : ""}`,
+      statusUrl: `/guild/rescrape/status?jobId=${job.id}`,
     });
 
     // Fire and forget
@@ -284,15 +325,30 @@ router.post("/guild/rescrape", async (req, res) => {
       localMongo,
       guildId,
       { channelIds, dateLimit, autoResume: false, forceUpdate },
-    ).then(() => {
+    ).then((result) => {
+      completeJob(job.id, result);
       console.log(`[guild/rescrape] Completed rescrape of ${channelIds.length} channel(s)`);
     }).catch((err) => {
+      failJob(job.id, err.message);
       console.error("[guild/rescrape] Error:", err.message);
     });
   } catch (error) {
     console.error("[guild/rescrape] Error:", error.message, error.stack);
     res.status(500).json({ error: "Failed to start rescrape", detail: error.message });
   }
+});
+
+// ─── GET /guild/rescrape/status ─────────────────────────────────
+router.get("/guild/rescrape/status", (req, res) => {
+  const { jobId } = req.query;
+  if (!jobId) {
+    // Return all rescrape jobs
+    const jobs = [..._jobStatus.values()].filter((j) => j.type === "rescrape");
+    return res.json({ jobs });
+  }
+  const job = _jobStatus.get(jobId);
+  if (!job) return res.status(404).json({ error: "Job not found (may have expired)" });
+  res.json(job);
 });
 
 // ─── POST /guild/backfill-media ─────────────────────────────────
@@ -311,13 +367,17 @@ router.post("/guild/backfill-media", async (req, res) => {
     const DiscordUtilityService = (await import("#root/services/DiscordUtilityService.js")).default;
     const localMongo = MongoService.getClient("local");
 
-    // Respond immediately — the backfill runs in the background
-    res.json({
-      status: "started",
+    const job = createJob("backfill-media", {
       guildId,
       channelId: channelId || "all",
       forceRetry,
+    });
+
+    // Respond immediately with job ID for status polling
+    res.json({
+      ...job,
       message: `Media backfill started${channelId ? ` for channel ${channelId}` : ""} (forceRetry: ${forceRetry})`,
+      statusUrl: `/guild/backfill-media/status?jobId=${job.id}`,
     });
 
     // Fire and forget
@@ -326,14 +386,29 @@ router.post("/guild/backfill-media", async (req, res) => {
       channelId: channelId || undefined,
       forceRetry,
     }).then((result) => {
+      completeJob(job.id, result);
       console.log(`[guild/backfill-media] Completed — processed: ${result.processed}, archived: ${result.archived}, errors: ${result.errors}`);
     }).catch((err) => {
+      failJob(job.id, err.message);
       console.error("[guild/backfill-media] Error:", err.message);
     });
   } catch (error) {
     console.error("[guild/backfill-media] Error:", error.message, error.stack);
     res.status(500).json({ error: "Failed to start media backfill", detail: error.message });
   }
+});
+
+// ─── GET /guild/backfill-media/status ───────────────────────────
+router.get("/guild/backfill-media/status", (req, res) => {
+  const { jobId } = req.query;
+  if (!jobId) {
+    // Return all backfill-media jobs
+    const jobs = [..._jobStatus.values()].filter((j) => j.type === "backfill-media");
+    return res.json({ jobs });
+  }
+  const job = _jobStatus.get(jobId);
+  if (!job) return res.status(404).json({ error: "Job not found (may have expired)" });
+  res.json(job);
 });
 
 // ─── GET /guild/emojis ──────────────────────────────────────────
@@ -440,6 +515,39 @@ router.post("/guild/react", async (req, res) => {
 
     // ── React ───────────────────────────────────────────────────
     await message.react(reactionIdentifier);
+
+    // ── Sync reactions to MongoDB ───────────────────────────────
+    // Re-fetch the message to get the updated reaction cache,
+    // then write the fresh reaction data to the stored document.
+    // This keeps the SSE stream (which reads from MongoDB) in sync.
+    try {
+      const freshMessage = await channel.messages.fetch(messageId);
+      const MongoService = (await import("#root/services/MongoService.js")).default;
+      const localMongo = MongoService.getClient("local");
+      const db = localMongo.db("lupos");
+      const col = db.collection("Messages");
+
+      const transformedReactions = freshMessage.reactions.cache.map((r) => ({
+        count: r.count,
+        countDetails: {
+          burst: r.countDetails?.burst || 0,
+          normal: r.countDetails?.normal || 0,
+        },
+        emoji: {
+          animated: r.emoji.animated || false,
+          id: r.emoji.id || null,
+          name: r.emoji.name || null,
+        },
+      }));
+
+      await col.updateOne(
+        { id: messageId },
+        { $set: { reactions: transformedReactions } },
+      );
+    } catch (syncErr) {
+      // Non-critical — the reaction was added on Discord, MongoDB sync can lag
+      console.warn("[guild/react] MongoDB sync failed:", syncErr.message);
+    }
 
     res.json({ success: true });
   } catch (error) {
