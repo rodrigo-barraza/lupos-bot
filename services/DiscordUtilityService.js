@@ -127,6 +127,14 @@ const transformUser = (user, concise = false) => {
 const transformRole = (role) => ({
   // ColorResolvable
   color: role.color,
+  // Enhanced Role Styles (gradient/holographic) — Discord ENHANCED_ROLE_COLORS feature
+  ...(role.colors && {
+    colors: {
+      primaryColor: role.colors.primaryColor,
+      secondaryColor: role.colors.secondaryColor ?? null,
+      tertiaryColor: role.colors.tertiaryColor ?? null,
+    },
+  }),
   // Date
   createdAt: role.createdAt,
   // number
@@ -454,6 +462,26 @@ const transformVoice = (voice) => {
 
 const transformMember = (member, concise = false) => {
   if (member) {
+    // Build Enhanced Role Colors for gradient/holographic support.
+    // member.roles.color is the highest role with a non-zero color.
+    const colorRole = member.roles?.color;
+    let roleColorsData = null;
+    if (colorRole?.colors?.primaryColor) {
+      const { primaryColor, secondaryColor, tertiaryColor } = colorRole.colors;
+      // Only include the object when there's actually a gradient/holographic style
+      if (secondaryColor || tertiaryColor) {
+        roleColorsData = {
+          primary: `#${primaryColor.toString(16).padStart(6, "0")}`,
+          secondary: secondaryColor
+            ? `#${secondaryColor.toString(16).padStart(6, "0")}`
+            : null,
+          tertiary: tertiaryColor
+            ? `#${tertiaryColor.toString(16).padStart(6, "0")}`
+            : null,
+        };
+      }
+    }
+
     if (concise) {
       return {
         id: member.id,
@@ -462,6 +490,8 @@ const transformMember = (member, concise = false) => {
         nickname: member.nickname,
         joinedAt: member.joinedAt,
         joinedTimestamp: member.joinedTimestamp,
+        // Enhanced Role Styles — gradient (secondary) / holographic (tertiary)
+        ...(roleColorsData && { roleColors: roleColorsData }),
       };
     }
     return {
@@ -844,12 +874,16 @@ const DiscordUtilityService = {
           const backfill = {
             "member.displayHexColor": doc.member?.displayHexColor || null,
             "member.displayName": doc.member?.displayName || null,
+            // Enhanced Role Styles (gradient/holographic) — always update to latest
+            ...(doc.member?.roleColors
+              ? { "member.roleColors": doc.member.roleColors }
+              : { "member.roleColors": null }),
           };
 
           // Clone for $setOnInsert and strip backfill paths to avoid conflict
           const insertDoc = { ...doc };
           if (insertDoc.member) {
-            const { displayHexColor: _dhc, displayName: _dn, ...restMember } = insertDoc.member;
+            const { displayHexColor: _dhc, displayName: _dn, roleColors: _rc, ...restMember } = insertDoc.member;
             insertDoc.member = restMember;
           }
 
@@ -1286,6 +1320,8 @@ const DiscordUtilityService = {
    * @param {string} [options.collectionName='Messages']
    * @param {string[]} [options.authorIds] - Limit to specific author IDs (null = all)
    * @param {string} [options.guildId] - Limit to specific guild
+   * @param {string} [options.channelId] - Limit to specific channel
+   * @param {boolean} [options.forceRetry=false] - Re-process messages previously marked with empty mediaArchive
    * @param {number} [options.batchSize=50] - Documents per processing batch
    */
   async backfillMediaArchive(client, mongo, options = {}) {
@@ -1293,6 +1329,8 @@ const DiscordUtilityService = {
       collectionName = "Messages",
       authorIds = null,
       guildId = null,
+      channelId = null,
+      forceRetry = false,
       batchSize = 50,
     } = options;
 
@@ -1306,14 +1344,18 @@ const DiscordUtilityService = {
     const collection = db.collection(collectionName);
 
     // Build query: messages with media but no/empty mediaArchive
+    const archiveConditions = [
+      { mediaArchive: { $exists: false } },
+    ];
+    // forceRetry: also re-process messages that were previously marked
+    // with empty mediaArchive (e.g. URLs were expired during prior attempts)
+    if (forceRetry) {
+      archiveConditions.push({ mediaArchive: { $eq: {} } });
+    }
+
     const query = {
       $and: [
-        {
-          $or: [
-            { mediaArchive: { $exists: false } },
-            { mediaArchive: { $eq: {} } },
-          ],
-        },
+        { $or: archiveConditions },
         {
           $or: [
             { "attachments.0": { $exists: true } },
@@ -1325,6 +1367,7 @@ const DiscordUtilityService = {
     };
     if (authorIds) query["author.id"] = { $in: authorIds };
     if (guildId) query.guildId = guildId;
+    if (channelId) query.channelId = channelId;
 
     const totalCount = await collection.countDocuments(query);
     console.log(`[BACKFILL] Found ${totalCount} message(s) needing media archival`);
