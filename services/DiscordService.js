@@ -1704,6 +1704,7 @@ async function replyMessage(queuedDatum, localMongo) {
   // whether to generate images via the generate_image tool.
 
   // Rodrigo: This extracts the content from the messages
+
   const {
     conversation,
     newSystemPrompt,
@@ -1720,6 +1721,7 @@ async function replyMessage(queuedDatum, localMongo) {
     userMentionsCollection,
   } = await extractContentFromMessages(queuedDatum, localMongo);
 
+
   LightsService.cycleColor(config.PRIMARY_LIGHT_ID, DEFAULT_LIGHT_CYCLE);
 
   // Check if message was deleted during content extraction
@@ -1730,6 +1732,7 @@ async function replyMessage(queuedDatum, localMongo) {
     cancelledMessageIds.delete(message.id);
     return;
   }
+
 
   const { generatedText, image } =
     await buildAndGenerateReply({
@@ -1748,6 +1751,7 @@ async function replyMessage(queuedDatum, localMongo) {
       userMentionsCollection,
       localMongo,
     });
+
   // eslint-disable-next-line prefer-const
   generatedTextResponse = generatedText;
   generatedImage = image; // eslint-disable-line prefer-const
@@ -3106,10 +3110,19 @@ URL: ${utilities.getDiscordMessageUrl(message.guild?.id, message.channel.id, mes
     return;
   }
 
-  // START TYPING
+
+
+  // START TYPING — timeout-guarded so a hanging sendTyping() can never block the reply pipeline
   if (!typingIntervals[message.channel.id]) {
-    typingIntervals[message.channel.id] =
-      await DiscordUtilityService.startTypingInterval(message.channel);
+    try {
+      const typingPromise = DiscordUtilityService.startTypingInterval(message.channel);
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('sendTyping timed out after 5s')), 5000),
+      );
+      typingIntervals[message.channel.id] = await Promise.race([typingPromise, timeoutPromise]);
+    } catch (error) {
+      console.warn(`⚠️ [processMessage] Could not start typing: ${error.message}`);
+    }
   }
 
   // LUPOS CHATTER ROLE
@@ -3134,12 +3147,15 @@ URL: ${utilities.getDiscordMessageUrl(message.guild?.id, message.channel.id, mes
   // const messagesToFetch = await AIService.generateTextDetermineHowManyMessagesToFetch(message.content);
 
   // R: Grab the messages before the current message...
-  const recentMessages = (
-    await DiscordUtilityService.fetchMessages(client, message.channel.id, {
-      limit: 500,
-      before: message.id,
-    })
-  ).reverse();
+  const fetchedMessages = await DiscordUtilityService.fetchMessages(client, message.channel.id, {
+    limit: 500,
+    before: message.id,
+  });
+  if (!fetchedMessages) {
+    console.error(`❌ [processMessage] fetchMessages returned null — channel not in cache`);
+    return;
+  }
+  const recentMessages = fetchedMessages.reverse();
   // R: ...and add the current message to the end of the collection
   recentMessages.set(message.id, message);
 
