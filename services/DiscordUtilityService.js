@@ -2063,18 +2063,20 @@ const DiscordUtilityService = {
   },
   // Typing functions
   async startTypingInterval(channel) {
-    let sendTypingInterval;
-    const startTyping = async () => {
-      await channel.sendTyping();
-      sendTypingInterval = setInterval(() => {
-        channel.sendTyping().catch((_error) => {
-          if (sendTypingInterval) {
-            clearInterval(sendTypingInterval);
-          }
-        });
-      }, 5000);
-    };
-    await startTyping();
+    // Fire-and-forget — never await sendTyping(). Its promise can hang
+    // indefinitely if discord.js's internal rate limit queue is stuck
+    // (e.g., after a Discord API outage). Typing is cosmetic.
+    channel.sendTyping().catch((error) => {
+      console.warn(`⚠️ [startTypingInterval] Initial sendTyping failed: ${error.message}`);
+    });
+    // Refresh typing every 5s (Discord auto-clears after 10s)
+    const sendTypingInterval = setInterval(() => {
+      channel.sendTyping().catch((_error) => {
+        if (sendTypingInterval) {
+          clearInterval(sendTypingInterval);
+        }
+      });
+    }, 5000);
     return sendTypingInterval;
   },
   clearTypingInterval(sendTypingInterval) {
