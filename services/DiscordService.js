@@ -2737,6 +2737,16 @@ async function luposOnReady(client, { mongo }) {
   console.log(...LogFormatter.botReady(client));
   consoleLogAllGuilds(client);
 
+  // Warm up the Discord REST connection pool — the first REST call after
+  // gateway connect can stall on DNS/TLS in Docker (Synology bridge network).
+  // Issuing a lightweight call here primes the pool so sendTyping() doesn't hang.
+  try {
+    await client.application.fetch();
+    console.log('🔌 [DiscordService] REST connection pool warmed up');
+  } catch (error) {
+    console.warn(`⚠️ [DiscordService] REST warmup failed: ${error.message}`);
+  }
+
   // ─── Maintenance Gate ──────────────────────────────────────────
   if (config.UNDER_MAINTENANCE) {
     client.user.setPresence({
@@ -3112,14 +3122,11 @@ URL: ${utilities.getDiscordMessageUrl(message.guild?.id, message.channel.id, mes
 
 
 
-  // START TYPING — timeout-guarded so a hanging sendTyping() can never block the reply pipeline
+  // START TYPING
   if (!typingIntervals[message.channel.id]) {
     try {
-      const typingPromise = DiscordUtilityService.startTypingInterval(message.channel);
-      const timeoutPromise = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('sendTyping timed out after 5s')), 5000),
-      );
-      typingIntervals[message.channel.id] = await Promise.race([typingPromise, timeoutPromise]);
+      typingIntervals[message.channel.id] =
+        await DiscordUtilityService.startTypingInterval(message.channel);
     } catch (error) {
       console.warn(`⚠️ [processMessage] Could not start typing: ${error.message}`);
     }
