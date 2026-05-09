@@ -3147,28 +3147,41 @@ URL: ${utilities.getDiscordMessageUrl(message.guild?.id, message.channel.id, mes
 
   if (!isProcessingQueue) {
     isProcessingQueue = true;
-    while (queuedData.length > 0) {
-      const queuedDatum = queuedData.shift();
-      const currentChannelId = queuedDatum.message.channel.id;
-      await replyMessage(queuedDatum, localMongo);
-      // R: If there are no more messages in the queue for this channel, clear the typing interval
-      // R: We use the optional chaining operator (?.), but I believe it's not needed, as it was crashing, whenever the bot kept getting kicked from the server.
-      if (
-        !queuedData.some((q) => q.message?.channel?.id === currentChannelId)
-      ) {
-        // if (!queuedData.some(q => q.message.channel.id === currentChannelId)) {
-        // Clear typing for this specific channel only
-        if (typingIntervals[currentChannelId]) {
-          DiscordUtilityService.clearTypingInterval(
-            typingIntervals[currentChannelId],
+    try {
+      while (queuedData.length > 0) {
+        const queuedDatum = queuedData.shift();
+        const currentChannelId = queuedDatum.message.channel.id;
+        try {
+          await replyMessage(queuedDatum, localMongo);
+        } catch (error) {
+          console.error(
+            `❌ [processMessage] Uncaught error in replyMessage — queue will continue processing:\n`,
+            error,
           );
-          delete typingIntervals[currentChannelId];
+          // Clear typing for the failed channel so it doesn't hang
+          if (typingIntervals[currentChannelId]) {
+            DiscordUtilityService.clearTypingInterval(
+              typingIntervals[currentChannelId],
+            );
+            delete typingIntervals[currentChannelId];
+          }
+        }
+        // R: If there are no more messages in the queue for this channel, clear the typing interval
+        if (
+          !queuedData.some((q) => q.message?.channel?.id === currentChannelId)
+        ) {
+          // Clear typing for this specific channel only
+          if (typingIntervals[currentChannelId]) {
+            DiscordUtilityService.clearTypingInterval(
+              typingIntervals[currentChannelId],
+            );
+            delete typingIntervals[currentChannelId];
+          }
         }
       }
+    } finally {
+      isProcessingQueue = false;
     }
-    isProcessingQueue = false;
-    // Don't clear all typing intervals here - let each channel manage its own
-    // typingIntervals = {}; // Remove this line
     return;
   }
 }
