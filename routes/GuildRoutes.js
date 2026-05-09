@@ -425,12 +425,20 @@ router.get("/guild/emojis", (req, res) => {
       return res.status(404).json({ error: "Guild not found" });
     }
 
-    const emojis = guild.emojis.cache.map((emoji) => ({
-      id: emoji.id,
-      name: emoji.name,
-      animated: emoji.animated || false,
-      url: emoji.imageURL({ extension: emoji.animated ? "gif" : "webp", size: 48 }),
-    }));
+    const emojis = [];
+    for (const [, emoji] of guild.emojis.cache) {
+      if (!emoji.id) continue;
+      try {
+        emojis.push({
+          id: emoji.id,
+          name: emoji.name,
+          animated: emoji.animated || false,
+          url: emoji.imageURL({ extension: emoji.animated ? "gif" : "webp", size: 48 }),
+        });
+      } catch (emojiErr) {
+        console.warn(`[guild/emojis] Skipping emoji ${emoji.id} (${emoji.name}): ${emojiErr.message}`);
+      }
+    }
 
     res.json({
       guildId,
@@ -438,8 +446,8 @@ router.get("/guild/emojis", (req, res) => {
       emojis,
     });
   } catch (error) {
-    console.error("[guild/emojis] Error:", error.message);
-    res.status(500).json({ error: "Failed to fetch emojis" });
+    console.error("[guild/emojis] Error:", error.message, error.stack);
+    res.status(500).json({ error: "Failed to fetch emojis", detail: error.message });
   }
 });
 
