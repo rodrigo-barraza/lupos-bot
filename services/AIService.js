@@ -1,17 +1,14 @@
-// Packages
 
 import path from "path";
 import crypto from "crypto";
 
-// import { DateTime } from 'luxon';
-// Config
 import config from "#root/config.js";
 import { MONGO_DB_NAME } from "#root/constants.js";
-// Formatters
+
 import LogFormatter from "#root/formatters/LogFormatter.js";
-// Libraries
+
 import utilities from "#root/utilities.js";
-// Services
+
 import PrismService from "#root/services/PrismService.js";
 import CurrentService from "#root/services/CurrentService.js";
 import DiscordUtilityService from "#root/services/DiscordUtilityService.js";

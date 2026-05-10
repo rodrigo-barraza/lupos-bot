@@ -132,9 +132,6 @@ async function assignActivityRoles({
     .sort((a, b) => b.count - a.count)
     .slice(0, 5);
 
-  // console.log('Top authors:', topAuthorCounts);
-  // console.log('Top reactors:', topReactorCounts);
-
   // Get the top author
   const topAuthor = topAuthorCounts[0];
   const topReactor = topReactorCounts[0];

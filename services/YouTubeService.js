@@ -679,10 +679,7 @@ class YouTubeService {
     }
 
     updateInterval = setInterval(() => {
-      // if (!player || player.state.status !== AudioPlayerStatus.Playing || !nowPlayingMessage) {
-      //     this.stopUpdateInterval();
-      //     return;
-      // }
+
 
       // empty bar with 45 spaces
       let progressBar = "░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░";
@@ -734,27 +731,14 @@ ${formatted} ${dividingLine} ${currentVideo.durationRaw}
             name: "",
             value: dox,
           },
-          // {
-          //     name: '',
-          //     value: vol,
-          //     inline: true,
-          // },
           {
             name: "",
             value: `\`🔊 ${volumeLevel}% | Queue: ${queue.length} | Requested by @${DiscordUtilityService.getNameFromItem(currentMessage)}\``,
             inline: true,
           },
-          // {
-          //     name: '',
-          //     value: '',
-          //     inline: true,
-          // }
         ],
         author: existingEmbed.author,
         image: existingEmbed.image,
-        // footer: {
-        //     text: `${statusStymbol} ${formatted} / ${currentVideo.durationRaw}`,
-        // }
       };
 
       if (queue.length > 0) {
@@ -853,10 +837,6 @@ ${formatted} ${dividingLine} ${currentVideo.durationRaw}
           .setLabel("⠀⠀")
           .setStyle(ButtonStyle.Secondary)
           .setDisabled(true),
-        // new ButtonBuilder()
-        //     .setCustomId('volumeMute')
-        //     .setLabel('🔇 Mute')
-        //     .setStyle(ButtonStyle.Secondary),
       );
 
       nowPlayingMessage

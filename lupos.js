@@ -3,13 +3,9 @@
 // Environment setup
 process.env.NODE_NO_WARNINGS = "stream/web";
 
-// Dependencies
-// import { MongoClient } from 'mongodb';
 import config from "./config.js";
-// const utilities = require('./libraries/utilities.js');
 import DiscordService from "./services/DiscordService.js";
 import LogFormatter from "./formatters/LogFormatter.js";
-// const MongoWrapper = require('./wrappers/MongoWrapper.js');
 import MinioWrapper from "./wrappers/MinioWrapper.js";
 import MediaArchivalService from "./services/MediaArchivalService.js";
 
@@ -63,7 +59,7 @@ async function main() {
       DiscordService.initializeBotLupos();
     }
 
-    // DISCORD REPORTING: LUPOS
+
 
     // API SERVER
     app.use(express.json());
@@ -92,11 +88,9 @@ async function main() {
       console.log(`Server listening on 0.0.0.0:${config.SERVER_PORT}`);
     });
 
-    // HOME ASSISTANT
+
   } catch (error) {
     console.log(LogFormatter.errorInitialization(error));
-    // utilities.consoleInfoColor([[`Initialization failed: \n${error}`, { bold: true, color: 'red' }]]);
-    // process.exit(1);
   }
 }
 

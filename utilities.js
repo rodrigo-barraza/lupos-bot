@@ -172,7 +172,6 @@ const utilities = {
     const resetStyle = "\x1b[0m";
 
     const stack = new Error().stack;
-    // console.log(stack);
     const callerLine = stack.split("\n")[2];
     let trimmedCallerLine = callerLine.trim().replace("at ", "");
 
@@ -183,7 +182,6 @@ const utilities = {
       .replace("(", "")
       .replace(")", "");
     const splitString = trimmedCallerLine.split(" ");
-    // console.log(splitString);
     let funcName;
     let lineLocation;
     if (splitString.length === 3) {
