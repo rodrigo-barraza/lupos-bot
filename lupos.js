@@ -18,6 +18,9 @@ const args = process.argv.slice(2);
 const mode = args.find((arg) => arg.startsWith("mode="))?.split("=")[1];
 const channelIdsArg = args.find((arg) => arg.startsWith("channels="))?.split("=")[1];
 const channelIds = channelIdsArg ? channelIdsArg.split(",").filter(Boolean) : null;
+const guildIdsArg = args.find((arg) => arg.startsWith("guilds="))?.split("=")[1];
+const guildIds = guildIdsArg ? guildIdsArg.split(",").filter(Boolean) : null;
+const dateLimit = args.find((arg) => arg.startsWith("dateLimit="))?.split("=")[1] || null;
 
 async function main() {
   try {
@@ -46,7 +49,7 @@ async function main() {
     if (mode === "clone:messages") {
       DiscordService.cloneMessages();
     } else if (mode === "rescrape:channels") {
-      DiscordService.rescrapeChannels(channelIds);
+      DiscordService.rescrapeChannels({ channelIds, guildIds, dateLimit });
     } else if (mode === "delete:duplicates") {
       DiscordService.deleteDuplicateMessages();
     } else if (mode === "delete:newAccounts") {

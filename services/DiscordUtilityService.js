@@ -811,9 +811,14 @@ const DiscordUtilityService = {
 
         const result = await collection.bulkWrite(bulkOps, { ordered: false });
 
+        // When forceUpdate is true, matchedCount = docs that existed and were
+        // updated via $set. modifiedCount = subset that actually changed.
+        // Report modified docs as "saved" so the progress log is accurate.
+        const updated = forceUpdate ? (result.modifiedCount || 0) : 0;
+
         return {
-          saved: result.upsertedCount,
-          duplicates: result.matchedCount || 0,
+          saved: result.upsertedCount + updated,
+          duplicates: (result.matchedCount || 0) - updated,
           errors: transformErrorCount,
         };
       } catch (error) {
