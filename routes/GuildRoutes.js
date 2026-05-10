@@ -149,65 +149,71 @@ router.get("/guild/members", async (req, res) => {
     for (const [, member] of allVisible) {
       try {
       // Get all non-@everyone roles sorted highest first
-      const sortedRoles = member.roles.cache
-        .filter((r) => r.id !== guild.id) // Exclude @everyone
-        .sort((a, b) => b.position - a.position);
+      let sortedRoles = [];
+      try {
+        sortedRoles = member.roles.cache
+          .filter((r) => r.id !== guild.id) // Exclude @everyone
+          .sort((a, b) => b.position - a.position);
+      } catch { /* roles cache unavailable */ }
 
       // Find the highest hoisted role for sidebar grouping
       const hoistedRole = sortedRoles.find((r) => r.hoist);
 
       // ── Build role colors (gradient/holographic support) ───────
-      // member.roles.color is the highest role with a non-zero color.
-      // Its .colors object contains { primaryColor, secondaryColor, tertiaryColor }
-      // from Discord's Enhanced Role Styles (ENHANCED_ROLE_COLORS guild feature).
-      const colorRole = member.roles.color;
       let roleColors = null;
-      if (colorRole?.colors) {
-        const { primaryColor, secondaryColor, tertiaryColor } = colorRole.colors;
-        // Only include if there's a non-zero primary color
-        if (primaryColor) {
-          roleColors = {
-            primary: `#${primaryColor.toString(16).padStart(6, "0")}`,
-            secondary: secondaryColor
-              ? `#${secondaryColor.toString(16).padStart(6, "0")}`
-              : null,
-            tertiary: tertiaryColor
-              ? `#${tertiaryColor.toString(16).padStart(6, "0")}`
-              : null,
-          };
+      try {
+        const colorRole = member.roles.color;
+        if (colorRole?.colors) {
+          const { primaryColor, secondaryColor, tertiaryColor } = colorRole.colors;
+          if (primaryColor) {
+            roleColors = {
+              primary: `#${primaryColor.toString(16).padStart(6, "0")}`,
+              secondary: secondaryColor
+                ? `#${secondaryColor.toString(16).padStart(6, "0")}`
+                : null,
+              tertiary: tertiaryColor
+                ? `#${tertiaryColor.toString(16).padStart(6, "0")}`
+                : null,
+            };
+          }
         }
-      }
+      } catch { /* role colors unavailable */ }
 
       // ── Extract profile badges from user flags bitfield ────────
       const badges = [];
-      const userFlags = member.user.flags?.bitfield;
-      if (userFlags) {
-        const BADGE_MAP = [
-          [1,       "staff"],
-          [2,       "partner"],
-          [4,       "hypesquad"],
-          [8,       "bug_hunter_1"],
-          [64,      "hypesquad_bravery"],
-          [128,     "hypesquad_brilliance"],
-          [256,     "hypesquad_balance"],
-          [512,     "early_supporter"],
-          [16384,   "bug_hunter_2"],
-          [65536,   "verified_bot"],
-          [131072,  "verified_developer"],
-          [262144,  "certified_moderator"],
-          [4194304, "active_developer"],
-        ];
-        for (const [bit, id] of BADGE_MAP) {
-          if ((userFlags & bit) === bit) badges.push(id);
+      try {
+        const userFlags = member.user.flags?.bitfield;
+        if (userFlags) {
+          const BADGE_MAP = [
+            [1,       "staff"],
+            [2,       "partner"],
+            [4,       "hypesquad"],
+            [8,       "bug_hunter_1"],
+            [64,      "hypesquad_bravery"],
+            [128,     "hypesquad_brilliance"],
+            [256,     "hypesquad_balance"],
+            [512,     "early_supporter"],
+            [16384,   "bug_hunter_2"],
+            [65536,   "verified_bot"],
+            [131072,  "verified_developer"],
+            [262144,  "certified_moderator"],
+            [4194304, "active_developer"],
+          ];
+          for (const [bit, id] of BADGE_MAP) {
+            if ((userFlags & bit) === bit) badges.push(id);
+          }
         }
-      }
+      } catch { /* user flags unavailable */ }
 
       // ── Top role tags (colored pill badges next to username) ───
-      const roleTags = sortedRoles.slice(0, 3).map((r) => ({
-        name: r.name,
-        color: r.hexColor && r.hexColor !== "#000000" ? r.hexColor : null,
-        iconUrl: r.iconURL?.() || null,
-      }));
+      let roleTags = [];
+      try {
+        roleTags = sortedRoles.slice(0, 3).map((r) => ({
+          name: r.name,
+          color: r.hexColor && r.hexColor !== "#000000" ? r.hexColor : null,
+          iconUrl: r.iconURL?.() || null,
+        }));
+      } catch { /* role tags unavailable */ }
 
       const memberData = {
         id: member.id,
@@ -243,7 +249,7 @@ router.get("/guild/members", async (req, res) => {
         ungrouped.push(memberData);
       }
       } catch (memberErr) {
-        console.warn(`[guild/members] Skipping member ${member?.id} (${member?.user?.username}): ${memberErr.message}`);
+        console.warn(`[guild/members] Skipping member ${member?.id} (${member?.user?.username}): ${memberErr.message} | Stack: ${memberErr.stack?.split('\n')[1]?.trim()}`);
       }
     }
 
@@ -273,6 +279,15 @@ router.get("/guild/members", async (req, res) => {
     const bots = ungroupedBots.sort((a, b) =>
       a.displayName.localeCompare(b.displayName),
     );
+
+    const totalProcessed = roles.reduce((n, r) => n + r.members.length, 0)
+      + ungrouped.length + bots.length;
+    const totalVisible = allVisible.size;
+    if (totalProcessed < totalVisible) {
+      console.warn(
+        `[guild/members] Processed ${totalProcessed}/${totalVisible} members — ${totalVisible - totalProcessed} skipped due to errors`,
+      );
+    }
 
     res.json({
       guildId,
