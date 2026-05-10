@@ -3741,6 +3741,11 @@ const DiscordService = {
       { localMongo, channelIds, guildIds, dateLimit },
       luposOnReadyRescrapeChannels,
     );
+    // Register clone handlers so live messages aren't dropped when
+    // Discord load-balances gateway events across the two sessions.
+    DiscordUtilityService.onEventMessageCreate(luposClient, { localMongo }, luposOnMessageCreateCloneMessage);
+    DiscordUtilityService.onEventMessageUpdate(luposClient, { localMongo }, luposOnMessageUpdateCloneMessage);
+    DiscordUtilityService.onEventMessageDelete(luposClient, localMongo, luposOnMessageDelete);
   },
   async deleteDuplicateMessages() {
     const luposClient = DiscordWrapper.createClient(
