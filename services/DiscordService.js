@@ -2839,19 +2839,30 @@ async function luposOnReadyCloneMessages(client, { localMongo }) {
   });
 }
 
-async function luposOnReadyRescrapeChannels(client, { localMongo, channelIds }) {
-  if (!channelIds || channelIds.length === 0) {
-    console.error("[rescrape:channels] No channel IDs provided. Usage: npm run rescrape:channels -- channels=id1,id2");
-    process.exit(1);
+async function luposOnReadyRescrapeChannels(client, { localMongo, channelIds, guildIds, dateLimit }) {
+  const guilds = guildIds || ["249010731910037507"];
+  const limit = dateLimit || "2025-01-01";
+
+  for (const guildId of guilds) {
+    const guild = client.guilds.cache.get(guildId);
+    const guildName = guild?.name || guildId;
+    console.log(`[rescrape:channels] Rescraping guild "${guildName}" (${guildId})${channelIds ? ` — ${channelIds.length} channel(s)` : " — all channels"} | dateLimit: ${limit}`);
+
+    await DiscordUtilityService.fetchAndSaveAllServerMessages(
+      client,
+      localMongo,
+      guildId,
+      {
+        channelIds: channelIds || undefined,
+        dateLimit: limit,
+        autoResume: false,
+        forceUpdate: true,
+      },
+    );
+    console.log(`[rescrape:channels] Done with guild "${guildName}".`);
   }
-  console.log(`[rescrape:channels] Rescraping ${channelIds.length} channel(s): ${channelIds.join(", ")}`);
-  await DiscordUtilityService.fetchAndSaveAllServerMessages(
-    client,
-    localMongo,
-    "249010731910037507",
-    { channelIds, dateLimit: "2025-01-01", autoResume: false, forceUpdate: true },
-  );
-  console.log("[rescrape:channels] Done.");
+
+  console.log(`[rescrape:channels] All guilds complete.`);
   process.exit(0);
 }
 
@@ -3718,7 +3729,7 @@ const DiscordService = {
     // Also handle deletes during scraping
     DiscordUtilityService.onEventMessageDelete(luposClient, localMongo, luposOnMessageDelete);
   },
-  async rescrapeChannels(channelIds) {
+  async rescrapeChannels({ channelIds, guildIds, dateLimit } = {}) {
     const luposClient = DiscordWrapper.createClient(
       "lupos",
       config.LUPOS_TOKEN,
@@ -3727,7 +3738,7 @@ const DiscordService = {
     const localMongo = MongoService.getClient("local");
     DiscordUtilityService.onEventClientReady(
       luposClient,
-      { localMongo, channelIds },
+      { localMongo, channelIds, guildIds, dateLimit },
       luposOnReadyRescrapeChannels,
     );
   },
