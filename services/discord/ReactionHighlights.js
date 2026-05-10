@@ -15,6 +15,7 @@ import ScraperService from "#root/services/ScraperService.js";
 import DiscordState from "#root/services/discord/DiscordState.js";
 import EventReactJob from "#root/jobs/event-driven/ReactJob.js";
 import LogFormatter from "#root/formatters/LogFormatter.js";
+import MongoService from "#root/services/MongoService.js";
 
 /**
  * Process a single reaction event — check unique reactor count,
@@ -219,6 +220,19 @@ async function handleReactionCreate(client, mongo, reaction, user) {
     reaction.message.channelId === config.CHANNEL_ID_HIGHLIGHTS;
   const isNSFWChannel =
     reaction.message.channelId === config.CHANNEL_ID_BOOTY_BAE;
+
+  // ── Sync reactions to MongoDB ─────────────────────────────────
+  // Always sync regardless of channel — keeps the Messages
+  // collection current for the SSE-powered DiscordChatComponent.
+  try {
+    if (reaction.partial) await reaction.fetch();
+    if (reaction.message.partial) await reaction.message.fetch();
+    const localMongo = MongoService.getClient("local");
+    await DiscordUtilityService.syncReactionsToMongo(reaction.message, localMongo);
+  } catch (syncErr) {
+    console.warn(`[ReactionHighlights] MongoDB reaction sync failed: ${syncErr.message}`);
+  }
+
   if (isHighlightChannel) return;
   if (isNSFWChannel) return;
 
@@ -235,4 +249,23 @@ async function handleReactionCreate(client, mongo, reaction, user) {
   }
 }
 
-export default { handleReactionCreate, processCreateReaction };
+/**
+ * Handle a reaction removal — sync updated reactions to MongoDB.
+ */
+async function handleReactionRemove(client, mongo, reaction, _user) {
+  if (reaction.message.guild?.id !== config.GUILD_ID_PRIMARY) return;
+
+  try {
+    if (reaction.partial) await reaction.fetch();
+    if (reaction.message.partial) await reaction.message.fetch();
+    const localMongo = MongoService.getClient("local");
+    await DiscordUtilityService.syncReactionsToMongo(reaction.message, localMongo);
+  } catch (syncErr) {
+    // Partial fetch can fail if the message was deleted — non-critical
+    if (syncErr.code !== 10008) {
+      console.warn(`[ReactionHighlights] MongoDB reaction remove sync failed: ${syncErr.message}`);
+    }
+  }
+}
+
+export default { handleReactionCreate, handleReactionRemove, processCreateReaction };

@@ -3250,6 +3250,10 @@ async function luposOnReactionCreateQueue(client, mongo, reaction, user) {
   return ReactionHighlights.handleReactionCreate(client, mongo, reaction, user);
 }
 
+async function luposOnReactionRemoveQueue(client, mongo, reaction, user) {
+  return ReactionHighlights.handleReactionRemove(client, mongo, reaction, user);
+}
+
 // Whenever a new member joins the server
 async function luposOnGuildMemberAdd(client, mongo, member) {
   const functionName = "luposOnGuildMemberAdd";
@@ -3641,12 +3645,13 @@ const DiscordService = {
       ["onEventGuildMemberUpdate",  mongo, luposOnGuildMemberUpdate],
     ];
     const interactionEvents = [
-      ["onEventMessageReactionAdd", mongo, luposOnReactionCreateQueue],
-      ["onEventInteractionCreate",  mongo, luposOnInteractionCreate],
-      ["onEventMessageDelete",      mongo, luposOnMessageDelete],
-      ["onEventPresenceUpdate",     luposOnPresenceUpdate],
-      ["onEventGuildMemberRemove",  mongo, luposOnGuildMemberRemove],
-      ["onEventVoiceStateUpdate",   mongo, luposOnVoiceStateUpdate],
+      ["onEventMessageReactionAdd",    mongo, luposOnReactionCreateQueue],
+      ["onEventMessageReactionRemove", mongo, luposOnReactionRemoveQueue],
+      ["onEventInteractionCreate",     mongo, luposOnInteractionCreate],
+      ["onEventMessageDelete",         mongo, luposOnMessageDelete],
+      ["onEventPresenceUpdate",        luposOnPresenceUpdate],
+      ["onEventGuildMemberRemove",     mongo, luposOnGuildMemberRemove],
+      ["onEventVoiceStateUpdate",      mongo, luposOnVoiceStateUpdate],
     ];
 
     const EVENT_REGISTRATIONS = {
