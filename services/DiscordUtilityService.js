@@ -762,8 +762,18 @@ const DiscordUtilityService = {
             };
           }
 
-          // Normal mode: only insert new, backfill specific fields on existing
+          // Normal mode: only insert new, backfill dynamic fields on existing
           const backfill = {
+            // Reactions, embeds, attachments, and content can all change
+            // after initial scrape — always update to latest values.
+            reactions: doc.reactions,
+            embeds: doc.embeds,
+            attachments: doc.attachments,
+            content: doc.content,
+            cleanContent: doc.cleanContent,
+            editedAt: doc.editedAt,
+            editedTimestamp: doc.editedTimestamp,
+            pinned: doc.pinned,
             "member.displayHexColor": doc.member?.displayHexColor || null,
             "member.displayName": doc.member?.displayName || null,
             // Enhanced Role Styles (gradient/holographic) — always update to latest
@@ -774,6 +784,14 @@ const DiscordUtilityService = {
 
           // Clone for $setOnInsert and strip backfill paths to avoid conflict
           const insertDoc = { ...doc };
+          delete insertDoc.reactions;
+          delete insertDoc.embeds;
+          delete insertDoc.attachments;
+          delete insertDoc.content;
+          delete insertDoc.cleanContent;
+          delete insertDoc.editedAt;
+          delete insertDoc.editedTimestamp;
+          delete insertDoc.pinned;
           if (insertDoc.member) {
             const { displayHexColor: _dhc, displayName: _dn, roleColors: _rc, ...restMember } = insertDoc.member;
             insertDoc.member = restMember;
@@ -1442,9 +1460,45 @@ const DiscordUtilityService = {
       }
     }
 
+    // Dynamic fields that can change over a message's lifetime.
+    // These use $set so they stay current even if the document already exists.
+    const dynamicFields = {
+      reactions: messageObject.reactions,
+      embeds: messageObject.embeds,
+      attachments: messageObject.attachments,
+      content: messageObject.content,
+      cleanContent: messageObject.cleanContent,
+      editedAt: messageObject.editedAt,
+      editedTimestamp: messageObject.editedTimestamp,
+      pinned: messageObject.pinned,
+      "member.displayHexColor": messageObject.member?.displayHexColor || null,
+      "member.displayName": messageObject.member?.displayName || null,
+      ...(messageObject.member?.roleColors
+        ? { "member.roleColors": messageObject.member.roleColors }
+        : { "member.roleColors": null }),
+    };
+
+    // Clone for $setOnInsert and strip dynamic paths to avoid conflict
+    const insertDoc = { ...messageObject };
+    delete insertDoc.reactions;
+    delete insertDoc.embeds;
+    delete insertDoc.attachments;
+    delete insertDoc.content;
+    delete insertDoc.cleanContent;
+    delete insertDoc.editedAt;
+    delete insertDoc.editedTimestamp;
+    delete insertDoc.pinned;
+    if (insertDoc.member) {
+      const { displayHexColor: _dhc, displayName: _dn, roleColors: _rc, ...restMember } = insertDoc.member;
+      insertDoc.member = restMember;
+    }
+
     await collection.updateOne(
       { id: messageObject.id },
-      { $setOnInsert: messageObject },
+      {
+        $setOnInsert: insertDoc,
+        $set: dynamicFields,
+      },
       { upsert: true },
     );
   },
@@ -1471,6 +1525,29 @@ const DiscordUtilityService = {
       { $set: messageObject },
       { upsert: false },
     );
+  },
+  /**
+   * Sync only the reactions field for a message to MongoDB.
+   * Called from Discord reaction add/remove event handlers.
+   *
+   * @param {object} reactionMessage - Discord.js Message (may need .fetch())
+   * @param {object} mongo - MongoDB client
+   * @param {string} [collectionName] - Collection name
+   */
+  async syncReactionsToMongo(reactionMessage, mongo, collectionName = "Messages") {
+    try {
+      const db = mongo.db(MONGO_DB_NAME);
+      const collection = db.collection(collectionName);
+      const transformedReactions = reactionMessage.reactions.cache.map((r) =>
+        transformReaction(r),
+      );
+      await collection.updateOne(
+        { id: reactionMessage.id },
+        { $set: { reactions: transformedReactions } },
+      );
+    } catch (err) {
+      console.warn(`[syncReactionsToMongo] Failed for message ${reactionMessage.id}: ${err.message}`);
+    }
   },
 
   async extractAudioUrlsFromMessage(message) {
@@ -1691,6 +1768,11 @@ const DiscordUtilityService = {
   },
   onEventMessageReactionAdd(client, mongo, customFunction) {
     return client.on(Events.MessageReactionAdd, async (reaction, user) => {
+      customFunction(client, mongo, reaction, user);
+    });
+  },
+  onEventMessageReactionRemove(client, mongo, customFunction) {
+    return client.on(Events.MessageReactionRemove, async (reaction, user) => {
       customFunction(client, mongo, reaction, user);
     });
   },
