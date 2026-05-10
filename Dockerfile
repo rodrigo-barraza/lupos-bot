@@ -14,7 +14,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
-COPY package.json package-lock.json ./
+COPY package.json package-lock.json .npmrc ./
 
 # Skip Puppeteer's bundled Chromium — we use system Chromium
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
