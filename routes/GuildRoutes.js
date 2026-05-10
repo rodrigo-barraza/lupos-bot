@@ -147,6 +147,7 @@ router.get("/guild/members", async (req, res) => {
     const allVisible = new Map([...onlineMembers, ...offlineBots]);
 
     for (const [, member] of allVisible) {
+      try {
       // Get all non-@everyone roles sorted highest first
       const sortedRoles = member.roles.cache
         .filter((r) => r.id !== guild.id) // Exclude @everyone
@@ -205,7 +206,7 @@ router.get("/guild/members", async (req, res) => {
       const roleTags = sortedRoles.slice(0, 3).map((r) => ({
         name: r.name,
         color: r.hexColor && r.hexColor !== "#000000" ? r.hexColor : null,
-        iconUrl: r.iconURL() || null,
+        iconUrl: r.iconURL?.() || null,
       }));
 
       const memberData = {
@@ -240,6 +241,9 @@ router.get("/guild/members", async (req, res) => {
         ungroupedBots.push(memberData);
       } else {
         ungrouped.push(memberData);
+      }
+      } catch (memberErr) {
+        console.warn(`[guild/members] Skipping member ${member?.id} (${member?.user?.username}): ${memberErr.message}`);
       }
     }
 
