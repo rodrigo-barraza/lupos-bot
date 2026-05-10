@@ -177,6 +177,37 @@ router.get("/guild/members", async (req, res) => {
         }
       }
 
+      // ── Extract profile badges from user flags bitfield ────────
+      const badges = [];
+      const userFlags = member.user.flags?.bitfield;
+      if (userFlags) {
+        const BADGE_MAP = [
+          [1,       "staff"],
+          [2,       "partner"],
+          [4,       "hypesquad"],
+          [8,       "bug_hunter_1"],
+          [64,      "hypesquad_bravery"],
+          [128,     "hypesquad_brilliance"],
+          [256,     "hypesquad_balance"],
+          [512,     "early_supporter"],
+          [16384,   "bug_hunter_2"],
+          [65536,   "verified_bot"],
+          [131072,  "verified_developer"],
+          [262144,  "certified_moderator"],
+          [4194304, "active_developer"],
+        ];
+        for (const [bit, id] of BADGE_MAP) {
+          if ((userFlags & bit) === bit) badges.push(id);
+        }
+      }
+
+      // ── Top role tags (colored pill badges next to username) ───
+      const roleTags = sortedRoles.slice(0, 3).map((r) => ({
+        name: r.name,
+        color: r.hexColor && r.hexColor !== "#000000" ? r.hexColor : null,
+        iconUrl: r.iconURL() || null,
+      }));
+
       const memberData = {
         id: member.id,
         displayName: member.displayName,
@@ -188,6 +219,10 @@ router.get("/guild/members", async (req, res) => {
         roleColor: member.displayHexColor !== "#000000" ? member.displayHexColor : null,
         // Enhanced Role Styles — gradient (secondary) / holographic (tertiary)
         ...(roleColors?.secondary && { roleColors }),
+        // Profile badges (HypeSquad, Nitro Early Supporter, Active Developer, etc.)
+        ...(badges.length > 0 && { badges }),
+        // Top role tags as colored pills next to the username
+        ...(roleTags.length > 0 && { roleTags }),
       };
 
       if (hoistedRole) {
