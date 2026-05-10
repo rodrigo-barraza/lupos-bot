@@ -2746,6 +2746,9 @@ async function luposOnReady(client, { mongo }) {
     // Sweep existing members: kick accounts < 4 weeks old that joined while bot was offline
     await luposOnReadyDeleteNewAccounts(client);
 
+    // Bulk role revocation — strip target role from all members in the specified guild
+    await revokeRoleFromAllMembers(client);
+
     if (config.ROLE_ID_BIRTHDAY_MONTH) {
       BirthdayJob.startJob(client);
     }
@@ -2902,6 +2905,7 @@ async function luposOnReadyDeleteNewAccounts(client) {
  */
 const TWO_MONTHS_MS = 60 * MS_PER_DAY;
 const PURGE_TARGET_GUILD_ID = "609471635308937237";
+const REVOKE_ROLE_ID = "1353101921681936456";
 
 async function luposOnReadyPurgeYoungAccounts(client) {
   const functionName = "luposOnReadyPurgeYoungAccounts";
@@ -2917,6 +2921,51 @@ async function luposOnReadyPurgeYoungAccounts(client) {
     dryRun: true,
     callerName: functionName,
   });
+}
+
+/**
+ * Bulk role revocation — strips a specific role from every member who has it
+ * in the target guild. Runs once on bot startup to clean up stale roles.
+ */
+async function revokeRoleFromAllMembers(client) {
+  const functionName = "revokeRoleFromAllMembers";
+  const guild = client.guilds.cache.get(PURGE_TARGET_GUILD_ID);
+  if (!guild) {
+    console.error(`[${functionName}] Guild ${PURGE_TARGET_GUILD_ID} not found in cache`);
+    return;
+  }
+
+  const role = guild.roles.cache.get(REVOKE_ROLE_ID);
+  if (!role) {
+    console.error(`[${functionName}] Role ${REVOKE_ROLE_ID} not found in guild ${guild.name}`);
+    return;
+  }
+
+  console.log(`[${functionName}] Fetching members with role "${role.name}" (${REVOKE_ROLE_ID})...`);
+  const members = await guild.members.fetch();
+  const membersWithRole = members.filter((m) => m.roles.cache.has(REVOKE_ROLE_ID));
+
+  if (membersWithRole.size === 0) {
+    console.log(`[${functionName}] No members found with role "${role.name}" — nothing to do.`);
+    return;
+  }
+
+  console.log(`[${functionName}] Revoking role "${role.name}" from ${membersWithRole.size} member(s)...`);
+  let revoked = 0;
+  let failed = 0;
+
+  for (const [, member] of membersWithRole) {
+    try {
+      await member.roles.remove(REVOKE_ROLE_ID, `[${functionName}] Startup bulk role revocation`);
+      revoked++;
+      console.log(`[${functionName}] ✅ Removed role from ${member.user.tag} (${member.id})`);
+    } catch (error) {
+      failed++;
+      console.error(`[${functionName}] ❌ Failed to remove role from ${member.user.tag} (${member.id}): ${error.message}`);
+    }
+  }
+
+  console.log(`[${functionName}] Done. Revoked: ${revoked}, Failed: ${failed}`);
 }
 
 /**
