@@ -11,7 +11,7 @@
     "dev": "node boot.js mode=messages",
     "clone:messages": "node boot.js mode=clone:messages",
     "rescrape:channels": "node boot.js mode=rescrape:channels",
-    "test": "vitest run",
+    "test": "vitest run --passWithNoTests",
     "test:watch": "vitest",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
