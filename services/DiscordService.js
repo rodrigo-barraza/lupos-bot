@@ -14,16 +14,16 @@ import { GetColorName } from "hex-color-to-color-name";
 import fs from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
-// CONFIG
+
 import config from "#root/config.js";
-// ARRAYS
+
 import {
   rolesVideogames,
   warcraftClasses,
   warcraftFactions,
   channels,
 } from "#root/arrays.js";
-// SERVICES
+
 import ScraperService from "#root/services/ScraperService.js";
 import DiscordWrapper from "#root/wrappers/DiscordWrapper.js";
 import YouTubeService from "#root/services/YouTubeService.js";
@@ -31,13 +31,9 @@ import LightsService from "#root/services/LightsService.js";
 import MongoService from "#root/services/MongoService.js";
 import PrismService from "#root/services/PrismService.js";
 import DiscordUtilityService from "#root/services/DiscordUtilityService.js";
-// MessageService is no longer used in the agent path — personality is
-// assembled by Prism's AgentPersonaRegistry. Kept as a comment for
-// reference in case the non-agent chat path still needs it.
-// import MessageService from "#root/services/MessageService.js";
 import AIService from "#root/services/AIService.js";
 import CurrentService from "#root/services/CurrentService.js";
-// JOBS
+
 import BirthdayJob from "#root/jobs/scheduled/BirthdayJob.js";
 import ActivityRoleAssignmentJob from "#root/jobs/scheduled/ActivityRoleAssignmentJob.js";
 
@@ -45,16 +41,16 @@ import PermanentTimeOutJob from "#root/jobs/scheduled/PermanentTimeOutJob.js";
 import RandomTagJob from "#root/jobs/scheduled/RandomTagJob.js";
 import ServerIconJob from "#root/jobs/scheduled/ServerIconJob.js";
 import EventReactJob from "#root/jobs/event-driven/ReactJob.js";
-// LIBRARIES
+
 import utilities from "#root/utilities.js";
 import BoundedMap from "#root/utilities/BoundedMap.js";
 // EXTRACTED MODULES (Phase 1 decomposition)
 import DeletedMessageLogger from "#root/services/discord/DeletedMessageLogger.js";
 import ReactionHighlights from "#root/services/discord/ReactionHighlights.js";
 import PresenceTracker from "#root/services/discord/PresenceTracker.js";
-// FORMATTERS
+
 import LogFormatter from "#root/formatters/LogFormatter.js";
-// CONSTANTS
+
 import {
   MessageConstant,
   APRIL_FOOLS_MODE,
@@ -177,7 +173,7 @@ async function extractEmojisFromAllMessage(
   localMongo,
   type = "EMOJI",
 ) {
-  // Rodrigo: This returns a Collection of emojis with their captions
+  // Returns a Collection of emojis with their captions
   const messageEmojisCollection = new Collection();
   const messageEmojis =
     message.content.split(" ").filter((part) => /<(a)?:.+:\d+>/g.test(part)) ||
@@ -231,8 +227,8 @@ async function generateDescription(
   captionsMap, // pre-computed Map<url, caption> from batch captioning
 ) {
   if (!user) {
-    // Rodrigo: We are currently passing both which is a bit redundant. See if it can be cleaned up,
-    // even though it wouldn't affect performance.
+    // TODO: Both member and user are passed — redundant since member.user exists.
+    // Doesn't affect performance but should be consolidated.
     // Members have a user property, but Users do not have a member property
     if (member) {
       user = member.user;
@@ -514,7 +510,7 @@ async function buildAndGenerateReply({
   userMentionsCollection,
   localMongo,
 }) {
-  // Rodrigo: This creates a SYSTEM PROMPT
+  // Build the system prompt
   const { message, recentMessages } = queuedDatum;
   const client = message.client;
   const bot = client.user;
@@ -528,8 +524,7 @@ async function buildAndGenerateReply({
       message.guildId === config.GUILD_ID_PRIMARY ||
       message.guildId === config.GUILD_ID_TESTING
     ) {
-      // Rodrigo: If any of the recent messages match the custom context keywords...
-      // ... or if the name of the user matches the custom context keywords
+      // Match recent messages and user names against custom context keywords
       const customContextWhitemane = MessageConstant.customContextWhitemane;
       const serverContextSet = new Set();
 
@@ -547,7 +542,7 @@ async function buildAndGenerateReply({
         return { context, patterns };
       });
 
-      // Rodrigo: This searches the recent messages for the custom context keywords
+      // Search recent messages for custom context keyword matches
       for (const recentMessage of recentMessages.values()) {
         let searchText = `${recentMessage.cleanContent}`;
 
@@ -614,20 +609,12 @@ async function buildAndGenerateReply({
       // emojis
       if (message.guild.emojis.cache.size) {
         systemPrompt += `\n  - ${message.guild.emojis.cache.size} emojis`;
-        // const serverEmojis = await DiscordUtilityService.getAllServerEmojisFromMessage(message, 'string');
-        // systemPrompt += `\n- The server emojis are: ${serverEmojis}`;
-        // systemPrompt += `\n- You can use any of these emojis in your response by typing the emoji name.`;
       }
       // roles
       if (message.guild.roles.cache.size) {
         systemPrompt += `\n  - ${message.guild.roles.cache.size} roles`;
       }
-      // owner
-      if (message.guild.ownerId) {
-        // const owner = await message.guild.members.cache.get(message.guild.ownerId);
-        // const ownerUsername = owner ? owner.displayName || owner.user.username : 'Unknown';
-        // systemPrompt += `\n- The server owner is: ${message.guild.ownerId}`;
-      }
+
 
       // who is in voice chat
       const voiceChannelMembers = message.guild.channels.cache.filter(
@@ -704,7 +691,7 @@ async function buildAndGenerateReply({
       );
     }
 
-    // Rodrigo: Process primary participant (the message author)
+    // Process primary participant (message author)
     if (participantsCollection?.size) {
       const primaryParticipant = participantsCollection.get(message.author?.id);
       if (primaryParticipant && primaryParticipant.user) {
@@ -745,7 +732,7 @@ async function buildAndGenerateReply({
       /\b(draw|paint|sketch|illustrate|render|generate|create|make|design|depict|redraw|reimagine)\b.*\b(image|picture|painting|illustration|art|artwork|portrait|scene|drawing|me|us|everyone|him|her|them)\b/i.test(messageText) ||
       /\b(draw|paint|sketch|illustrate|render|depict)\b/i.test(messageText);
 
-    // Rodrigo: Detect untagged user names in image generation requests
+    // Detect untagged user names in image generation requests
     // e.g. "draw Rodrigo as a samurai" without @Rodrigo
     const untaggedMatchedUserIds = new Set();
     if (mightBeImageRequest) {
@@ -947,7 +934,7 @@ async function buildAndGenerateReply({
       }
     }
 
-    // Rodrigo: Detect self-referential requests in image generation messages.
+    // Detect self-referential requests in image generation messages.
     // The author is excluded from knownParticipants name matching (line 700), and
     // isn't in message.mentions when they only @mention the bot — so self-referential
     // requests would produce zero attached reference images without this block.
@@ -1025,7 +1012,7 @@ Respond with ONLY "yes" or "no". Nothing else.`,
       }
     }
 
-    // Rodrigo: Process mentioned members
+    // Process mentioned members
     if (memberMentionsCollection?.size) {
       // Skip the target user — they're already in "About me" above
       const filteredMemberMentions = memberMentionsCollection.filter(
@@ -1037,9 +1024,7 @@ Respond with ONLY "yes" or "no". Nothing else.`,
         for (const member of filteredMemberMentions.values()) {
           currentUserCount++;
           participantMember = participantsMembersCollection.get(member.id);
-          // Rodrigo: Sometimes the mentioned member has not sent any messages ...
-          // ... which means it's not in the cache ...
-          // ... so we need to fetch from the message
+          // Member may not have sent messages — not in cache, so fetch from guild
           if (!participantMember) {
             participantMember =
               await DiscordUtilityService.retrieveMemberFromGuildById(
@@ -1067,16 +1052,14 @@ Respond with ONLY "yes" or "no". Nothing else.`,
         }
       }
     }
-    // Rodrigo: Process mentioned users (which means they are not in the server)
+    // Process mentioned users (not in this server)
     if (userMentionsCollection?.size) {
       systemPrompt += `\n\n# Mentioned users not in this server (${userMentionsCollection.size})`;
       let currentUserCount = 0;
       for (const user of userMentionsCollection.values()) {
         currentUserCount++;
         participantMember = participantsMembersCollection.get(user.id);
-        // Rodrigo: Sometimes the mentioned member has not sent any messages ...
-        // ... which means it's not in the cache ...
-        // ... so we need to fetch from the message
+        // Member may not have sent messages — not in cache, so fetch from guild
         if (!participantMember) {
           participantMember =
             await DiscordUtilityService.retrieveMemberFromGuildById(
@@ -1103,8 +1086,7 @@ Respond with ONLY "yes" or "no". Nothing else.`,
         );
       }
     }
-    // Rodrigo: Process secondary participants
-    // Rodrigo: Has to be greater than one, since it includes Lupos
+    // Process secondary participants (size > 1 since it includes Lupos)
     if (participantsCollection?.size > 1) {
       // Skip users already listed in "About me" or "Mentioned members" to avoid duplication
       const filteredParticipants = participantsCollection.filter((participant) => {
@@ -1407,7 +1389,7 @@ Respond with ONLY "yes" or "no". Nothing else.`,
         }
       }
     }
-    // Rodrigo: Handle avatars for untagged matched users (detected by name, not @tag)
+    // Handle avatars for untagged matched users (detected by name, not @tag)
     if (untaggedMatchedUserIds.size > 0) { // Agent-era: always resolve avatar images
       const repliedUserId = cachedMessageReference?.author?.id;
 
@@ -1610,7 +1592,7 @@ Respond with ONLY "yes" or "no". Nothing else.`,
       }
     }
 
-    // Rodrigo: Cleans the response
+    // Sanitize the response
     generatedText = utilities.fixBareMentions(generatedText);
     generatedText = utilities.removeMentions(generatedText);
     generatedText = CensorService.removeFlaggedWords(generatedText);
@@ -1626,7 +1608,7 @@ Respond with ONLY "yes" or "no". Nothing else.`,
 }
 
 async function replyMessage(queuedDatum, localMongo) {
-  // Rodrigo: This function is called when a message is received or updated on Discord.
+  // Handles incoming Discord messages and message updates
   LightsService.cycleColor(config.PRIMARY_LIGHT_ID, DEFAULT_LIGHT_CYCLE);
   const message = queuedDatum.message;
   const _messages = queuedDatum.recentMessages;
@@ -1680,9 +1662,9 @@ async function replyMessage(queuedDatum, localMongo) {
   }
 
   // CHECK IF WE CAN GENERATE AN IMAGE
-
   LightsService.cycleColor(config.PRIMARY_LIGHT_ID, DEFAULT_LIGHT_CYCLE);
-  // Rodrigo: Generate a custom emoji reaction based on the message content
+
+  // Generate custom emoji reaction
   const customEmojiReact =
     await AIService.generateTextCustomEmojiReactFromMessage(
       message,
@@ -1703,7 +1685,7 @@ async function replyMessage(queuedDatum, localMongo) {
   // Image detection is no longer needed — the agent decides autonomously
   // whether to generate images via the generate_image tool.
 
-  // Rodrigo: This extracts the content from the messages
+  // Extract content from recent messages
 
   const {
     conversation,
@@ -2408,7 +2390,7 @@ async function extractContentFromMessages(
         let imageDescription, imageSize, imageWidth, imageHeight;
         let attachmentContext;
 
-        // Rodrigo: The bot has attached an image to this message
+        // Bot has attached an image to this message
         if (recentMessage?.attachments?.size > 0) {
           const imageAttached = recentMessage.attachments.find((attachment) =>
             attachment.contentType.includes("image"),
@@ -2433,14 +2415,14 @@ async function extractContentFromMessages(
           }
         }
 
-        // Rodrigo: This message has reactions, so let's add them to the content
+        // Append reactions to content
         let reactionsContent = "";
         if (recentMessage.reactions?.cache?.size > 0) {
           reactionsContent = `\n[REACTIONS]\n${utilities.formatReactions(recentMessage.reactions.cache, "list")}`;
         }
 
         let _replyContent = "";
-        // Rodrigo: This message has a reply, so let's add it to the content
+        // Append reply context
         if (recentMessage.reference) {
           _replyContent = `\n[REPLYING TO]`;
           const _repliedMessage =
@@ -2700,7 +2682,6 @@ async function generateRolesEmbedMessage(client) {
     (await channel.messages
       .fetch({ limit: 10 })
       .then((messages) => messages.size));
-  // await channel.bulkDelete(100);
   // if the channel is empty, post message, otherwise edit the first message
   if (messagesCacheSize === 0) {
     await channel.send({ embeds: [factions.embed], components: factions.rows });
@@ -3150,10 +3131,9 @@ URL: ${utilities.getDiscordMessageUrl(message.guild?.id, message.channel.id, mes
     );
   }
 
-  // Determine how many messages to go back into history
-  // const messagesToFetch = await AIService.generateTextDetermineHowManyMessagesToFetch(message.content);
 
-  // R: Grab the messages before the current message...
+
+  // Fetch messages before the current one...
   const fetchedMessages = await DiscordUtilityService.fetchMessages(client, message.channel.id, {
     limit: 500,
     before: message.id,
@@ -3163,7 +3143,7 @@ URL: ${utilities.getDiscordMessageUrl(message.guild?.id, message.channel.id, mes
     return;
   }
   const recentMessages = fetchedMessages.reverse();
-  // R: ...and add the current message to the end of the collection
+  // ...and append the current message to the end
   recentMessages.set(message.id, message);
 
   queuedData.push({ message, recentMessages, actionType });
@@ -3189,7 +3169,7 @@ URL: ${utilities.getDiscordMessageUrl(message.guild?.id, message.channel.id, mes
             delete typingIntervals[currentChannelId];
           }
         }
-        // R: If there are no more messages in the queue for this channel, clear the typing interval
+        // No more queued messages for this channel — clear typing indicator
         if (
           !queuedData.some((q) => q.message?.channel?.id === currentChannelId)
         ) {
@@ -3236,12 +3216,12 @@ async function luposOnMessageUpdate(
   oldMessage,
   newMessage,
 ) {
-  // R: If the message mentions the bot and the old message does not, process it
+  // Process if message was edited to mention the bot
   if (
     newMessage.mentions.has(client.user) &&
     !oldMessage.mentions.has(client.user)
   ) {
-    // R: Check if there are any future messages that have this message as a reply by the bot
+    // Skip if the bot already replied to this message
     const futureMessages = (
       await DiscordUtilityService.fetchMessages(client, newMessage.channel.id, {
         limit: 100,
@@ -3318,7 +3298,7 @@ async function luposOnGuildMemberUpdate(client, mongo, oldMember, newMember) {
     }
   }
 
-  // console.log(...LogFormatter.memberUpdate(functionName, oldMember, newMember));
+
   if (oldMember.guild.id !== config.GUILD_ID_PRIMARY) return;
 
   // Kick if member now holds the forbidden role combo (Horde + Apex Legends).
@@ -3426,9 +3406,6 @@ async function luposOnInteractionCreate(client, mongo, interaction) {
       await interaction.reply("Pong!");
       return;
     }
-    // if (interaction.commandName === 'recordvoice') {
-    //     return;
-    // }
     else {
       const command = client.commands.get(interaction.commandName);
 
@@ -3440,10 +3417,8 @@ async function luposOnInteractionCreate(client, mongo, interaction) {
       try {
         await command.execute(interaction);
       } catch (error) {
-        // console.error('123123123', error);
         if (interaction.replied || interaction.deferred) {
-          // await interaction.followUp({ content: 'There was an error while executing this command!', ephemeral: true });
-          // do nothing
+          // Already responded — silently swallow
           return;
         } else {
           console.log(
@@ -3465,7 +3440,7 @@ async function luposOnPresenceUpdate(client, oldPresence, newPresence) {
 }
 
 async function luposOnGuildMemberRemove(client, mongo, member) {
-  // console.log(...LogFormatter.memberLeftGuild(member));
+
   if (member.guild.id === config.GUILD_ID_PRIMARY) {
     if (config.CHANNEL_ID_LEAVERS) {
       const leaversLogChannel = DiscordUtilityService.getChannelById(

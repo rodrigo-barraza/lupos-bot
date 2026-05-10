@@ -69,46 +69,26 @@ const transformUserPrimaryGuild = (userPrimaryGuild) => ({
 const transformUser = (user, concise = false) => {
   if (user) {
     const userObject = {
-      // number | null | undefined
-      accentColor: user.accentColor,
-      // string | null
-      avatar: user.avatar,
-      // AvatarDecorationData | null
-      avatarDecorationData: user.avatarDecorationData,
-      // string | null | undefined
-      banner: user.banner,
-      // boolean
-      bot: user.bot,
-      // Date
-      createdAt: user.createdAt,
-      // number
-      createdTimestamp: user.createdTimestamp,
-      // string
-      defaultAvatarURL: user.defaultAvatarURL,
-      // string
-      discriminator: user.discriminator,
-      // string
-      displayName: user.displayName,
-      // DMChannel | null
-      dmChannel: user.dmChannel,
-      // UserFlagsBitField
-      flags: user.flags,
-      // string | null
-      globalName: user.globalName,
-      // HexColorString | null | undefined
-      hexAccentColor: user.hexAccentColor,
-      // Snowflake
-      id: user.id,
-      // false
-      partial: user.partial,
-      // UserPrimaryGuild | null
-      primaryGuild: transformUserPrimaryGuild(user.primaryGuild),
-      // boolean
-      system: user.system,
-      // string
-      tag: user.tag,
-      // string
-      username: user.username,
+      accentColor: user.accentColor,             // number | null | undefined
+      avatar: user.avatar,                       // string | null
+      avatarDecorationData: user.avatarDecorationData, // AvatarDecorationData | null
+      banner: user.banner,                       // string | null | undefined
+      bot: user.bot,                             // boolean
+      createdAt: user.createdAt,                 // Date
+      createdTimestamp: user.createdTimestamp,    // number
+      defaultAvatarURL: user.defaultAvatarURL,   // string
+      discriminator: user.discriminator,         // string
+      displayName: user.displayName,             // string
+      dmChannel: user.dmChannel,                 // DMChannel | null
+      flags: user.flags,                         // UserFlagsBitField
+      globalName: user.globalName,               // string | null
+      hexAccentColor: user.hexAccentColor,       // HexColorString | null | undefined
+      id: user.id,                               // Snowflake
+      partial: user.partial,                     // false
+      primaryGuild: transformUserPrimaryGuild(user.primaryGuild), // UserPrimaryGuild | null
+      system: user.system,                       // boolean
+      tag: user.tag,                             // string
+      username: user.username,                   // string
     };
     if (concise) {
       return {
@@ -125,8 +105,7 @@ const transformUser = (user, concise = false) => {
 };
 
 const transformRole = (role) => ({
-  // ColorResolvable
-  color: role.color,
+  color: role.color,                             // ColorResolvable
   // Enhanced Role Styles (gradient/holographic) — Discord ENHANCED_ROLE_COLORS feature
   ...(role.colors && {
     colors: {
@@ -135,75 +114,43 @@ const transformRole = (role) => ({
       tertiaryColor: role.colors.tertiaryColor ?? null,
     },
   }),
-  // Date
-  createdAt: role.createdAt,
-  // number
-  createdTimestamp: role.createdTimestamp,
-  // boolean
-  deletable: role.deletable,
-  // Guild
-  // guild: role.guild,
-  // Snowflake
-  guildId: role.guildId,
-  // boolean
-  hoist: role.hoist,
-  // Snowflake
-  id: role.id,
-  // boolean
-  managed: role.managed,
-  // string
-  name: role.name,
-  // number
-  position: role.position,
-  // RoleFlagsBitField
-  flags: role.flags,
-  // PermissionsBitField
-  permissions: role.permissions,
-  // boolean
-  mentionable: role.mentionable,
-  // string
-  mention: role.mention,
-  // string
-  hexColor: role.hexColor,
-  // string
-  iconURL: role.iconURL(),
-  // string
-  url: role.url,
+  createdAt: role.createdAt,                     // Date
+  createdTimestamp: role.createdTimestamp,        // number
+  deletable: role.deletable,                     // boolean
+  // guild: role.guild,                          // Guild
+  guildId: role.guildId,                         // Snowflake
+  hoist: role.hoist,                             // boolean
+  id: role.id,                                   // Snowflake
+  managed: role.managed,                         // boolean
+  name: role.name,                               // string
+  position: role.position,                       // number
+  flags: role.flags,                             // RoleFlagsBitField
+  permissions: role.permissions,                 // PermissionsBitField
+  mentionable: role.mentionable,                 // boolean
+  mention: role.mention,                         // string
+  hexColor: role.hexColor,                       // string
+  iconURL: role.iconURL(),                       // string
+  url: role.url,                                 // string
 });
 
 const transformAttachment = (attachment) => {
   if (attachment) {
     return {
-      // string | null
-      contentType: attachment.contentType,
-      // string | null
-      description: attachment.description,
-      // number | null
-      duration: attachment.duration,
-      // boolean
-      ephemeral: attachment.ephemeral,
-      // AttachmentFlagsBitField
-      flags: attachment.flags,
-      // number | null
-      height: attachment.height,
-      // Snowflake
-      id: attachment.id,
-      // string
-      name: attachment.name,
-      // string
-      proxyURL: attachment.proxyURL,
-      // number
-      size: attachment.size,
-      // boolean
-      spoiler: attachment.spoiler,
-      // string | null
-      title: attachment.title,
-      // string
-      url: attachment.url,
-      // string | null (base64 encoded)
-      waveform: attachment.waveform,
-      // number | null
-      width: attachment.width,
+      contentType: attachment.contentType,       // string | null
+      description: attachment.description,       // string | null
+      duration: attachment.duration,             // number | null
+      ephemeral: attachment.ephemeral,           // boolean
+      flags: attachment.flags,                   // AttachmentFlagsBitField
+      height: attachment.height,                 // number | null
+      id: attachment.id,                         // Snowflake
+      name: attachment.name,                     // string
+      proxyURL: attachment.proxyURL,             // string
+      size: attachment.size,                     // number
+      spoiler: attachment.spoiler,               // boolean
+      title: attachment.title,                   // string | null
+      url: attachment.url,                       // string
+      waveform: attachment.waveform,             // string | null (base64)
+      width: attachment.width,                   // number | null
     };
   }
 };
@@ -211,72 +158,39 @@ const transformAttachment = (attachment) => {
 const transformTextChannel = (channel, _concise = false) => {
   if (channel) {
     const textChannel = {
-      // Client<true>
-      // client: channel.client,
-      // Date
-      createdAt: channel.createdAt,
-      // number
-      createdTimestamp: channel.createdTimestamp,
-      // ThreadAutoArchiveDuration (optional)
-      defaultAutoArchiveDuration: channel.defaultAutoArchiveDuration,
-      // number | null
-      defaultThreadRateLimitPerUser: channel.defaultThreadRateLimitPerUser,
-      // boolean
-      deletable: channel.deletable,
-      // ChannelFlagsBitField
-      flags: channel.flags,
-      // Guild
-      guild: transformGuild(channel.guild, true),
-      // Snowflake
-      guildId: channel.guildId,
-      // Snowflake
-      id: channel.id,
-      // Message (optional)
-      // lastMessage: channel.lastMessage,
-      // Snowflake (optional)
-      lastMessageId: channel.lastMessageId,
-      // Date (optional)
-      lastPinAt: channel.lastPinAt,
-      // number (optional)
-      lastPinTimestamp: channel.lastPinTimestamp,
-      // boolean
-      manageable: channel.manageable,
-      // Collection<Snowflake, GuildMember>
-      // members: channel.members,
-      // GuildMessageManager
-      // messages: channel.messages,
-      // string
-      name: channel.name,
-      // boolean
-      nsfw: channel.nsfw,
-      // CategoryChannel | null
-      // parent: channel.parent,
-      // Snowflake | null
-      parentId: channel.parentId,
-      // Category name (resolved from parent channel)
-      parentName: channel.parent?.name || null,
-      // false
-      partial: channel.partial,
-      // PermissionOverwriteManager
-      // permissionOverwrites: channel.permissionOverwrites,
-      // boolean | null
-      permissionsLocked: channel.permissionsLocked,
-      // number
-      position: channel.position,
-      // number
-      rateLimitPerUser: channel.rateLimitPerUser,
-      // number
-      rawPosition: channel.rawPosition,
-      // GuildTextThreadManager<AllowedThreadTypeForTextChannel>
-      // threads: channel.threads,
-      // string | null
-      topic: channel.topic,
-      // boolean
-      type: channel.type,
-      // string
-      url: channel.url,
-      // boolean
-      viewable: channel.viewable,
+      // client: channel.client,                  // Client<true>
+      createdAt: channel.createdAt,               // Date
+      createdTimestamp: channel.createdTimestamp,  // number
+      defaultAutoArchiveDuration: channel.defaultAutoArchiveDuration, // ThreadAutoArchiveDuration?
+      defaultThreadRateLimitPerUser: channel.defaultThreadRateLimitPerUser, // number | null
+      deletable: channel.deletable,               // boolean
+      flags: channel.flags,                       // ChannelFlagsBitField
+      guild: transformGuild(channel.guild, true), // Guild
+      guildId: channel.guildId,                   // Snowflake
+      id: channel.id,                             // Snowflake
+      // lastMessage: channel.lastMessage,        // Message?
+      lastMessageId: channel.lastMessageId,       // Snowflake?
+      lastPinAt: channel.lastPinAt,               // Date?
+      lastPinTimestamp: channel.lastPinTimestamp,  // number?
+      manageable: channel.manageable,             // boolean
+      // members: channel.members,                // Collection<Snowflake, GuildMember>
+      // messages: channel.messages,              // GuildMessageManager
+      name: channel.name,                         // string
+      nsfw: channel.nsfw,                         // boolean
+      // parent: channel.parent,                  // CategoryChannel | null
+      parentId: channel.parentId,                 // Snowflake | null
+      parentName: channel.parent?.name || null,   // Category name (resolved)
+      partial: channel.partial,                   // false
+      // permissionOverwrites: channel.permissionOverwrites, // PermissionOverwriteManager
+      permissionsLocked: channel.permissionsLocked, // boolean | null
+      position: channel.position,                 // number
+      rateLimitPerUser: channel.rateLimitPerUser,  // number
+      rawPosition: channel.rawPosition,           // number
+      // threads: channel.threads,                // GuildTextThreadManager
+      topic: channel.topic,                       // string | null
+      type: channel.type,                         // boolean
+      url: channel.url,                           // string
+      viewable: channel.viewable,                 // boolean
     };
     return textChannel;
   }
@@ -316,48 +230,20 @@ const transformGuild = (guild, _concise = false) => {
   }
 };
 
-// const transformClient = (client) => ({
-//     application
-//     channels
-//     guilds
-//     lastPingTimestamps
-//     options
-//     ping
-//     pings
-//     readyAt
-//     readyTimestamp
-//     rest
-//     shard
-//     status
-//     sweepers
-//     token
-//     uptime
-//     user
-//     users
-//     voice
-//     ws
-// });
+
 
 const transformPoll = (poll) => {
   if (poll) {
     return {
-      // boolean
-      allowMultiselect: poll.allowMultiselect,
-      // Collection<number, PartialPollAnswer | PollAnswer>
-      answers: poll.answers.map((answer) => ({
+      allowMultiselect: poll.allowMultiselect,    // boolean
+      answers: poll.answers.map((answer) => ({    // Collection<number, PollAnswer>
         // client: answer.client,
         emoji: transformEmoji(answer.emoji, true),
-        // number
-        id: answer.id,
-        // false
-        partial: answer.partial,
-        // PartialPoll | Poll (the poll this answer is part of)
-        // poll: answer.poll,
-        // string | null
-        text: answer.text,
-        // number
-        voteCount: answer.voteCount,
-        // PollAnswerVoterManager
+        id: answer.id,                            // number
+        partial: answer.partial,                  // false
+        // poll: answer.poll,                     // Poll (parent)
+        text: answer.text,                        // string | null
+        voteCount: answer.voteCount,              // number
         // fetchVoters: await answer.fetchVoters(),
       })),
       // channel: poll.channel,
@@ -385,8 +271,7 @@ const transformMessageMentions = (mentions) => {
           )
         : [],
       // client: transformClient(mentions.client),
-      // boolean
-      everyone: mentions.everyone,
+      everyone: mentions.everyone,                // boolean
       guild: transformGuild(mentions.guild, true),
       members: mentions.members?.size
         ? mentions.members.map((member) => transformMember(member, true))
@@ -1538,12 +1423,7 @@ const DiscordUtilityService = {
       message?.user?.username;
     return DiscordUtilityService._sanitizeUsername(name);
   },
-  // async saveMessageToMongo(message, mongo, collectionName='msgs') {
-  //     const db = mongo.db("lupos");
-  //     const collection = db.collection(collectionName);
-  //     const messageObject = transformMessageRoot(message);
-  //     await collection.insertOne(messageObject);
-  // },
+
   async saveMessageToMongo(message, mongo, collectionName = "Messages") {
     const db = mongo.db(MONGO_DB_NAME);
     const collection = db.collection(collectionName);
@@ -1748,7 +1628,7 @@ const DiscordUtilityService = {
         try {
           member = await guild.members.fetch(userId);
         } catch {
-          // console.warn(...LogFormatter.memberNotFound('getMemberFromMessageAndId', userId, message.guild));
+
           return null;
         }
       }
@@ -1959,12 +1839,7 @@ const DiscordUtilityService = {
       if (uniqueMessages.size === 0) break;
     }
 
-    // Log metrics (uncomment if needed)
-    // const totalTime = Date.now() - startTime;
-    // console.log(`API calls made: ${apiCallCount}`);
-    // console.log(`Total time: ${totalTime}ms`);
-    // console.log(`Average time per call: ${(totalTime / apiCallCount).toFixed(2)}ms`);
-    // console.log(`Messages fetched: ${allMessages.size}`);
+
 
     // Trim collection if we fetched more than needed
     if (allMessages.size > limit) {
@@ -2131,12 +2006,7 @@ const DiscordUtilityService = {
       let messageReplyOptions = { content: chunk };
       const files = [];
 
-      // if (generatedAudioFile && (i + messageChunkSizeLimit >= generatedTextResponse.length)) {
-      //     files.push({ attachment: await fs.promises.readFile(`${BARK_VOICE_FOLDER}/${generatedAudioFile}`), name: `${generatedAudioFile}` });
-      // }
-      // if (generatedAudioBuffer && (i + messageChunkSizeLimit >= generatedTextResponse.length)) {
-      //     files.push({ attachment: Buffer.from(generatedAudioBuffer, 'base64'), name: 'lupos.mp3' });
-      // }
+
       if (
         encodedImageDataBase64 &&
         i + messageChunkSizeLimit >= generatedTextResponse.length
