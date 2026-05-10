@@ -1476,26 +1476,13 @@ const DiscordUtilityService = {
       editedAt: messageObject.editedAt,
       editedTimestamp: messageObject.editedTimestamp,
       pinned: messageObject.pinned,
-      "member.displayHexColor": messageObject.member?.displayHexColor || null,
-      "member.displayName": messageObject.member?.displayName || null,
-      ...(messageObject.member?.roleColors
-        ? { "member.roleColors": messageObject.member.roleColors }
-        : { "member.roleColors": null }),
+      member: messageObject.member,
     };
 
     // Clone for $setOnInsert and strip dynamic paths to avoid conflict
     const insertDoc = { ...messageObject };
-    delete insertDoc.reactions;
-    delete insertDoc.embeds;
-    delete insertDoc.attachments;
-    delete insertDoc.content;
-    delete insertDoc.cleanContent;
-    delete insertDoc.editedAt;
-    delete insertDoc.editedTimestamp;
-    delete insertDoc.pinned;
-    if (insertDoc.member) {
-      const { displayHexColor: _dhc, displayName: _dn, roleColors: _rc, ...restMember } = insertDoc.member;
-      insertDoc.member = restMember;
+    for (const key of Object.keys(dynamicFields)) {
+      delete insertDoc[key];
     }
 
     await collection.updateOne(
