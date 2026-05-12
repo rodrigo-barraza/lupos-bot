@@ -68,13 +68,14 @@ async function main() {
     app.use(express.json());
     app.use(express.urlencoded({ extended: true }));
     app.use((req, res, next) => {
-      res.setHeader("Access-Control-Allow-Origin", "*");
+      const origin = req.headers.origin;
+      res.setHeader("Access-Control-Allow-Origin", origin || "*");
       res.setHeader(
         "Access-Control-Allow-Methods",
         "GET, POST, OPTIONS, PUT, PATCH, DELETE",
       );
       res.setHeader("Access-Control-Allow-Headers", "*");
-      res.setHeader("Access-Control-Allow-Credentials", true);
+      res.setHeader("Access-Control-Allow-Credentials", "true");
       next();
     });
     app.get("/health", (_req, res) => {
