@@ -2,7 +2,7 @@
 # ============================================================
 # Lupos — Build & Deploy to Synology NAS
 #
-# Thin wrapper — all logic lives in deploy/lib.sh
+# Thin wrapper — all logic lives in ../deploy-kit/lib.sh
 #
 # Usage:
 #   npm run deploy              # full deploy
