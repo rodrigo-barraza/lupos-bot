@@ -65,6 +65,39 @@ import {
 import CensorService from "#root/services/CensorService.js";
 import { kickIfTooNew, kickIfForbiddenCombo, purgeByAccountAge } from "#root/services/AccountGuardService.js";
 
+/**
+ * Fetch guild members with automatic retry on Gateway rate limits (opcode 8).
+ * Discord.js throws GatewayRateLimitError when the gateway rejects the
+ * REQUEST_GUILD_MEMBERS payload — this is NOT a REST error and won't be
+ * caught by the REST rate-limit handler. We catch it here and wait the
+ * advertised retry_after duration before retrying.
+ * @param {Guild} guild
+ * @param {number} [maxRetries=3]
+ * @returns {Promise<Collection<string, GuildMember>>}
+ */
+async function fetchMembersWithRetry(guild, maxRetries = 3) {
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      return await guild.members.fetch();
+    } catch (error) {
+      const isGatewayRateLimit =
+        error.constructor?.name === "GatewayRateLimitError" ||
+        (error.data?.retry_after && error.data?.opcode === 8);
+
+      if (isGatewayRateLimit && attempt < maxRetries) {
+        const waitMs = Math.ceil((error.data?.retry_after || 30) * 1000) + 1000;
+        console.warn(
+          `⏳ [fetchMembersWithRetry] Gateway rate-limited (attempt ${attempt}/${maxRetries}). ` +
+          `Retrying in ${(waitMs / 1000).toFixed(1)}s...`
+        );
+        await new Promise((resolve) => setTimeout(resolve, waitMs));
+      } else {
+        throw error;
+      }
+    }
+  }
+}
+
 const args = process.argv.slice(2);
 const mode = args.find((arg) => arg.startsWith("mode="))?.split("=")[1];
 
@@ -2882,7 +2915,7 @@ async function luposOnReadyDeleteNewAccounts(client) {
   }
 
   console.log(`[${functionName}] Fetching all members...`);
-  const members = await guild.members.fetch();
+  const members = await fetchMembersWithRetry(guild);
   let kickedAge = 0;
   let kickedCombo = 0;
 
@@ -2942,7 +2975,7 @@ async function revokeRoleFromAllMembers(client) {
   }
 
   console.log(`[${functionName}] Fetching members with role "${role.name}" (${REVOKE_ROLE_ID})...`);
-  const members = await guild.members.fetch();
+  const members = await fetchMembersWithRetry(guild);
   const membersWithRole = members.filter((m) => m.roles.cache.has(REVOKE_ROLE_ID));
 
   if (membersWithRole.size === 0) {
