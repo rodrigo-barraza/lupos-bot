@@ -148,14 +148,17 @@ Additional modes available via `node boot.js mode=<mode>`:
 ## Scripts
 
 ```bash
-npm run dev              # Run Lupos (messages mode)
-npm test                 # Run tests (Vitest)
-npm run lint             # Run ESLint
-npm run lint:fix         # Auto-fix lint issues
-npm run format           # Format with Prettier
-npm run format:check     # Check formatting
-npm run deploy           # Deploy to Synology NAS
-npm run deploy:dry       # Validate without deploying
+npm run dev                # Run Lupos (messages mode)
+npm run lint               # Run ESLint
+npm run lint:fix           # Auto-fix lint issues
+npm run format             # Format with Prettier
+npm run format:check       # Check formatting
+npm test                   # Run tests (Vitest)
+npm run test:watch         # Run tests in watch mode
+npm run deploy             # Deploy to production
+npm run deploy:dry         # Validate deployment without deploying
+npm run clone:messages     # Clone/backfill message history
+npm run rescrape:channels  # Re-scrape channel data
 ```
 
 ## Ecosystem Dependencies
