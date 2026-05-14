@@ -7,6 +7,7 @@
 // ============================================================
 
 import { Router } from "express";
+import { asyncHandler } from "@rodrigo-barraza/utilities-library/express";
 import { ChannelType } from "discord.js";
 import DiscordWrapper from "#root/wrappers/DiscordWrapper.js";
 import config from "#root/config.js";
@@ -86,7 +87,7 @@ router.get("/guild/channels", (req, res) => {
 // Returns online/idle/dnd members for a guild, grouped by role.
 // Query: ?guildId=...
 
-router.get("/guild/members", async (req, res) => {
+router.get("/guild/members", asyncHandler(async (req, res) => {
   try {
     const guildId = req.query.guildId || config.GUILD_ID_CLOCK_CREW;
     const client = DiscordWrapper.getClient("lupos");
@@ -301,7 +302,7 @@ router.get("/guild/members", async (req, res) => {
     console.error("[guild/members] Error:", error.message, error.stack);
     res.status(500).json({ error: "Failed to fetch members", detail: error.message });
   }
-});
+}));
 
 // ─── Background Job Status Tracker ──────────────────────────────
 // Lightweight in-memory map for tracking async job progress.
@@ -350,7 +351,7 @@ function failJob(id, error) {
 // embed data and other message fields in MongoDB.
 // Body: { guildId?, channelIds: [\"...\"], dateLimit?, forceUpdate? }
 
-router.post("/guild/rescrape", async (req, res) => {
+router.post("/guild/rescrape", asyncHandler(async (req, res) => {
   try {
     const guildId = req.body.guildId || config.GUILD_ID_CLOCK_CREW;
     const { channelIds, dateLimit = "2025-01-01", forceUpdate = false } = req.body;
@@ -390,7 +391,7 @@ router.post("/guild/rescrape", async (req, res) => {
     console.error("[guild/rescrape] Error:", error.message, error.stack);
     res.status(500).json({ error: "Failed to start rescrape", detail: error.message });
   }
-});
+}));
 
 // ─── GET /guild/rescrape/status ─────────────────────────────────
 router.get("/guild/rescrape/status", (req, res) => {
@@ -411,7 +412,7 @@ router.get("/guild/rescrape/status", (req, res) => {
 // in MinIO, then updates MongoDB documents with the MinIO URLs.
 // Body: { guildId?, channelId?, forceRetry? }
 
-router.post("/guild/backfill-media", async (req, res) => {
+router.post("/guild/backfill-media", asyncHandler(async (req, res) => {
   try {
     const guildId = req.body.guildId || config.GUILD_ID_PRIMARY;
     const { channelId, forceRetry = false } = req.body;
@@ -450,7 +451,7 @@ router.post("/guild/backfill-media", async (req, res) => {
     console.error("[guild/backfill-media] Error:", error.message, error.stack);
     res.status(500).json({ error: "Failed to start media backfill", detail: error.message });
   }
-});
+}));
 
 // ─── GET /guild/backfill-media/status ───────────────────────────
 router.get("/guild/backfill-media/status", (req, res) => {
@@ -517,7 +518,7 @@ router.get("/guild/emojis", (req, res) => {
 
 const _reactCooldowns = new Map(); // guildId → last timestamp
 
-router.post("/guild/react", async (req, res) => {
+router.post("/guild/react", asyncHandler(async (req, res) => {
   try {
     const guildId = req.body.guildId || config.GUILD_ID_CLOCK_CREW;
     const { channelId, messageId, emoji } = req.body;
@@ -616,6 +617,6 @@ router.post("/guild/react", async (req, res) => {
     console.error("[guild/react] Error:", error.message, error.stack);
     res.status(500).json({ error: "Failed to react", detail: error.message });
   }
-});
+}));
 
 export default router;
