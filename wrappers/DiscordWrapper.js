@@ -1,5 +1,6 @@
 
 import { Client, GatewayIntentBits, Partials } from "discord.js";
+import { sleep } from "@rodrigo-barraza/utilities-library";
 
 const clients = [];
 
@@ -14,13 +15,6 @@ const MAX_LOGIN_RETRIES = 5;
  * Actual delay = BASE_RETRY_DELAY * 2^attempt (1s, 2s, 4s, 8s, 16s).
  */
 const BASE_RETRY_DELAY = 1000;
-
-/**
- * Sleep helper — returns a promise that resolves after `ms` milliseconds.
- */
-function sleep(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
 
 /**
  * Parse the session reset timestamp from Discord's "Not enough sessions"
