@@ -24,10 +24,8 @@ import {
   channels,
 } from "#root/arrays.js";
 
-import ScraperService from "#root/services/ScraperService.js";
 import DiscordWrapper from "#root/wrappers/DiscordWrapper.js";
 import YouTubeService from "#root/services/YouTubeService.js";
-// import LightsService from "#root/services/LightsService.js";
 import MongoService from "#root/services/MongoService.js";
 import PrismService from "#root/services/PrismService.js";
 import DiscordUtilityService from "#root/services/DiscordUtilityService.js";
@@ -54,13 +52,10 @@ import LogFormatter from "#root/formatters/LogFormatter.js";
 import {
   MessageConstant,
   APRIL_FOOLS_MODE,
-  GAME_ROLE_MAPPINGS,
   EXPLOSION_GIFS,
   YOUTUBE_BUTTON_ACTIONS,
   MS_PER_DAY,
   MONGO_DB_NAME,
-  // DEFAULT_LIGHT_CYCLE,
-  // RAINBOW_LIGHT_CYCLE,
 } from "#root/constants.js";
 import CensorService from "#root/services/CensorService.js";
 import { kickIfTooNew, kickIfForbiddenCombo, purgeByAccountAge } from "#root/services/AccountGuardService.js";
@@ -162,14 +157,6 @@ async function ensureMentionPopulated(userId, {
 function resolveAvatarUrl(source) {
   return source?.displayAvatarURL?.({ format: "png", size: 512 }) || null;
 }
-
-// QUEUE: Reactions
-let isProcessingOnReactionQueue = false;
-const reactionQueue = [];
-// Bounded maps for reaction tracking — prevents memory leaks from
-// accumulating reaction data for every message ever reacted to.
-const allUniqueUsers = new BoundedMap(2000, 4 * 60 * 60 * 1000);
-const reactionMessages = new BoundedMap(2000, 4 * 60 * 60 * 1000);
 const typingIntervals = {};
 
 
@@ -260,9 +247,6 @@ async function generateDescription(
   captionsMap, // pre-computed Map<url, caption> from batch captioning
 ) {
   if (!user) {
-    // TODO: Both member and user are passed — redundant since member.user exists.
-    // Doesn't affect performance but should be consolidated.
-    // Members have a user property, but Users do not have a member property
     if (member) {
       user = member.user;
     } else if (participant?.user) {
@@ -304,7 +288,7 @@ async function generateDescription(
     systemPrompt += `\n- PRIMARY TARGET: You're replying to me only (aware of others but ignore them)`;
   } else if (who === "SECONDARY" || who === "MENTIONED") {
     systemPrompt += `\n\n# ${participantIndex}. ${combinedNames}`;
-    // systemPrompt += `\n- SECONDARY TARGET: You're aware of others but ignore them (reply to me only)`;
+
   }
 
   // Inject avatar/banner URLs and pre-computed descriptions
@@ -477,7 +461,7 @@ async function generateDescription(
         .join(", ")}`;
       if (member.roles.highest) {
         systemPrompt += `\n- Current highest role: ${member.roles.highest.name}`;
-        // systemPrompt += `\n- Highest role: ${member.roles.highest.name} (position: ${member.roles.highest.position})`;
+
       }
     } else {
       systemPrompt += `\n- Roles: No roles`;
