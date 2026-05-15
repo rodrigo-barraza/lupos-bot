@@ -1,9 +1,4 @@
-import { defineConfig } from 'vitest/config';
+import { defineConfig } from "vitest/config";
+import { serviceVitestConfig } from "@rodrigo-barraza/utilities-library/vitest";
 
-export default defineConfig({
-  test: {
-    globals: true,
-    exclude: ['tests/live/**', 'node_modules/**'],
-    setupFiles: ['./tests/setup.js'],
-  },
-});
+export default defineConfig(serviceVitestConfig);
