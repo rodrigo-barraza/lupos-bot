@@ -266,7 +266,7 @@ async function main() {
   const minioEndpoint = process.env.MINIO_ENDPOINT;
   const minioAccessKey = process.env.MINIO_ACCESS_KEY;
   const minioSecretKey = process.env.MINIO_SECRET_KEY;
-  const minioBucket = process.env.LUPOS_MINIO_BUCKET_NAME || "discord-media";
+  const minioBucket = process.env.LUPOS_BOT_MINIO_BUCKET_NAME || process.env.LUPOS_MINIO_BUCKET_NAME;
 
   if (!minioEndpoint || !minioAccessKey || !minioSecretKey) {
     console.error("❌ MinIO credentials not configured");
