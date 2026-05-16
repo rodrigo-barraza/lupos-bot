@@ -278,9 +278,9 @@ export default {
               embeds: [createEmbed(remaining)],
               components: createButtons(),
             });
-          } catch (err) {
+          } catch (error) {
             // 50027 = token expired, stop polling entirely
-            if (err.code === 50027) {
+            if (error.code === 50027) {
               clearInterval(timerInterval);
             }
           }

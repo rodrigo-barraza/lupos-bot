@@ -194,9 +194,9 @@ async function archiveUrl(url, mediaHashesCol) {
     stats.urlsArchived++;
     stats.bytesStored += buffer.length;
     return archiveRef;
-  } catch (err) {
+  } catch (error) {
     stats.urlsFailed++;
-    console.warn(`  ❌ ${err.message}: ${url.substring(0, 80)}`);
+    console.warn(`  ❌ ${error.message}: ${url.substring(0, 80)}`);
     return null;
   }
 }
@@ -409,7 +409,7 @@ async function processBatch(batch, batchNumber, messagesCol, mediaHashesCol) {
   console.log(`  [Batch ${batchNumber}] Done in ${elapsed}s`);
 }
 
-main().catch((err) => {
+main().catch((error) => {
   console.error("Fatal error:", err);
   process.exit(1);
 });

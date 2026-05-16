@@ -1862,9 +1862,9 @@ ${combinedGuildInformation && combinedChannelInformation ? `URL: ${utilities.get
             );
           }
         })
-        .catch((err) => {
+        .catch((error) => {
           console.warn(
-            `🧠 [DiscordService] Memory extraction failed: ${err.message}`,
+            `🧠 [DiscordService] Memory extraction failed: ${error.message}`,
           );
         });
     }
@@ -2997,7 +2997,7 @@ async function rejectIfFlaggedContent(message) {
   // Check direct message content
   if (message.content && CensorService.containsFlaggedWords(message.content)) {
     console.log(`⛔ [DiscordService] Message contains flagged words, ignoring.`);
-    try { await message.reply(FLAGGED_REPLY); } catch (e) { console.log("Error sending flagged words response:", e); }
+    try { await message.reply(FLAGGED_REPLY); } catch (error) { console.log("Error sending flagged words response:",  error); }
     return true;
   }
 
@@ -3007,7 +3007,7 @@ async function rejectIfFlaggedContent(message) {
       const repliedMessage = await message.channel.messages.fetch(message.reference.messageId);
       if (repliedMessage.content && CensorService.containsFlaggedWords(repliedMessage.content)) {
         console.log(`⛔ [DiscordService] Replied message contains flagged words, ignoring.`);
-        try { await message.reply(FLAGGED_REPLY); } catch (e) { console.log("Error sending flagged words response:", e); }
+        try { await message.reply(FLAGGED_REPLY); } catch (error) { console.log("Error sending flagged words response:",  error); }
         return true;
       }
     } catch (error) {

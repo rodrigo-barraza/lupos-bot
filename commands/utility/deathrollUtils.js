@@ -2020,8 +2020,8 @@ export async function executeDeathroll(interaction) {
               } else if (bi.customId.startsWith("deathroll_decline_")) {
                 await handleDeclineButton(bi, gameId);
               }
-            } catch (e) {
-              console.error("Error in recovery engage/decline collector:", e);
+            } catch (error) {
+              console.error("Error in recovery engage/decline collector:",  error);
             }
           });
           newCollector.on("end", (collected, reason) => {

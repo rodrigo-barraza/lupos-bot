@@ -1179,13 +1179,13 @@ const DiscordUtilityService = {
             try {
               await channel.messages.fetch(msgId);
               return { exists: true, id: msgId };
-            } catch (err) {
+            } catch (error) {
               // 10008 = Unknown Message (deleted)
-              if (err.code === 10008) {
+              if (error.code === 10008) {
                 return { exists: false, id: msgId };
               }
               // Other errors (permissions, rate limit) — don't assume deleted
-              throw err;
+              throw error;
             }
           }),
         );
@@ -1362,9 +1362,9 @@ const DiscordUtilityService = {
           if (processed % 25 === 0) {
             console.log(`  [BACKFILL] Progress: ${processed}/${totalCount} processed, ${archived} archived`);
           }
-        } catch (err) {
+        } catch (error) {
           errors++;
-          console.error(`  [BACKFILL] Error processing message ${doc.id}: ${err.message}`);
+          console.error(`  [BACKFILL] Error processing message ${doc.id}: ${error.message}`);
           // Mark failed so we don't retry on next run (can be cleared manually)
           await collection.updateOne({ _id: doc._id }, { $set: { mediaArchive: {} } });
         }
@@ -1459,8 +1459,8 @@ const DiscordUtilityService = {
           messageObject.mediaArchive = archiveMap;
           MediaArchivalService.rewriteDocumentUrls(messageObject, archiveMap);
         }
-      } catch (err) {
-        console.warn(`📦 Media archival failed for message ${message.id}: ${err.message}`);
+      } catch (error) {
+        console.warn(`📦 Media archival failed for message ${message.id}: ${error.message}`);
       }
     }
 
@@ -1506,8 +1506,8 @@ const DiscordUtilityService = {
           messageObject.mediaArchive = archiveMap;
           MediaArchivalService.rewriteDocumentUrls(messageObject, archiveMap);
         }
-      } catch (err) {
-        console.warn(`📦 Media archival failed for message ${message.id}: ${err.message}`);
+      } catch (error) {
+        console.warn(`📦 Media archival failed for message ${message.id}: ${error.message}`);
       }
     }
 
@@ -1536,8 +1536,8 @@ const DiscordUtilityService = {
         { id: reactionMessage.id },
         { $set: { reactions: transformedReactions } },
       );
-    } catch (err) {
-      console.warn(`[syncReactionsToMongo] Failed for message ${reactionMessage.id}: ${err.message}`);
+    } catch (error) {
+      console.warn(`[syncReactionsToMongo] Failed for message ${reactionMessage.id}: ${error.message}`);
     }
   },
 

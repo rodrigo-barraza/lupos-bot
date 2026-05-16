@@ -41,10 +41,10 @@ async function getCurrentMonthBirthdays(client) {
     birthdayRoleMembers.map((member) =>
       member.roles
         .remove(birthdayRoleId)
-        .catch((err) =>
+        .catch((error) =>
           console.error(
             `Error removing role from ${member.user.username}:`,
-            err,
+            error,
           ),
         ),
     ),
@@ -60,7 +60,7 @@ async function getCurrentMonthBirthdays(client) {
       addRolePromises.push(
         member.roles
           .add(birthdayRoleId)
-          .catch((err) => console.error(`Error adding role to ${user}:`, err)),
+          .catch((error) => console.error(`Error adding role to ${user}:`, error)),
       );
     }
   }

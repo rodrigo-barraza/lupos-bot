@@ -664,9 +664,9 @@ class YouTubeService {
           fs.unlinkSync(pcmPath);
           resolve(mp3Path);
         })
-        .on("error", (err) => {
-          console.error("FFmpeg error:", err);
-          reject(err);
+        .on("error", (error) => {
+          console.error("FFmpeg error:", error);
+          reject(error);
         })
         .run();
     });
@@ -841,8 +841,8 @@ ${formatted} ${dividingLine} ${currentVideo.durationRaw}
 
       nowPlayingMessage
         .edit({ embeds: [updatedEmbed], components: [actionRow, volumeRow] })
-        .catch((err) => {
-          console.error("Failed to update embed:", err);
+        .catch((error) => {
+          console.error("Failed to update embed:", error);
           YouTubeService.stopUpdateInterval();
         });
     }, 1000);
