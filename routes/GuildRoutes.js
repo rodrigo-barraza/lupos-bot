@@ -383,9 +383,9 @@ router.post("/guild/rescrape", asyncHandler(async (req, res) => {
     ).then((result) => {
       completeJob(job.id, result);
       console.log(`[guild/rescrape] Completed rescrape of ${channelIds.length} channel(s)`);
-    }).catch((err) => {
-      failJob(job.id, err.message);
-      console.error("[guild/rescrape] Error:", err.message);
+    }).catch((error) => {
+      failJob(job.id, error.message);
+      console.error("[guild/rescrape] Error:", error.message);
     });
   } catch (error) {
     console.error("[guild/rescrape] Error:", error.message, error.stack);
@@ -443,9 +443,9 @@ router.post("/guild/backfill-media", asyncHandler(async (req, res) => {
     }).then((result) => {
       completeJob(job.id, result);
       console.log(`[guild/backfill-media] Completed — processed: ${result.processed}, archived: ${result.archived}, errors: ${result.errors}`);
-    }).catch((err) => {
-      failJob(job.id, err.message);
-      console.error("[guild/backfill-media] Error:", err.message);
+    }).catch((error) => {
+      failJob(job.id, error.message);
+      console.error("[guild/backfill-media] Error:", error.message);
     });
   } catch (error) {
     console.error("[guild/backfill-media] Error:", error.message, error.stack);
