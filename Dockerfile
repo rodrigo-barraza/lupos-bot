@@ -2,11 +2,11 @@
 # Lupos — Dockerfile (multi-stage)
 # ============================================================
 # Discord bot with voice support, Puppeteer browser automation,
-# and an Express health API. Uses boot.js to fetch secrets from
+# and an Express health API. Uses boot.ts to fetch secrets from
 # Vault at startup.
 # ============================================================
 
-# ── Stage 1: Install dependencies ─────────────────────────────
+# ── Stage 1: Install ALL dependencies (incl. devDeps for tsc) ─
 FROM node:22-slim AS deps
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -16,12 +16,30 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 WORKDIR /app
 COPY package.json package-lock.json .npmrc ./
 
-# Skip Puppeteer's bundled Chromium — we use system Chromium
+ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
+RUN mkdir -p -m 0700 ~/.ssh && ssh-keyscan github.com >> ~/.ssh/known_hosts
+RUN --mount=type=ssh npm ci
+
+# ── Stage 2: Compile TypeScript ───────────────────────────────
+FROM deps AS build
+COPY . .
+RUN npx tsc
+
+# ── Stage 3: Production dependencies only ─────────────────────
+FROM node:22-slim AS prod-deps
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3 make g++ git openssh-client \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+COPY package.json package-lock.json .npmrc ./
+
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
 RUN mkdir -p -m 0700 ~/.ssh && ssh-keyscan github.com >> ~/.ssh/known_hosts
 RUN --mount=type=ssh npm ci --omit=dev
 
-# ── Stage 2: Runtime ──────────────────────────────────────────
+# ── Stage 4: Runtime ──────────────────────────────────────────
 FROM node:22-slim
 
 # Chromium (Puppeteer), FFmpeg (voice/audio), wget (healthcheck)
@@ -39,11 +57,20 @@ ENV TZ=America/Los_Angeles
 
 WORKDIR /app
 
-# Copy pre-built node_modules from deps stage
-COPY --from=deps /app/node_modules ./node_modules
+# Copy production-only node_modules (no devDeps)
+COPY --from=prod-deps /app/node_modules ./node_modules
 
-# Copy application source
-COPY . .
+# Copy compiled JS into src/ so #root/* subpath imports resolve correctly
+# (package.json has "imports": {"#root/*": "./src/*"})
+COPY --from=build /app/dist/src ./src
+
+# Copy package.json (needed for "imports" and "type": "module")
+COPY package.json ./
+
+# Copy static assets needed at runtime
+COPY clocks_data.json messages.json ./
+COPY images ./images
+COPY voices ./voices
 
 # Non-root user for security
 RUN groupadd --system --gid 1001 lupos && \
@@ -56,4 +83,4 @@ EXPOSE 1337
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
   CMD wget --no-verbose --tries=1 -O /dev/null http://127.0.0.1:1337/health || exit 1
 
-CMD ["node", "boot.js"]
+CMD ["node", "src/boot.js"]
