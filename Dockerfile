@@ -1,7 +1,7 @@
 # ============================================================
 # Lupos — Dockerfile (multi-stage)
 # ============================================================
-# Discord bot with voice support, Puppeteer browser automation,
+# Discord bot with voice support, Playwright browser automation,
 # and an Express health API. Uses boot.ts to fetch secrets from
 # Vault at startup.
 # ============================================================
@@ -16,7 +16,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 WORKDIR /app
 COPY package.json package-lock.json .npmrc ./
 
-ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
+ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
 RUN npm ci
 
 # ── Stage 2: Compile TypeScript ───────────────────────────────
@@ -34,13 +34,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 WORKDIR /app
 COPY package.json package-lock.json .npmrc ./
 
-ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
+ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
 RUN npm ci --omit=dev
 
 # ── Stage 4: Runtime ──────────────────────────────────────────
 FROM node:22-slim
 
-# Chromium (Puppeteer), FFmpeg (voice/audio), wget (healthcheck)
+# Chromium (Playwright), FFmpeg (voice/audio), wget (healthcheck)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     chromium \
     ffmpeg \
@@ -49,8 +49,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     wget \
     && rm -rf /var/lib/apt/lists/*
 
-ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
-ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
+ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
+ENV PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium
 ENV TZ=America/Los_Angeles
 
 WORKDIR /app
