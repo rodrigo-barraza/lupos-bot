@@ -17,8 +17,7 @@ WORKDIR /app
 COPY package.json package-lock.json .npmrc ./
 
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
-RUN mkdir -p -m 0700 ~/.ssh && ssh-keyscan github.com >> ~/.ssh/known_hosts
-RUN --mount=type=ssh npm ci
+RUN npm ci
 
 # ── Stage 2: Compile TypeScript ───────────────────────────────
 FROM deps AS build
@@ -36,8 +35,7 @@ WORKDIR /app
 COPY package.json package-lock.json .npmrc ./
 
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
-RUN mkdir -p -m 0700 ~/.ssh && ssh-keyscan github.com >> ~/.ssh/known_hosts
-RUN --mount=type=ssh npm ci --omit=dev
+RUN npm ci --omit=dev
 
 # ── Stage 4: Runtime ──────────────────────────────────────────
 FROM node:22-slim
