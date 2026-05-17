@@ -1,37 +1,37 @@
 // @ts-nocheck
 // Mock all transitive dependencies that pull in heavy native modules
-vi.mock("../../services/DiscordService", () => ({
+vi.mock("../../src/services/DiscordService", () => ({
   default: {},
 }));
-vi.mock("../../services/AIService", () => ({
+vi.mock("../../src/services/AIService", () => ({
   default: {
     generateText: vi.fn().mockResolvedValue("Mocked AI response"),
   },
 }));
-vi.mock("../../services/MoodService", () => ({
+vi.mock("../../src/services/MoodService", () => ({
   default: {
     decreaseMoodLevel: vi.fn(),
   },
 }));
-vi.mock("../../services/HungerService", () => ({
+vi.mock("../../src/services/HungerService", () => ({
   default: {},
 }));
-vi.mock("../../services/ThirstService", () => ({
+vi.mock("../../src/services/ThirstService", () => ({
   default: {},
 }));
-vi.mock("../../services/BathroomService", () => ({
+vi.mock("../../src/services/BathroomService", () => ({
   default: {},
 }));
-vi.mock("../../services/SicknessService", () => ({
+vi.mock("../../src/services/SicknessService", () => ({
   default: {},
 }));
-vi.mock("../../services/AlcoholService", () => ({
+vi.mock("../../src/services/AlcoholService", () => ({
   default: {},
 }));
 
-const YapperService = (await import("../../services/YapperService.js")).default;
-const AIService = (await import("../../services/AIService.js")).default;
-const MoodService = (await import("../../services/MoodService.js")).default;
+const YapperService = (await import("../../src/services/YapperService.js")).default;
+const AIService = (await import("../../src/services/AIService.js")).default;
+const MoodService = (await import("../../src/services/MoodService.js")).default;
 
 describe("YapperService", () => {
   beforeEach(() => {

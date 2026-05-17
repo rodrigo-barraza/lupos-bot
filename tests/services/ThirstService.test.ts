@@ -1,6 +1,6 @@
 // @ts-nocheck
 // Mock StatService — the factory that ThirstService delegates to
-vi.mock("../../services/StatService", () => {
+vi.mock("../../src/services/StatService", () => {
   let level = 0;
   const mockStat = {
     getLevel: vi.fn(() => level),
@@ -33,8 +33,8 @@ vi.mock("../../services/StatService", () => {
   };
 });
 
-const ThirstService = (await import("../../services/ThirstService.js")).default;
-const { __resetLevel } = await import("../../services/StatService");
+const ThirstService = (await import("../../src/services/ThirstService.js")).default;
+const { __resetLevel } = await import("../../src/services/StatService");
 
 describe("ThirstService", () => {
   beforeEach(() => {

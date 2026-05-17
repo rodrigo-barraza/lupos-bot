@@ -1,13 +1,13 @@
 // @ts-nocheck
-vi.mock("../../services/DiscordUtilityService", () => ({
+vi.mock("../../src/services/DiscordUtilityService", () => ({
   default: {
     getUsernameNoSpaces: vi.fn().mockReturnValue("TestUser"),
   },
 }));
 
-const AIService = (await import("../../services/AIService.js")).default;
+const AIService = (await import("../../src/services/AIService.js")).default;
 const _DiscordUtilityService = (
-  await import("../../services/DiscordUtilityService.js")
+  await import("../../src/services/DiscordUtilityService.js")
 ).default;
 
 describe("AIService", () => {

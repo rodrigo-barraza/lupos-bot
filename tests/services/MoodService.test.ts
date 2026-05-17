@@ -12,7 +12,7 @@ vi.mock("discord.js", () => ({
 }));
 
 // Mock DiscordWrapper — MoodService imports from #root/wrappers/DiscordWrapper.js
-vi.mock("../../wrappers/DiscordWrapper", () => ({
+vi.mock("../../src/wrappers/DiscordWrapper", () => ({
   default: {
     getClient: vi.fn().mockReturnValue({
       user: {
@@ -23,14 +23,14 @@ vi.mock("../../wrappers/DiscordWrapper", () => ({
 }));
 
 // Mock DiscordUtilityService
-vi.mock("../../services/DiscordUtilityService", () => ({
+vi.mock("../../src/services/DiscordUtilityService", () => ({
   default: {
     generateMoodTemperature: vi.fn().mockResolvedValue(0),
   },
 }));
 
 // Mock StatService — MoodService creates a stat with min:-10, max:10
-vi.mock("../../services/StatService", () => {
+vi.mock("../../src/services/StatService", () => {
   let level = 0;
   let onChangeFn = null;
   const mockStat = {
@@ -70,13 +70,13 @@ vi.mock("../../services/StatService", () => {
   };
 });
 
-const MoodService = (await import("../../services/MoodService.js")).default;
-const DiscordWrapper = (await import("../../wrappers/DiscordWrapper.js"))
+const MoodService = (await import("../../src/services/MoodService.js")).default;
+const DiscordWrapper = (await import("../../src/wrappers/DiscordWrapper.js"))
   .default;
 const DiscordUtilityService = (
-  await import("../../services/DiscordUtilityService.js")
+  await import("../../src/services/DiscordUtilityService.js")
 ).default;
-const { __resetLevel } = await import("../../services/StatService");
+const { __resetLevel } = await import("../../src/services/StatService");
 
 describe("MoodService", () => {
   beforeEach(() => {

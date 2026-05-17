@@ -1,5 +1,5 @@
 // @ts-nocheck
-const CurrentService = (await import("../../services/CurrentService.js"))
+const CurrentService = (await import("../../src/services/CurrentService.js"))
   .default;
 
 describe("CurrentService", () => {

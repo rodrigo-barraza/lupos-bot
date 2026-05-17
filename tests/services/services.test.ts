@@ -17,19 +17,19 @@ vi.mock("express", () => {
   };
 });
 
-vi.mock("../../services/AIService", () => ({
+vi.mock("../../src/services/AIService", () => ({
   default: {
     transcribeSpeech: vi.fn(),
   },
 }));
 
 // Mock GuildRoutes — services.js imports it via #root/routes/GuildRoutes.js
-vi.mock("../../routes/GuildRoutes", () => ({
+vi.mock("../../src/routes/GuildRoutes", () => ({
   default: vi.fn(),
 }));
 
-const routes = (await import("../../services/services.js")).default;
-const AIService = (await import("../../services/AIService.js")).default;
+const routes = (await import("../../src/services/services.js")).default;
+const AIService = (await import("../../src/services/AIService.js")).default;
 
 describe("services.js (Express Routes)", () => {
   let mockRouter;

@@ -1,11 +1,11 @@
 // @ts-nocheck
-vi.mock("../../services/DiscordService", () => ({
+vi.mock("../../src/services/DiscordService", () => ({
   default: {
     generateInCharacterResponse2Special: vi.fn(),
   },
 }));
 
-const EnergyService = (await import("../../services/EnergyService.js")).default;
+const EnergyService = (await import("../../src/services/EnergyService.js")).default;
 
 describe("EnergyService", () => {
   beforeEach(() => {

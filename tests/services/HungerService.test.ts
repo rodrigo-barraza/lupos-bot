@@ -1,5 +1,5 @@
 // @ts-nocheck
-vi.mock("../../services/AIService", () => ({
+vi.mock("../../src/services/AIService", () => ({
   default: {
     generateInCharacterResponse2Special: vi
       .fn()
@@ -7,7 +7,7 @@ vi.mock("../../services/AIService", () => ({
   },
 }));
 
-const HungerService = (await import("../../services/HungerService.js")).default;
+const HungerService = (await import("../../src/services/HungerService.js")).default;
 
 describe("HungerService", () => {
   beforeEach(() => {
