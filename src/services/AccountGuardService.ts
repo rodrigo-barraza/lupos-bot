@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * AccountGuardService — Centralized new-account kick logic.
  *
@@ -13,8 +12,8 @@ import { ACCOUNT_AGE_THRESHOLD_MS, MS_PER_DAY } from "#root/constants.js";
  * Kick a member if their Discord account is too new (< 4 weeks old)
  * and they are not on the whitelist.
  *
- * @param {GuildMember} member - The Discord guild member.
- * @param {string} callerName - The calling function name (for logging).
+
+
  * @returns {boolean} true if the member was kicked, false otherwise.
  */
 export async function kickIfTooNew(member: any, callerName = "AccountGuard") {
@@ -57,8 +56,8 @@ const FORBIDDEN_COMBO_ROLE_IDS = [
  * Kick a member if they hold both roles in the forbidden combo
  * (currently: Horde + Apex Legends).
  *
- * @param {GuildMember} member - The Discord guild member to check.
- * @param {string} callerName - The calling function name (for logging).
+
+
  * @returns {boolean} true if the member was kicked, false otherwise.
  */
 export async function kickIfForbiddenCombo(member: any, callerName = "AccountGuard") {
@@ -105,11 +104,8 @@ export async function kickIfForbiddenCombo(member: any, callerName = "AccountGua
 /**
  * Bulk-purge members whose Discord account age is below a given threshold.
  *
- * @param {Guild}  guild          - The Discord guild to purge from.
- * @param {number} thresholdMs    - Max account age in milliseconds; accounts younger get kicked.
- * @param {object} [options]
- * @param {boolean} [options.dryRun=false]  - If true, log who *would* be kicked without acting.
- * @param {string}  [options.callerName]    - Label for log lines.
+
+
  * @returns {{ kicked: number, skipped: number, errors: number }}
  */
 export async function purgeByAccountAge(guild: any, thresholdMs: any, options = {}) {

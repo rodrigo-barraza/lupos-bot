@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * Shared utilities and data layer for deathroll commands.
  * All MongoDB access, game logic, and business logic lives here.
@@ -248,13 +247,46 @@ function getMedal(index: any) {
 
 // ─── Database Helpers ─────────────────────────────────────────────────
 
+let deathrollIndexesEnsured = false;
+
 function getDeathrollCollections() {
   const localMongo = MongoService.getClient("local");
   const db = localMongo.db(MONGO_DB_NAME);
-  return {
+  const collections = {
     statsCollection: db.collection("DeathRollUserStats"),
     gamesCollection: db.collection("DeathRollGameHistory"),
   };
+
+  // Ensure indexes once on first access (lazy init)
+  if (!deathrollIndexesEnsured) {
+    deathrollIndexesEnsured = true;
+    ensureDeathrollIndexes(collections).catch((err) =>
+      console.error("Failed to ensure deathroll indexes:", err.message),
+    );
+  }
+
+  return collections;
+}
+
+/**
+ * Create indexes on DeathRoll game collections.
+ * Prevents full collection scans on findOne({ userId, guildId }),
+ * aggregate({ guildId, season }), and leaderboard queries.
+ */
+async function ensureDeathrollIndexes({ statsCollection, gamesCollection }: any) {
+  await Promise.all([
+    // DeathRollUserStats — primary lookup pattern
+    statsCollection.createIndex({ userId: 1, guildId: 1 }, { unique: true }),
+    statsCollection.createIndex({ guildId: 1 }),
+    statsCollection.createIndex({ guildId: 1, mmr: -1 }),
+
+    // DeathRollGameHistory — aggregation + H2H queries
+    gamesCollection.createIndex({ guildId: 1, season: 1 }),
+    gamesCollection.createIndex({ guildId: 1, season: 1, winnerId: 1, loserId: 1 }),
+    gamesCollection.createIndex({ guildId: 1, season: 1, loserId: 1 }),
+    gamesCollection.createIndex({ endedAt: -1 }),
+  ]);
+  console.log("📊 DeathRoll collection indexes ensured");
 }
 
 // ─── Game History Aggregation ─────────────────────────────────────────

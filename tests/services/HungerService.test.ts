@@ -1,4 +1,3 @@
-// @ts-nocheck
 vi.mock("../../src/services/AIService", () => ({
   default: {
     generateInCharacterResponse2Special: vi

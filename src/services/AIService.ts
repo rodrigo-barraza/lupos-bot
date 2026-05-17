@@ -1,5 +1,3 @@
-// @ts-nocheck
-
 import path from "path";
 import crypto from "crypto";
 
@@ -86,7 +84,7 @@ const AIService = {
   },
   /**
    * Get the current Discord username from CurrentService, with "lupos" fallback.
-   * @returns {string}
+
    */
   _getDiscordUsername() {
     return CurrentService.getMessage()?.author?.username || "lupos";
@@ -94,7 +92,7 @@ const AIService = {
   /**
    * Convert image URLs to { imageData, mimeType } objects for Prism.
    * Optionally converts GIFs to PNG (first frame) for providers that don't support GIFs.
-   * @param {string[]} urls
+
    * @param {{ convertGifs?: boolean }} [options]
    * @returns {Promise<Array<{ imageData: string, mimeType: string }>>}
    */
@@ -200,7 +198,6 @@ const AIService = {
   async generateImage(type: any, prompt: any, client: any, imageUrls = [], username = null) {
     let generatedImage;
     let usedModel;
-
 
 
     if (type === "GOOGLE") {

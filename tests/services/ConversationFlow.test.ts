@@ -1,4 +1,3 @@
-// @ts-nocheck
 // ── Mocks ────────────────────────────────────────────────────────────────────
 // Mock heavyweight dependencies that AIService transitively depends on
 vi.mock("../../src/services/MongoService", () => ({

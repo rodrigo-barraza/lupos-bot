@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { ActivityType } from "discord.js";
 import DiscordUtilityService from "#root/services/DiscordUtilityService.js";
 import DiscordWrapper from "#root/wrappers/DiscordWrapper.js";

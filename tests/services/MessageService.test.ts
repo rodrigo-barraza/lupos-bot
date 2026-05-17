@@ -1,4 +1,3 @@
-// @ts-nocheck
 // Mock config.js — MessageService imports config from "#root/config.js"
 vi.mock("../../src/config", () => ({
   default: {

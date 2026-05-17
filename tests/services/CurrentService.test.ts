@@ -1,4 +1,3 @@
-// @ts-nocheck
 const CurrentService = (await import("../../src/services/CurrentService.js"))
   .default;
 

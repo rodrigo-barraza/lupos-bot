@@ -1,4 +1,3 @@
-// @ts-nocheck
 const FLAGGED_WORDS = [
   // Racial slurs
   "beaner",

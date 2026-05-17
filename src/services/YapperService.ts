@@ -1,4 +1,3 @@
-// @ts-nocheck
 import AIService from "#root/services/AIService.js";
 import MoodService from "#root/services/MoodService.js";
 

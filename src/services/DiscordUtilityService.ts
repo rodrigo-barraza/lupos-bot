@@ -1,5 +1,3 @@
-// @ts-nocheck
-
 import { DateTime } from "luxon";
 import utilities from "#root/utilities.js";
 const { consoleLog } = utilities;
@@ -229,7 +227,6 @@ const transformGuild = (guild: any, _concise = false) => {
     };
   }
 };
-
 
 
 const transformPoll = (poll: any) => {
@@ -1116,13 +1113,8 @@ const DiscordUtilityService = {
    * each one against Discord. Messages that no longer exist (404/10008)
    * are deleted from MongoDB.
    *
-   * @param {import('discord.js').Client} client
-   * @param {import('mongodb').MongoClient} mongo
-   * @param {string} guildId
-   * @param {string[]} userIds - Discord user IDs to reconcile
-   * @param {object} [options]
-   * @param {string} [options.collectionName='Messages']
-   * @param {number} [options.concurrencyLimit=5] - Parallel Discord API checks
+
+
    */
   async purgeDeletedMessagesForUsers(client: any, mongo: any, guildId: any, userIds: any, options = {}) {
     const {
@@ -1229,15 +1221,8 @@ const DiscordUtilityService = {
    * Finds messages missing `mediaArchive` that have attachments, downloads
    * the media to MinIO, and updates the document with permanent URLs.
    *
-   * @param {import('discord.js').Client} client - Discord client for fetching fresh URLs
-   * @param {import('mongodb').MongoClient} mongo
-   * @param {object} [options]
-   * @param {string} [options.collectionName='Messages']
-   * @param {string[]} [options.authorIds] - Limit to specific author IDs (null = all)
-   * @param {string} [options.guildId] - Limit to specific guild
-   * @param {string} [options.channelId] - Limit to specific channel
-   * @param {boolean} [options.forceRetry=false] - Re-process messages previously marked with empty mediaArchive
-   * @param {number} [options.batchSize=50] - Documents per processing batch
+
+
    */
   async backfillMediaArchive(client: any, mongo: any, options = {}) {
     const {
@@ -1432,8 +1417,8 @@ const DiscordUtilityService = {
   /**
    * Shared username sanitization: replaces spaces with underscores,
    * removes non-word characters.
-   * @param {string} name
-   * @returns {string}
+
+
    */
   _sanitizeUsername(name: any) {
     if (!name) return "default";
@@ -1522,9 +1507,8 @@ const DiscordUtilityService = {
    * Sync only the reactions field for a message to MongoDB.
    * Called from Discord reaction add/remove event handlers.
    *
-   * @param {object} reactionMessage - Discord.js Message (may need .fetch())
-   * @param {object} mongo - MongoDB client
-   * @param {string} [collectionName] - Collection name
+
+
    */
   async syncReactionsToMongo(reactionMessage: any, mongo: any, collectionName = "Messages") {
     try {
@@ -1912,7 +1896,6 @@ const DiscordUtilityService = {
       // Break if no new messages were added (to prevent infinite loops)
       if (uniqueMessages.size === 0) break;
     }
-
 
 
     // Trim collection if we fetched more than needed

@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * StatService — Factory for creating personality trait stat instances.
  *
@@ -22,13 +21,8 @@ const StatService = {
   /**
    * Creates a new stat instance with clamped get/set/increase/decrease.
    *
-   * @param {string} name - Human-readable name for logging.
-   * @param {object} options
-   * @param {number} [options.min=0] - Minimum allowed value.
-   * @param {number} [options.max=100] - Maximum allowed value.
-   * @param {number} [options.initial=0] - Starting value.
-   * @param {number} [options.step=1] - Default increment/decrement amount.
-   * @param {function} [options.onChange] - Callback fired after every level change.
+
+
    * @returns {object} A stat instance with getLevel, setLevel, increase, decrease, getName.
    */
   create(name: any, options = {}) {

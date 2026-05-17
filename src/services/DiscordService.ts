@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { DateTime } from "luxon";
 import crypto from "crypto";
 import {
@@ -67,9 +66,8 @@ import { kickIfTooNew, kickIfForbiddenCombo, purgeByAccountAge } from "#root/ser
  * REQUEST_GUILD_MEMBERS payload — this is NOT a REST error and won't be
  * caught by the REST rate-limit handler. We catch it here and wait the
  * advertised retry_after duration before retrying.
- * @param {Guild} guild
- * @param {number} [maxRetries=3]
- * @returns {Promise<Collection<string, GuildMember>>}
+
+
  */
 async function fetchMembersWithRetry(guild: any, maxRetries = 3) {
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
@@ -159,7 +157,6 @@ function resolveAvatarUrl(source: any) {
   return source?.displayAvatarURL?.({ format: "png", size: 512 }) || null;
 }
 const typingIntervals = {};
-
 
 
 function updateLastMessageSentTime() {
@@ -1265,7 +1262,6 @@ Respond with ONLY "yes" or "no". Nothing else.`,
     }
 
 
-
     // Cache the message reference once — reused for avatar filtering below
     const cachedMessageReference = message.reference?.messageId
       ? await DiscordUtilityService.retrieveMessageReferenceFromMessage(message)
@@ -2330,7 +2326,6 @@ async function extractContentFromMessages(
     }
 
 
-
     // Process emojis
     for (const _item of allPromises.emojis) {
       const result = results[resultIndex++];
@@ -2644,9 +2639,8 @@ async function generateRolesEmbedMessage(client: any) {
 
   /**
    * Build a role-picker embed + button rows for a given role source array.
-   * @param {string} title
-   * @param {string} description
-   * @param {Array} sourceArray - e.g. warcraftClasses, warcraftFactions, rolesVideogames
+
+
    * @param {{ sort?: boolean }} [options]
    * @returns {{ embed: EmbedBuilder, rows: ActionRowBuilder[] }}
    */
@@ -2989,7 +2983,7 @@ async function revokeRoleFromAllMembers(client: any) {
 /**
  * Check if a message or its replied-to message contains flagged words.
  * If flagged, sends a reply and returns true; otherwise returns false.
- * @param {Message} message
+
  * @returns {Promise<boolean>} true if message was rejected
  */
 async function rejectIfFlaggedContent(message: any) {
@@ -3022,7 +3016,7 @@ async function rejectIfFlaggedContent(message: any) {
 /**
  * Send a self-destructing maintenance mode countdown message.
  * Randomly selects an explosion GIF and counts down from 10s before deleting.
- * @param {Message} message
+
  */
 async function sendMaintenanceCountdown(message: any) {
   let secondsRemaining = 10;
@@ -3180,7 +3174,6 @@ URL: ${utilities.getDiscordMessageUrl(message.guild?.id, message.channel.id, mes
   }
 
 
-
   // START TYPING
   if (!typingIntervals[message.channel.id]) {
     try {
@@ -3208,7 +3201,6 @@ URL: ${utilities.getDiscordMessageUrl(message.guild?.id, message.channel.id, mes
       1 * 60 * 1000,
     );
   }
-
 
 
   // Fetch messages before the current one...

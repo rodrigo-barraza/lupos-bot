@@ -1,4 +1,3 @@
-// @ts-nocheck
 import DiscordUtilityService from "#root/services/DiscordUtilityService.js";
 import MessageService from "#root/services/MessageService.js";
 import AIService from "#root/services/AIService.js";

@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { SlashCommandBuilder, AttachmentBuilder } from "discord.js";
 import { chromium } from "playwright";
 import {

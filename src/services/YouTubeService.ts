@@ -1,4 +1,3 @@
-// @ts-nocheck
 import {
   joinVoiceChannel,
   createAudioPlayer,

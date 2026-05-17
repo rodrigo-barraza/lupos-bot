@@ -1,4 +1,3 @@
-// @ts-nocheck
 vi.mock("discord.js", () => {
   const mClient = {
     login: vi.fn(),

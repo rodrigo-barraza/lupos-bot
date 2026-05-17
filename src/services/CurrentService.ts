@@ -1,4 +1,3 @@
-// @ts-nocheck
 let user = null;
 let message = null;
 let startTime = null;

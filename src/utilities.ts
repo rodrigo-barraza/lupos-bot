@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { DateTime } from "luxon";
 import crypto from "crypto";
 
@@ -437,10 +436,8 @@ const utilities = {
   /**
    * Build a Discord CDN avatar URL.
    * Handles animated avatars (a_ prefix → .gif) vs static (.png).
-   * @param {string} userId
-   * @param {string} avatarHash
-   * @param {number} [size=512]
-   * @returns {string|null}
+
+
    */
   getDiscordAvatarUrl(userId: any, avatarHash: any, size = 512) {
     if (!userId || !avatarHash) return null;
@@ -450,10 +447,8 @@ const utilities = {
   /**
    * Build a Discord CDN banner URL.
    * Handles animated banners (a_ prefix → .gif) vs static (.png).
-   * @param {string} userId
-   * @param {string} bannerHash
-   * @param {number} [size=512]
-   * @returns {string|null}
+
+
    */
   getDiscordBannerUrl(userId: any, bannerHash: any, size = 512) {
     if (!userId || !bannerHash) return null;
@@ -462,7 +457,7 @@ const utilities = {
   },
   /**
    * Format a millisecond duration into a human-readable string.
-   * @param {number} ms - Duration in milliseconds.
+
    * @returns {string} e.g. "2d 5h 30m", "1h 15m 30s", "45s"
    */
   formatTimeSpan(ms: any) {
@@ -483,17 +478,15 @@ const utilities = {
   },
   /**
    * Build a Discord message URL.
-   * @param {string} guildId
-   * @param {string} channelId
-   * @param {string} messageId
-   * @returns {string}
+
+
    */
   getDiscordMessageUrl(guildId: any, channelId: any, messageId: any) {
     return `https://discord.com/channels/${guildId}/${channelId}/${messageId}`;
   },
   /**
    * Format a millisecond duration as playback time (m:ss).
-   * @param {number} ms - Duration in milliseconds.
+
    * @returns {string} e.g. "3:07"
    */
   formatPlaybackTime(ms: any) {
@@ -504,9 +497,8 @@ const utilities = {
   },
   /**
    * Return a random integer between minMs and maxMs (inclusive).
-   * @param {number} minMs
-   * @param {number} maxMs
-   * @returns {number}
+
+
    */
   getRandomInterval(minMs: any, maxMs: any) {
     return Math.floor(Math.random() * (maxMs - minMs + 1)) + minMs;
@@ -514,9 +506,8 @@ const utilities = {
   /**
    * Fetch a URL with an AbortController timeout.
    * Returns parsed JSON on success, null on failure / timeout.
-   * @param {string} url
-   * @param {number} [timeoutMs=3000]
-   * @returns {Promise<object|null>}
+
+
    */
   async fetchWithTimeout(url: any, timeoutMs = 3000) {
     const controller = new AbortController();
@@ -533,8 +524,8 @@ const utilities = {
   },
   /**
    * Format a Discord.js reactions cache into a human-readable string.
-   * @param {Collection} reactionsCache - Discord.js message.reactions.cache
-   * @param {"list"|"inline"|"names"} [format="list"]
+
+
    *   - "list":   "\n- emoji x count (by you, Lupos)"
    *   - "inline": "emoji(by you, Lupos), emoji2"
    *   - "names":  "emoji, emoji2" (names only, no counts)

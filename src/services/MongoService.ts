@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { MongoClient } from "mongodb";
 import LogFormatter from "#root/formatters/LogFormatter.js";
 import { MONGO_DB_NAME } from "#root/constants.js";
@@ -26,8 +25,8 @@ export default class MongoService {
   /**
    * Convenience: returns the Lupos database from a named client.
    * Eliminates the repeated `mongoClient.db(MONGO_DB_NAME)` pattern.
-   * @param {string} name - Client name (e.g. "local")
-   * @returns {Db}
+
+
    */
   static getDb(name: any) {
     const client = clients.get(name);

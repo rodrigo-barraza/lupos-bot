@@ -1,4 +1,3 @@
-// @ts-nocheck
 import StatService from "#root/services/StatService.js";
 
 const alcoholStat = StatService.create("alcohol", {
