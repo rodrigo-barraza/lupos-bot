@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { REST, Routes, Client, GatewayIntentBits } from "discord.js";
 import secrets from "./config.js";
 import fs from "node:fs";

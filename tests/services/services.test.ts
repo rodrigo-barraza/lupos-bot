@@ -1,4 +1,3 @@
-// @ts-nocheck
 vi.mock("express", () => {
   const routerInstance = {
     get: vi.fn(),

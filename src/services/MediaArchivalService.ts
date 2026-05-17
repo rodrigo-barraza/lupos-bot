@@ -1,4 +1,3 @@
-// @ts-nocheck
 // ============================================================
 // MediaArchivalService — Content-Addressable Storage (CAS)
 // ============================================================
@@ -45,9 +44,8 @@ const MIME_TO_EXT = {
 
 /**
  * Infer file extension from content-type header or URL.
- * @param {string} contentType
- * @param {string} url
- * @returns {string}
+
+
  */
 function inferExtension(contentType: any, url: any) {
   if (contentType) {
@@ -72,7 +70,7 @@ const hashCache = new Map();
 const MediaArchivalService = {
   /**
    * Whether media archival is available (MinIO connected).
-   * @returns {boolean}
+
    */
   isAvailable() {
     return MinioWrapper.isAvailable();
@@ -80,7 +78,7 @@ const MediaArchivalService = {
 
   /**
    * Get or create the MediaHashes collection reference.
-   * @returns {import('mongodb').Collection|null}
+
    */
   _getCollection() {
     try {
@@ -109,8 +107,8 @@ const MediaArchivalService = {
   /**
    * Look up an existing archive ref by SHA-256 hash.
    * Checks in-memory cache first, then MongoDB.
-   * @param {string} hash
-   * @returns {Promise<object|null>}
+
+
    */
   async _findByHash(hash: any) {
     // In-memory cache hit
@@ -137,8 +135,8 @@ const MediaArchivalService = {
 
   /**
    * Register a new hash → MinIO mapping in MongoDB.
-   * @param {object} archiveRef
-   * @param {string} originalUrl
+
+
    */
   async _registerHash(archiveRef: any, originalUrl: any) {
     const col = this._getCollection();
@@ -173,7 +171,7 @@ const MediaArchivalService = {
    * Download a URL, hash it, and store in MinIO if unique.
    * Returns the archive reference object (same shape for new or existing).
    *
-   * @param {string} url - Source URL to archive
+
    * @returns {Promise<{ hash: string, minioKey: string, publicUrl: string, contentType: string, size: number } | null>}
    */
   async archiveFromUrl(url: any) {
@@ -251,7 +249,7 @@ const MediaArchivalService = {
    * Archive all media from a Discord.js message object.
    * Processes: attachments, stickers, embed images/thumbnails/videos, Tenor GIFs.
    *
-   * @param {import('discord.js').Message} message - Discord.js message
+
    * @returns {Promise<Object<string, object>>} Map of { originalUrl → archiveRef }
    */
   async archiveMessageMedia(message: any) {
@@ -349,8 +347,8 @@ const MediaArchivalService = {
    * Mutates the document in-place. Only rewrites URLs that were
    * successfully archived (present in archiveMap).
    *
-   * @param {object} document - Transformed message document (from transformMessageRoot)
-   * @param {Object<string, object>} archiveMap - { originalUrl → { publicUrl, ... } }
+
+
    */
   rewriteDocumentUrls(document: any, archiveMap: any) {
     if (!archiveMap || Object.keys(archiveMap).length === 0) return;

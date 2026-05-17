@@ -1,4 +1,3 @@
-// @ts-nocheck
 import config from "#root/config.js";
 
 const { LIGHTS_SERVICE_URL } = config;

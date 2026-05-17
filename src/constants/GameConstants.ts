@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * GameConstants — Game activity to Discord role mappings.
  *

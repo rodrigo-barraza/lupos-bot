@@ -1,5 +1,3 @@
-// @ts-nocheck
-
 import { Client, GatewayIntentBits, Partials } from "discord.js";
 import { sleep } from "@rodrigo-barraza/utilities-library";
 

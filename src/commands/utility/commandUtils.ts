@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * Shared utilities for slash commands.
  * Consolidates duplicated helpers from beatup, guesswho, heatmap,

@@ -1,4 +1,3 @@
-// @ts-nocheck
 import DiscordUtilityService from "#root/services/DiscordUtilityService.js";
 import utilities from "#root/utilities.js";
 import { MONGO_DB_NAME } from "#root/constants.js";

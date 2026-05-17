@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { SlashCommandBuilder, PermissionFlagsBits } from "discord.js";
 import { getMongoDb } from "./commandUtils.js";
 

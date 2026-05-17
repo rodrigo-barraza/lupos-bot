@@ -1,5 +1,3 @@
-// @ts-nocheck
-
 // ============================================================
 // Scraper Service — Tools API Client
 // ============================================================
@@ -19,7 +17,7 @@ const SCRAPE_TIMEOUT_MS = 15_000;
 /**
  * Fetch page metadata from tools-api's /utility/scrape/metadata endpoint.
  *
- * @param {string} url - Target URL to scrape
+
  * @returns {Promise<object>} Metadata object ({ title, description, image, video, keywords, ... })
  */
 async function fetchMetadata(url: any) {
@@ -34,7 +32,7 @@ class ScraperService {
    * Previously used Puppeteer to render the page — now delegates
    * to tools-api Cheerio extraction.
    *
-   * @param {string} url - Tenor URL (https://tenor.com/view/...)
+
    * @returns {Promise<object>} { title, image, keywords, name }
    */
   static async scrapeTenor(url: any) {
@@ -61,7 +59,7 @@ class ScraperService {
    * Previously used Puppeteer to render the page — now delegates
    * to tools-api Cheerio extraction.
    *
-   * @param {string} url - Twitch URL (https://twitch.tv/...)
+
    * @returns {Promise<object>} { title, description, image, video }
    */
   static async scrapeTwitchUrl(url: any) {

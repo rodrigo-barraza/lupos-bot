@@ -1,4 +1,3 @@
-// @ts-nocheck
 import config from "#root/config.js";
 
 const API_BASE = config.PRISM_API_URL;
@@ -22,12 +21,8 @@ function getHeaders(username = "lupos") {
 export default class PrismService {
   /**
    * Shared fetch helper — centralises request / error handling.
-   * @param {string} endpoint - URL path (e.g. "/chat?stream=false")
-   * @param {object} [options]
-   * @param {string} [options.method="POST"]
-   * @param {object} [options.body]
-   * @param {string} [options.username="lupos"]
-   * @returns {Promise<any>}
+
+
    */
   static async _request(
     endpoint: any,
@@ -62,14 +57,12 @@ export default class PrismService {
 
   /**
    * Generate text via Prism's /chat endpoint.
-   * @param {object} payload
+
    * @param {Array}  payload.messages - Array of { role, name?, content } message objects
    * @param {string} payload.type - Provider type: "OPENAI" | "ANTHROPIC" | "LOCAL" | "GOOGLE"
    * @param {string} payload.model - Model name
-   * @param {number} [payload.maxTokens] - Max tokens
-   * @param {number} [payload.temperature] - Temperature
-   * @param {string} [payload.username="lupos"] - Username for tracking
-   * @param {string} [payload.traceId] - Trace ID for request grouping
+
+
    * @returns {Promise<{ text: string, model: string, provider: string }>}
    */
   static async generateText({
@@ -124,17 +117,12 @@ export default class PrismService {
    * AgentPersonaRegistry — Lupos only sends structured runtime context
    * (Discord info, participants, trending data, etc.) via agentContext.
    *
-   * @param {object} payload
+
    * @param {Array}  payload.messages      - Conversation messages [{ role, name?, content, images? }]
    * @param {string} payload.type          - Provider type: "OPENAI" | "ANTHROPIC" | "LOCAL" | "GOOGLE"
    * @param {string} payload.model         - Model name
-   * @param {object} [payload.agentContext] - Runtime context for Prism's assembler (Discord info, trends, etc.)
-   * @param {number} [payload.maxTokens]   - Max output tokens
-   * @param {number} [payload.temperature] - Temperature
-   * @param {boolean} [payload.thinkingEnabled] - Enable extended thinking (chain-of-thought)
-   * @param {number} [payload.thinkingBudget] - Max thinking tokens budget
-   * @param {string} [payload.username="lupos"] - Username for tracking
-   * @param {string} [payload.traceId]   - Trace ID for request grouping
+
+
    * @returns {Promise<{
    *   text: string|null,
    *   images: Array<{ data: string, mimeType: string, minioRef: string|null }>,
@@ -193,14 +181,13 @@ export default class PrismService {
 
   /**
    * Generate an image via Prism's /chat endpoint.
-   * @param {object} payload
+
    * @param {string} payload.prompt - Image generation prompt
-   * @param {string} [payload.provider="google"] - Provider name
+
    * @param {string} payload.model - Model name
    * @param {Array}  [payload.images=[]] - Array of base64 data URLs or { imageData, mimeType } objects
-   * @param {string} [payload.username="lupos"] - Username for tracking
-   * @param {string} [payload.systemPrompt]
-   * @param {string} [payload.traceId] - Trace ID for request grouping
+
+
    * @returns {Promise<{ imageData: string, mimeType: string, text: string, minioRef: string|null, model: string, provider: string }>}
    */
   static async generateImage({
@@ -253,14 +240,11 @@ export default class PrismService {
 
   /**
    * Caption / describe an image via Prism's /chat endpoint.
-   * @param {object} payload
+
    * @param {string|string[]} payload.images - URL/base64 string or array of them
    * @param {string} payload.prompt - Caption prompt
-   * @param {string} [payload.provider="openai"] - Provider name
-   * @param {string} [payload.model]
-   * @param {string} [payload.username="lupos"]
-   * @param {string} [payload.systemPrompt]
-   * @param {string} [payload.traceId] - Trace ID for request grouping
+
+
    * @returns {Promise<{ text: string }>}
    */
   static async captionImage({
@@ -290,14 +274,11 @@ export default class PrismService {
 
   /**
    * Transcribe audio via Prism's /audio-to-text endpoint.
-   * @param {object} payload
+
    * @param {Buffer|string} payload.audio - Audio file buffer or base64 string
    * @param {string} payload.mimeType - MIME type of the audio
-   * @param {string} [payload.provider="openai"]
-   * @param {string} [payload.model]
-   * @param {string} [payload.language]
-   * @param {string} [payload.username="lupos"]
-   * @param {string} [payload.traceId]
+
+
    * @returns {Promise<{ text: string }>}
    */
   static async transcribeAudio({
@@ -336,12 +317,12 @@ export default class PrismService {
 
   /**
    * Extract and store memories from a conversation chunk.
-   * @param {object} payload
+
    * @param {string} payload.guildId
    * @param {string} payload.channelId
    * @param {Array}  payload.messages - Recent conversation messages
    * @param {Array}  payload.participants - Array of { id, username, displayName }
-   * @param {string} [payload.sourceMessageId]
+
    * @returns {Promise<{ memories: Array, count: number }>}
    */
   static async extractMemories({
@@ -361,11 +342,11 @@ export default class PrismService {
 
   /**
    * Search for relevant memories using vector similarity.
-   * @param {object} payload
+
    * @param {string} payload.guildId
-   * @param {string[]} [payload.userIds]
+
    * @param {string} payload.queryText
-   * @param {number} [payload.limit=10]
+
    * @returns {Promise<{ memories: Array, count: number }>}
    */
   static async searchMemories({ guildId, userIds, queryText, limit = 10, traceId }: any) {
@@ -382,10 +363,10 @@ export default class PrismService {
 
   /**
    * Generate an embedding vector for text via Prism's /embed endpoint.
-   * @param {object} payload
+
    * @param {string} payload.text
-   * @param {string} [payload.provider="openai"]
-   * @param {string} [payload.model]
+
+
    * @returns {Promise<{ embedding: number[], dimensions: number }>}
    */
   static async generateEmbedding({ text, provider = "openai", model, traceId }: any) {

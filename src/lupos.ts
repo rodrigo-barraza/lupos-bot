@@ -1,4 +1,3 @@
-// @ts-nocheck
 "use strict";
 
 // Environment setup
@@ -62,7 +61,6 @@ async function main() {
     } else {
       DiscordService.initializeBotLupos();
     }
-
 
 
     // API SERVER

@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { SlashCommandBuilder, EmbedBuilder } from "discord.js";
 import { getMongoDb, formatTimePeriod, getMedal } from "./commandUtils.js";
 

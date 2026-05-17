@@ -1,4 +1,3 @@
-// @ts-nocheck
 import DiscordUtilityService from "#root/services/DiscordUtilityService.js";
 import config from "#root/config.js";
 

@@ -1,4 +1,3 @@
-// @ts-nocheck
 // ============================================================
 // BoundedMap — Time + Size Bounded Map for Memory Safety
 // ============================================================
@@ -8,10 +7,6 @@
 // Drop-in replacement for plain objects `{}` used as maps.
 // ============================================================
 
-/**
- * @param {number} maxSize  - Maximum number of entries before LRU eviction.
- * @param {number} ttlMs   - Time-to-live per entry in milliseconds.
- */
 class BoundedMap {
   constructor(maxSize = 5000, ttlMs = 2 * 60 * 60 * 1000) {
     this._map = new Map();       // key → { value, timestamp }

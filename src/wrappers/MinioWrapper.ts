@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { Client } from "minio";
 
 let client = null;
@@ -8,10 +7,8 @@ let endpointUrl = null;
 const MinioWrapper = {
   /**
    * Initialize the MinIO client and ensure the bucket exists.
-   * @param {string} endpoint - e.g. "http://<host>:9000"
-   * @param {string} accessKey
-   * @param {string} secretKey
-   * @param {string} bucket
+
+
    */
   async init(endpoint: any, accessKey: any, secretKey: any, bucket: any) {
     try {
@@ -65,7 +62,7 @@ const MinioWrapper = {
   /**
    * Get the base URL for direct public access to objects in the bucket.
    * e.g. "http://<host>:9000/lupos"
-   * @returns {string|null}
+
    */
   getBucketUrl() {
     if (!endpointUrl || !bucketName) return null;
@@ -74,8 +71,8 @@ const MinioWrapper = {
 
   /**
    * Build a direct public URL for an object key.
-   * @param {string} key - Object key within the bucket
-   * @returns {string|null}
+
+
    */
   getPublicUrl(key: any) {
     const base = this.getBucketUrl();
@@ -85,10 +82,8 @@ const MinioWrapper = {
 
   /**
    * Upload a file buffer to MinIO.
-   * @param {string} key - Object key (path in the bucket)
-   * @param {Buffer} buffer - File data
-   * @param {string} contentType - MIME type
-   * @returns {Promise<void>}
+
+
    */
   async upload(key: any, buffer: any, contentType: any) {
     await client.putObject(bucketName, key, buffer, buffer.length, {
@@ -98,8 +93,8 @@ const MinioWrapper = {
 
   /**
    * Check if an object exists by key.
-   * @param {string} key
-   * @returns {Promise<boolean>}
+
+
    */
   async exists(key: any) {
     try {
@@ -112,8 +107,8 @@ const MinioWrapper = {
 
   /**
    * Get object metadata (stat).
-   * @param {string} key
-   * @returns {Promise<import('minio').BucketItemStat>}
+
+
    */
   async stat(key: any) {
     return client.statObject(bucketName, key);
@@ -121,8 +116,8 @@ const MinioWrapper = {
 
   /**
    * Get a readable stream for an object.
-   * @param {string} key
-   * @returns {Promise<import('stream').Readable>}
+
+
    */
   async get(key: any) {
     return client.getObject(bucketName, key);
@@ -130,8 +125,8 @@ const MinioWrapper = {
 
   /**
    * Remove an object from the bucket.
-   * @param {string} key
-   * @returns {Promise<void>}
+
+
    */
   async remove(key: any) {
     await client.removeObject(bucketName, key);
