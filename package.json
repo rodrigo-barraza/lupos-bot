@@ -3,9 +3,9 @@
   "version": "1.0.0",
   "description": "",
   "type": "module",
-  "main": "src/lupos.ts",
+  "main": "dist/boot.js",
   "imports": {
-    "#root/*": "./src/*"
+    "#root/*": "./dist/*"
   },
   "scripts": {
     "dev": "tsx src/boot.ts mode=messages",
@@ -21,7 +21,7 @@
     "deploy:dry": "bash deploy.sh --dry-run",
     "typecheck": "tsc --noEmit",
     "build": "tsc",
-    "start": "node dist/src/boot.js"
+    "start": "node dist/boot.js"
   },
   "keywords": [],
   "author": "",

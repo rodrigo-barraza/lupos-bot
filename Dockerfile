@@ -58,9 +58,8 @@ WORKDIR /app
 # Copy production-only node_modules (no devDeps)
 COPY --from=prod-deps /app/node_modules ./node_modules
 
-# Copy compiled JS into src/ so #root/* subpath imports resolve correctly
-# (package.json has "imports": {"#root/*": "./src/*"})
-COPY --from=build /app/dist/src ./src
+# Copy compiled JS output
+COPY --from=build /app/dist ./dist
 
 # Copy package.json (needed for "imports" and "type": "module")
 COPY package.json ./
@@ -81,4 +80,4 @@ EXPOSE 1337
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
   CMD wget --no-verbose --tries=1 -O /dev/null http://127.0.0.1:1337/health || exit 1
 
-CMD ["node", "src/boot.js"]
+CMD ["node", "dist/boot.js"]
