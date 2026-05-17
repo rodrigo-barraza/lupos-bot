@@ -32,7 +32,7 @@ async function assignActivityRoles({
   // Filter messages from the last time period
   const periodMinutesAgo = Date.now() - periodMinutes * 60 * 1000;
   const messages = allMessages.filter(
-    (msg: any) => msg.createdTimestamp > periodMinutesAgo,
+    (message: any) => message.createdTimestamp > periodMinutesAgo,
   );
 
   // Exit early if no messages in the last time period
@@ -54,7 +54,7 @@ async function assignActivityRoles({
     const userName = utilities.getCombinedNamesFromUserOrMember({
       user: currentMessage.author,
     });
-    let authorObj = accumulator.find((obj: any) => obj.userId === userId);
+    let authorObj = accumulator.find((object: any) => object.userId === userId);
     if (!authorObj) {
       authorObj = {
         userId: userId,
@@ -101,7 +101,7 @@ async function assignActivityRoles({
           const userName = utilities.getCombinedNamesFromUserOrMember({
             user: user,
           });
-          let userStats = accumulator.find((obj: any) => obj.userId === userId);
+          let userStats = accumulator.find((object: any) => object.userId === userId);
           if (!userStats) {
             userStats = {
               userId: userId,

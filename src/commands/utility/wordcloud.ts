@@ -141,11 +141,11 @@ export default {
 function processWords(messages: any, limit: any) {
   const freqMap = {};
 
-  for (const msg of messages) {
-    if (!msg.content) continue;
+  for (const message of messages) {
+    if (!message.content) continue;
 
     // Remove URLs, mentions, emojis, and special characters
-    const cleanContent = msg.content
+    const cleanContent = message.content
       .replace(/https?:\/\/\S+/g, "") // Remove URLs
       .replace(/<@!?\d+>/g, "") // Remove user mentions
       .replace(/<#\d+>/g, "") // Remove channel mentions

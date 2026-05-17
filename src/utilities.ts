@@ -316,9 +316,9 @@ const utilities = {
           (item2: any) =>
             Object.keys(item1).length === Object.keys(item2).length &&
             Object.entries(item1).every(
-              ([key, val]: any) =>
+              ([key, value]: any) =>
                 Object.prototype.hasOwnProperty.call(item2, key) &&
-                item2[key] === val,
+                item2[key] === value,
             ),
         ),
       ) &&
@@ -327,9 +327,9 @@ const utilities = {
           (item2: any) =>
             Object.keys(item1).length === Object.keys(item2).length &&
             Object.entries(item1).every(
-              ([key, val]: any) =>
+              ([key, value]: any) =>
                 Object.prototype.hasOwnProperty.call(item2, key) &&
-                item2[key] === val,
+                item2[key] === value,
             ),
         ),
       )
@@ -522,9 +522,9 @@ const utilities = {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
     try {
-      const res = await fetch(url, { signal: controller.signal });
-      if (!res.ok) return null;
-      return await res.json();
+      const response = await fetch(url, { signal: controller.signal });
+      if (!response.ok) return null;
+      return await response.json();
     } catch {
       return null;
     } finally {

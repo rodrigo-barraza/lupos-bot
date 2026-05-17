@@ -2213,8 +2213,8 @@ export async function executeDeathrollLeaderboard(interaction: any) {
 
     if (bottomRanked.length > 0) {
       const bottomLines = bottomRanked.map((p: any) => {
-        const idx = rankedPlayers.indexOf(p);
-        return formatRankedLine(p, idx);
+        const index = rankedPlayers.indexOf(p);
+        return formatRankedLine(p, index);
       });
       finalDescription += `\n\n**💀 Bottom 10**\n` + bottomLines.join("\n");
     }

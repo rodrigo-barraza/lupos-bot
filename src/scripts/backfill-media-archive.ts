@@ -38,12 +38,12 @@ const args = process.argv.slice(2);
 const DRY_RUN = args.includes("--dry-run");
 const SKIP_EXPIRED = args.includes("--skip-expired");
 const LIMIT = (() => {
-  const idx = args.indexOf("--limit");
-  return idx !== -1 ? parseInt(args[idx + 1], 10) : 0;
+  const index = args.indexOf("--limit");
+  return index !== -1 ? parseInt(args[index + 1], 10) : 0;
 })();
 const CHANNEL_ID = (() => {
-  const idx = args.indexOf("--channel-id");
-  return idx !== -1 ? args[idx + 1] : null;
+  const index = args.indexOf("--channel-id");
+  return index !== -1 ? args[index + 1] : null;
 })();
 
 // ─── Constants ──────────────────────────────────────────────────
@@ -203,27 +203,27 @@ async function archiveUrl(url: any, mediaHashesCol: any) {
 }
 
 // ─── Collect archivable URLs from a stored message doc ──────────
-function collectUrlsFromDoc(doc: any) {
+function collectUrlsFromDoc(document: any) {
   const urls = new Set();
 
   // Attachments
-  if (doc.attachments?.length) {
-    for (const att of doc.attachments) {
+  if (document.attachments?.length) {
+    for (const att of document.attachments) {
       if (att.url) urls.add(att.url);
       if (att.proxyURL) urls.add(att.proxyURL);
     }
   }
 
   // Stickers
-  if (doc.stickers?.length) {
-    for (const sticker of doc.stickers) {
+  if (document.stickers?.length) {
+    for (const sticker of document.stickers) {
       if (sticker.url) urls.add(sticker.url);
     }
   }
 
   // Embeds
-  if (doc.embeds?.length) {
-    for (const embed of doc.embeds) {
+  if (document.embeds?.length) {
+    for (const embed of document.embeds) {
       if (embed.image?.url) urls.add(embed.image.url);
       if (embed.image?.proxyURL) urls.add(embed.image.proxyURL);
       if (embed.thumbnail?.url) urls.add(embed.thumbnail.url);
@@ -310,8 +310,8 @@ async function main() {
   let batch = [];
   let batchNumber = 0;
 
-  for await (const doc of cursor) {
-    batch.push(doc);
+  for await (const document of cursor) {
+    batch.push(document);
 
     if (batch.length >= BATCH_SIZE) {
       batchNumber++;
@@ -349,8 +349,8 @@ async function processBatch(batch: any, batchNumber: any, messagesCol: any, medi
   const batchStart = Date.now();
   console.log(`  [Batch ${batchNumber}] Processing ${batch.length} messages...`);
 
-  for (const doc of batch) {
-    const urls = collectUrlsFromDoc(doc);
+  for (const document of batch) {
+    const urls = collectUrlsFromDoc(document);
     if (urls.length === 0) {
       stats.messagesSkipped++;
       continue;
@@ -388,7 +388,7 @@ async function processBatch(batch: any, batchNumber: any, messagesCol: any, medi
     // Update the message document
     if (Object.keys(mediaArchive).length > 0 && !DRY_RUN) {
       await messagesCol.updateOne(
-        { _id: doc._id },
+        { _id: document._id },
         { $set: { mediaArchive } },
       );
     }
