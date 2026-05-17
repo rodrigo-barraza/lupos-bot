@@ -84,7 +84,7 @@ describe("services.js (Express Routes)", () => {
 
     await routeHandler(mockReq, mockRes);
 
-    expect(AIService.transcribeSpeech).toHaveBeenCalledWith("http://audio.mp3");
+    expect(AIService.transcribeSpeech).toHaveBeenCalledWith("http://audio.mp3", null, null);
     expect(mockRes.json).toHaveBeenCalledWith({
       success: true,
       transcription: "Mocked transcription",
