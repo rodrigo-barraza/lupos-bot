@@ -77,19 +77,19 @@ export function getMedal(index: any) {
   }
 }
 
-// ─── Puppeteer ────────────────────────────────────────────────────────
+// ─── Playwright ───────────────────────────────────────────────────────
 
 /**
- * Returns platform-aware Puppeteer launch options.
- * Windows uses the bundled Chromium; Linux uses the system chromium-browser.
+ * Returns platform-aware Playwright launch options.
+ * Windows uses the bundled Chromium; Linux uses the system chromium.
  */
-export function getPuppeteerOptions() {
+export function getPlaywrightOptions() {
   if (process.platform === "win32") {
     return { headless: true };
   }
   return {
     headless: true,
-    executablePath: "/usr/bin/chromium-browser",
+    executablePath: "/usr/bin/chromium",
     args: ["--no-sandbox"],
   };
 }

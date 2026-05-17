@@ -1,12 +1,12 @@
 // @ts-nocheck
 import { SlashCommandBuilder, AttachmentBuilder } from "discord.js";
-import puppeteer from "puppeteer";
+import { chromium } from "playwright";
 import {
   getMongoDb,
   getServerAgeYears,
   computeStartDate,
   formatTimePeriod,
-  getPuppeteerOptions,
+  getPlaywrightOptions,
 } from "./commandUtils.js";
 
 // Common stop words to filter out
@@ -176,18 +176,17 @@ function processWords(messages: any, limit: any) {
     .slice(0, limit);
 }
 
-// Generate word cloud image using Puppeteer
+// Generate word cloud image using Playwright
 async function generateWordCloudImage(words: any) {
-  const browser = await puppeteer.launch(getPuppeteerOptions());
+  const browser = await chromium.launch(getPlaywrightOptions());
 
   try {
-    const page = await browser.newPage();
-    await page.setViewport({ width: 1200, height: 800 });
+    const page = await browser.newPage({ viewport: { width: 1200, height: 800 } });
 
     // Create HTML content with word cloud
     const html = generateWordCloudHTML(words);
 
-    await page.setContent(html, { waitUntil: "networkidle0" });
+    await page.setContent(html, { waitUntil: "networkidle" });
 
     // Wait for layout to settle
     await new Promise((resolve: any) => setTimeout(resolve, 500));

@@ -4,12 +4,12 @@ import {
   AttachmentBuilder,
   EmbedBuilder,
 } from "discord.js";
-import puppeteer from "puppeteer";
+import { chromium } from "playwright";
 import {
   getMongoDb,
   getServerAgeYears,
   computeStartDate,
-  getPuppeteerOptions,
+  getPlaywrightOptions,
 } from "./commandUtils.js";
 
 export default {
@@ -337,21 +337,22 @@ export default {
   },
 };
 
-// Generate heatmap image using Puppeteer and D3
+// Generate heatmap image using Playwright and D3
 async function generateHeatmapImage(
   hourlyData: any,
   maxHourlyCount: any,
   monthlyData: any,
   maxMonthlyCount: any,
 ) {
-  const browser = await puppeteer.launch(getPuppeteerOptions());
+  const browser = await chromium.launch(getPlaywrightOptions());
 
   try {
-    const page = await browser.newPage();
     const estimatedHeight = 800 + monthlyData.length * 40;
-    await page.setViewport({
-      width: 1600,
-      height: Math.max(1100, estimatedHeight),
+    const page = await browser.newPage({
+      viewport: {
+        width: 1600,
+        height: Math.max(1100, estimatedHeight),
+      },
     });
 
     // Create HTML content with both heatmaps
@@ -362,7 +363,7 @@ async function generateHeatmapImage(
       maxMonthlyCount,
     );
 
-    await page.setContent(html, { waitUntil: "networkidle0" });
+    await page.setContent(html, { waitUntil: "networkidle" });
 
     // Wait for rendering
     await new Promise((resolve: any) => setTimeout(resolve, 500));
