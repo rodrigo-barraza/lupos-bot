@@ -2,7 +2,7 @@
 
 AI-powered Discord bot for a gaming community server. Generates context-aware responses and images via the Prism AI gateway, features simulated personality traits (mood, hunger, energy) that influence chat behavior, handles community management (roles, moderation, account guard), plays media in voice channels, and archives all Discord media to MinIO.
 
-**Port:** `1337` · **Runtime:** Node.js (ES Modules) · **Framework:** Express 5 · **DB:** MongoDB · **Storage:** MinIO (S3-compat) · **Process Manager:** PM2
+**Port:** `1337` · **Runtime:** Node.js (TypeScript) · **Framework:** Express 5 · **DB:** MongoDB · **Storage:** MinIO (S3-compat) · **Process Manager:** PM2
 
 ## Features
 
@@ -120,10 +120,10 @@ npm install
 ### 2. Configure secrets
 
 ```bash
-cp secrets.example.js secrets.js
+cp secrets.example.ts secrets.ts
 ```
 
-Edit `secrets.js` with your Discord bot token, MongoDB URI, MinIO credentials, and Prism/Tools API URLs.
+Edit `secrets.ts` with your Discord bot token, MongoDB URI, MinIO credentials, and Prism/Tools API URLs.
 
 ### 3. Start the bot
 
@@ -139,7 +139,7 @@ npm run clone:messages         # Clone/backfill message history
 npm run rescrape:channels      # Re-scrape channel data
 ```
 
-Additional modes available via `node boot.js mode=<mode>`:
+Additional modes available via `node dist/boot.js mode=<mode>`:
 - `delete:duplicates` — Remove duplicate messages
 - `delete:newAccounts` — Remove flagged new accounts
 - `purge:youngAccounts` — Purge accounts under age threshold
