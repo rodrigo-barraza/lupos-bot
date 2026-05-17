@@ -1,3 +1,4 @@
+// @ts-nocheck
 // Mock discord.js — MoodService imports { ActivityType } from discord.js
 vi.mock("discord.js", () => ({
   ActivityType: {

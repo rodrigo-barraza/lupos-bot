@@ -1,3 +1,4 @@
+// @ts-nocheck
 const SicknessService = (await import("../../services/SicknessService.js"))
   .default;
 

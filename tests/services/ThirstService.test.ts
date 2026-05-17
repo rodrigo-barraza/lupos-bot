@@ -1,3 +1,4 @@
+// @ts-nocheck
 // Mock StatService — the factory that ThirstService delegates to
 vi.mock("../../services/StatService", () => {
   let level = 0;

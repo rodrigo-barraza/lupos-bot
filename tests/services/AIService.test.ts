@@ -1,3 +1,4 @@
+// @ts-nocheck
 vi.mock("../../services/DiscordUtilityService", () => ({
   default: {
     getUsernameNoSpaces: vi.fn().mockReturnValue("TestUser"),

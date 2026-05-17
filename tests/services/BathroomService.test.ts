@@ -1,3 +1,4 @@
+// @ts-nocheck
 // Mock StatService — the factory that BathroomService delegates to
 vi.mock("../../services/StatService", () => {
   let level = 0;

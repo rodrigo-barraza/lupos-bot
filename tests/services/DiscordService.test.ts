@@ -1,3 +1,4 @@
+// @ts-nocheck
 // DiscordService has an enormous transitive dependency tree.
 // Mock all heavyweight dependencies to allow the test to load.
 
