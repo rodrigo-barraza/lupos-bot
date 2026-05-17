@@ -9,3 +9,6 @@
 
 # logs
 *.log
+
+# TypeScript build artifacts
+*.tsbuildinfo
