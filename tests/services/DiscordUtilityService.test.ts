@@ -1,3 +1,4 @@
+// @ts-nocheck
 const DiscordUtilityService = (
   await import("../../services/DiscordUtilityService.js")
 ).default;

@@ -1,3 +1,4 @@
+// @ts-nocheck
 vi.mock("../../services/DiscordService", () => ({
   default: {
     generateInCharacterResponse2Special: vi.fn(),

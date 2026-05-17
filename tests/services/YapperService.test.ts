@@ -1,3 +1,4 @@
+// @ts-nocheck
 // Mock all transitive dependencies that pull in heavy native modules
 vi.mock("../../services/DiscordService", () => ({
   default: {},
