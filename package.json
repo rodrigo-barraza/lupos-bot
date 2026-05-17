@@ -15,10 +15,13 @@
     "test:watch": "vitest",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
-    "format": "prettier --write \"**/*.js\"",
-    "format:check": "prettier --check \"**/*.js\"",
+    "format": "prettier --write \"**/*.ts\"",
+    "format:check": "prettier --check \"**/*.ts\"",
     "deploy": "bash deploy.sh",
-    "deploy:dry": "bash deploy.sh --dry-run"
+    "deploy:dry": "bash deploy.sh --dry-run",
+    "typecheck": "tsc --noEmit",
+    "build": "tsc",
+    "start": "node dist/src/boot.js"
   },
   "keywords": [],
   "author": "",
