@@ -20,6 +20,5 @@ ecosystem.config.cjs
 patch_clocks*.py
 eslint.config.js
 vitest.config.js
-tsconfig.json
 *.log
 chunks.json
