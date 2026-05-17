@@ -156,7 +156,7 @@ async function ensureMentionPopulated(userId: any, {
 function resolveAvatarUrl(source: any) {
   return source?.displayAvatarURL?.({ format: "png", size: 512 }) || null;
 }
-const typingIntervals = {};
+const typingIntervals: Record<string, any> = {};
 
 
 function updateLastMessageSentTime() {
@@ -639,7 +639,7 @@ async function buildAndGenerateReply({
         systemPrompt += `\n- The following voice channels have members in them:`;
         for (const channel of voiceChannelMembers.values()) {
           systemPrompt += `\n  - ${channel.name} (${channel.members.size} members)`;
-          for (const member of channel.members.values()) {
+          for (const member of (channel.members as any).values()) {
             systemPrompt += `\n    - ${utilities.getCombinedNamesFromUserOrMember({ member })}`;
           }
         }
@@ -1036,7 +1036,7 @@ Respond with ONLY "yes" or "no". Nothing else.`,
       if (filteredMemberMentions.size > 0) {
         systemPrompt += `\n\n# Mentioned members in this server (${filteredMemberMentions.size})`;
         let currentUserCount = 0;
-        for (const member of filteredMemberMentions.values()) {
+        for (const member of (filteredMemberMentions as any).values()) {
           currentUserCount++;
           participantMember = participantsMembersCollection.get(member.id);
           // Member may not have sent messages — not in cache, so fetch from guild
@@ -1461,7 +1461,7 @@ Respond with ONLY "yes" or "no". Nothing else.`,
       "SMALL",
     );
     if (emojisInMessage && emojisInMessage.size > 0) {
-      for (const [emoji, emojiObject] of emojisInMessage.entries()) {
+      for (const [emoji, emojiObject] of (emojisInMessage as any).entries()) {
         if (emojiObject && emojiObject.url) {
           const emojiData = await splitEmojiNameAndId(emoji);
           const emojiName = emojiData ? emojiData.name : (emojiObject.name || emoji);
@@ -1481,7 +1481,7 @@ Respond with ONLY "yes" or "no". Nothing else.`,
     //   - Server-specific context (customContextWhitemane matches)
     //   - Image captions
     //   - Clock Crew data (if applicable)
-    const agentContext = {
+    const agentContext: Record<string, any> = {
       guildId: message.guildId || null,
       channelId: message.channelId || null,
       aprilFoolsMode: APRIL_FOOLS_MODE,
@@ -1613,7 +1613,7 @@ Respond with ONLY "yes" or "no". Nothing else.`,
 
   } catch (error: any) {
     ((generatedText = "..."),
-      console.error(...LogFormatter.error(error)));
+      console.error(...LogFormatter.error("buildAndGenerateReply", error)));
   }
   return {
     generatedText,
@@ -1708,7 +1708,7 @@ async function replyMessage(queuedDatum: any, localMongo: any) {
     memberMentionsCollection,
     messagesEmojisCollection,
     messagesImagesCollection,
-    _messagesTranscriptionsCollection,
+    messagesTranscriptionsCollection: _messagesTranscriptionsCollection,
     participantsAvatarsCollection,
     participantsBannersCollection,
     participantsCollection,
@@ -1789,6 +1789,7 @@ ${combinedGuildInformation && combinedChannelInformation ? `URL: ${utilities.get
       message,
       generatedTextResponse,
       generatedImage,
+      null,
     );
     repliedMessagesCollection.set(message.id, messageSent.id);
     // LightsService.cycleColor(config.PRIMARY_LIGHT_ID, DEFAULT_LIGHT_CYCLE);
@@ -1811,7 +1812,7 @@ ${combinedGuildInformation && combinedChannelInformation ? `URL: ${utilities.get
     const memoryParticipants = [];
     // Collect participant info for extraction
     if (participantsCollection?.size) {
-      for (const participant of participantsCollection.values()) {
+      for (const participant of (participantsCollection as any).values()) {
         if (participant?.user) {
           memoryParticipants.push({
             id: participant.user.id,
@@ -1824,7 +1825,7 @@ ${combinedGuildInformation && combinedChannelInformation ? `URL: ${utilities.get
     }
     // Include mentioned users
     if (memberMentionsCollection?.size) {
-      for (const member of memberMentionsCollection.values()) {
+      for (const member of (memberMentionsCollection as any).values()) {
         const alreadyAdded = memoryParticipants.some((p: any) => p.id === member.id);
         if (!alreadyAdded) {
           memoryParticipants.push({
@@ -2159,7 +2160,7 @@ async function extractContentFromMessages(
       const userMessageXofY = sequenceInfo.xOfY;
       const sequentialUserMessages = sequenceInfo.total;
 
-      const messageData = {
+      const messageData: Record<string, any> = {
         index,
         recentMessage,
         member,
@@ -2176,7 +2177,7 @@ async function extractContentFromMessages(
         messageProcessingData.push(messageData);
       } else {
         // Collect user data
-        const userExists = participantsCollection.get(user.id);
+        const userExists: any = participantsCollection.get(user.id);
         if (!userExists) {
           participantsCollection.set(user.id, { user, member });
 
@@ -2380,7 +2381,7 @@ async function extractContentFromMessages(
     }
 
     // Process replies
-    const repliesMap = {};
+    const repliesMap: Record<string, any> = {};
     for (const item of allPromises.replies) {
       const result = results[resultIndex++];
       if (result.status === "fulfilled" && result.value) {
@@ -2592,7 +2593,7 @@ async function extractContentFromMessages(
           modifiedContent += `\nReaction list: ${utilities.formatReactions(recentMessage.reactions.cache, "inline")}`;
         }
 
-        const msgEntry = {
+        const msgEntry: Record<string, any> = {
           role: "user",
           name: DiscordUtilityService.getUsernameNoSpaces(recentMessage),
           content: modifiedContent,
@@ -2644,7 +2645,7 @@ async function generateRolesEmbedMessage(client: any) {
    * @param {{ sort?: boolean }} [options]
    * @returns {{ embed: EmbedBuilder, rows: ActionRowBuilder[] }}
    */
-  function buildRolePickerSection(title: any, description: any, sourceArray: any, options = {}) {
+  function buildRolePickerSection(title: any, description: any, sourceArray: any, options: Record<string, any> = {}) {
     const maxButtonsPerRow = 5;
     const embed = new EmbedBuilder()
       .setTitle(title)
@@ -2825,7 +2826,7 @@ async function luposOnReady(client: any, { mongo }: any) {
 }
 
 async function luposOnReadyReports(client: any, mongo: any) {
-  utilities.consoleLog("<");
+  utilities.consoleLog("<", "luposOnReadyReports");
   utilities.consoleLog(
     "=",
     `Logged in as ${DiscordUtilityService.getBotName(client)}`,
@@ -2836,8 +2837,8 @@ async function luposOnReadyReports(client: any, mongo: any) {
   } catch (error: any) {
     utilities.consoleLog("=", `Error connecting to MongoDB \n${error}`);
   }
-  DiscordUtilityService.displayAllChannelActivity(client, mongo);
-  utilities.consoleLog(">");
+  DiscordUtilityService.displayAllChannelActivity(client);
+  utilities.consoleLog(">", "luposOnReadyReports");
 }
 
 async function luposOnReadyCloneMessages(client: any, { localMongo }: any) {
@@ -3407,7 +3408,7 @@ async function luposOnInteractionCreate(client: any, mongo: any, interaction: an
       const role = interaction.guild.roles.cache.get(roleId);
       const member = interaction.member;
       if (!role) {
-        console.error(...LogFormatter.roleNotFound(interaction, roleId));
+        console.error(...LogFormatter.roleNotFound(functionName, interaction, roleId));
         return;
       }
       if (member.roles.cache.has(roleId)) {
@@ -3428,7 +3429,7 @@ async function luposOnInteractionCreate(client: any, mongo: any, interaction: an
         // wait 5 seconds before deleting the reply
         await new Promise((resolve: any) => setTimeout(resolve, 5000));
         await interaction.deleteReply();
-        await generateRolesEmbedMessage(client, interaction);
+        await generateRolesEmbedMessage(client);
         return;
       } else {
         console.log(
@@ -3459,7 +3460,7 @@ async function luposOnInteractionCreate(client: any, mongo: any, interaction: an
         // wait 5 seconds before deleting the reply
         await new Promise((resolve: any) => setTimeout(resolve, 5000));
         await interaction.deleteReply();
-        await generateRolesEmbedMessage(client, interaction);
+        await generateRolesEmbedMessage(client);
         return;
       }
     }
@@ -3484,7 +3485,7 @@ async function luposOnInteractionCreate(client: any, mongo: any, interaction: an
       const command = client.commands.get(interaction.commandName);
 
       if (!command) {
-        console.error(...LogFormatter.commandNotFound(interaction));
+        console.error(...LogFormatter.commandNotFound(functionName, interaction));
         return;
       }
 
@@ -3671,17 +3672,17 @@ const DiscordService = {
     DiscordUtilityService.onEventClientReady(
       venderClient,
       { mongo },
-      venderOnReady, // eslint-disable-line no-undef
+      undefined as any, // venderOnReady placeholder
     );
     DiscordUtilityService.onEventMessageCreate(
       venderClient,
       { mongo },
-      venderOnMessageCreate, // eslint-disable-line no-undef
+      undefined as any, // venderOnMessageCreate placeholder
     );
     DiscordUtilityService.onEventInteractionCreate(
       venderClient,
       mongo,
-      venderOnInteractionCreate, // eslint-disable-line no-undef
+      undefined as any, // venderOnInteractionCreate placeholder
     );
   },
   // LUPOS
@@ -3743,7 +3744,7 @@ const DiscordService = {
     updateLastMessageSentTime();
 
     // Create a collection to store your commands
-    luposClient.commands = new Collection();
+    (luposClient as any).commands = new Collection();
 
     // Load all commands from the commands directory
     const foldersPath = path.join(import.meta.dirname, "..", "commands");
@@ -3765,7 +3766,7 @@ const DiscordService = {
         }
 
         if ("data" in command && "execute" in command) {
-          luposClient.commands.set(command.data.name, command);
+          (luposClient as any).commands.set(command.data.name, command);
           console.log(...LogFormatter.commandLoaded(command.data.name));
         } else {
           console.error(...LogFormatter.commandFailedToLoad(command.data.name));

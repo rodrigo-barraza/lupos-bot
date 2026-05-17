@@ -96,8 +96,10 @@ const DiscordWrapper = {
         Partials.User,
         Partials.GuildMember,
       ],
-      retryLimit: 3,
-      restRequestTimeout: 60000,
+      rest: {
+        retries: 3,
+        timeout: 60000,
+      },
     });
 
     // Fire-and-forget but won't crash the process on failure

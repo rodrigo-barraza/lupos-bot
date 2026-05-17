@@ -17,7 +17,7 @@ for (const folder of commandFolders) {
 
   for (const file of commandFiles) {
     const filePath = path.join(commandsPath, file);
-    const command = (await import(pathToFileURL(filePath))).default;
+    const command = (await import(pathToFileURL(filePath).href)).default;
     if (!command) {
       console.log(`[WARNING] Skipping ${file} — no default export found.`);
       continue;
@@ -53,7 +53,7 @@ const client = new Client({ intents: [GatewayIntentBits.Guilds] });
           { body: commands },
         );
         console.log(
-          `Successfully deployed ${data.length} commands to ${guild.name}`,
+          `Successfully deployed ${(data as any[]).length} commands to ${guild.name}`,
         );
         successCount++;
       } catch (error: any) {

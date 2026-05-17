@@ -77,7 +77,7 @@ export default {
       (now.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24),
     );
 
-    const match = {
+    const match: Record<string, any> = {
       createdTimestamp: { $gte: unixStartDate },
       guildId: interaction.guildId,
       "author.id": user.id,

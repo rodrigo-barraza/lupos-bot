@@ -13,7 +13,7 @@ export default class LightsService {
    */
   static async _request(method: any, path: any, body = null) {
     try {
-      const options = { method };
+      const options: Record<string, any> = { method };
       if (body) {
         options.headers = { "Content-Type": "application/json" };
         options.body = JSON.stringify(body);

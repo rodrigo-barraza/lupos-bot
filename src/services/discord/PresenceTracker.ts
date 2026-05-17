@@ -191,7 +191,7 @@ async function handlePresenceUpdate(client: any, oldPresence: any, newPresence: 
       }
     }
   } catch (error: any) {
-    console.error(...LogFormatter.error(error));
+    console.error(...LogFormatter.error(functionName, error));
   }
 }
 

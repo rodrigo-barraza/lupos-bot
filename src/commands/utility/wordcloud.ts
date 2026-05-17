@@ -138,7 +138,7 @@ export default {
 
 // Process messages to extract word frequencies
 function processWords(messages: any, limit: any) {
-  const freqMap = {};
+  const freqMap: Record<string, any> = {};
 
   for (const message of messages) {
     if (!message.content) continue;

@@ -87,7 +87,7 @@ async function main() {
       });
     });
     app.use("/", services());
-    app.listen(config.SERVER_PORT, "0.0.0.0", () => {
+    app.listen(Number(config.SERVER_PORT), "0.0.0.0", () => {
       console.log(`Server listening on 0.0.0.0:${config.SERVER_PORT}`);
     });
 

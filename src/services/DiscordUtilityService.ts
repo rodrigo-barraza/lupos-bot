@@ -471,7 +471,7 @@ const transformSticker = (sticker: any) => ({
   user: transformUser(sticker.user, true),
 });
 
-const transformMessageRoot = (message: any) => {
+const transformMessageRoot = (message: any): Record<string, any> => {
   return {
     // MessageActivity | null
     activity: message.activity,
@@ -569,7 +569,7 @@ const DiscordUtilityService = {
   // Fetches and saves all messages from a Discord server to MongoDB.
   // Supports category filtering, date limits, auto-resume via checkpoints,
   // and concurrent channel processing with bulk upserts.
-  async fetchAndSaveAllServerMessages(client: any, mongo: any, guildId: any, options = {}) {
+  async fetchAndSaveAllServerMessages(client: any, mongo: any, guildId: any, options: Record<string, any> = {}) {
     const {
       collectionName = "Messages",
       concurrencyLimit = 10,
@@ -710,7 +710,7 @@ const DiscordUtilityService = {
     // ── Bulk save helper (no pre-check — let bulkWrite + index handle dedup) ──
     const bulkSaveNewMessages = async (messages: any) => {
       if (!messages || messages.length === 0) {
-        return { saved: 0, duplicates: 0, errors: 0 };
+        return { saved: 0, duplicates: 0, errors: 0 } as Record<string, any>;
       }
 
       const documents = [];
@@ -896,7 +896,7 @@ const DiscordUtilityService = {
       while (hasMoreMessages) {
         try {
           // Direct Discord.js fetch — simpler than the general-purpose wrapper
-          const fetchOptions = { limit: batchSize, cache: false };
+          const fetchOptions: Record<string, any> = { limit: batchSize, cache: false };
           if (lastId) fetchOptions.before = lastId;
 
           const messages = await channel.messages.fetch(fetchOptions);
@@ -1116,7 +1116,7 @@ const DiscordUtilityService = {
 
 
    */
-  async purgeDeletedMessagesForUsers(client: any, mongo: any, guildId: any, userIds: any, options = {}) {
+  async purgeDeletedMessagesForUsers(client: any, mongo: any, guildId: any, userIds: any, options: Record<string, any> = {}) {
     const {
       collectionName = "Messages",
       concurrencyLimit = 5,
@@ -1224,7 +1224,7 @@ const DiscordUtilityService = {
 
 
    */
-  async backfillMediaArchive(client: any, mongo: any, options = {}) {
+  async backfillMediaArchive(client: any, mongo: any, options: Record<string, any> = {}) {
     const {
       collectionName = "Messages",
       authorIds = null,
@@ -1244,7 +1244,7 @@ const DiscordUtilityService = {
     const collection = db.collection(collectionName);
 
     // Build query: messages with media but no/empty mediaArchive
-    const archiveConditions = [
+    const archiveConditions: Record<string, any>[] = [
       { mediaArchive: { $exists: false } },
     ];
     // forceRetry: also re-process messages that were previously marked
@@ -1253,7 +1253,7 @@ const DiscordUtilityService = {
       archiveConditions.push({ mediaArchive: { $eq: {} } });
     }
 
-    const query = {
+    const query: Record<string, any> = {
       $and: [
         { $or: archiveConditions },
         {
@@ -1650,7 +1650,7 @@ const DiscordUtilityService = {
   },
   async printOutAllRoles(client: any) {
     // print out all roles in the order that they are in the server
-    consoleLog("<");
+    consoleLog("<", "printOutAllRoles");
     const roles = client.guilds.cache.get(config.GUILD_ID_PRIMARY).roles.cache;
     const orderedRoles = roles
       .sort((a: any, b: any) => a.rawPosition - b.rawPosition)
@@ -1665,7 +1665,7 @@ const DiscordUtilityService = {
     consoleLog(">", "printOutAllRoles");
   },
   async printOutAllEmojis(client: any) {
-    consoleLog("<");
+    consoleLog("<", "printOutAllEmojis");
     const emojis = client.guilds.cache.get(config.GUILD_ID_PRIMARY).emojis
       .cache;
     consoleLog("=", `Printing out all emojis in the server`);
@@ -1810,7 +1810,7 @@ const DiscordUtilityService = {
     }
   },
   // Special functions
-  async fetchMessages(client: any, channelId: any, options = {}) {
+  async fetchMessages(client: any, channelId: any, options: Record<string, any> = {}) {
     const channel = client.channels.cache.find(
       (channel: any) => channel.id == channelId,
     );
@@ -1848,7 +1848,7 @@ const DiscordUtilityService = {
 
     // Initial fetch
     _apiCallCount++;
-    const initialFetchOptions = {
+    const initialFetchOptions: Record<string, any> = {
       limit: Math.min(100, limit),
       cache,
     };
@@ -1875,7 +1875,7 @@ const DiscordUtilityService = {
       const additionalMessagesNeeded = limit - allMessages.size;
       _apiCallCount++;
 
-      const fetchOptions = {
+      const fetchOptions: Record<string, any> = {
         limit: Math.min(100, additionalMessagesNeeded),
         cache,
       };
@@ -1904,7 +1904,7 @@ const DiscordUtilityService = {
       let count = 0;
 
       // Maintain message order based on fetch direction
-      const messageArray = Array.from(allMessages.values());
+      const messageArray: any[] = Array.from(allMessages.values());
       if (isAfterMode) {
         // For 'after' mode, keep the oldest messages first
         messageArray.reverse();
@@ -2078,7 +2078,7 @@ const DiscordUtilityService = {
           description: imageDescription,
         });
       }
-      messageReplyOptions = { ...messageReplyOptions, files: files };
+      messageReplyOptions = { ...messageReplyOptions, files: files } as any;
       if (sendOrReply === "send") {
         const sentMessage = await message.channel.send(messageReplyOptions);
         if (!returnedFirstMessage) {
@@ -2098,7 +2098,7 @@ const DiscordUtilityService = {
     const MONTHS_TO_ANALYZE = 36;
     const CONCURRENT_CHANNELS = 10; // Number of channels to process simultaneously
     const periodText =
-      MONTHS_TO_ANALYZE === 1 ? "1 month" : `${MONTHS_TO_ANALYZE} months`;
+      (MONTHS_TO_ANALYZE as number) === 1 ? "1 month" : `${MONTHS_TO_ANALYZE} months`;
 
     const startTime = Date.now();
     consoleLog(">", `Displaying all channel activity (past ${periodText})`);
@@ -2140,7 +2140,7 @@ const DiscordUtilityService = {
     );
 
     const channelStats = [];
-    const globalUserStats = {};
+    const globalUserStats: Record<string, any> = {};
     const now = DateTime.local();
     const cutoffDate = now.minus({ months: MONTHS_TO_ANALYZE });
     console.log(`[TIME] Current time: ${now.toISO()}`);
@@ -2204,7 +2204,7 @@ const DiscordUtilityService = {
             lastMessageId ? lastMessageId : undefined,
           );
 
-          const messagesArray = Array.from(messages.values());
+          const messagesArray: any[] = Array.from(messages.values());
 
           if (messagesArray.length === 0) {
             console.log(
@@ -2308,8 +2308,8 @@ const DiscordUtilityService = {
           `  ${logPrefix} [PROCESS] Found ${messagesInPeriod.length} messages in the last ${periodText} (out of ${allMessages.length} total fetched)`,
         );
 
-        const userMessageCount = {};
-        const localUserStats = {}; // Collect locally first to avoid race conditions
+        const userMessageCount: Record<string, any> = {};
+        const localUserStats: Record<string, any> = {}; // Collect locally first to avoid race conditions
 
         messagesInPeriod.forEach((message: any) => {
           const userId = message.author.id;
@@ -2450,7 +2450,7 @@ const DiscordUtilityService = {
         channelStats.push(result.channelStat);
 
         // Merge local user stats into global
-        for (const [userId, data] of Object.entries(result.localUserStats)) {
+        for (const [userId, data] of Object.entries(result.localUserStats) as [string, any][]) {
           if (!globalUserStats[userId]) {
             globalUserStats[userId] = {
               username: data.username,
@@ -2539,7 +2539,7 @@ const DiscordUtilityService = {
 
     const endTime = Date.now();
     const totalTimeSeconds = ((endTime - startTime) / 1000).toFixed(2);
-    const totalTimeMinutes = (totalTimeSeconds / 60).toFixed(2);
+    const totalTimeMinutes = (Number(totalTimeSeconds) / 60).toFixed(2);
 
     console.log("\n=== Summary ===");
     console.log(`[SUMMARY] Total messages (${periodText}): ${totalMessages}`);
@@ -2582,7 +2582,7 @@ const DiscordUtilityService = {
     });
 
     console.log("\n[END] Channel activity analysis complete!");
-    consoleLog(">");
+    consoleLog(">", "displayAllChannelActivity");
   },
   async calculateMessagesSentOnAveragePerDayInChannel(client: any, channelId: any) {
     console.log(

@@ -25,7 +25,7 @@ const StatService = {
 
    * @returns {object} A stat instance with getLevel, setLevel, increase, decrease, getName.
    */
-  create(name: any, options = {}) {
+  create(name: any, options: Record<string, any> = {}) {
     const {
       min = 0,
       max = 100,

@@ -60,7 +60,7 @@ export default {
     startDate.setDate(startDate.getDate() - days);
     const unixStartDate = Math.floor(startDate.getTime());
 
-    const match = {
+    const match: Record<string, any> = {
       createdTimestamp: { $gte: unixStartDate },
       guildId: interaction.guildId,
     };
