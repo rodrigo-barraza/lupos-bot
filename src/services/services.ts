@@ -1,5 +1,5 @@
 import express from "express";
-const router = new express.Router();
+const router = express.Router();
 
 import AIService from "#root/services/AIService.js";
 import guildRoutes from "#root/routes/GuildRoutes.js";
@@ -20,7 +20,7 @@ const routes = () => {
 
       const audioUrl = decodeURIComponent(req.params.audioUrl);
 
-      const transcription = await AIService.transcribeSpeech(audioUrl);
+      const transcription = await AIService.transcribeSpeech(audioUrl, null, null);
 
       res.json({
         success: true,

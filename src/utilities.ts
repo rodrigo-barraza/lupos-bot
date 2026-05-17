@@ -164,7 +164,7 @@ const utilities = {
   getMinutesAgo(date: any) {
     return DateTime.fromJSDate(date).toRelative();
   },
-  consoleLog(symbol: any, message: any, styleOptions = {}) {
+  consoleLog(symbol: any, message: any, styleOptions: Record<string, any> = {}) {
     const debugLevel = 3;
     if (!symbol) {
       return;

@@ -24,7 +24,7 @@ async function assignActivityRoles({
     primaryChannelId,
     { limit: 500 },
   );
-  const allMessages = Array.from(msgs.values());
+  const allMessages: any[] = Array.from(msgs.values());
 
   if (!allMessages.length) return;
 
@@ -35,7 +35,7 @@ async function assignActivityRoles({
   );
 
   // Exit early if no messages in the last time period
-  if (messages.size === 0) {
+  if (messages.length === 0) {
     // consoleLog(`No messages found in the last ${periodMinutes} minutes`);
     return;
   }
@@ -147,6 +147,7 @@ async function assignActivityRoles({
       await Promise.all(
         membersWithYapperRole.map(async (member: any) => {
           consoleLog(
+            "=",
             `Removing ${topAuthorRole.name} role from: ${member.user.tag}`,
           );
           return member.roles.remove(topAuthorRole);
@@ -164,6 +165,7 @@ async function assignActivityRoles({
         timestamp: new Date(),
       });
       consoleLog(
+        "=",
         `${topAuthor.userName} has been given the role ${topAuthorRole.name}`,
       );
     }
@@ -174,7 +176,7 @@ async function assignActivityRoles({
 
   try {
     if (!topReactor) {
-      consoleLog("No reactors found");
+      consoleLog("=", "No reactors found");
       return;
     }
     const topReactorMember = await guild.members.fetch(topReactor.userId);
@@ -187,6 +189,7 @@ async function assignActivityRoles({
       await Promise.all(
         membersWithOverReactorRole.map(async (member: any) => {
           consoleLog(
+            "=",
             `Removing ${topReactorRole.name} role from: ${member.user.tag}`,
           );
           return member.roles.remove(topReactorRole);
@@ -204,6 +207,7 @@ async function assignActivityRoles({
         timestamp: new Date(),
       });
       consoleLog(
+        "=",
         `${topReactor.userName} has been given the role ${topReactorRole.name}`,
       );
     }

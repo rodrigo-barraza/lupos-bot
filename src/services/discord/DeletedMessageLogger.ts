@@ -157,7 +157,7 @@ async function handleMessageDelete(client: any, mongo: any, message: any) {
 
   // Handle attachments
   if (message.attachments.size > 0) {
-    const attachmentArray = Array.from(message.attachments.values());
+    const attachmentArray: any[] = Array.from(message.attachments.values());
     const attachmentInfo = [];
 
     attachmentArray.forEach((attachment: any, index: any) => {
@@ -195,7 +195,7 @@ async function handleMessageDelete(client: any, mongo: any, message: any) {
 
   // Handle stickers
   if (message.stickers.size > 0) {
-    const stickerArray = Array.from(message.stickers.values());
+    const stickerArray: any[] = Array.from(message.stickers.values());
     const stickerInfo = stickerArray
       .map((sticker: any) => `**${sticker.name}** • [View](${sticker.url})`)
       .join("\n");

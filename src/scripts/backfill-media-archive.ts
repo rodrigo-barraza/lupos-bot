@@ -281,7 +281,7 @@ async function main() {
   }
 
   // ── Query: messages with media but no archive ───────────────
-  const query = {
+  const query: Record<string, any> = {
     mediaArchive: { $exists: false },
     $or: [
       { "attachments.0": { $exists: true } },
@@ -354,7 +354,7 @@ async function processBatch(batch: any, batchNumber: any, messagesCol: any, medi
       continue;
     }
 
-    const mediaArchive = {};
+    const mediaArchive: Record<string, any> = {};
 
 
     // Process URLs with concurrency limit
@@ -409,6 +409,6 @@ async function processBatch(batch: any, batchNumber: any, messagesCol: any, medi
 }
 
 main().catch((error: any) => {
-  console.error("Fatal error:", err);
+  console.error("Fatal error:", error);
   process.exit(1);
 });

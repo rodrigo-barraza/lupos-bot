@@ -316,7 +316,7 @@ const MediaArchivalService = {
     if (urlsToArchive.size === 0) return {};
 
     // ── Archive with concurrency limiter ───────────────────────────
-    const results = {};
+    const results: Record<string, any> = {};
     const urls = [...urlsToArchive];
 
     // Process in chunks of CONCURRENCY_LIMIT

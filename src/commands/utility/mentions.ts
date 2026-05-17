@@ -69,7 +69,7 @@ export default {
     const { startDate, unixStartDate } = computeStartDate(years, months, days);
 
     // Build match query
-    const match = {
+    const match: Record<string, any> = {
       createdTimestamp: { $gte: unixStartDate },
       guildId: interaction.guildId,
       "mentions.users": {

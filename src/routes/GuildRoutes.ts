@@ -145,7 +145,7 @@ router.get("/guild/members", asyncHandler(async (req: any, res: any) => {
     const ungroupedBots = []; // bots with no hoisted role
 
     // Process both online members and offline bots together
-    const allVisible = new Map([...onlineMembers, ...offlineBots]);
+    const allVisible: Map<string, any> = new Map([...onlineMembers, ...offlineBots]);
 
     for (const [, member] of allVisible) {
       try {
@@ -201,7 +201,7 @@ router.get("/guild/members", asyncHandler(async (req: any, res: any) => {
             [4194304, "active_developer"],
           ];
           for (const [bit, id] of BADGE_MAP) {
-            if ((userFlags & bit) === bit) badges.push(id);
+            if ((userFlags & (bit as number)) === bit) badges.push(id);
           }
         }
       } catch { /* user flags unavailable */ }

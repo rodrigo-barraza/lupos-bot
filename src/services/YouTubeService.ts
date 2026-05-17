@@ -42,6 +42,11 @@ let audioMixer = null;
 
 // Simple audio mixer class
 class AudioMixer {
+  outputStream: any;
+  sources: Map<any, any>;
+  mixInterval: any;
+  bufferSize: number;
+
   constructor(outputStream: any) {
     this.outputStream = outputStream;
     this.sources = new Map();
@@ -248,7 +253,7 @@ class YouTubeService {
             "Accept-Language": "en-US,en;q=0.9",
           },
           family: 4, // Force IPv4, or 6 for IPv6
-        },
+        } as any,
       });
 
       const resource = createAudioResource(stream, {
@@ -353,7 +358,7 @@ class YouTubeService {
               name: "",
               value: `Volume: ${volumeLevel}%`,
             },
-          ],
+          ] as { name: string; value: string; inline?: boolean }[],
           footer: existingEmbed.footer,
           author: existingEmbed.author,
           image: existingEmbed.image,
@@ -942,7 +947,7 @@ ${formatted} ${dividingLine} ${currentVideo.durationRaw}
             name: "",
             value: `Volume: ${volumeLevel}%`,
           },
-        ],
+        ] as { name: string; value: string; inline?: boolean }[],
         author: existingEmbed.author,
         image: existingEmbed.image,
         footer: existingEmbed.footer,

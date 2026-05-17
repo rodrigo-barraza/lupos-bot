@@ -74,7 +74,7 @@ export default {
 
     const invokerId = interaction.user.id;
 
-    const match = {
+    const match: Record<string, any> = {
       createdTimestamp: { $gte: unixStartDate },
       guildId: interaction.guildId,
       "author.bot": { $ne: true },

@@ -788,7 +788,7 @@ async function saveGameResult(
     { upsert: true },
   );
 
-  const gameRecord = {
+  const gameRecord: Record<string, any> = {
     gameId: `${guildId}_${game.messageId}`,
     guildId,
     channelId: game.channelId,
@@ -881,7 +881,7 @@ async function fetchLeaderboard(guildId: any, limit = 20) {
 
     let ranked = historyStats
       .map((hs: any) => {
-        const us = userStatsMap.get(hs.userId) || {};
+        const us: any = userStatsMap.get(hs.userId) || {};
         const { mmr, rd } = getSeasonMMR(us);
         return {
           userId: hs.userId,
@@ -1245,6 +1245,7 @@ function createDoubleOrNothingCollector(
           pendingGameData.loserId,
           pendingGameData.winnerInfo,
           pendingGameData.loserInfo,
+          null,
         );
       }
     }
@@ -1766,6 +1767,7 @@ async function handleLoss(
         loserId,
         pendingGameData.winnerInfo,
         pendingGameData.loserInfo,
+        null,
       );
       try {
         const timeoutMinutes = timeoutDuration / 60000;

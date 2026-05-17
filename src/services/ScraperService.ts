@@ -22,7 +22,7 @@ const SCRAPE_TIMEOUT_MS = 15_000;
  */
 async function fetchMetadata(url: any) {
   const endpoint = `${TOOLS_SERVICE_URL}/utility/scrape/metadata?url=${encodeURIComponent(url)}`;
-  const result = await utilities.fetchWithTimeout(endpoint, SCRAPE_TIMEOUT_MS);
+  const result: any = await utilities.fetchWithTimeout(endpoint, SCRAPE_TIMEOUT_MS);
   return result ?? {};
 }
 
@@ -39,7 +39,7 @@ class ScraperService {
     const metadata = await fetchMetadata(url);
 
     // Build the same shape as the old Puppeteer-based response
-    const result = {};
+    const result: Record<string, any> = {};
 
     if (metadata.title) result.title = metadata.title;
     if (metadata.image) result.image = metadata.image;

@@ -79,7 +79,7 @@ export default class PrismService {
       throw new Error(`Unknown provider type: ${type}`);
     }
 
-    const body = {
+    const body: Record<string, any> = {
       provider,
       model,
       messages,
@@ -148,7 +148,7 @@ export default class PrismService {
       throw new Error(`Unknown provider type: ${type}`);
     }
 
-    const body = {
+    const body: Record<string, any> = {
       provider,
       model,
       messages,
@@ -204,7 +204,7 @@ export default class PrismService {
       return `data:${image.mimeType || "image/png"};base64,${image.imageData}`;
     });
 
-    const body = {
+    const body: Record<string, any> = {
       provider,
       model,
       messages: [
@@ -258,7 +258,7 @@ export default class PrismService {
   }: any) {
     const normalizedImages = Array.isArray(images) ? images : [images];
 
-    const body = {
+    const body: Record<string, any> = {
       provider,
       messages: [{ role: "user", content: prompt, images: normalizedImages }],
       skipConversation: true,
@@ -296,7 +296,7 @@ export default class PrismService {
       : audio;
     const dataUrl = `data:${mimeType};base64,${base64Audio}`;
 
-    const body = { provider, audio: dataUrl, skipConversation: true };
+    const body: Record<string, any> = { provider, audio: dataUrl, skipConversation: true };
     if (model) body.model = model;
     if (language) body.language = language;
     if (traceId) body.traceId = traceId;
@@ -333,7 +333,7 @@ export default class PrismService {
     sourceMessageId,
     traceId,
   }: any) {
-    const body = { guildId, channelId, messages, participants };
+    const body: Record<string, any> = { guildId, channelId, messages, participants };
     if (sourceMessageId) body.sourceMessageId = sourceMessageId;
     if (traceId) body.traceId = traceId;
 
@@ -350,7 +350,7 @@ export default class PrismService {
    * @returns {Promise<{ memories: Array, count: number }>}
    */
   static async searchMemories({ guildId, userIds, queryText, limit = 10, traceId }: any) {
-    const body = { guildId, queryText, limit };
+    const body: Record<string, any> = { guildId, queryText, limit };
     if (userIds?.length > 0) body.userIds = userIds;
     if (traceId) body.traceId = traceId;
 
@@ -370,7 +370,7 @@ export default class PrismService {
    * @returns {Promise<{ embedding: number[], dimensions: number }>}
    */
   static async generateEmbedding({ text, provider = "openai", model, traceId }: any) {
-    const body = { provider, text };
+    const body: Record<string, any> = { provider, text };
     if (model) body.model = model;
     if (traceId) body.traceId = traceId;
 

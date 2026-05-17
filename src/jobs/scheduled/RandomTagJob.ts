@@ -112,7 +112,7 @@ async function randomTag({ client, guildId, channelId }: any) {
     // Build a simplified conversation context from recent messages
     let conversationContext = "";
     if (recentMessages && recentMessages.size > 0) {
-      const messagesArray = Array.from(recentMessages.values()).reverse();
+      const messagesArray: any[] = Array.from(recentMessages.values()).reverse();
       for (const message of messagesArray.slice(-15)) {
         const author =
           message.member?.displayName ||

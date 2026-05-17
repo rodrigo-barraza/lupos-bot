@@ -108,7 +108,7 @@ export async function kickIfForbiddenCombo(member: any, callerName = "AccountGua
 
  * @returns {{ kicked: number, skipped: number, errors: number }}
  */
-export async function purgeByAccountAge(guild: any, thresholdMs: any, options = {}) {
+export async function purgeByAccountAge(guild: any, thresholdMs: any, options: Record<string, any> = {}) {
   const { dryRun = false, callerName = "purgeByAccountAge" } = options;
   const thresholdDays = Math.floor(thresholdMs / MS_PER_DAY);
 

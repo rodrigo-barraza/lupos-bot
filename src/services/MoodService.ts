@@ -51,15 +51,15 @@ const MoodService = {
   },
   async generateMoodMessage(message: any) {
     const moodTemperature =
-      await DiscordUtilityService.generateMoodTemperature(message);
+      await (DiscordUtilityService as any).generateMoodTemperature(message);
 
     // Apply mood change based on temperature thresholds
     for (const [min, max, direction, multiplier] of MOOD_TEMPERATURE_THRESHOLDS) {
       if (moodTemperature >= min && moodTemperature <= max) {
         if (direction === "decrease") {
-          MoodService.decreaseMoodLevel(multiplier);
+          MoodService.decreaseMoodLevel(Number(multiplier));
         } else {
-          MoodService.increaseMoodLevel(multiplier);
+          MoodService.increaseMoodLevel(Number(multiplier));
         }
         break;
       }

@@ -36,7 +36,7 @@ const MessageService = {
 
         if (allClocks.length) {
           assistantMessage += `\n# List of Clocks`;
-          for (const clock of allClocks) {
+          for (const clock of allClocks as any[]) {
             const url = clock.url;
             const name = clock.name;
             const description = clock.description;
