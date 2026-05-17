@@ -1,37 +1,16 @@
 import js from "@eslint/js";
+import tseslint from "typescript-eslint";
 import prettierConfig from "eslint-config-prettier";
 import globals from "globals";
+import { createServiceEslintConfig } from "@rodrigo-barraza/utilities-library/eslint";
 
 export default [
-  js.configs.recommended,
-  prettierConfig,
-  {
-    languageOptions: {
-      ecmaVersion: "latest",
-      sourceType: "module",
-      globals: {
-        ...globals.node,
-      },
-    },
-    rules: {
-      "no-unused-vars": [
-        "error",
-        {
-          argsIgnorePattern: "^_",
-          destructuredArrayIgnorePattern: "^_",
-          varsIgnorePattern: "^_",
-        },
-      ],
-      "no-console": "off",
-      "prefer-const": "error",
-      "no-var": "error",
-    },
-  },
+  ...createServiceEslintConfig({ js, tseslint, prettierConfig, globals }),
   {
     files: [
-      "wrappers/PuppeteerWrapper.js",
-      "wrappers/PuppeteerWrapper2.js",
-      "services/ScraperService.js",
+      "src/wrappers/PuppeteerWrapper.ts",
+      "src/wrappers/PuppeteerWrapper2.ts",
+      "src/services/ScraperService.ts",
     ],
     languageOptions: {
       globals: {
@@ -41,22 +20,6 @@ export default [
     },
   },
   {
-    files: ["tests/**/*.js"],
-    languageOptions: {
-      globals: {
-        describe: "readonly",
-        it: "readonly",
-        test: "readonly",
-        expect: "readonly",
-        vi: "readonly",
-        beforeEach: "readonly",
-        afterEach: "readonly",
-        beforeAll: "readonly",
-        afterAll: "readonly",
-      },
-    },
-  },
-  {
-    ignores: ["node_modules/", "commands-unused/"],
+    ignores: ["commands-unused/"],
   },
 ];
