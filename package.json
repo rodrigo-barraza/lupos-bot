@@ -5,7 +5,7 @@
   "type": "module",
   "main": "src/lupos.ts",
   "imports": {
-    "#root/*": "./*"
+    "#root/*": "./src/*"
   },
   "scripts": {
     "dev": "tsx src/boot.ts mode=messages",

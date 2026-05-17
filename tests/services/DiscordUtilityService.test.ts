@@ -1,6 +1,6 @@
 // @ts-nocheck
 const DiscordUtilityService = (
-  await import("../../services/DiscordUtilityService.js")
+  await import("../../src/services/DiscordUtilityService.js")
 ).default;
 
 describe("DiscordUtilityService - Pure Functions", () => {

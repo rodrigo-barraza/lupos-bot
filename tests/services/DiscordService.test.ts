@@ -41,10 +41,10 @@ vi.mock("luxon", () => ({
 }));
 
 // ── Internal services ────────────────────────────────────────────────────────
-vi.mock("../../services/ScraperService", () => ({
+vi.mock("../../src/services/ScraperService", () => ({
   default: {},
 }));
-vi.mock("../../wrappers/DiscordWrapper", () => ({
+vi.mock("../../src/wrappers/DiscordWrapper", () => ({
   default: {
     getClient: vi.fn().mockReturnValue({
       user: { setActivity: vi.fn(), id: "bot-id" },
@@ -52,66 +52,66 @@ vi.mock("../../wrappers/DiscordWrapper", () => ({
     clients: [],
   },
 }));
-vi.mock("../../services/YouTubeService", () => ({
+vi.mock("../../src/services/YouTubeService", () => ({
   default: {},
 }));
-vi.mock("../../services/LightsService", () => ({
+vi.mock("../../src/services/LightsService", () => ({
   default: {},
 }));
-vi.mock("../../services/MongoService", () => ({
+vi.mock("../../src/services/MongoService", () => ({
   default: {
     getClient: vi.fn().mockReturnValue(null),
   },
 }));
-vi.mock("../../services/PrismService", () => ({
+vi.mock("../../src/services/PrismService", () => ({
   default: {},
 }));
-vi.mock("../../services/DiscordUtilityService", () => ({
+vi.mock("../../src/services/DiscordUtilityService", () => ({
   default: {
     getUsernameNoSpaces: vi.fn(),
     getDisplayName: vi.fn(),
   },
 }));
-vi.mock("../../services/AIService", () => ({
+vi.mock("../../src/services/AIService", () => ({
   default: {},
 }));
-vi.mock("../../services/CurrentService", () => ({
+vi.mock("../../src/services/CurrentService", () => ({
   default: {
     getMessage: vi.fn(),
     setUser: vi.fn(),
     setMessage: vi.fn(),
   },
 }));
-vi.mock("../../services/CensorService", () => ({
+vi.mock("../../src/services/CensorService", () => ({
   default: {},
 }));
-vi.mock("../../services/AccountGuardService", () => ({
+vi.mock("../../src/services/AccountGuardService", () => ({
   kickIfTooNew: vi.fn(),
   kickIfForbiddenCombo: vi.fn(),
   purgeByAccountAge: vi.fn(),
 }));
 
 // ── Jobs ─────────────────────────────────────────────────────────────────────
-vi.mock("../../jobs/scheduled/BirthdayJob", () => ({
+vi.mock("../../src/jobs/scheduled/BirthdayJob", () => ({
   default: {},
 }));
-vi.mock("../../jobs/scheduled/ActivityRoleAssignmentJob", () => ({
+vi.mock("../../src/jobs/scheduled/ActivityRoleAssignmentJob", () => ({
   default: {},
 }));
-vi.mock("../../jobs/scheduled/PermanentTimeOutJob", () => ({
+vi.mock("../../src/jobs/scheduled/PermanentTimeOutJob", () => ({
   default: {},
 }));
-vi.mock("../../jobs/scheduled/RandomTagJob", () => ({
+vi.mock("../../src/jobs/scheduled/RandomTagJob", () => ({
   default: {},
 }));
-vi.mock("../../jobs/scheduled/ServerIconJob", () => ({
+vi.mock("../../src/jobs/scheduled/ServerIconJob", () => ({
   default: {},
 }));
-vi.mock("../../jobs/event-driven/ReactJob", () => ({
+vi.mock("../../src/jobs/event-driven/ReactJob", () => ({
   default: {},
 }));
 
-const DiscordService = (await import("../../services/DiscordService.js"))
+const DiscordService = (await import("../../src/services/DiscordService.js"))
   .default;
 
 describe("DiscordService", () => {

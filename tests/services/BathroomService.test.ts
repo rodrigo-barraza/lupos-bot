@@ -1,6 +1,6 @@
 // @ts-nocheck
 // Mock StatService — the factory that BathroomService delegates to
-vi.mock("../../services/StatService", () => {
+vi.mock("../../src/services/StatService", () => {
   let level = 0;
   const mockStat = {
     getLevel: vi.fn(() => level),
@@ -33,9 +33,9 @@ vi.mock("../../services/StatService", () => {
   };
 });
 
-const BathroomService = (await import("../../services/BathroomService.js"))
+const BathroomService = (await import("../../src/services/BathroomService.js"))
   .default;
-const { __resetLevel } = await import("../../services/StatService");
+const { __resetLevel } = await import("../../src/services/StatService");
 
 describe("BathroomService", () => {
   beforeEach(() => {
