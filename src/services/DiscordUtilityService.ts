@@ -721,22 +721,22 @@ const DiscordUtilityService = {
 
       for (const message of messages) {
         try {
-          const doc = transformMessageRoot(message);
+          const document = transformMessageRoot(message);
 
           // Archive media to MinIO (content-addressable, deduped by SHA-256)
           if (MediaArchivalService.isAvailable()) {
             try {
               const archiveMap = await MediaArchivalService.archiveMessageMedia(message);
               if (Object.keys(archiveMap).length > 0) {
-                doc.mediaArchive = archiveMap;
-                MediaArchivalService.rewriteDocumentUrls(doc, archiveMap);
+                document.mediaArchive = archiveMap;
+                MediaArchivalService.rewriteDocumentUrls(document, archiveMap);
               }
             } catch (archiveErr: any) {
               console.warn(`  [ARCHIVE] Media archival failed for ${message.id}: ${archiveErr.message}`);
             }
           }
 
-          documents.push(doc);
+          documents.push(document);
         } catch (transformError: any) {
           console.error(
             `  [ERROR] Failed to transform message ${message.id}: ${transformError.message}`,
@@ -750,13 +750,13 @@ const DiscordUtilityService = {
       }
 
       try {
-        const bulkOps = documents.map((doc: any) => {
+        const bulkOps = documents.map((document: any) => {
           // Force update mode: overwrite entire document (for rescraping)
           if (forceUpdate) {
             return {
               updateOne: {
-                filter: { id: doc.id },
-                update: { $set: doc },
+                filter: { id: document.id },
+                update: { $set: document },
                 upsert: true,
               },
             };
@@ -766,24 +766,24 @@ const DiscordUtilityService = {
           const backfill = {
             // Reactions, embeds, attachments, and content can all change
             // after initial scrape — always update to latest values.
-            reactions: doc.reactions,
-            embeds: doc.embeds,
-            attachments: doc.attachments,
-            content: doc.content,
-            cleanContent: doc.cleanContent,
-            editedAt: doc.editedAt,
-            editedTimestamp: doc.editedTimestamp,
-            pinned: doc.pinned,
-            "member.displayHexColor": doc.member?.displayHexColor || null,
-            "member.displayName": doc.member?.displayName || null,
+            reactions: document.reactions,
+            embeds: document.embeds,
+            attachments: document.attachments,
+            content: document.content,
+            cleanContent: document.cleanContent,
+            editedAt: document.editedAt,
+            editedTimestamp: document.editedTimestamp,
+            pinned: document.pinned,
+            "member.displayHexColor": document.member?.displayHexColor || null,
+            "member.displayName": document.member?.displayName || null,
             // Enhanced Role Styles (gradient/holographic) — always update to latest
-            ...(doc.member?.roleColors
-              ? { "member.roleColors": doc.member.roleColors }
+            ...(document.member?.roleColors
+              ? { "member.roleColors": document.member.roleColors }
               : { "member.roleColors": null }),
           };
 
           // Clone for $setOnInsert and strip backfill paths to avoid conflict
-          const insertDoc = { ...doc };
+          const insertDoc = { ...document };
           delete insertDoc.reactions;
           delete insertDoc.embeds;
           delete insertDoc.attachments;
@@ -799,7 +799,7 @@ const DiscordUtilityService = {
 
           return {
             updateOne: {
-              filter: { id: doc.id },
+              filter: { id: document.id },
               update: {
                 $setOnInsert: insertDoc,
                 $set: backfill,
@@ -933,9 +933,9 @@ const DiscordUtilityService = {
           }
 
           // Track message IDs from the target users
-          for (const msg of messages.values()) {
-            if (CLEANUP_USER_IDS.includes(msg.author?.id)) {
-              discordUserMessageIds.add(msg.id);
+          for (const message of messages.values()) {
+            if (CLEANUP_USER_IDS.includes(message.author?.id)) {
+              discordUserMessageIds.add(message.id);
             }
           }
 
@@ -1036,8 +1036,8 @@ const DiscordUtilityService = {
             .toArray();
 
           const orphanIds = mongoUserMessages
-            .filter((doc: any) => !discordUserMessageIds.has(doc.id))
-            .map((doc: any) => doc.id);
+            .filter((document: any) => !discordUserMessageIds.has(document.id))
+            .map((document: any) => document.id);
 
           if (orphanIds.length > 0) {
             const deleteResult = await collection.deleteMany({
@@ -1153,9 +1153,9 @@ const DiscordUtilityService = {
 
     // Group by channel for efficient processing
     const byChannel = new Map();
-    for (const doc of mongoMessages) {
-      if (!byChannel.has(doc.channelId)) byChannel.set(doc.channelId, []);
-      byChannel.get(doc.channelId).push(doc.id);
+    for (const document of mongoMessages) {
+      if (!byChannel.has(document.channelId)) byChannel.set(document.channelId, []);
+      byChannel.get(document.channelId).push(document.id);
     }
 
     let totalVerified = 0;
@@ -1291,9 +1291,9 @@ const DiscordUtilityService = {
     // Load all docs, group by channel
     const docs = await collection.find(query).batchSize(batchSize).toArray();
     const byChannel = new Map();
-    for (const doc of docs) {
-      if (!byChannel.has(doc.channelId)) byChannel.set(doc.channelId, []);
-      byChannel.get(doc.channelId).push(doc);
+    for (const document of docs) {
+      if (!byChannel.has(document.channelId)) byChannel.set(document.channelId, []);
+      byChannel.get(document.channelId).push(document);
     }
 
     const guild = guildId ? client.guilds.cache.get(guildId) : null;
@@ -1310,26 +1310,26 @@ const DiscordUtilityService = {
       if (!channel) {
         console.warn(`  [BACKFILL] Channel ${channelId} not in cache — skipping ${channelDocs.length} message(s)`);
         // Mark as empty mediaArchive so we don't retry endlessly
-        for (const doc of channelDocs) {
-          await collection.updateOne({ _id: doc._id }, { $set: { mediaArchive: {} } });
+        for (const document of channelDocs) {
+          await collection.updateOne({ _id: document._id }, { $set: { mediaArchive: {} } });
           processed++;
         }
         continue;
       }
 
-      for (const doc of channelDocs) {
+      for (const document of channelDocs) {
         processed++;
 
         try {
           // Fetch the live message from Discord to get fresh CDN URLs
           let liveMessage;
           try {
-            liveMessage = await channel.messages.fetch(doc.id);
+            liveMessage = await channel.messages.fetch(document.id);
           } catch (fetchErr: any) {
             if (fetchErr.code === 10008) {
               // Message was deleted — mark and skip
-              console.log(`  [BACKFILL] Message ${doc.id} deleted from Discord — marking empty`);
-              await collection.updateOne({ _id: doc._id }, { $set: { mediaArchive: {} } });
+              console.log(`  [BACKFILL] Message ${document.id} deleted from Discord — marking empty`);
+              await collection.updateOne({ _id: document._id }, { $set: { mediaArchive: {} } });
               continue;
             }
             throw fetchErr;
@@ -1344,7 +1344,7 @@ const DiscordUtilityService = {
             MediaArchivalService.rewriteDocumentUrls(freshDoc, archiveMap);
 
             await collection.updateOne(
-              { _id: doc._id },
+              { _id: document._id },
               {
                 $set: {
                   mediaArchive: archiveMap,
@@ -1357,7 +1357,7 @@ const DiscordUtilityService = {
             archived++;
           } else {
             // No media found on live message — mark as processed
-            await collection.updateOne({ _id: doc._id }, { $set: { mediaArchive: {} } });
+            await collection.updateOne({ _id: document._id }, { $set: { mediaArchive: {} } });
           }
 
           if (processed % 25 === 0) {
@@ -1365,9 +1365,9 @@ const DiscordUtilityService = {
           }
         } catch (error: any) {
           errors++;
-          console.error(`  [BACKFILL] Error processing message ${doc.id}: ${error.message}`);
+          console.error(`  [BACKFILL] Error processing message ${document.id}: ${error.message}`);
           // Mark failed so we don't retry on next run (can be cleared manually)
-          await collection.updateOne({ _id: doc._id }, { $set: { mediaArchive: {} } });
+          await collection.updateOne({ _id: document._id }, { $set: { mediaArchive: {} } });
         }
       }
     }
@@ -1906,7 +1906,7 @@ const DiscordUtilityService = {
       messages = await channel.messages.fetch(fetchOptions);
 
       // Avoid duplicates (Discord API might return overlapping messages)
-      const uniqueMessages = messages.filter((msg: any) => !allMessages.has(msg.id));
+      const uniqueMessages = messages.filter((message: any) => !allMessages.has(message.id));
       allMessages = allMessages.concat(uniqueMessages);
 
       // Break if no new messages were added (to prevent infinite loops)
@@ -2258,8 +2258,8 @@ const DiscordUtilityService = {
           }
 
           const newMessages = messagesArray.filter(
-            (msg: any) =>
-              !allMessages.some((existingMsg: any) => existingMsg.id === msg.id),
+            (message: any) =>
+              !allMessages.some((existingMsg: any) => existingMsg.id === message.id),
           );
 
           if (newMessages.length === 0) {
@@ -2520,7 +2520,7 @@ const DiscordUtilityService = {
       if (stat.topUsers.length > 0) {
         topUsersStr = stat.topUsers
           .slice(0, 3)
-          .map((user: any, idx: any) => `${idx + 1}. ${user.username} (${user.count})`)
+          .map((user: any, index: any) => `${index + 1}. ${user.username} (${user.count})`)
           .join(", ");
       } else {
         topUsersStr = "No activity";

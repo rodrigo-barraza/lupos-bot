@@ -218,8 +218,8 @@ export default {
         .map(() => Array(48).fill(0));
 
       // Fill in the hourly data
-      hourlyMessages.forEach((msg: any) => {
-        heatmapData[msg.day][msg.block] = msg.count;
+      hourlyMessages.forEach((message: any) => {
+        heatmapData[message.day][message.block] = message.count;
       });
 
       // Find max count for color scaling
@@ -239,16 +239,16 @@ export default {
 
       // Process monthly data
       const yearSet = new Set();
-      monthlyMessages.forEach((msg: any) => yearSet.add(msg.year));
+      monthlyMessages.forEach((message: any) => yearSet.add(message.year));
       const uniqueYears = Array.from(yearSet).sort();
 
       // Create year x month grid (dynamic years x 12 months)
       const monthlyHeatmapData = [];
       uniqueYears.forEach((year: any) => {
         const yearData = Array(12).fill(0);
-        monthlyMessages.forEach((msg: any) => {
-          if (msg.year === year) {
-            yearData[msg.month - 1] = msg.count;
+        monthlyMessages.forEach((message: any) => {
+          if (message.year === year) {
+            yearData[message.month - 1] = message.count;
           }
         });
         monthlyHeatmapData.push({ year, data: yearData });

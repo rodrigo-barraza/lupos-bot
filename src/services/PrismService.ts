@@ -212,9 +212,9 @@ export default class PrismService {
     systemPrompt,
     traceId,
   }: any) {
-    const imageDataUrls = images.map((img: any) => {
-      if (typeof img === "string") return img;
-      return `data:${img.mimeType || "image/png"};base64,${img.imageData}`;
+    const imageDataUrls = images.map((image: any) => {
+      if (typeof image === "string") return image;
+      return `data:${image.mimeType || "image/png"};base64,${image.imageData}`;
     });
 
     const body = {

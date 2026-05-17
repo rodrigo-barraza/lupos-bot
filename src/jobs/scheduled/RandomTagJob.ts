@@ -49,10 +49,10 @@ async function randomTag({ client, guildId, channelId }: any) {
 
       try {
         const msgs = await ch.messages.fetch({ limit: 100 });
-        for (const [, msg] of msgs) {
-          if (msg.author.bot) continue;
-          if (!activeAuthors.has(msg.author.id) && msg.member) {
-            activeAuthors.set(msg.author.id, msg.member);
+        for (const [, message] of msgs) {
+          if (message.author.bot) continue;
+          if (!activeAuthors.has(message.author.id) && message.member) {
+            activeAuthors.set(message.author.id, message.member);
           }
         }
       } catch {
@@ -72,10 +72,10 @@ async function randomTag({ client, guildId, channelId }: any) {
     const usedIndices = new Set();
 
     while (selectedMembers.length < TARGET_COUNT) {
-      const idx = Math.floor(Math.random() * membersArray.length);
-      if (usedIndices.has(idx)) continue;
-      usedIndices.add(idx);
-      const m = membersArray[idx];
+      const index = Math.floor(Math.random() * membersArray.length);
+      if (usedIndices.has(index)) continue;
+      usedIndices.add(index);
+      const m = membersArray[index];
       selectedMembers.push({
         member: m,
         displayName:
@@ -114,14 +114,14 @@ async function randomTag({ client, guildId, channelId }: any) {
     let conversationContext = "";
     if (recentMessages && recentMessages.size > 0) {
       const messagesArray = Array.from(recentMessages.values()).reverse();
-      for (const msg of messagesArray.slice(-15)) {
+      for (const message of messagesArray.slice(-15)) {
         const author =
-          msg.member?.displayName ||
-          msg.author?.globalName ||
-          msg.author?.username ||
+          message.member?.displayName ||
+          message.author?.globalName ||
+          message.author?.username ||
           "Unknown";
-        if (msg.content) {
-          conversationContext += `${author}: ${msg.content}\n`;
+        if (message.content) {
+          conversationContext += `${author}: ${message.content}\n`;
         }
       }
     }
@@ -133,8 +133,8 @@ async function randomTag({ client, guildId, channelId }: any) {
       const usernameLower = person.username.toLowerCase();
       const displayNameLower = person.displayName.toLowerCase();
       const matchedContext = MessageConstant.customContextWhitemane?.find(
-        (ctx: any) => {
-          const keywords = ctx.keywords
+        (context: any) => {
+          const keywords = context.keywords
             .split(",")
             .map((k: any) => k.trim().toLowerCase());
           return (

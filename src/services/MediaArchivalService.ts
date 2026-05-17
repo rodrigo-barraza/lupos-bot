@@ -120,14 +120,14 @@ const MediaArchivalService = {
     const col = this._getCollection();
     if (!col) return null;
 
-    const doc = await col.findOne({ hash });
-    if (doc) {
+    const document = await col.findOne({ hash });
+    if (document) {
       const ref = {
-        hash: doc.hash,
-        minioKey: doc.minioKey,
-        publicUrl: doc.publicUrl,
-        contentType: doc.contentType,
-        size: doc.size,
+        hash: document.hash,
+        minioKey: document.minioKey,
+        publicUrl: document.publicUrl,
+        contentType: document.contentType,
+        size: document.size,
       };
       hashCache.set(hash, ref);
       return ref;
@@ -349,32 +349,32 @@ const MediaArchivalService = {
    * Mutates the document in-place. Only rewrites URLs that were
    * successfully archived (present in archiveMap).
    *
-   * @param {object} doc - Transformed message document (from transformMessageRoot)
+   * @param {object} document - Transformed message document (from transformMessageRoot)
    * @param {Object<string, object>} archiveMap - { originalUrl → { publicUrl, ... } }
    */
-  rewriteDocumentUrls(doc: any, archiveMap: any) {
+  rewriteDocumentUrls(document: any, archiveMap: any) {
     if (!archiveMap || Object.keys(archiveMap).length === 0) return;
 
     const rewrite = (url: any) => archiveMap[url]?.publicUrl || url;
 
     // Attachments
-    if (doc.attachments?.length) {
-      for (const att of doc.attachments) {
+    if (document.attachments?.length) {
+      for (const att of document.attachments) {
         if (att.url) att.url = rewrite(att.url);
         if (att.proxyURL) att.proxyURL = rewrite(att.proxyURL);
       }
     }
 
     // Stickers
-    if (doc.stickers?.length) {
-      for (const sticker of doc.stickers) {
+    if (document.stickers?.length) {
+      for (const sticker of document.stickers) {
         if (sticker.url) sticker.url = rewrite(sticker.url);
       }
     }
 
     // Embeds
-    if (doc.embeds?.length) {
-      for (const embed of doc.embeds) {
+    if (document.embeds?.length) {
+      for (const embed of document.embeds) {
         if (embed.image?.url) embed.image.url = rewrite(embed.image.url);
         if (embed.image?.proxyURL) embed.image.proxyURL = rewrite(embed.image.proxyURL);
         if (embed.thumbnail?.url) embed.thumbnail.url = rewrite(embed.thumbnail.url);

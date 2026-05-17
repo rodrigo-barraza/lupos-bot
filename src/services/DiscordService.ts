@@ -271,7 +271,7 @@ async function generateDescription(
 
   if (messages?.size) {
     const lastMessageSentByUser = messages.find(
-      (msg: any) => msg.author.id === user.id,
+      (message: any) => message.author.id === user.id,
     );
     if (lastMessageSentByUser) {
       const lastMessageDateTime = DateTime.fromMillis(
@@ -311,7 +311,7 @@ async function generateDescription(
   }
 
   const totalMessages = messages.filter(
-    (msg: any) => msg.author.id === user.id,
+    (message: any) => message.author.id === user.id,
   ).size;
   if (totalMessages) {
     systemPrompt += `\n- Total from the last ${messages.size} messages: ${totalMessages} messages`;
@@ -840,11 +840,11 @@ async function buildAndGenerateReply({
             .map((n: any) => n.toLowerCase());
           for (const name of names) {
             // Use word-boundary-aware check: the name must not be inside another word
-            const idx = messageTextForMatch.indexOf(name);
-            if (idx === -1) continue;
-            const charBefore = idx > 0 ? messageTextForMatch[idx - 1] : " ";
-            const charAfter = idx + name.length < messageTextForMatch.length
-              ? messageTextForMatch[idx + name.length]
+            const index = messageTextForMatch.indexOf(name);
+            if (index === -1) continue;
+            const charBefore = index > 0 ? messageTextForMatch[index - 1] : " ";
+            const charAfter = index + name.length < messageTextForMatch.length
+              ? messageTextForMatch[index + name.length]
               : " ";
             const isBoundaryBefore = !/\w/.test(charBefore);
             const isBoundaryAfter = !/\w/.test(charAfter);
@@ -911,8 +911,8 @@ async function buildAndGenerateReply({
 
         // Rank participants by message count in recentMessages (exclude bot only)
         const messageCounts = new Map();
-        for (const msg of recentMessages.values()) {
-          const authorId = msg.author?.id;
+        for (const message of recentMessages.values()) {
+          const authorId = message.author?.id;
           if (!authorId || authorId === bot.id) continue;
           messageCounts.set(authorId, (messageCounts.get(authorId) || 0) + 1);
         }
@@ -2078,8 +2078,8 @@ async function extractContentFromMessages(
     let currentSequenceMessages = [];
 
     for (let i = 0; i < recentXMessages.length; i++) {
-      const msg = recentXMessages[i];
-      const isBot = msg.author.id === client.user.id;
+      const message = recentXMessages[i];
+      const isBot = message.author.id === client.user.id;
 
       if (isBot) {
         // If we had a sequence going, finalize it
@@ -2103,7 +2103,7 @@ async function extractContentFromMessages(
         messageSequenceInfo.set(i, { xOfY: 0, total: 0 });
       } else {
         // User message
-        if (msg.author.id !== currentSequenceAuthor) {
+        if (message.author.id !== currentSequenceAuthor) {
           // New author - finalize previous sequence if exists
           if (currentSequenceMessages.length > 0) {
             const total = currentSequenceMessages.length;
@@ -2118,7 +2118,7 @@ async function extractContentFromMessages(
             }
           }
           // Start new sequence
-          currentSequenceAuthor = msg.author.id;
+          currentSequenceAuthor = message.author.id;
           currentSequenceStart = i; // eslint-disable-line no-unused-vars
           currentSequenceMessages = [i];
         } else {
@@ -3306,9 +3306,9 @@ async function luposOnMessageUpdate(
         after: newMessage.id,
       })
     ).filter(
-      (msg: any) =>
-        msg.author.id === client.user.id &&
-        msg.reference?.messageId === newMessage.id,
+      (message: any) =>
+        message.author.id === client.user.id &&
+        message.reference?.messageId === newMessage.id,
     );
     if (futureMessages.length) return;
     await processMessage(client, { mongo, localMongo }, newMessage, "UPDATE");
