@@ -120,8 +120,8 @@ async function archiveUrl(url: any, mediaHashesCol: any) {
     }
 
     const contentType = response.headers.get("content-type") || "application/octet-stream";
-    const arrayBuffer = await response.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
+    const bytes = await response.bytes();
+    const buffer = Buffer.from(bytes);
 
     if (buffer.length === 0) return null;
     if (buffer.length > MAX_FILE_SIZE_BYTES) {

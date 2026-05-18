@@ -60,11 +60,7 @@ async function processCreateReaction(client: any, queuedReaction: any) {
   )
     return;
 
-  if (!DiscordState.allUniqueUsers.has(messageId)) {
-    DiscordState.allUniqueUsers.set(messageId, new Set());
-  } else {
-    DiscordState.allUniqueUsers.get(messageId).add(userId);
-  }
+  DiscordState.allUniqueUsers.getOrInsert(messageId, new Set()).add(userId);
 
   const users = await reaction.users.fetch();
   users.map((user: any) => DiscordState.allUniqueUsers.get(messageId).add(user.id));

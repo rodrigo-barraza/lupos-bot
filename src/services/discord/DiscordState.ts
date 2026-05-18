@@ -8,7 +8,7 @@
 // arguments or using closures.
 // ============================================================
 
-import { DateTime } from "luxon";
+import TemporalHelpers from "#root/utilities/TemporalHelpers.js";
 import BoundedMap from "#root/utilities/BoundedMap.js";
 
 const DiscordState = {
@@ -34,7 +34,7 @@ const DiscordState = {
   typingIntervals: {} as Record<string, any>,
 
   // ─── Timing ──────────────────────────────────────────────────
-  lastMessageSentTime: DateTime.now().toISO(),
+  lastMessageSentTime: TemporalHelpers.nowISO(),
 
   // ─── Helpers ─────────────────────────────────────────────────
 

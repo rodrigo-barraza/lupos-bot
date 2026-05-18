@@ -1,4 +1,4 @@
-import { DateTime } from "luxon";
+import TemporalHelpers from "#root/utilities/TemporalHelpers.js";
 import utilities from "#root/utilities.js";
 const { consoleLog } = utilities;
 import config from "#root/config.js";
@@ -1146,8 +1146,7 @@ const DiscordUtilityService = {
     // Group by channel for efficient processing
     const byChannel = new Map();
     for (const document of mongoMessages) {
-      if (!byChannel.has(document.channelId)) byChannel.set(document.channelId, []);
-      byChannel.get(document.channelId).push(document.id);
+      byChannel.getOrInsert(document.channelId, []).push(document.id);
     }
 
     let totalVerified = 0;
@@ -1277,8 +1276,7 @@ const DiscordUtilityService = {
     const docs = await collection.find(query).batchSize(batchSize).toArray();
     const byChannel = new Map();
     for (const document of docs) {
-      if (!byChannel.has(document.channelId)) byChannel.set(document.channelId, []);
-      byChannel.get(document.channelId).push(document);
+      byChannel.getOrInsert(document.channelId, []).push(document);
     }
 
     const guild = guildId ? client.guilds.cache.get(guildId) : null;
@@ -1983,7 +1981,7 @@ const DiscordUtilityService = {
       body: {
         banner:
           "data:image/gif;base64," +
-          Buffer.from(await (await fetch(imageUrl)).arrayBuffer()).toString(
+          Buffer.from(await (await fetch(imageUrl)).bytes()).toString(
             "base64",
           ),
       },
@@ -2141,11 +2139,11 @@ const DiscordUtilityService = {
 
     const channelStats: any[] = [];
     const globalUserStats: Record<string, any> = {};
-    const now = DateTime.local();
-    const cutoffDate = now.minus({ months: MONTHS_TO_ANALYZE });
-    console.log(`[TIME] Current time: ${now.toISO()}`);
+    const now = TemporalHelpers.now();
+    const cutoffDate = TemporalHelpers.minus(now, { months: MONTHS_TO_ANALYZE });
+    console.log(`[TIME] Current time: ${TemporalHelpers.nowISO()}`);
     console.log(
-      `[TIME] Cutoff date (${periodText} ago): ${cutoffDate.toISO()}`,
+      `[TIME] Cutoff date (${periodText} ago): ${cutoffDate.toInstant().toString()}`,
     );
 
     let processedChannelCount = 0;
@@ -2215,11 +2213,11 @@ const DiscordUtilityService = {
           }
 
           const oldestMessage = messagesArray[messagesArray.length - 1];
-          const oldestMessageDateTime = DateTime.fromMillis(
+          const oldestMessageDateTime = TemporalHelpers.fromMillis(
             oldestMessage.createdTimestamp,
           );
           const newestMessage = messagesArray[0];
-          const newestMessageDateTime = DateTime.fromMillis(
+          const newestMessageDateTime = TemporalHelpers.fromMillis(
             newestMessage.createdTimestamp,
           );
 
@@ -2259,15 +2257,15 @@ const DiscordUtilityService = {
             `  ${logPrefix} [FETCH] Batch ${fetchCount}: ${messagesArray.length} messages (${newMessages.length} new)`,
           );
           console.log(
-            `  ${logPrefix} [FETCH] Date range: ${newestMessageDateTime.toFormat("yyyy-MM-dd HH:mm:ss")} to ${oldestMessageDateTime.toFormat("yyyy-MM-dd HH:mm:ss")}`,
+            `  ${logPrefix} [FETCH] Date range: ${TemporalHelpers.format(newestMessageDateTime, "yyyy-MM-dd HH:mm:ss")} to ${TemporalHelpers.format(oldestMessageDateTime, "yyyy-MM-dd HH:mm:ss")}`,
           );
           console.log(
             `  ${logPrefix} [FETCH] Oldest message ID: ${oldestMessage.id}`,
           );
 
-          if (oldestMessageDateTime < cutoffDate) {
+          if (TemporalHelpers.toEpochMs(oldestMessageDateTime) < TemporalHelpers.toEpochMs(cutoffDate)) {
             console.log(
-              `  ${logPrefix} [FETCH] Reached messages older than ${periodText} (${oldestMessageDateTime.toFormat("yyyy-MM-dd")} < ${cutoffDate.toFormat("yyyy-MM-dd")})`,
+              `  ${logPrefix} [FETCH] Reached messages older than ${periodText} (${TemporalHelpers.format(oldestMessageDateTime, "yyyy-MM-dd")} < ${TemporalHelpers.format(cutoffDate, "yyyy-MM-dd")})`,
             );
             fetchMore = false;
             break;
@@ -2302,7 +2300,7 @@ const DiscordUtilityService = {
 
         const messagesInPeriod = allMessages.filter(
           (message: any) =>
-            DateTime.fromMillis(message.createdTimestamp) > cutoffDate,
+            TemporalHelpers.toEpochMs(TemporalHelpers.fromMillis(message.createdTimestamp)) > TemporalHelpers.toEpochMs(cutoffDate),
         );
         console.log(
           `  ${logPrefix} [PROCESS] Found ${messagesInPeriod.length} messages in the last ${periodText} (out of ${allMessages.length} total fetched)`,
@@ -2362,15 +2360,15 @@ const DiscordUtilityService = {
           const oldestRecentMessage =
             messagesInPeriod[messagesInPeriod.length - 1];
           const newestMessage = messagesInPeriod[0];
-          const oldestDateTime = DateTime.fromMillis(
+          const oldestDateTime = TemporalHelpers.fromMillis(
             oldestRecentMessage.createdTimestamp,
           );
-          const newestDateTime = DateTime.fromMillis(
+          const newestDateTime = TemporalHelpers.fromMillis(
             newestMessage.createdTimestamp,
           );
           const daySpan = Math.max(
             1,
-            newestDateTime.diff(oldestDateTime, "days").days,
+            TemporalHelpers.diffIn(newestDateTime, oldestDateTime, "days"),
           );
 
           averageMessagesPerDay = messagesInPeriod.length / daySpan;
@@ -2383,7 +2381,7 @@ const DiscordUtilityService = {
             `  ${logPrefix} [METRICS] Average messages/day: ${averageMessagesPerDay.toFixed(2)}`,
           );
           console.log(
-            `  ${logPrefix} [METRICS] Last message: ${lastMessageDate.toFormat("yyyy-MM-dd HH:mm")}`,
+            `  ${logPrefix} [METRICS] Last message: ${TemporalHelpers.format(lastMessageDate, "yyyy-MM-dd HH:mm")}`,
           );
         } else {
           console.log(
@@ -2490,7 +2488,7 @@ const DiscordUtilityService = {
 
       let daysSinceLastMessage = "N/A";
       if (stat.lastMessageDate) {
-        const daysDiff = now.diff(stat.lastMessageDate, "days").days;
+        const daysDiff = TemporalHelpers.diffIn(now, stat.lastMessageDate, "days");
         daysSinceLastMessage = daysDiff.toFixed(0).padStart(8, " ");
       } else {
         daysSinceLastMessage = daysSinceLastMessage.padStart(8, " ");

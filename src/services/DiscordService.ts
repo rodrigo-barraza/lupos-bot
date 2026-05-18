@@ -1,4 +1,4 @@
-import { DateTime } from "luxon";
+import TemporalHelpers from "#root/utilities/TemporalHelpers.js";
 import crypto from "crypto";
 import {
   Collection,
@@ -95,7 +95,7 @@ async function fetchMembersWithRetry(guild: any, maxRetries: any = 3) {
 const args = process.argv.slice(2);
 const mode = args.find((arg: any) => arg.startsWith("mode="))?.split("=")[1];
 
-let lastMessageSentTime = DateTime.now().toISO();
+let lastMessageSentTime = TemporalHelpers.nowISO();
 let isProcessingQueue = false;
 const queuedData: any[] = [];
 const cancelledMessageIds = new Set();
@@ -161,13 +161,11 @@ const typingIntervals: Record<string, any> = {};
 
 function updateLastMessageSentTime() {
   setInterval(() => {
-    const currentTime = DateTime.now();
-    const lastMessageSentTimeObject = DateTime.fromISO(lastMessageSentTime);
-    const difference = currentTime
-      .diff(lastMessageSentTimeObject, ["seconds"])
-      .toObject();
-    if (difference.seconds && difference.seconds >= 30) {
-      lastMessageSentTime = currentTime.toISO();
+    const currentTime = TemporalHelpers.now();
+    const lastMessageSentTimeObject = TemporalHelpers.fromISO(lastMessageSentTime);
+    const diffSeconds = TemporalHelpers.diffIn(currentTime, lastMessageSentTimeObject, "seconds");
+    if (diffSeconds >= 30) {
+      lastMessageSentTime = TemporalHelpers.nowISO();
     }
   }, 1000);
   return lastMessageSentTime;
@@ -271,13 +269,11 @@ async function generateDescription(
       (message: any) => message.author.id === user.id,
     );
     if (lastMessageSentByUser) {
-      const lastMessageDateTime = DateTime.fromMillis(
+      const lastMessageDateTime = TemporalHelpers.fromMillis(
         lastMessageSentByUser.createdTimestamp,
       );
-      messageSentAt = lastMessageDateTime
-        .setZone("local")
-        .toFormat("LLLL dd, yyyy 'at' hh:mm:ss a");
-      messageSentAtRelative = lastMessageDateTime.toRelative();
+      messageSentAt = TemporalHelpers.format(lastMessageDateTime, "LLLL dd, yyyy 'at' hh:mm:ss a");
+      messageSentAtRelative = TemporalHelpers.toRelative(lastMessageDateTime);
     }
   }
 
@@ -370,11 +366,9 @@ async function generateDescription(
     systemPrompt += `\n- Profile color (their choice of color): ${colorName} (${hexColor})`;
   }
 
-  const createdDateTime = DateTime.fromMillis(user.createdTimestamp);
-  const accountCreatedAt = createdDateTime
-    .setZone("local")
-    .toFormat("LLLL dd, yyyy 'at' hh:mm:ss a");
-  const accountCreatedAtRelative = createdDateTime.toRelative();
+  const createdDateTime = TemporalHelpers.fromMillis(user.createdTimestamp);
+  const accountCreatedAt = TemporalHelpers.format(createdDateTime, "LLLL dd, yyyy 'at' hh:mm:ss a");
+  const accountCreatedAtRelative = TemporalHelpers.toRelative(createdDateTime);
   systemPrompt += `\n- Account creation date: ${accountCreatedAt} (${accountCreatedAtRelative})`;
   if (messageSentAt && messageSentAtRelative) {
     systemPrompt += `\n- Last message sent on: ${messageSentAt} (${messageSentAtRelative})`;
@@ -382,31 +376,27 @@ async function generateDescription(
 
   // is timed out
   if (member?.communicationDisabledUntilTimestamp) {
-    const disabledDateTime = DateTime.fromMillis(
+    const disabledDateTime = TemporalHelpers.fromMillis(
       member.communicationDisabledUntilTimestamp,
     );
     if (member.communicationDisabledUntilTimestamp > Date.now()) {
-      systemPrompt += `\n- Timed out until: ${disabledDateTime.toRelative()}`;
+      systemPrompt += `\n- Timed out until: ${TemporalHelpers.toRelative(disabledDateTime)}`;
     } else {
-      systemPrompt += `\n- Last timed out at: ${disabledDateTime.toRelative()}`;
+      systemPrompt += `\n- Last timed out at: ${TemporalHelpers.toRelative(disabledDateTime)}`;
     }
   }
   // when they joined the server
   if (member) {
-    const joinedDateTime = DateTime.fromMillis(member.joinedTimestamp);
-    const serverJoinDateAt = joinedDateTime
-      .setZone("local")
-      .toFormat("LLLL dd, yyyy 'at' hh:mm:ss a");
-    const serverJoinDateRelative = joinedDateTime.toRelative();
+    const joinedDateTime = TemporalHelpers.fromMillis(member.joinedTimestamp);
+    const serverJoinDateAt = TemporalHelpers.format(joinedDateTime, "LLLL dd, yyyy 'at' hh:mm:ss a");
+    const serverJoinDateRelative = TemporalHelpers.toRelative(joinedDateTime);
     systemPrompt += `\n- Join date: ${serverJoinDateAt} (${serverJoinDateRelative})`;
   }
   // is boosting the server
   if (member?.premiumSinceTimestamp) {
-    const boostDateTime = DateTime.fromMillis(member.premiumSinceTimestamp);
-    const boostDateAt = boostDateTime
-      .setZone("local")
-      .toFormat("LLLL dd, yyyy 'at' hh:mm:ss a");
-    const boostDateRelative = boostDateTime.toRelative();
+    const boostDateTime = TemporalHelpers.fromMillis(member.premiumSinceTimestamp);
+    const boostDateAt = TemporalHelpers.format(boostDateTime, "LLLL dd, yyyy 'at' hh:mm:ss a");
+    const boostDateRelative = TemporalHelpers.toRelative(boostDateTime);
     systemPrompt += `\n- Boosting since: ${boostDateAt} (${boostDateRelative})`;
   }
 
@@ -579,7 +569,7 @@ async function buildAndGenerateReply({
     systemPrompt = `# Discord client information`;
     systemPrompt += `\n- Your name: ${utilities.getCombinedNamesFromUserOrMember({ user: bot })}`;
     systemPrompt += `\n- Your discord user ID tag: <@${bot.id}>`;
-    systemPrompt += `\n- The current date and time is ${DateTime.now().toFormat("cccc, LLLL dd, yyyy 'at' h:mm a")} PST.`;
+    systemPrompt += `\n- The current date and time is ${TemporalHelpers.format(TemporalHelpers.now(), "cccc, LLLL dd, yyyy 'at' h:mm a")} PST.`;
     systemPrompt += `\n- To mention, tag or reply to someone, you do it by mentioning their Discord user ID tag. For example, to mention me, you would type <@${bot.id}>.`;
 
     if (message.guild) {
@@ -589,13 +579,11 @@ async function buildAndGenerateReply({
       // GUILD NAME
       systemPrompt += `\n- You are in the discord server called: ${message.guild.name}.`;
       // CREATED AT
-      const createdDateTime = DateTime.fromMillis(
+      const createdDateTime = TemporalHelpers.fromMillis(
         message.guild.createdTimestamp,
       );
-      const createdAtTimestampAt = createdDateTime
-        .setZone("local")
-        .toFormat("LLLL dd, yyyy 'at' hh:mm:ss a");
-      const createdAtTimestampRelative = createdDateTime.toRelative();
+      const createdAtTimestampAt = TemporalHelpers.format(createdDateTime, "LLLL dd, yyyy 'at' hh:mm:ss a");
+      const createdAtTimestampRelative = TemporalHelpers.toRelative(createdDateTime);
       systemPrompt += `\n- This server was created on: ${createdAtTimestampAt} (${createdAtTimestampRelative})`;
       // DESCRIPTION
       if (message.guild.description) {
@@ -651,23 +639,19 @@ async function buildAndGenerateReply({
       if (message.channel.topic) {
         systemPrompt += `\n- The channel topic is: ${message.channel.topic}.`;
       }
-      const channelCreatedDateTime = DateTime.fromMillis(
+      const channelCreatedDateTime = TemporalHelpers.fromMillis(
         message.channel.createdTimestamp,
       );
-      const channelCreatedAt = channelCreatedDateTime
-        .setZone("local")
-        .toFormat("LLLL dd, yyyy 'at' hh:mm:ss a");
-      const channelCreatedAtRelative = channelCreatedDateTime.toRelative();
+      const channelCreatedAt = TemporalHelpers.format(channelCreatedDateTime, "LLLL dd, yyyy 'at' hh:mm:ss a");
+      const channelCreatedAtRelative = TemporalHelpers.toRelative(channelCreatedDateTime);
       systemPrompt += `\n- This channel was created on: ${channelCreatedAt} (${channelCreatedAtRelative})`;
       if (message.channel.lastMessage) {
-        const lastMessageCreatedDateTime = DateTime.fromMillis(
+        const lastMessageCreatedDateTime = TemporalHelpers.fromMillis(
           message.channel.lastMessage.createdTimestamp,
         );
-        const lastMessageSentAt = lastMessageCreatedDateTime
-          .setZone("local")
-          .toFormat("LLLL dd, yyyy 'at' hh:mm:ss a");
+        const lastMessageSentAt = TemporalHelpers.format(lastMessageCreatedDateTime, "LLLL dd, yyyy 'at' hh:mm:ss a");
         const lastMessageSentAtRelative =
-          lastMessageCreatedDateTime.toRelative();
+          TemporalHelpers.toRelative(lastMessageCreatedDateTime);
         systemPrompt += `\n- Last message in this channel sent at: ${lastMessageSentAt} (${lastMessageSentAtRelative})`;
       } else {
         systemPrompt += `\n- No messages have been sent in this channel yet.`;
@@ -1219,7 +1203,7 @@ Respond with ONLY "yes" or "no". Nothing else.`,
             systemPrompt += `\nThese are things you remember from past conversations. Use them naturally when relevant — don't force them into every response.`;
             for (const memory of memoryResult.memories) {
               const createdDate = new Date(memory.createdAt);
-              const timeAgo = DateTime.fromJSDate(createdDate).toRelative();
+              const timeAgo = TemporalHelpers.toRelative(TemporalHelpers.fromJSDate(createdDate));
               systemPrompt += `\n- ${memory.content} (about ${memory.aboutUsername}, remembered ${timeAgo})`;
             }
           }
@@ -1762,7 +1746,7 @@ async function replyMessage(queuedDatum: any, localMongo: any) {
   // LightsService.cycleColor(config.PRIMARY_LIGHT_ID, DEFAULT_LIGHT_CYCLE);
   if (!generatedTextResponse && !generatedImage) {
     await message.reply("...");
-    lastMessageSentTime = DateTime.now().toISO();
+    lastMessageSentTime = TemporalHelpers.nowISO();
     // LightsService.setState({ color: "red" }, config.PRIMARY_LIGHT_ID);
     console.error(`❌ [DiscordService:replyMessage] NO RESPONSE GENERATED
 ${member ? `Member: ${combinedNames}` : `User: ${combinedNames}`}
@@ -1803,7 +1787,7 @@ ${combinedGuildInformation && combinedChannelInformation ? `URL: ${utilities.get
     return;
   }
 
-  lastMessageSentTime = DateTime.now().toISO();
+  lastMessageSentTime = TemporalHelpers.nowISO();
   CurrentService.setEndTime(Date.now());
 
   // Fire-and-forget memory extraction from the conversation
@@ -2050,20 +2034,20 @@ async function extractContentFromMessages(
 
   if (message.guild) {
     let index = 0;
-    const firstMessageDateTime = DateTime.fromMillis(
+    const firstMessageDateTime = TemporalHelpers.fromMillis(
       recentXMessages[0].createdTimestamp,
     );
-    const lastMessageDateTime = DateTime.fromMillis(
+    const lastMessageDateTime = TemporalHelpers.fromMillis(
       recentXMessages[recentXMessages.length - 1].createdTimestamp,
     );
     let dateIdFormat = "yyMMddHHmmSSS";
-    if (firstMessageDateTime.hasSame(lastMessageDateTime, "hour")) {
+    if (TemporalHelpers.hasSame(firstMessageDateTime, lastMessageDateTime, "hour")) {
       dateIdFormat = "mSSS";
-    } else if (firstMessageDateTime.hasSame(lastMessageDateTime, "day")) {
+    } else if (TemporalHelpers.hasSame(firstMessageDateTime, lastMessageDateTime, "day")) {
       dateIdFormat = "HmmSSS";
-    } else if (firstMessageDateTime.hasSame(lastMessageDateTime, "month")) {
+    } else if (TemporalHelpers.hasSame(firstMessageDateTime, lastMessageDateTime, "month")) {
       dateIdFormat = "dHHmmSSS";
-    } else if (firstMessageDateTime.hasSame(lastMessageDateTime, "year")) {
+    } else if (TemporalHelpers.hasSame(firstMessageDateTime, lastMessageDateTime, "year")) {
       dateIdFormat = "MddHHmmSSS";
     }
 
@@ -2497,17 +2481,15 @@ async function extractContentFromMessages(
         }
       } else {
         // Build user message content with all collected data
-        const recentMessageDateTime = DateTime.fromMillis(
+        const recentMessageDateTime = TemporalHelpers.fromMillis(
           recentMessage.createdTimestamp,
         );
-        const messageId = recentMessageDateTime.toFormat(dateIdFormat);
+        const messageId = TemporalHelpers.toDateId(recentMessageDateTime, dateIdFormat);
         const combinedNames = utilities.getCombinedNamesFromUserOrMember({
           member: recentMessage.member,
         });
-        const messageSentAt = recentMessageDateTime
-          .setZone("local")
-          .toFormat("LLLL dd, yyyy 'at' hh:mm:ss a");
-        const messageSentAtRelative = recentMessageDateTime.toRelative();
+        const messageSentAt = TemporalHelpers.format(recentMessageDateTime, "LLLL dd, yyyy 'at' hh:mm:ss a");
+        const messageSentAtRelative = TemporalHelpers.toRelative(recentMessageDateTime);
 
         let modifiedContent = `=== MESSAGE ${userMessageXofY} of ${sequentialUserMessages} ${userMessageXofY === sequentialUserMessages && isLastMessage ? "(MOST RECENT)" : ""} ===`;
         modifiedContent += `\n[METADATA]`;
@@ -2524,17 +2506,17 @@ async function extractContentFromMessages(
             modifiedContent += `\nAuthor: Unknown (DELETED MESSAGE)`;
             modifiedContent += `\nMessage ID: ${recentMessage.reference.messageId}`;
           } else {
-            const repliedMessageDateTime = DateTime.fromMillis(
+            const repliedMessageDateTime = TemporalHelpers.fromMillis(
               repliedMessage.createdTimestamp,
             );
             const replyMessageId =
-              repliedMessageDateTime.toFormat(dateIdFormat);
+              TemporalHelpers.toDateId(repliedMessageDateTime, dateIdFormat);
             const combinedRepliedNames =
               utilities.getCombinedNamesFromUserOrMember({
                 member: repliedMessage.member,
               });
             modifiedContent += `\nAuthor: ${combinedRepliedNames}`;
-            modifiedContent += `\nTime: ${repliedMessageDateTime.setZone("local").toFormat("LLLL dd, yyyy 'at' hh:mm:ss a")} (${repliedMessageDateTime.toRelative()})`;
+            modifiedContent += `\nTime: ${TemporalHelpers.format(repliedMessageDateTime, "LLLL dd, yyyy 'at' hh:mm:ss a")} (${TemporalHelpers.toRelative(repliedMessageDateTime)})`;
             modifiedContent += `\nMessage ID: ${replyMessageId}`;
 
             if (repliedMessage.cleanContent) {
@@ -3528,11 +3510,9 @@ async function luposOnGuildMemberRemove(client: any, mongo: any, member: any) {
         description += `Global Name: \`${member.user.globalName}\`\n`;
         description += `Username: \`${member.user.username}\`\n`;
         if (member.joinedTimestamp) {
-          const joinedDateTime = DateTime.fromMillis(member.joinedTimestamp);
+          const joinedDateTime = TemporalHelpers.fromMillis(member.joinedTimestamp);
           // Friday, October 14, 1983, 9:30:33 AM Eastern Daylight Time
-          const joinedDate = joinedDateTime.toLocaleString(
-            DateTime.DATETIME_HUGE_WITH_SECONDS,
-          );
+          const joinedDate = TemporalHelpers.formatDateTimeHugeWithSeconds(joinedDateTime);
           description += `Joined Server: \`${joinedDate}\`\n`;
         }
         description += `Current Member Count: \`${member.guild.memberCount}\`\n`;

@@ -1,4 +1,4 @@
-import { DateTime } from "luxon";
+import TemporalHelpers from "#root/utilities/TemporalHelpers.js";
 import crypto from "crypto";
 
 const utilities = {
@@ -159,10 +159,10 @@ const utilities = {
   // Date Utilities
   getCurrentDateAndTime(date: any) {
     // 2024-01-31 03:45:27 PM
-    return DateTime.fromJSDate(date).toFormat("yyyy-MM-dd HH:mm:ss a");
+    return TemporalHelpers.format(TemporalHelpers.fromJSDate(date), "yyyy-MM-dd HH:mm:ss a");
   },
   getMinutesAgo(date: any) {
-    return DateTime.fromJSDate(date).toRelative();
+    return TemporalHelpers.toRelative(TemporalHelpers.fromJSDate(date));
   },
   consoleLog(symbol: any, message: any, styleOptions: Record<string, any> = {}) {
     const debugLevel = 3;
@@ -207,7 +207,7 @@ const utilities = {
       orange: 33,
     };
 
-    const time = DateTime.now().toFormat("h:mm:ss a");
+    const time = TemporalHelpers.format(TemporalHelpers.now(), "h:mm:ss a");
 
     let logText = "";
 
@@ -426,9 +426,9 @@ const utilities = {
       unixDate = Date.now();
     }
     if (unixDate) {
-      const dateTime = DateTime.fromMillis(unixDate);
-      const time = dateTime.setZone("local").toFormat("hh:mm:ss a");
-      const date = dateTime.setZone("local").toFormat("LLLL dd, yyyy");
+      const dateTime = TemporalHelpers.fromMillis(unixDate);
+      const time = TemporalHelpers.format(dateTime, "hh:mm:ss a");
+      const date = TemporalHelpers.format(dateTime, "LLLL dd, yyyy");
       combinedDateInformation = `${bold(time)} ${faint("on")} ${faint(date)} • ${faint(unixDate)}`;
     }
     return combinedDateInformation;

@@ -234,16 +234,13 @@ router.get("/guild/members", asyncHandler(async (req: any, res: any) => {
       };
 
       if (hoistedRole) {
-        if (!roleMap.has(hoistedRole.id)) {
-          roleMap.set(hoistedRole.id, {
-            id: hoistedRole.id,
-            name: hoistedRole.name,
-            color: hoistedRole.hexColor !== "#000000" ? hoistedRole.hexColor : null,
-            position: hoistedRole.position,
-            members: [],
-          });
-        }
-        roleMap.get(hoistedRole.id).members.push(memberData);
+        roleMap.getOrInsertComputed(hoistedRole.id, () => ({
+          id: hoistedRole.id,
+          name: hoistedRole.name,
+          color: hoistedRole.hexColor !== "#000000" ? hoistedRole.hexColor : null,
+          position: hoistedRole.position,
+          members: [],
+        })).members.push(memberData);
       } else if (member.user.bot) {
         ungroupedBots.push(memberData);
       } else {
