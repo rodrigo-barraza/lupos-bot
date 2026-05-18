@@ -39,7 +39,7 @@ const newParalysisMoves = {
 };
 
 // Calculate timeout duration based on move power (1-10 seconds)
-function calculateTimeoutDuration(power: any, isCritical = false) {
+function calculateTimeoutDuration(power: any, isCritical: any = false) {
   if (power === "Varies") {
     return isCritical ? 7500 : 5000; // 7.5 or 5 seconds for variable power moves
   }
@@ -171,7 +171,7 @@ export default {
       const moveNames = Object.keys(newParalysisMoves);
       const randomMoveName =
         moveNames[Math.floor(Math.random() * moveNames.length)];
-      const moveData = newParalysisMoves[randomMoveName];
+      const moveData = newParalysisMoves[randomMoveName as keyof typeof newParalysisMoves];
 
       // Set cooldown (do this before checking if move hits)
       cooldowns.set(userId, now);
@@ -241,7 +241,7 @@ export default {
       );
 
       // Format message differently for self-shock (like confusion self-damage)
-      let battleMessage;
+      let battleMessage: any;
 
       if (isSelfShock) {
         battleMessage =

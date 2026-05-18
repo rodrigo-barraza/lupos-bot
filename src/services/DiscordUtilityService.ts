@@ -11,8 +11,8 @@ import MediaArchivalService from "#root/services/MediaArchivalService.js";
 async function fetchMessagesWithOptionalLastId(
   client: any,
   channelId: any,
-  maxMessages = 10,
-  lastId = null,
+  maxMessages: any = 10,
+  lastId: any = null,
 ) {
   const channel = client.channels.cache.find(
     (channel: any) => channel.id == channelId,
@@ -64,7 +64,7 @@ const transformUserPrimaryGuild = (userPrimaryGuild: any) => ({
   tag: userPrimaryGuild?.tag,
 });
 
-const transformUser = (user: any, concise = false) => {
+const transformUser = (user: any, concise: any = false) => {
   if (user) {
     const userObject = {
       accentColor: user.accentColor,             // number | null | undefined
@@ -153,7 +153,7 @@ const transformAttachment = (attachment: any) => {
   }
 };
 
-const transformTextChannel = (channel: any, _concise = false) => {
+const transformTextChannel = (channel: any, _concise: any = false) => {
   if (channel) {
     const textChannel = {
       // client: channel.client,                  // Client<true>
@@ -214,7 +214,7 @@ const transformEmbeds = (embeds: any) => {
   }));
 };
 
-const transformGuild = (guild: any, _concise = false) => {
+const transformGuild = (guild: any, _concise: any = false) => {
   if (guild) {
     return {
       id: guild.id,
@@ -312,7 +312,7 @@ const transformActivity = (activity: any) => {
   }
 };
 
-const transformPresence = (presence: any) => {
+const transformPresence = (presence: any): Record<string, any> | undefined => {
   if (presence) {
     return {
       activities: presence.activities.map((activity: any) =>
@@ -349,7 +349,7 @@ const transformVoice = (voice: any) => {
   }
 };
 
-const transformMember = (member: any, concise = false) => {
+const transformMember = (member: any, concise: any = false): Record<string, any> | undefined => {
   if (member) {
     // Build Enhanced Role Colors for gradient/holographic support.
     // member.roles.color is the highest role with a non-zero color.
@@ -416,7 +416,7 @@ const transformMember = (member: any, concise = false) => {
   }
 };
 
-const transformEmoji = (emoji: any, _concise = false) => {
+const transformEmoji = (emoji: any, _concise: any = false) => {
   if (emoji) {
     return {
       animated: emoji.animated,
@@ -713,7 +713,7 @@ const DiscordUtilityService = {
         return { saved: 0, duplicates: 0, errors: 0 } as Record<string, any>;
       }
 
-      const documents = [];
+      const documents: any[] = [];
       let transformErrorCount = 0;
 
       for (const message of messages) {
@@ -839,7 +839,7 @@ const DiscordUtilityService = {
     // ── Concurrency limiter ─────────────────────────────────────────
     const createConcurrencyLimiter = (limit: any) => {
       let activeCount = 0;
-      const queue = [];
+      const queue: any[] = [];
 
       const run = async (fn: any) => {
         while (activeCount >= limit) {
@@ -1080,7 +1080,7 @@ const DiscordUtilityService = {
     };
 
     // ── Dispatch all channels ───────────────────────────────────────
-    const channelPromises = [];
+    const channelPromises: any[] = [];
     for (const channel of textChannels.values()) {
       channelPromises.push(limiter.run(() => processChannel(channel)));
     }
@@ -1162,7 +1162,7 @@ const DiscordUtilityService = {
         continue;
       }
 
-      const orphanIds = [];
+      const orphanIds: any[] = [];
 
       // Process in concurrency-limited chunks
       for (let i = 0; i < messageIds.length; i += concurrencyLimit) {
@@ -1307,7 +1307,7 @@ const DiscordUtilityService = {
 
         try {
           // Fetch the live message from Discord to get fresh CDN URLs
-          let liveMessage;
+          let liveMessage: any;
           try {
             liveMessage = await channel.messages.fetch(document.id);
           } catch (fetchErr: any) {
@@ -1362,7 +1362,7 @@ const DiscordUtilityService = {
 
     return { processed, archived, errors };
   },
-  async deleteDuplicateMessagesByID(mongo: any, collectionName = "Messages") {
+  async deleteDuplicateMessagesByID(mongo: any, collectionName: any = "Messages") {
     const db = mongo.db(MONGO_DB_NAME);
     const collection = db.collection(collectionName);
 
@@ -1432,7 +1432,7 @@ const DiscordUtilityService = {
     return DiscordUtilityService._sanitizeUsername(name);
   },
 
-  async saveMessageToMongo(message: any, mongo: any, collectionName = "Messages") {
+  async saveMessageToMongo(message: any, mongo: any, collectionName: any = "Messages") {
     const db = mongo.db(MONGO_DB_NAME);
     const collection = db.collection(collectionName);
     const messageObject = transformMessageRoot(message);
@@ -1479,7 +1479,7 @@ const DiscordUtilityService = {
       { upsert: true },
     );
   },
-  async updateMessageInMongo(message: any, mongo: any, collectionName = "Messages") {
+  async updateMessageInMongo(message: any, mongo: any, collectionName: any = "Messages") {
     const db = mongo.db(MONGO_DB_NAME);
     const collection = db.collection(collectionName);
     const messageObject = transformMessageRoot(message);
@@ -1510,7 +1510,7 @@ const DiscordUtilityService = {
 
 
    */
-  async syncReactionsToMongo(reactionMessage: any, mongo: any, collectionName = "Messages") {
+  async syncReactionsToMongo(reactionMessage: any, mongo: any, collectionName: any = "Messages") {
     try {
       const db = mongo.db(MONGO_DB_NAME);
       const collection = db.collection(collectionName);
@@ -1527,7 +1527,7 @@ const DiscordUtilityService = {
   },
 
   async extractAudioUrlsFromMessage(message: any) {
-    const audioUrls = [];
+    const audioUrls: any[] = [];
     if (message?.attachments?.size) {
       for (const attachment of message.attachments.values()) {
         const isAudio = attachment.contentType.includes("audio/ogg");
@@ -1539,7 +1539,7 @@ const DiscordUtilityService = {
     return audioUrls;
   },
   async extractImageUrlsFromMessage(message: any) {
-    const imageUrls = [];
+    const imageUrls: any[] = [];
     // Attachments
     if (message?.attachments?.size) {
       for (const attachment of message.attachments.values()) {
@@ -1577,7 +1577,7 @@ const DiscordUtilityService = {
     return imageUrls;
   },
   async retrieveMessageReferenceFromMessage(message: any) {
-    let messageReference;
+    let messageReference: any;
     if (message?.reference && message.reference.messageId) {
       messageReference = message.channel.messages.cache.get(
         message.reference.messageId,
@@ -1595,7 +1595,7 @@ const DiscordUtilityService = {
     return messageReference;
   },
   getDisplayNameFromUserOrMember({ user, member }: any) {
-    let displayName;
+    let displayName: any;
     if (user || member) {
       displayName = user?.displayName || member?.displayName;
     }
@@ -1607,7 +1607,7 @@ const DiscordUtilityService = {
     return DiscordUtilityService._sanitizeUsername(raw);
   },
   async getDisplayName(message: any, userId: any) {
-    let displayName;
+    let displayName: any;
     if (message && message.guild && userId) {
       const member = await DiscordUtilityService.retrieveMemberFromGuildById(
         message.guild,
@@ -1689,7 +1689,7 @@ const DiscordUtilityService = {
     }
   },
   // Canonical user-fetch: cache → fetch with optional force
-  async getUserFromClientAndId(client: any, userId: any, force = false) {
+  async getUserFromClientAndId(client: any, userId: any, force: any = false) {
     let user = client.users.cache.get(userId);
     if (!user) {
       try {
@@ -1714,7 +1714,7 @@ const DiscordUtilityService = {
     return client.users.cache.get(userId);
   },
   // Convenience wrapper for message context
-  async getUserFromMessage(message: any, force = false) {
+  async getUserFromMessage(message: any, force: any = false) {
     return DiscordUtilityService.getUserFromClientAndId(
       message.client,
       message.author.id,
@@ -1790,7 +1790,7 @@ const DiscordUtilityService = {
       customFunction(client, mongo, oldMember, newMember);
     });
   },
-  async getAllServerEmojisFromMessage(message: any, format = "string") {
+  async getAllServerEmojisFromMessage(message: any, format: any = "string") {
     // format can be: array, string
     if (message.guild.emojis.cache.size) {
       const emojis = message.guild.emojis.cache.map((emoji: any) => {
@@ -1955,7 +1955,7 @@ const DiscordUtilityService = {
     return client.guilds.cache.get(guildId);
   },
   getAllGuilds(client: any) {
-    let guildsCollection;
+    let guildsCollection: any;
     if (client) {
       guildsCollection = client.guilds.cache;
     }
@@ -2026,7 +2026,7 @@ const DiscordUtilityService = {
     const messageChunkSizeLimit = 2000;
     let fileName = "lupos.png";
     let imageDescription = "";
-    let returnedFirstMessage;
+    let returnedFirstMessage: any;
 
     if (imagePrompt) {
       fileName = `${imagePrompt.substring(0, 240)}.png`;
@@ -2061,7 +2061,7 @@ const DiscordUtilityService = {
         i + messageChunkSizeLimit,
       );
       let messageReplyOptions = { content: chunk };
-      const files = [];
+      const files: any[] = [];
 
 
       if (
@@ -2139,7 +2139,7 @@ const DiscordUtilityService = {
       `[FILTER] Excluding ${excludedChannels.length} specific channels`,
     );
 
-    const channelStats = [];
+    const channelStats: any[] = [];
     const globalUserStats: Record<string, any> = {};
     const now = DateTime.local();
     const cutoffDate = now.minus({ months: MONTHS_TO_ANALYZE });
@@ -2152,7 +2152,7 @@ const DiscordUtilityService = {
     let totalFetchCount = 0;
 
     // Collect all eligible channels first
-    const eligibleChannels = [];
+    const eligibleChannels: any[] = [];
     for (const channel of guild.channels.cache.values()) {
       if (
         channel.type === ChannelType.GuildText &&
@@ -2178,7 +2178,7 @@ const DiscordUtilityService = {
       );
 
       try {
-        let allMessages = [];
+        let allMessages: any[] = [];
         let lastMessageId = null;
         let fetchMore = true;
         let fetchCount = 0;
@@ -2204,7 +2204,7 @@ const DiscordUtilityService = {
             lastMessageId ? lastMessageId : undefined,
           );
 
-          const messagesArray: any[] = Array.from(messages.values());
+          const messagesArray: any[] = messages ? Array.from(messages.values()) : [];
 
           if (messagesArray.length === 0) {
             console.log(
@@ -2420,7 +2420,7 @@ const DiscordUtilityService = {
     };
 
     // Process channels in batches with concurrency limit
-    const results = [];
+    const results: any[] = [];
     for (let i = 0; i < eligibleChannels.length; i += CONCURRENT_CHANNELS) {
       const batch = eligibleChannels.slice(i, i + CONCURRENT_CHANNELS);
       const batchNumber = Math.floor(i / CONCURRENT_CHANNELS) + 1;
@@ -2625,7 +2625,7 @@ const DiscordUtilityService = {
 
     const daysSinceStart = Math.max(
       1,
-      Math.ceil((now - lastMessageDate.getTime()) / MS_PER_DAY),
+      Math.ceil((now - (lastMessageDate?.getTime() || now)) / MS_PER_DAY),
     );
     const averageMessagesPerHour = (
       messageCount /

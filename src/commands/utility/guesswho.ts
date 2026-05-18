@@ -196,11 +196,11 @@ export default {
 
       // ─── Live Guess Feed State ────────────────────────────────────
       const guesses = new Map();
-      const guessLog = []; // Public log of all guesses as they happen
+      const guessLog: any[] = []; // Public log of all guesses as they happen
       const eliminatedOptionIds = new Set(); // Track eliminated wrong choices
 
       // Build the embed with live guess feed
-      const createEmbed = (timeRemaining: any, status = "active") => {
+      const createEmbed = (timeRemaining: any, status: any = "active") => {
         const color =
           status === "correct"
             ? 0x57f287
@@ -266,7 +266,7 @@ export default {
       const startTime = Date.now();
       const timeLimit = 60000;
       // eslint-disable-next-line prefer-const
-      let timerInterval;
+      let timerInterval: any;
 
       const updateTimer = async () => {
         const elapsed = Date.now() - startTime;
@@ -450,8 +450,8 @@ export default {
         }
 
         // Correct/incorrect summary
-        const correctGuesses = [];
-        const incorrectGuesses = [];
+        const correctGuesses: any[] = [];
+        const incorrectGuesses: any[] = [];
 
         for (const [usrId, data] of guesses.entries()) {
           const currentScore = scoreMap.get(usrId) || 0;

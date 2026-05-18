@@ -11,7 +11,7 @@ export default class LightsService {
    * Shared HTTP helper — mirrors PrismService._request().
    * Returns parsed JSON on success, null on any failure.
    */
-  static async _request(method: any, path: any, body = null) {
+  static async _request(method: any, path: any, body: any = null) {
     try {
       const options: Record<string, any> = { method };
       if (body) {
@@ -25,7 +25,7 @@ export default class LightsService {
     }
   }
 
-  static async getLights(lightId = "all") {
+  static async getLights(lightId: any = "all") {
     return this._request("GET", `/lights/${lightId}`);
   }
 
@@ -33,7 +33,7 @@ export default class LightsService {
     return this._request("GET", `/color/validate?color=${encodeURIComponent(color)}`);
   }
 
-  static async setState(state: any, lightId = "all") {
+  static async setState(state: any, lightId: any = "all") {
     return this._request("PUT", `/lights/${lightId}/state`, {
       power: state?.power || "on",
       color: state?.color || "white",
@@ -43,7 +43,7 @@ export default class LightsService {
     });
   }
 
-  static async setStateDelta(state: any, lightId = "all") {
+  static async setStateDelta(state: any, lightId: any = "all") {
     return this._request("POST", `/lights/${lightId}/state/delta`, {
       power: state?.power || "on",
       duration: state?.duration || 1,
@@ -55,15 +55,15 @@ export default class LightsService {
     });
   }
 
-  static async togglePower(lightId = "all", duration = 1) {
+  static async togglePower(lightId: any = "all", duration: any = 1) {
     return this._request("POST", `/lights/${lightId}/toggle`, { duration });
   }
 
-  static async randomizeColor(lightId = "all", duration = 1) {
+  static async randomizeColor(lightId: any = "all", duration: any = 1) {
     return this._request("POST", `/lights/${lightId}/color/randomize`, { duration });
   }
 
-  static async cycleColor(lightId = "all", style = "rainbow", duration = 0.3) {
+  static async cycleColor(lightId: any = "all", style: any = "rainbow", duration: any = 0.3) {
     return this._request("POST", `/lights/${lightId}/color/cycle`, { style, duration });
   }
 }

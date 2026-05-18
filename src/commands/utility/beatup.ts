@@ -53,7 +53,7 @@ function getRandomMove() {
   const randomMove = moves[Math.floor(Math.random() * moves.length)];
   return {
     name: randomMove,
-    emoji: multiHitMoves[randomMove],
+    emoji: multiHitMoves[randomMove as keyof typeof multiHitMoves],
   };
 }
 
@@ -167,7 +167,7 @@ export default {
         guildId: interaction.guildId,
       });
 
-      let currentVotes = [];
+      let currentVotes: any[] = [];
       if (voteDoc) {
         // Filter out expired votes (older than 24 hours)
         currentVotes = voteDoc.votes.filter(

@@ -12,7 +12,7 @@ class BoundedMap {
   _maxSize: number;
   _ttlMs: number;
 
-  constructor(maxSize = 5000, ttlMs = 2 * 60 * 60 * 1000) {
+  constructor(maxSize: any = 5000, ttlMs: any = 2 * 60 * 60 * 1000) {
     this._map = new Map();       // key → { value, timestamp }
     this._maxSize = maxSize;
     this._ttlMs = ttlMs;

@@ -43,10 +43,10 @@ const MoodService = {
   setMoodLevel(level: any) {
     return moodStat.setLevel(level);
   },
-  increaseMoodLevel(multiplier = 1) {
+  increaseMoodLevel(multiplier: any = 1) {
     return moodStat.increase(multiplier);
   },
-  decreaseMoodLevel(multiplier = 1) {
+  decreaseMoodLevel(multiplier: any = 1) {
     return moodStat.decrease(multiplier);
   },
   async generateMoodMessage(message: any) {

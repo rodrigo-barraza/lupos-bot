@@ -158,7 +158,7 @@ async function handleMessageDelete(client: any, mongo: any, message: any) {
   // Handle attachments
   if (message.attachments.size > 0) {
     const attachmentArray: any[] = Array.from(message.attachments.values());
-    const attachmentInfo = [];
+    const attachmentInfo: any[] = [];
 
     attachmentArray.forEach((attachment: any, index: any) => {
       const size = (attachment.size / 1024).toFixed(2);

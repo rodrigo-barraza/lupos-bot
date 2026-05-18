@@ -73,7 +73,7 @@ const MIME_TO_EXT = {
 function inferExtension(contentType: any, url: any) {
   if (contentType) {
     const mimeBase = contentType.split(";")[0].trim().toLowerCase();
-    if (MIME_TO_EXT[mimeBase]) return MIME_TO_EXT[mimeBase];
+    if (MIME_TO_EXT[mimeBase as keyof typeof MIME_TO_EXT]) return MIME_TO_EXT[mimeBase as keyof typeof MIME_TO_EXT];
   }
   try {
     const pathname = new URL(url).pathname;
@@ -106,7 +106,7 @@ async function archiveUrl(url: any, mediaHashesCol: any) {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
 
-    let response;
+    let response: any;
     try {
       response = await fetch(url, { signal: controller.signal });
     } finally {
@@ -305,7 +305,7 @@ async function main() {
   const cursor = messagesCol.find(query).sort({ createdTimestamp: -1 });
   if (LIMIT) cursor.limit(LIMIT);
 
-  let batch = [];
+  let batch: any[] = [];
   let batchNumber = 0;
 
   for await (const document of cursor) {

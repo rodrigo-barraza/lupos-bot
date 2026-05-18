@@ -51,7 +51,7 @@ async function getCurrentMonthBirthdays(client: any) {
   );
 
   // Now assign the birthday role to each user in the current month
-  const addRolePromises = [];
+  const addRolePromises: any[] = [];
   for (const user of users) {
     const member = guild.members.cache.find(
       (member: any) => member.user.username === user,

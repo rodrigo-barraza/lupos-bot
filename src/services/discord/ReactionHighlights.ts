@@ -81,7 +81,7 @@ async function processCreateReaction(client: any, queuedReaction: any) {
     const emojiId = reaction._emoji.id;
     const emojiName = reaction._emoji.name;
     const isEmojiAnimated = reaction._emoji.animated;
-    let emojiUrl;
+    let emojiUrl: any;
 
     const doesContentContainTenorText = content?.includes(
       "https://tenor.com/view/",
@@ -100,7 +100,7 @@ async function processCreateReaction(client: any, queuedReaction: any) {
     const referenceChannelId = reference?.channelId;
     const _referenceGuildId = reference?.guildId;
     const referenceMessageId = reference?.messageId;
-    let referenceMessage;
+    let referenceMessage: any;
 
     const currentReferenceChannel = DiscordUtilityService.getChannelById(
       client,

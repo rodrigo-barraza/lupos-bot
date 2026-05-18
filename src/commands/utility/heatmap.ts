@@ -242,7 +242,7 @@ export default {
       const uniqueYears = Array.from(yearSet).sort();
 
       // Create year x month grid (dynamic years x 12 months)
-      const monthlyHeatmapData = [];
+      const monthlyHeatmapData: any[] = [];
       uniqueYears.forEach((year: any) => {
         const yearData = Array(12).fill(0);
         monthlyMessages.forEach((message: any) => {

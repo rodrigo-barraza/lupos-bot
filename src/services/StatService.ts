@@ -53,7 +53,7 @@ const StatService = {
         return level;
       },
 
-      increase(multiplier = 1) {
+      increase(multiplier: any = 1) {
         const amount = step * multiplier;
         level = clamp(level + amount);
         const capitalized = utilities.capitalize(name);
@@ -64,7 +64,7 @@ const StatService = {
         return level;
       },
 
-      decrease(multiplier = 1) {
+      decrease(multiplier: any = 1) {
         const amount = step * multiplier;
         level = clamp(level - amount);
         const capitalized = utilities.capitalize(name);

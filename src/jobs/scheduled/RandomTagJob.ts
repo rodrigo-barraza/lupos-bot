@@ -67,7 +67,7 @@ async function randomTag({ client, guildId, channelId }: any) {
     // Pick 3 random active members (or fewer if pool is small)
     const membersArray = Array.from(activeAuthors.values());
     const TARGET_COUNT = Math.min(3, membersArray.length);
-    const selectedMembers = [];
+    const selectedMembers: any[] = [];
     const usedIndices = new Set();
 
     while (selectedMembers.length < TARGET_COUNT) {

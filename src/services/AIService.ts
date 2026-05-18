@@ -13,8 +13,8 @@ import CurrentService from "#root/services/CurrentService.js";
 import DiscordUtilityService from "#root/services/DiscordUtilityService.js";
 
 // Image processing - prefer sharp, fallback to Jimp
-let sharp;
-let Jimp;
+let sharp: any;
+let Jimp: any;
 
 try {
   sharp = (await import("sharp")).default;
@@ -97,7 +97,7 @@ const AIService = {
    * @returns {Promise<Array<{ imageData: string, mimeType: string }>>}
    */
   async _convertImageUrlsToBase64(urls: any, { convertGifs = false }: any = {}) {
-    const imageObjects = [];
+    const imageObjects: any[] = [];
     for (const url of urls) {
       const response = await fetch(url);
       const buffer = await response.arrayBuffer();
@@ -128,8 +128,8 @@ const AIService = {
     model = null,
     _label = null,
   }: any) {
-    let textResponse;
-    let generateTextModel;
+    let textResponse: any;
+    let generateTextModel: any;
 
     // Determine initial model based on type and performance
     if (type === "OPENAI") {
@@ -195,9 +195,9 @@ const AIService = {
     return textResponse;
   },
   // Base Text-to-Image Generation (Diffusion)
-  async generateImage(type: any, prompt: any, client: any, imageUrls = [], username = null) {
-    let generatedImage;
-    let usedModel;
+  async generateImage(type: any, prompt: any, client: any, imageUrls: any = [], username: any = null) {
+    let generatedImage: any;
+    let usedModel: any;
 
 
     if (type === "GOOGLE") {
@@ -328,7 +328,7 @@ const AIService = {
       m4a: "audio/mp4",
       flac: "audio/flac",
     };
-    const mimeType = mimeMap[ext] || "audio/wav";
+    const mimeType = mimeMap[ext as keyof typeof mimeMap] || "audio/wav";
 
     // Get Discord context for tracking
     const discordUsername = AIService._getDiscordUsername();
@@ -348,9 +348,9 @@ const AIService = {
   },
   // Caption images and store data in MongoDB
   async captionImages(imageUrls: any, localMongo: any, type: any) {
-    const images = [];
+    const images: any[] = [];
     const imagesMap = new Map();
-    const collectionName = CAPTION_COLLECTION_MAP[type];
+    const collectionName = CAPTION_COLLECTION_MAP[type as keyof typeof CAPTION_COLLECTION_MAP];
     if (collectionName) {
       const db = localMongo.db(MONGO_DB_NAME);
       const collection = db.collection(collectionName);
@@ -434,7 +434,7 @@ const AIService = {
     const transcriptionsMap = new Map();
     const db = localMongo.db(MONGO_DB_NAME);
     const collection = db.collection("AudioTranscriptions");
-    let existingAudio;
+    let existingAudio: any;
     if (audioUrls?.length) {
       let index = 0;
       for (const audioUrl of audioUrls) {
@@ -503,8 +503,8 @@ const AIService = {
     const content = message.content;
     const modifiedMessageContent = content.replace(`<@${bot.id}>`, "");
 
-    let guildEmojiList;
-    let serverEmojisArray = [];
+    let guildEmojiList: any;
+    let serverEmojisArray: any[] = [];
 
     if (guild) {
       const serverEmojis = client.guilds.cache.get(guild.id).emojis.cache;
