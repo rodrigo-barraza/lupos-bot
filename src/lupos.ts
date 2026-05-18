@@ -3,15 +3,15 @@
 // Environment setup
 process.env.NODE_NO_WARNINGS = "stream/web";
 
-import config from "./config.js";
-import DiscordService from "./services/DiscordService.js";
-import LogFormatter from "./formatters/LogFormatter.js";
-import MinioWrapper from "./wrappers/MinioWrapper.js";
-import MediaArchivalService from "./services/MediaArchivalService.js";
+import config from "./config.ts";
+import DiscordService from "./services/DiscordService.ts";
+import LogFormatter from "./formatters/LogFormatter.ts";
+import MinioWrapper from "./wrappers/MinioWrapper.ts";
+import MediaArchivalService from "./services/MediaArchivalService.ts";
 
 import express from "express";
 const app = express();
-import services from "./services/services.js";
+import services from "./services/services.ts";
 
 // Parse command line arguments
 const args = process.argv.slice(2);

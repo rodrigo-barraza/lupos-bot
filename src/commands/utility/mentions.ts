@@ -5,7 +5,7 @@ import {
   computeStartDate,
   formatTimePeriod,
   getMedal,
-} from "./commandUtils.js";
+} from "./commandUtils.ts";
 
 export default {
   data: new SlashCommandBuilder()

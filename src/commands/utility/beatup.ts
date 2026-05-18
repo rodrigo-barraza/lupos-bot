@@ -1,5 +1,5 @@
 import { SlashCommandBuilder, PermissionFlagsBits } from "discord.js";
-import { getMongoDb } from "./commandUtils.js";
+import { getMongoDb } from "./commandUtils.ts";
 
 // How many votes needed to trigger timeout
 const VOTES_REQUIRED = 3;

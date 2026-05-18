@@ -1,5 +1,5 @@
 import { SlashCommandBuilder, PermissionFlagsBits } from "discord.js";
-import { getMongoDb } from "./commandUtils.js";
+import { getMongoDb } from "./commandUtils.ts";
 
 // Store cooldowns in memory (userId -> timestamp)
 const cooldowns = new Map();

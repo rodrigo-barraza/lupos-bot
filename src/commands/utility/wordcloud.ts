@@ -6,7 +6,7 @@ import {
   computeStartDate,
   formatTimePeriod,
   getPlaywrightOptions,
-} from "./commandUtils.js";
+} from "./commandUtils.ts";
 
 // Common stop words to filter out
 const STOP_WORDS = new Set([
