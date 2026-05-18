@@ -16,7 +16,7 @@ import { ACCOUNT_AGE_THRESHOLD_MS, MS_PER_DAY } from "#root/constants.js";
 
  * @returns {boolean} true if the member was kicked, false otherwise.
  */
-export async function kickIfTooNew(member: any, callerName = "AccountGuard") {
+export async function kickIfTooNew(member: any, callerName: any = "AccountGuard") {
   if (member.user.bot) return false;
 
   const accountAge = Date.now() - member.user.createdAt.getTime();
@@ -60,7 +60,7 @@ const FORBIDDEN_COMBO_ROLE_IDS = [
 
  * @returns {boolean} true if the member was kicked, false otherwise.
  */
-export async function kickIfForbiddenCombo(member: any, callerName = "AccountGuard") {
+export async function kickIfForbiddenCombo(member: any, callerName: any = "AccountGuard") {
   if (member.user.bot) return false;
 
   const hasBoth = FORBIDDEN_COMBO_ROLE_IDS.every((roleId: any) =>

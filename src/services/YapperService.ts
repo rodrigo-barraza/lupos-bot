@@ -1,7 +1,7 @@
 import AIService from "#root/services/AIService.js";
 import MoodService from "#root/services/MoodService.js";
 
-let currentYappers = [];
+let currentYappers: any[] = [];
 
 const YapperService = {
   setYappers(yappers: any) {

@@ -51,7 +51,7 @@ function inferExtension(contentType: any, url: any) {
   if (contentType) {
     // Strip parameters (e.g. "image/png; charset=utf-8" → "image/png")
     const mimeBase = contentType.split(";")[0].trim().toLowerCase();
-    if (MIME_TO_EXT[mimeBase]) return MIME_TO_EXT[mimeBase];
+    if (MIME_TO_EXT[mimeBase as keyof typeof MIME_TO_EXT]) return MIME_TO_EXT[mimeBase as keyof typeof MIME_TO_EXT];
   }
   // Fall back to URL extension
   try {
@@ -182,7 +182,7 @@ const MediaArchivalService = {
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
 
-      let response;
+      let response: any;
       try {
         response = await fetch(url, { signal: controller.signal });
       } finally {

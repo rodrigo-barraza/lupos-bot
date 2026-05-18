@@ -1,7 +1,7 @@
 import { Client, GatewayIntentBits, Partials } from "discord.js";
 import { sleep } from "@rodrigo-barraza/utilities-library";
 
-const clients = [];
+const clients: any[] = [];
 
 /**
  * Maximum number of login retry attempts before giving up.

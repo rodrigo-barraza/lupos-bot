@@ -69,7 +69,7 @@ import { kickIfTooNew, kickIfForbiddenCombo, purgeByAccountAge } from "#root/ser
 
 
  */
-async function fetchMembersWithRetry(guild: any, maxRetries = 3) {
+async function fetchMembersWithRetry(guild: any, maxRetries: any = 3) {
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
       return await guild.members.fetch();
@@ -97,7 +97,7 @@ const mode = args.find((arg: any) => arg.startsWith("mode="))?.split("=")[1];
 
 let lastMessageSentTime = DateTime.now().toISO();
 let isProcessingQueue = false;
-const queuedData = [];
+const queuedData: any[] = [];
 const cancelledMessageIds = new Set();
 // Bounded maps prevent unbounded memory growth during long-running sessions.
 // TTL: 2 hours, max 5,000 entries — entries auto-evict when stale.
@@ -166,7 +166,7 @@ function updateLastMessageSentTime() {
     const difference = currentTime
       .diff(lastMessageSentTimeObject, ["seconds"])
       .toObject();
-    if (difference.seconds >= 30) {
+    if (difference.seconds && difference.seconds >= 30) {
       lastMessageSentTime = currentTime.toISO();
     }
   }, 1000);
@@ -189,7 +189,7 @@ async function splitEmojiNameAndId(emoji: any) {
 async function extractEmojisFromAllMessage(
   message: any,
   localMongo: any,
-  type = "EMOJI",
+  type: any = "EMOJI",
 ) {
   // Returns a Collection of emojis with their captions
   const messageEmojisCollection = new Collection();
@@ -199,7 +199,7 @@ async function extractEmojisFromAllMessage(
 
   if (messageEmojis.length > 0) {
     // Prepare all emoji URLs and create a mapping
-    const emojiUrls = [];
+    const emojiUrls: any[] = [];
     const emojiMapping = new Map(); // Map URL to original emoji string
 
     for (const emoji of messageEmojis) {
@@ -259,8 +259,8 @@ async function generateDescription(
     return systemPrompt;
   }
 
-  let messageSentAt;
-  let messageSentAtRelative;
+  let messageSentAt: any;
+  let messageSentAtRelative: any;
   const combinedNames = utilities.getCombinedNamesFromUserOrMember({
     member,
     user,
@@ -531,9 +531,9 @@ async function buildAndGenerateReply({
   const bot = client.user;
   let systemPrompt = newSystemPrompt;
 
-  let generatedText;
-  const serverContext = [];
-  let image;
+  let generatedText: any;
+  const serverContext: any[] = [];
+  let image: any;
   try {
     if (
       message.guildId === config.GUILD_ID_PRIMARY ||
@@ -674,14 +674,14 @@ async function buildAndGenerateReply({
       }
     }
 
-    let participantMember;
-    let participantUser;
-    let participantConversation;
+    let participantMember: any;
+    let participantUser: any;
+    let participantConversation: any;
 
     // ── Batch caption ALL avatar and banner images in parallel ────
     // Collect all URLs, caption them in one Promise.all, then inject
     // descriptions into the system prompt per-participant.
-    const allVisionUrls = [];
+    const allVisionUrls: any[] = [];
     for (const [userId, url] of participantsAvatarsCollection) {
       allVisionUrls.push({ url, userId });
     }
@@ -761,7 +761,7 @@ async function buildAndGenerateReply({
         message.author?.id,
       ]);
 
-      const knownParticipants = [];
+      const knownParticipants: any[] = [];
       const addedIds = new Set();
       for (const [id, member] of participantsMembersCollection.entries()) {
         if (alreadyMentionedIds.has(id)) continue;
@@ -830,7 +830,7 @@ async function buildAndGenerateReply({
         // knownParticipants already only contains names that appear in the message text,
         // so this is a refinement pass using word boundaries to avoid false positives.
         const messageTextForMatch = (message.cleanContent || message.content || "").toLowerCase();
-        const matchedIds = [];
+        const matchedIds: any[] = [];
         for (const participant of knownParticipants) {
           const names = [participant.username, participant.displayName]
             .filter((n: any) => n && n.length >= 3)
@@ -1159,7 +1159,7 @@ Respond with ONLY "yes" or "no". Nothing else.`,
     if (message.guildId) {
       try {
         // Collect all participant user IDs for the search
-        const participantUserIds = [];
+        const participantUserIds: any[] = [];
         if (message.author?.id) participantUserIds.push(message.author.id);
         for (const [id] of memberMentionsCollection.entries()) {
           if (!participantUserIds.includes(id)) participantUserIds.push(id);
@@ -1234,9 +1234,9 @@ Respond with ONLY "yes" or "no". Nothing else.`,
     // Trending data is now fetched and injected via agentContext
     // in the agent path below — no longer appended to systemPrompt here.
 
-    const imageUrls = [];
-    const imageLabels = []; // Tracks what each image in imageUrls represents
-    const mentionsImageUrls = [];
+    const imageUrls: any[] = [];
+    const imageLabels: any[] = []; // Tracks what each image in imageUrls represents
+    const mentionsImageUrls: any[] = [];
     // This creates a shallow copy, which is no different than what we had before, can be changed back.
     let edittedMessageCleanContent = "";
     let composition = String(message.cleanContent);
@@ -1612,8 +1612,8 @@ Respond with ONLY "yes" or "no". Nothing else.`,
     generatedText = CensorService.removeFlaggedWords(generatedText);
 
   } catch (error: any) {
-    ((generatedText = "..."),
-      console.error(...LogFormatter.error("buildAndGenerateReply", error)));
+    generatedText = "...";
+    console.error(...LogFormatter.error("buildAndGenerateReply", error));
   }
   return {
     generatedText,
@@ -1652,10 +1652,10 @@ async function replyMessage(queuedDatum: any, localMongo: any) {
     return;
   }
 
-  let combinedGuildInformation;
-  let combinedChannelInformation;
-  let generatedTextResponse;
-  let generatedImage;
+  let combinedGuildInformation: any;
+  let combinedChannelInformation: any;
+  let generatedTextResponse: any;
+  let generatedImage: any;
 
   // Update status to say who it is replying to
   DiscordUtilityService.setUserActivity(
@@ -1687,8 +1687,7 @@ async function replyMessage(queuedDatum: any, localMongo: any) {
   if (customEmojiReact) {
     try {
       await message.react(customEmojiReact);
-      // eslint-disable-next-line no-unused-vars
-    } catch (error: any) {
+    } catch {
       // Handle error
     }
   } else {
@@ -1809,7 +1808,7 @@ ${combinedGuildInformation && combinedChannelInformation ? `URL: ${utilities.get
 
   // Fire-and-forget memory extraction from the conversation
   if (message.guildId && conversation?.length > 0) {
-    const memoryParticipants = [];
+    const memoryParticipants: any[] = [];
     // Collect participant info for extraction
     if (participantsCollection?.size) {
       for (const participant of (participantsCollection as any).values()) {
@@ -1961,7 +1960,7 @@ async function generateUserConversationAndHash(
 async function extractContentFromMessages(
   queuedDatum: any,
   localMongo: any,
-  _maxSimultaneous = 50,
+  _maxSimultaneous: any = 50,
 ) {
   const functionName = "extractContentFromMessages";
   // LightsService.cycleColor(config.PRIMARY_LIGHT_ID, DEFAULT_LIGHT_CYCLE);
@@ -2034,20 +2033,20 @@ async function extractContentFromMessages(
   const messagesTranscriptionsCollection = new Collection();
   const messagesEmojisCollection = new Collection();
   const conversationsCollection = new Collection();
-  const conversation = [];
+  const conversation: any[] = [];
   const newSystemPrompt = "";
 
   // Prepare all async operations
   const allPromises = {
-    conversations: [],
-    emojis: [],
-    audio: [],
-    images: [],
-    replies: [],
+    conversations: [] as any[],
+    emojis: [] as any[],
+    audio: [] as any[],
+    images: [] as any[],
+    replies: [] as any[],
   };
 
   // First pass: collect all async operations
-  const messageProcessingData = [];
+  const messageProcessingData: any[] = [];
 
   if (message.guild) {
     let index = 0;
@@ -2071,8 +2070,8 @@ async function extractContentFromMessages(
     // Pre-calculate message sequences
     const messageSequenceInfo = new Map();
     let currentSequenceAuthor = null;
-    let currentSequenceStart = -1;
-    let currentSequenceMessages = [];
+    let _currentSequenceStart = -1;
+    let currentSequenceMessages: any[] = [];
 
     for (let i = 0; i < recentXMessages.length; i++) {
       const message = recentXMessages[i];
@@ -2094,7 +2093,7 @@ async function extractContentFromMessages(
         }
         // Reset for bot message
         currentSequenceAuthor = null;
-        currentSequenceStart = -1;
+        _currentSequenceStart = -1;
         currentSequenceMessages = [];
         // Bot messages don't get sequence info
         messageSequenceInfo.set(i, { xOfY: 0, total: 0 });
@@ -2116,7 +2115,7 @@ async function extractContentFromMessages(
           }
           // Start new sequence
           currentSequenceAuthor = message.author.id;
-          currentSequenceStart = i; // eslint-disable-line no-unused-vars
+          _currentSequenceStart = i;
           currentSequenceMessages = [i];
         } else {
           // Same author - continue sequence
@@ -2193,7 +2192,7 @@ async function extractContentFromMessages(
 
           // Store avatar/banner URLs — the agent calls describe_image on-demand
           // instead of pre-captioning every avatar on every message.
-          let avatarUrl, bannerUrl;
+          let avatarUrl: any, bannerUrl: any;
           if (user) {
             avatarUrl = utilities.getDiscordAvatarUrl(user.id, user.avatar);
             bannerUrl = utilities.getDiscordBannerUrl(user.id, user.banner);
@@ -2401,8 +2400,8 @@ async function extractContentFromMessages(
       } = messageData;
 
       if (isBot) {
-        let imageDescription, imageSize, imageWidth, imageHeight;
-        let attachmentContext;
+        let imageDescription: any, imageSize: any, imageWidth: any, imageHeight: any;
+        let attachmentContext: any;
 
         // Bot has attached an image to this message
         if (recentMessage?.attachments?.size > 0) {
@@ -2660,7 +2659,7 @@ async function generateRolesEmbedMessage(client: any) {
     }
     const rolesArray = filtered.map((role: any) => role);
 
-    const rows = [];
+    const rows: any[] = [];
     for (let i = 0; i < rolesArray.length; i += maxButtonsPerRow) {
       const row = new ActionRowBuilder();
       const currentRoles = rolesArray.slice(i, i + maxButtonsPerRow);
@@ -3465,10 +3464,10 @@ async function luposOnInteractionCreate(client: any, mongo: any, interaction: an
       }
     }
 
-    const youtubeAction = YOUTUBE_BUTTON_ACTIONS[interaction.customId];
+    const youtubeAction = YOUTUBE_BUTTON_ACTIONS[interaction.customId as keyof typeof YOUTUBE_BUTTON_ACTIONS];
     if (youtubeAction) {
       const reply = await interaction.deferReply();
-      YouTubeService[youtubeAction.method](...youtubeAction.args);
+      (YouTubeService as any)[youtubeAction.method](...youtubeAction.args);
       await reply.delete();
       return;
     }
@@ -3609,7 +3608,7 @@ async function generateAttachmentsResponse(
     userMessage.id,
   );
   const imagesCollection = messagesImagesCollection.get(userMessage.id);
-  const messageImageUrls = []; // Collect image URLs to attach to message
+  const messageImageUrls: any[] = []; // Collect image URLs to attach to message
 
   if (!message.content) {
     if (transcriptionsCollection?.size > 0) {
@@ -3653,7 +3652,7 @@ async function generateAttachmentsResponse(
   return { modifiedContent, messageImageUrls };
 }
 
-async function generateEmojiResponse(message: any, _isReply = false) {
+async function generateEmojiResponse(message: any, _isReply: any = false) {
   if (!message.reactions?.cache?.size) return "";
   const names = utilities.formatReactions(message.reactions.cache, "names");
   return `\nReactions (${message.reactions.cache.size}):\n  • ${names}`;
@@ -3731,9 +3730,9 @@ const DiscordService = {
       default:  [...cloneEvents, ...guildEvents, ...messageEvents, ...interactionEvents],
     };
 
-    const eventsToRegister = EVENT_REGISTRATIONS[mode] || EVENT_REGISTRATIONS.default;
+    const eventsToRegister = EVENT_REGISTRATIONS[mode as keyof typeof EVENT_REGISTRATIONS] || EVENT_REGISTRATIONS.default;
     for (const [method, ...args] of eventsToRegister) {
-      DiscordUtilityService[method](luposClient, ...args);
+      (DiscordUtilityService as any)[method](luposClient, ...args);
     }
 
     // Log readiness for message-processing modes

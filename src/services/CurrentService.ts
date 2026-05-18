@@ -1,8 +1,8 @@
-let user = null;
-let message = null;
-let startTime = null;
-let endTime = null;
-let traceId = null;
+let user: any = null;
+let message: any = null;
+let startTime: any = null;
+let endTime: any = null;
+let traceId: any = null;
 
 let models = new Set();
 let modelTypes = new Set();

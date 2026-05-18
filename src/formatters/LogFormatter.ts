@@ -58,14 +58,14 @@ const LogFormatter = {
     imageUrl,
     caption,
   }: any) {
-    let theClient;
-    let theUser;
-    let theMember;
-    let theGuild;
-    let theChannel;
-    let theMessage;
-    let theGuilds;
-    let _theInteractionCustom;
+    let theClient: any;
+    let theUser: any;
+    let theMember: any;
+    let theGuild: any;
+    let theChannel: any;
+    let theMessage: any;
+    let theGuilds: any;
+    let _theInteractionCustom: any;
 
     if (reaction) {
       theUser = reaction.message.author;
@@ -263,7 +263,7 @@ const LogFormatter = {
       log += `\n    Channel: ${combinedChannelInformation}`;
     }
 
-    const logParts = [];
+    const logParts: any[] = [];
 
     logParts.push(log);
 

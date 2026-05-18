@@ -12,7 +12,7 @@ async function timeOutUsers(client: any) {
     config.GUILD_ID_PRIMARY,
   );
   for (const userId of config.USER_IDS_TIMED_OUT) {
-    let member;
+    let member: any;
     try {
       member = await guild.members.fetch(userId);
       if (member) {

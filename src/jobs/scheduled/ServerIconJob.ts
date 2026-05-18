@@ -12,7 +12,7 @@ const IMAGES_DIR = path.resolve(
   "../../images/april-fools",
 );
 
-let lastUsedImage = null;
+let lastUsedImage: any = null;
 
 function getRandomInterval() {
   return utilities.getRandomInterval(INTERVAL_MIN_MS, INTERVAL_MAX_MS);
@@ -37,7 +37,7 @@ async function rotateIcon({ client, guildId }: any) {
     }
 
     // Pick a random image, avoiding the same one twice in a row
-    let chosen;
+    let chosen: any;
     if (files.length === 1) {
       chosen = files[0];
     } else {

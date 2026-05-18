@@ -62,7 +62,7 @@ const MULTIPLIER_NAMES = {
 };
 
 function getMultiplierName(multiplier: any) {
-  return MULTIPLIER_NAMES[multiplier] || `${multiplier}x`;
+  return MULTIPLIER_NAMES[multiplier as keyof typeof MULTIPLIER_NAMES] || `${multiplier}x`;
 }
 
 // Store active games (gameId -> game state)
@@ -260,7 +260,7 @@ function getDeathrollCollections() {
   // Ensure indexes once on first access (lazy init)
   if (!deathrollIndexesEnsured) {
     deathrollIndexesEnsured = true;
-    ensureDeathrollIndexes(collections).catch((err) =>
+    ensureDeathrollIndexes(collections).catch((err: any) =>
       console.error("Failed to ensure deathroll indexes:", err.message),
     );
   }
@@ -815,7 +815,7 @@ async function saveGameResult(
   await gamesCollection.insertOne(gameRecord);
 }
 
-async function fetchTopRivals(guildId: any, userId: any, limit = 3) {
+async function fetchTopRivals(guildId: any, userId: any, limit: any = 3) {
   try {
     const { gamesCollection } = getDeathrollCollections();
     const season = config.DEATHROLL_SEASON;
@@ -865,7 +865,7 @@ async function fetchTopRivals(guildId: any, userId: any, limit = 3) {
   }
 }
 
-async function fetchLeaderboard(guildId: any, limit = 20) {
+async function fetchLeaderboard(guildId: any, limit: any = 20) {
   try {
     const { statsCollection } = getDeathrollCollections();
     const [historyStats, userStatsList] = await Promise.all([

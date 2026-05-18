@@ -139,7 +139,7 @@ const utilities = {
     };
     return string
       .split("")
-      .map((char: any) => superScriptMap[char] || char)
+      .map((char: any) => superScriptMap[char as keyof typeof superScriptMap] || char)
       .join("");
   },
   // Fetch utilities
@@ -147,7 +147,7 @@ const utilities = {
     try {
       const response = await fetch(url);
       const contentType = response.headers.get("content-type");
-      return contentType.startsWith("image/");
+      return contentType ? contentType.startsWith("image/") : false;
     } catch (error: any) {
       console.error(
         `❌ [utilities:isImageUrl] Error checking if URL is an image:\n`,
@@ -172,7 +172,7 @@ const utilities = {
     const resetStyle = "\x1b[0m";
 
     const stack = new Error().stack;
-    const callerLine = stack.split("\n")[2];
+    const callerLine = stack ? stack.split("\n")[2] : "";
     let trimmedCallerLine = callerLine.trim().replace("at ", "");
 
     trimmedCallerLine = trimmedCallerLine
@@ -182,8 +182,8 @@ const utilities = {
       .replace("(", "")
       .replace(")", "");
     const splitString = trimmedCallerLine.split(" ");
-    let funcName;
-    let lineLocation;
+    let funcName: any;
+    let lineLocation: any;
     if (splitString.length === 3) {
       funcName = splitString[0];
       lineLocation = splitString[2];
@@ -195,7 +195,7 @@ const utilities = {
     // finalOutput += `\n\x1b[3m\x1b[37m${funcName} ${lineLocation}\x1b[0m`;
 
     // --- Constants for styling ---
-    const colorCodes = {
+    const colorCodes: Record<string, number> = {
       black: 30,
       red: 31,
       green: 32,
@@ -261,7 +261,7 @@ const utilities = {
     // Add color code if specified and valid
     const lowerCaseColor = color ? String(color).toLowerCase() : null;
     if (lowerCaseColor && colorCodes[lowerCaseColor]) {
-      styleCodeList.push(colorCodes[lowerCaseColor]);
+      styleCodeList.push(colorCodes[lowerCaseColor].toString());
     }
 
     if (symbol === "<") {
@@ -335,7 +335,7 @@ const utilities = {
     );
   },
   // Console utilities
-  ansiEscapeCodes(isConsoleLog = false) {
+  ansiEscapeCodes(isConsoleLog: any = false) {
     const bold = (text: any) => (isConsoleLog ? `\x1b[1m${text}\x1b[0m` : text);
     const faint = (text: any) => (isConsoleLog ? `\x1b[2m${text}\x1b[0m` : text);
     const italic = (text: any) => (isConsoleLog ? `\x1b[3m${text}\x1b[0m` : text);
@@ -359,9 +359,9 @@ const utilities = {
       strikethrough,
     };
   },
-  getCombinedNamesFromUserOrMember({ user, member }: any, isConsoleLog = false) {
+  getCombinedNamesFromUserOrMember({ user, member }: any, isConsoleLog: any = false) {
     const { bold, faint } = utilities.ansiEscapeCodes(isConsoleLog);
-    const parts = [];
+    const parts: any[] = [];
 
     if (member) {
       if (member.nickname) parts.push(bold(member.nickname));
@@ -382,27 +382,27 @@ const utilities = {
 
     return parts.join(" • ");
   },
-  getCombinedGuildInformationFromGuild(guild: any, isConsoleLog = false) {
+  getCombinedGuildInformationFromGuild(guild: any, isConsoleLog: any = false) {
     const { bold, faint } = utilities.ansiEscapeCodes(isConsoleLog);
-    let combinedGuildInformation;
+    let combinedGuildInformation: any;
     if (guild) {
       combinedGuildInformation = `${bold(guild.name)} • ${faint(guild.id)}`;
     }
     return combinedGuildInformation;
   },
-  getCombinedChannelInformationFromChannel(channel: any, isConsoleLog = false) {
+  getCombinedChannelInformationFromChannel(channel: any, isConsoleLog: any = false) {
     const { bold, faint } = utilities.ansiEscapeCodes(isConsoleLog);
-    let combinedChannelInformation;
+    let combinedChannelInformation: any;
     if (channel) {
       combinedChannelInformation = `#${bold(channel.name)} • ${faint(channel.id)}`;
     }
     return combinedChannelInformation;
   },
-  getCombinedEmojiInformationFromReaction(reaction: any, isConsoleLog = false) {
+  getCombinedEmojiInformationFromReaction(reaction: any, isConsoleLog: any = false) {
     if (!reaction) return;
     const { bold, faint } = utilities.ansiEscapeCodes(isConsoleLog);
     const emoji = reaction._emoji;
-    const parts = [];
+    const parts: any[] = [];
     if (emoji) {
       parts.push(bold(emoji.name));
       if (emoji.id) {
@@ -411,17 +411,17 @@ const utilities = {
     }
     return parts.join(" • ");
   },
-  getCombinedRoleInformationFromRole(role: any, isConsoleLog = false) {
+  getCombinedRoleInformationFromRole(role: any, isConsoleLog: any = false) {
     const { bold, faint } = utilities.ansiEscapeCodes(isConsoleLog);
-    let combinedRoleInformation;
+    let combinedRoleInformation: any;
     if (role) {
       combinedRoleInformation = `${bold(role.name)} • ${faint(role.id)}`;
     }
     return combinedRoleInformation;
   },
-  getCombinedDateInformationFromDate(unixDate: any, isConsoleLog = false) {
+  getCombinedDateInformationFromDate(unixDate: any, isConsoleLog: any = false) {
     const { bold, faint } = utilities.ansiEscapeCodes(isConsoleLog);
-    let combinedDateInformation;
+    let combinedDateInformation: any;
     if (!unixDate) {
       unixDate = Date.now();
     }
@@ -439,7 +439,7 @@ const utilities = {
 
 
    */
-  getDiscordAvatarUrl(userId: any, avatarHash: any, size = 512) {
+  getDiscordAvatarUrl(userId: any, avatarHash: any, size: any = 512) {
     if (!userId || !avatarHash) return null;
     const ext = avatarHash.startsWith("a_") ? "gif" : "png";
     return `https://cdn.discordapp.com/avatars/${userId}/${avatarHash}.${ext}?size=${size}`;
@@ -450,7 +450,7 @@ const utilities = {
 
 
    */
-  getDiscordBannerUrl(userId: any, bannerHash: any, size = 512) {
+  getDiscordBannerUrl(userId: any, bannerHash: any, size: any = 512) {
     if (!userId || !bannerHash) return null;
     const ext = bannerHash.startsWith("a_") ? "gif" : "png";
     return `https://cdn.discordapp.com/banners/${userId}/${bannerHash}.${ext}?size=${size}`;
@@ -509,7 +509,7 @@ const utilities = {
 
 
    */
-  async fetchWithTimeout(url: any, timeoutMs = 3000) {
+  async fetchWithTimeout(url: any, timeoutMs: any = 3000) {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
     try {
@@ -531,7 +531,7 @@ const utilities = {
    *   - "names":  "emoji, emoji2" (names only, no counts)
    * @returns {string} Formatted string, or "" if no reactions
    */
-  formatReactions(reactionsCache: any, format = "list") {
+  formatReactions(reactionsCache: any, format: any = "list") {
     if (!reactionsCache?.size) return "";
     const entries = [...reactionsCache.values()];
     switch (format) {

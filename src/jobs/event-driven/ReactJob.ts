@@ -2,9 +2,9 @@ import DiscordUtilityService from "#root/services/DiscordUtilityService.js";
 import config from "#root/config.js";
 
 let queueIsProcessing = false;
-const queue = [];
+const queue: any[] = [];
 
-let reactors = [];
+let reactors: any[] = [];
 
 async function generateReactors(client: any, mongo: any, reaction: any, user: any) {
   // if reaction is flag emoji, give flag role

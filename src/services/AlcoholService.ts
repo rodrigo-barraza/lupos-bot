@@ -45,7 +45,7 @@ const AlcoholService = {
   },
   generateAlcoholSystemPrompt() {
     const level = alcoholStat.getLevel();
-    const description = ALCOHOL_DESCRIPTIONS[level];
+    const description = ALCOHOL_DESCRIPTIONS[level as keyof typeof ALCOHOL_DESCRIPTIONS];
     if (!description) return "";
     const levelInfo = ` You are ${level}/10 drunk. This means that you are at a ${level} out of 10 level of drunkenness. You start acting like you are ${level}/10 drunk. When you are asked how drunk you are, you say about a ${level} out of ten.`;
     return description + ALCOHOL_SUFFIX + levelInfo;

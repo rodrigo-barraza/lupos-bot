@@ -171,7 +171,7 @@ function createEvasionPattern(word: any) {
 
   for (let i = 0; i < chars.length; i++) {
     const char = chars[i];
-    const substitution = CHAR_SUBSTITUTIONS[char] || char;
+    const substitution = CHAR_SUBSTITUTIONS[char as keyof typeof CHAR_SUBSTITUTIONS] || char;
     pattern += `${substitution}+`;
 
     if (i < chars.length - 1) {
@@ -196,8 +196,8 @@ function removeFlaggedWords(string: any) {
     const regex = new RegExp(pattern, "gi");
 
     // Find all matches first
-    const matches = [];
-    let match;
+    const matches: any[] = [];
+    let match: any;
 
     while ((match = regex.exec(result)) !== null) {
       matches.push({
@@ -232,7 +232,7 @@ function containsFlaggedWords(string: any) {
     const pattern = createEvasionPattern(word);
     const regex = new RegExp(pattern, "gi");
 
-    let match;
+    let match: any;
     while ((match = regex.exec(string)) !== null) {
       const fullWord = getFullWord(string, match.index, match[0].length);
       if (!WHITELISTED_WORDS.includes(fullWord)) {

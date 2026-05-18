@@ -14,8 +14,8 @@ import BoundedMap from "#root/utilities/BoundedMap.js";
 const DiscordState = {
   // ─── Message Processing Queue ─────────────────────────────────
   isProcessingQueue: false,
-  queuedData: [],
-  cancelledMessageIds: new Set(),
+  queuedData: [] as any[],
+  cancelledMessageIds: new Set<string>(),
 
   // Bounded maps prevent unbounded memory growth during long-running sessions.
   // TTL: 2 hours, max 5,000 entries — entries auto-evict when stale.
@@ -24,14 +24,14 @@ const DiscordState = {
 
   // ─── Reaction Highlights Queue ────────────────────────────────
   isProcessingOnReactionQueue: false,
-  reactionQueue: [],
+  reactionQueue: [] as any[],
   // Bounded maps for reaction tracking — prevents memory leaks from
   // accumulating reaction data for every message ever reacted to.
   allUniqueUsers: new BoundedMap(2000, 4 * 60 * 60 * 1000),
   reactionMessages: new BoundedMap(2000, 4 * 60 * 60 * 1000),
 
   // ─── Typing Indicators ───────────────────────────────────────
-  typingIntervals: {},
+  typingIntervals: {} as Record<string, any>,
 
   // ─── Timing ──────────────────────────────────────────────────
   lastMessageSentTime: DateTime.now().toISO(),

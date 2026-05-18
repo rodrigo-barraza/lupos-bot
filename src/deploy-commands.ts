@@ -5,7 +5,7 @@ import path from "node:path";
 import { pathToFileURL } from "node:url";
 const { LUPOS_TOKEN } = secrets;
 
-const commands = [];
+const commands: any[] = [];
 const foldersPath = path.join(import.meta.dirname, "commands");
 const commandFolders = fs.readdirSync(foldersPath);
 
@@ -32,14 +32,14 @@ for (const folder of commandFolders) {
   }
 }
 
-const rest = new REST().setToken(LUPOS_TOKEN);
+const rest = new REST().setToken(LUPOS_TOKEN as string);
 const client = new Client({ intents: [GatewayIntentBits.Guilds] });
 
 (async () => {
   try {
     await client.login(LUPOS_TOKEN);
 
-    const clientId = client.user.id;
+    const clientId = client.user!.id;
 
     console.log(
       `Started refreshing ${commands.length} application (/) commands.`,

@@ -3,8 +3,8 @@ import utilities from "#root/utilities.js";
 import { MONGO_DB_NAME } from "#root/constants.js";
 const { consoleLog } = utilities;
 
-let previousTopAuthorId;
-let previousTopReactorId;
+let previousTopAuthorId: any;
+let previousTopReactorId: any;
 
 async function assignActivityRoles({
   client,

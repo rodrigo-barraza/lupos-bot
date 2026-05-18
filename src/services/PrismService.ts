@@ -10,7 +10,7 @@ const PROVIDER_MAP = {
   GOOGLE: "google",
 };
 
-function getHeaders(username = "lupos") {
+function getHeaders(username: any = "lupos") {
   return {
     "Content-Type": "application/json",
     "x-project": "lupos",
@@ -28,7 +28,7 @@ export default class PrismService {
     endpoint: any,
     { method = "POST", body, username = "lupos" }: any = {},
   ) {
-    let res;
+    let res: any;
     try {
       res = await fetch(`${API_BASE}${endpoint}`, {
         method,
@@ -74,7 +74,7 @@ export default class PrismService {
     username = "lupos",
     traceId,
   }: any) {
-    const provider = PROVIDER_MAP[type];
+    const provider = PROVIDER_MAP[type as keyof typeof PROVIDER_MAP];
     if (!provider) {
       throw new Error(`Unknown provider type: ${type}`);
     }
@@ -143,7 +143,7 @@ export default class PrismService {
     username = "lupos",
     traceId,
   }: any) {
-    const provider = PROVIDER_MAP[type];
+    const provider = PROVIDER_MAP[type as keyof typeof PROVIDER_MAP];
     if (!provider) {
       throw new Error(`Unknown provider type: ${type}`);
     }

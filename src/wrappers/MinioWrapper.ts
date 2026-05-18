@@ -1,8 +1,8 @@
 import { Client } from "minio";
 
-let client = null;
-let bucketName = null;
-let endpointUrl = null;
+let client: any = null;
+let bucketName: string | null = null;
+let endpointUrl: string | null = null;
 
 const MinioWrapper = {
   /**

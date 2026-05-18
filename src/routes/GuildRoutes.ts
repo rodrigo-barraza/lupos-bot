@@ -141,8 +141,8 @@ router.get("/guild/members", asyncHandler(async (req: any, res: any) => {
     // Only hoisted roles (role.hoist === true) appear as sidebar
     // category headers — mirrors Discord's own member list behavior.
     const roleMap = new Map();
-    const ungrouped = [];
-    const ungroupedBots = []; // bots with no hoisted role
+    const ungrouped: any[] = [];
+    const ungroupedBots: any[] = []; // bots with no hoisted role
 
     // Process both online members and offline bots together
     const allVisible: Map<string, any> = new Map([...onlineMembers, ...offlineBots]);
@@ -150,7 +150,7 @@ router.get("/guild/members", asyncHandler(async (req: any, res: any) => {
     for (const [, member] of allVisible) {
       try {
       // Get all non-@everyone roles sorted highest first
-      let sortedRoles = [];
+      let sortedRoles: any[] = [];
       try {
         sortedRoles = member.roles.cache
           .filter((r: any) => r.id !== guild.id) // Exclude @everyone
@@ -181,7 +181,7 @@ router.get("/guild/members", asyncHandler(async (req: any, res: any) => {
       } catch { /* role colors unavailable */ }
 
       // ── Extract profile badges from user flags bitfield ────────
-      const badges = [];
+      const badges: any[] = [];
       try {
         const userFlags = member.user.flags?.bitfield;
         if (userFlags) {
@@ -207,7 +207,7 @@ router.get("/guild/members", asyncHandler(async (req: any, res: any) => {
       } catch { /* user flags unavailable */ }
 
       // ── Top role tags (colored pill badges next to username) ───
-      let roleTags = [];
+      let roleTags: any[] = [];
       try {
         roleTags = sortedRoles.slice(0, 3).map((r: any) => ({
           name: r.name,
@@ -311,7 +311,7 @@ const _jobStatus = new Map();
 let _jobIdCounter = 0;
 const JOB_TTL_MS = 60 * 60 * 1000; // 1 hour
 
-function createJob(type: any, meta = {}) {
+function createJob(type: any, meta: any = {}) {
   const id = `${type}-${++_jobIdCounter}`;
   const job = {
     id,
@@ -480,7 +480,7 @@ router.get("/guild/emojis", (req: any, res: any) => {
       return res.status(404).json({ error: "Guild not found" });
     }
 
-    const emojis = [];
+    const emojis: any[] = [];
     for (const [, emoji] of guild.emojis.cache) {
       if (!emoji.id) continue;
       try {
@@ -547,7 +547,7 @@ router.post("/guild/react", asyncHandler(async (req: any, res: any) => {
     }
 
     // Fetch the message
-    let message;
+    let message: any;
     try {
       message = await channel.messages.fetch(messageId);
     } catch {

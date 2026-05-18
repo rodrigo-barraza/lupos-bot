@@ -22,23 +22,23 @@ import prism from "prism-media";
 import fs from "fs";
 import path from "path";
 
-let connection;
-let player;
-let queue = [];
+let connection: any;
+let player: any;
+let queue: any[] = [];
 let isQueueProcessing = false;
-let currentVideo = null; // Track the currently playing video
-let nowPlayingMessage = null; // Add this to track the now playing message
-let updateInterval = null; // Add this to track the update interval
+let currentVideo: any = null; // Track the currently playing video
+let nowPlayingMessage: any = null; // Add this to track the now playing message
+let updateInterval: any = null; // Add this to track the update interval
 let volumeLevel = 5;
 const statusStymbol = "▶";
-let currentMessage = null; // Track the current message being processed
+let currentMessage: any = null; // Track the current message being processed
 
 
 // Add these variables at the top with your other variables
 const recordingStreams = new Map();
 let isRecording = false;
-let combinedStream = null;
-let audioMixer = null;
+let combinedStream: any = null;
+let audioMixer: any = null;
 
 // Simple audio mixer class
 class AudioMixer {
@@ -239,7 +239,7 @@ class YouTubeService {
 
       const stream = ytdl(video.url, {
         filter: "audio",
-        quality: selectedFormat.itag,
+        quality: selectedFormat?.itag,
         // quality: 'highestaudio',
         // highWaterMark: 1 << 25, // 32MB
         // liveBuffer: 1 << 25, // 32MB
@@ -262,7 +262,7 @@ class YouTubeService {
         metadata: video,
       });
 
-      resource.volume.setVolume(volumeLevel / 100);
+      resource.volume?.setVolume(volumeLevel / 100);
 
       // Remove all previous listeners to avoid duplicates
       player.removeAllListeners();
@@ -311,7 +311,7 @@ class YouTubeService {
 
       message.content = message.content.slice(6).trim(); // Remove '!play ' prefix
 
-      let video;
+      let video: any;
 
       if (
         message.content.includes("youtube.com/watch") ||
