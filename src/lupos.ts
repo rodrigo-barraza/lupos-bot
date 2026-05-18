@@ -8,6 +8,7 @@ import DiscordService from "./services/DiscordService.ts";
 import LogFormatter from "./formatters/LogFormatter.ts";
 import MinioWrapper from "./wrappers/MinioWrapper.ts";
 import MediaArchivalService from "./services/MediaArchivalService.ts";
+import DiscordWrapper from "./wrappers/DiscordWrapper.ts";
 
 import express from "express";
 const app = express();
@@ -99,3 +100,28 @@ async function main() {
 
 main();
 
+// ─── Graceful Shutdown ──────────────────────────────────────────
+// Prevents data loss during Docker SIGTERM / redeployments.
+// Ensures MongoDB writes complete and Discord sessions close cleanly.
+const shutdown = async (signal: string) => {
+  console.log(`\n🛑 ${signal} received — shutting down gracefully…`);
+  try {
+    // Destroy all Discord client connections
+    for (const { client, name } of DiscordWrapper.clients) {
+      try {
+        client.destroy();
+        console.log(`  ✓ Discord client "${name}" destroyed`);
+      } catch { /* already closed */ }
+    }
+    // Close MongoDB connections
+    const MongoService = (await import("./services/MongoService.ts")).default;
+    MongoService.closeClient("lupos");
+    console.log("  ✓ MongoDB connections closed");
+  } catch (error: any) {
+    console.error("  ⚠️ Error during shutdown:", error.message);
+  }
+  process.exit(0);
+};
+
+process.on("SIGTERM", () => shutdown("SIGTERM"));
+process.on("SIGINT", () => shutdown("SIGINT"));

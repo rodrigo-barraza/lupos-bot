@@ -12,30 +12,12 @@ import PrismService from "#root/services/PrismService.js";
 import CurrentService from "#root/services/CurrentService.js";
 import DiscordUtilityService from "#root/services/DiscordUtilityService.js";
 
-// Image processing - prefer sharp, fallback to Jimp
-let sharp: any;
-let Jimp: any;
+import sharp from "sharp";
 
-try {
-  sharp = (await import("sharp")).default;
-  console.log("Using sharp for image processing");
-} catch {
-  const jimp = await import("jimp");
-  Jimp = jimp.Jimp;
-  console.log("sharp unavailable, using Jimp for image processing");
-}
-
-async function convertGifToPng(imageBuffer: any) {
-  if (sharp) {
-    const pngBuffer = await sharp(imageBuffer, { animated: false })
-      .png()
-      .toBuffer();
-    return pngBuffer;
-  } else {
-    const image = await Jimp.read(imageBuffer);
-    const pngBuffer = await image.getBuffer("image/png");
-    return pngBuffer;
-  }
+async function convertGifToPng(imageBuffer: Buffer) {
+  return sharp(imageBuffer, { animated: false })
+    .png()
+    .toBuffer();
 }
 
 function assembleConversation(systemMessage: any, userMessage: any, message: any) {
@@ -100,18 +82,19 @@ const AIService = {
     const imageObjects: any[] = [];
     for (const url of urls) {
       const response = await fetch(url);
-      const buffer = await response.arrayBuffer();
+      const bytes = await response.bytes();
+      const buffer = Buffer.from(bytes);
       const mimeType = response.headers.get("content-type");
 
       if (convertGifs && mimeType === "image/gif") {
-        const pngBuffer = await convertGifToPng(Buffer.from(buffer));
+        const pngBuffer = await convertGifToPng(buffer);
         imageObjects.push({
           imageData: pngBuffer.toString("base64"),
           mimeType: "image/png",
         });
       } else {
         imageObjects.push({
-          imageData: Buffer.from(buffer).toString("base64"),
+          imageData: buffer.toString("base64"),
           mimeType,
         });
       }
@@ -316,7 +299,7 @@ const AIService = {
 
     // Download the audio file into memory (no disk write needed)
     const audioFile = await fetch(audioUrl);
-    const audioBuffer = Buffer.from(await audioFile.arrayBuffer());
+    const audioBuffer = Buffer.from(await audioFile.bytes());
 
     // Determine MIME type from file extension
     const ext = path.extname(filename).toLowerCase().replace(".", "");

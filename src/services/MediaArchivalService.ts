@@ -197,8 +197,8 @@ const MediaArchivalService = {
       const contentType = response.headers.get("content-type") || "application/octet-stream";
 
       // ── 2. Read buffer ─────────────────────────────────────────
-      const arrayBuffer = await response.arrayBuffer();
-      const buffer = Buffer.from(arrayBuffer);
+      const bytes = await response.bytes();
+      const buffer = Buffer.from(bytes);
 
       // Skip files that exceed size limit
       if (buffer.length > MAX_FILE_SIZE_BYTES) {

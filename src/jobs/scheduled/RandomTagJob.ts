@@ -5,7 +5,7 @@ import PrismService from "#root/services/PrismService.js";
 import { MessageConstant } from "#root/constants.js";
 import config from "#root/config.js";
 import utilities from "#root/utilities.js";
-import { DateTime } from "luxon";
+import TemporalHelpers from "#root/utilities/TemporalHelpers.js";
 
 const { consoleLog } = utilities;
 
@@ -158,7 +158,7 @@ async function randomTag({ client, guildId, channelId }: any) {
           peopleContext += `\n### YOUR MEMORIES ABOUT ${person.displayName.toUpperCase()}:`;
           for (const memory of memoryResult.memories) {
             const createdDate = new Date(memory.createdAt);
-            const timeAgo = DateTime.fromJSDate(createdDate).toRelative();
+            const timeAgo = TemporalHelpers.toRelative(TemporalHelpers.fromJSDate(createdDate));
             peopleContext += `\n- ${memory.content} (remembered ${timeAgo})`;
           }
         }

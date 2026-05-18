@@ -65,6 +65,30 @@ class BoundedMap {
   }
 
   /**
+   * Get an existing value or insert a default if the key is missing/expired.
+   * Mirrors the native Map.prototype.getOrInsert() from V8 14.6.
+   */
+  getOrInsert(key: any, defaultValue: any) {
+    const existing = this.get(key);
+    if (existing !== undefined) return existing;
+    this.set(key, defaultValue);
+    return defaultValue;
+  }
+
+  /**
+   * Get an existing value or insert one computed by a factory function.
+   * Mirrors the native Map.prototype.getOrInsertComputed() from V8 14.6.
+   * The factory only runs on a cache miss, avoiding unnecessary allocations.
+   */
+  getOrInsertComputed(key: any, callback: (key: any) => any) {
+    const existing = this.get(key);
+    if (existing !== undefined) return existing;
+    const value = callback(key);
+    this.set(key, value);
+    return value;
+  }
+
+  /**
    * Clear all entries.
    */
   clear() {
