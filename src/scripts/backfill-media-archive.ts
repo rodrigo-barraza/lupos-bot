@@ -19,10 +19,7 @@ import crypto from "crypto";
 import { createVaultClient } from "@rodrigo-barraza/utilities-library/vault";
 
 // ─── Boot: resolve secrets ──────────────────────────────────────
-const vault = createVaultClient({
-  localEnvFile: "./.env",
-  fallbackEnvFile: "../vault-service/.env",
-});
+const vault = createVaultClient();
 const secrets = await vault.fetch();
 for (const [key, value] of Object.entries(secrets)) {
   if (process.env[key] === undefined) process.env[key] = value;
