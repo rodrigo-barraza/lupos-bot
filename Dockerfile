@@ -7,7 +7,7 @@
 # ============================================================
 
 # ── Stage 1: Install ALL dependencies (incl. devDeps for tsc) ─
-FROM node:22-slim AS deps
+FROM node:26-slim AS deps
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     python3 make g++ git openssh-client \
@@ -25,7 +25,7 @@ COPY . .
 RUN npx tsc
 
 # ── Stage 3: Production dependencies only ─────────────────────
-FROM node:22-slim AS prod-deps
+FROM node:26-slim AS prod-deps
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     python3 make g++ git openssh-client \
@@ -38,7 +38,7 @@ ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
 RUN npm ci --omit=dev
 
 # ── Stage 4: Runtime ──────────────────────────────────────────
-FROM node:22-slim
+FROM node:26-slim
 
 # Chromium (Playwright), FFmpeg (voice/audio), wget (healthcheck)
 RUN apt-get update && apt-get install -y --no-install-recommends \
