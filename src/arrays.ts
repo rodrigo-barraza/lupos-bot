@@ -1,5 +1,5 @@
-export { default as birthdays } from "./arrays/birthdays.js";
-export { default as channels } from "./arrays/channels.js";
-export { default as ignorePhrases } from "./arrays/ignorePhrases.js";
-export * from "./arrays/roles.js";
-export { default as users } from "./arrays/users.js";
+export { default as birthdays } from "./arrays/birthdays.ts";
+export { default as channels } from "./arrays/channels.ts";
+export { default as ignorePhrases } from "./arrays/ignorePhrases.ts";
+export * from "./arrays/roles.ts";
+export { default as users } from "./arrays/users.ts";

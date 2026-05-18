@@ -1,5 +1,5 @@
 import { SlashCommandBuilder, EmbedBuilder } from "discord.js";
-import { getMongoDb, getMedal } from "./commandUtils.js";
+import { getMongoDb, getMedal } from "./commandUtils.ts";
 
 export default {
   data: new SlashCommandBuilder()

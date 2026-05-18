@@ -9,7 +9,7 @@ import {
   getServerAgeYears,
   computeStartDate,
   getPlaywrightOptions,
-} from "./commandUtils.js";
+} from "./commandUtils.ts";
 
 export default {
   data: new SlashCommandBuilder()

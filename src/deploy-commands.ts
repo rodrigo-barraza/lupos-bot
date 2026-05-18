@@ -1,5 +1,5 @@
 import { REST, Routes, Client, GatewayIntentBits } from "discord.js";
-import secrets from "./config.js";
+import secrets from "./config.ts";
 import fs from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";

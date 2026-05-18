@@ -1,5 +1,5 @@
 import { SlashCommandBuilder } from "discord.js";
-import { executeDeathrollLeaderboard } from "./deathrollUtils.js";
+import { executeDeathrollLeaderboard } from "./deathrollUtils.ts";
 
 export default {
   data: new SlashCommandBuilder()

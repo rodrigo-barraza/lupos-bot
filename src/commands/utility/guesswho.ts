@@ -11,8 +11,8 @@ import {
   computeStartDate,
   formatTimePeriod,
   shuffleArray,
-} from "./commandUtils.js";
-import { WRONG_GUESS_ROASTS } from "../../constants/GuessWhoConstants.js";
+} from "./commandUtils.ts";
+import { WRONG_GUESS_ROASTS } from "../../constants/GuessWhoConstants.ts";
 
 export default {
   data: new SlashCommandBuilder()
