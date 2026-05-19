@@ -62,7 +62,17 @@ async function processCreateReaction(client: any, queuedReaction: any) {
 
   DiscordState.allUniqueUsers.getOrInsert(messageId, new Set()).add(userId);
 
-  const users = await reaction.users.fetch();
+  let users;
+  try {
+    users = await reaction.users.fetch();
+  } catch (fetchErr: any) {
+    // Message was deleted between the reaction event and this fetch — non-critical
+    if (fetchErr.code === 10008 || fetchErr.code === 10003) {
+      console.warn(`[ReactionHighlights] Skipping deleted message ${messageId} (code ${fetchErr.code})`);
+      return;
+    }
+    throw fetchErr;
+  }
   users.map((user: any) => DiscordState.allUniqueUsers.get(messageId).add(user.id));
   console.log(...LogFormatter.reactionAdded(functionName, user, reaction));
   if ([...DiscordState.allUniqueUsers.get(messageId)].length >= uniqueUserLengthTrigger) {
@@ -238,7 +248,11 @@ async function handleReactionCreate(client: any, mongo: any, reaction: any, user
     DiscordState.isProcessingOnReactionQueue = true;
     while (DiscordState.reactionQueue.length > 0) {
       const queuedReaction = DiscordState.reactionQueue.shift();
-      await processCreateReaction(client, queuedReaction);
+      try {
+        await processCreateReaction(client, queuedReaction);
+      } catch (err: any) {
+        console.error(`[ReactionHighlights] Queue item failed (code ${err.code ?? "N/A"}): ${err.message}`);
+      }
     }
     DiscordState.isProcessingOnReactionQueue = false;
     return;
