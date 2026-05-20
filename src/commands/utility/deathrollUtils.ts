@@ -516,7 +516,7 @@ async function fetchSinglePlayerStats(guildId: any, userId: any) {
       currentStreak: userStats?.currentStreak || 0,
       bestStreak: userStats?.bestStreak || 0,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Error fetching deathroll stats:", error);
     return null;
   }
@@ -556,7 +556,7 @@ async function fetchMidGameStats(guildId: any, initiatorId: any, opponentId: any
         bestStreak: opponentUserStats?.bestStreak || 0,
       }),
     };
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Error fetching mid-game deathroll stats:", error);
     return null;
   }
@@ -581,7 +581,7 @@ async function fetchHeadToHead(guildId: any, player1Id: any, player2Id: any) {
       }),
     ]);
     return { player1Wins: p1Wins, player2Wins: p2Wins };
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Error fetching H2H:", error);
     return null;
   }
@@ -682,7 +682,7 @@ async function buildEndGameData(guildId: any, game: any, winnerId: any, loserId:
       winnerStreak: winnerCurrentStreak,
       loserStreak: loserCurrentStreak,
     };
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Error building end game data:", error);
     return null;
   }
@@ -860,7 +860,7 @@ async function fetchTopRivals(guildId: any, userId: any, limit: any = 3) {
         { $limit: limit },
       ])
       .toArray();
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Error fetching top rivals:", error);
     return [];
   }
@@ -904,7 +904,7 @@ async function fetchLeaderboard(guildId: any, limit: any = 20) {
     // Each game has exactly one winner, so sum of wins = total games
     const totalGamesPlayed = historyStats.reduce((sum: any, p: any) => sum + p.wins, 0);
     return { players: historyStats, ranked, totalGamesPlayed };
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Error fetching leaderboard:", error);
     return { players: [], ranked: [], totalGamesPlayed: 0 };
   }
@@ -1185,7 +1185,7 @@ function createDoubleOrNothingCollector(
 
       game.currentMessageId = newMessage.id;
       createRollCollector(newMessage, gameId, guild);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Error in Double or Nothing agreement collector:", error);
       try {
         const channel = buttonInteraction.channel;
@@ -1214,7 +1214,7 @@ function createDoubleOrNothingCollector(
           pendingTimeoutData,
           pendingGameData,
         );
-      } catch (recoveryError: any) {
+      } catch (recoveryError: unknown) {
         console.error(
           "Failed to recover from DoN agreement error:",
           recoveryError,
@@ -1265,7 +1265,7 @@ async function applyPendingTimeout(guild: any, pendingTimeoutData: any) {
         `Lost a deathroll game (${timeoutMinutes}min) — Double or Nothing expired`,
       );
     }
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Error applying pending timeout:", error);
   }
 }
@@ -1279,7 +1279,7 @@ async function removePendingTimeout(guild: any, userId: any) {
         "Double or Nothing accepted — timeout cancelled",
       );
     }
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Error removing pending timeout:", error);
   }
 }
@@ -1296,7 +1296,7 @@ function createRollCollector(message: any, gameId: any, guild: any) {
   collector.on("collect", async (buttonInteraction: any) => {
     try {
       await handleRollButton(buttonInteraction, gameId);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Error in roll collector:", error);
       try {
         const game = activeGames.get(gameId);
@@ -1387,7 +1387,7 @@ function createRollCollector(message: any, gameId: any, guild: any) {
           game.currentMessageId = newMessage.id;
           createRollCollector(newMessage, gameId, buttonInteraction.guild);
         }
-      } catch (recoveryError: any) {
+      } catch (recoveryError: unknown) {
         console.error("Failed to recover from roll error:", recoveryError);
       }
     }
@@ -1413,7 +1413,7 @@ function createRollCollector(message: any, gameId: any, guild: any) {
               components: [],
             })
             .catch(() => {});
-        } catch (error: any) {
+        } catch (error: unknown) {
           console.error("Error handling timeout loss:", error);
           await message
             .edit({
@@ -1776,11 +1776,11 @@ async function handleLoss(
           timeoutDuration,
           `Lost a deathroll game (${timeoutMinutes}min)`,
         );
-      } catch (error: any) {
+      } catch (error: unknown) {
         console.error("Error timing out user:", error);
       }
     }
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Error in handleLoss:", error);
   }
 }
@@ -1796,7 +1796,7 @@ async function handleTimeoutLoss(guild: any, game: any, winnerId: any, loserId: 
       timeoutDuration,
       `Lost a deathroll game on timeout (${timeoutMinutes}min)`,
     );
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Error timing out user on timeout:", error);
   }
 
@@ -1949,7 +1949,7 @@ export async function executeDeathroll(interaction: any) {
       } else if (buttonInteraction.customId.startsWith("deathroll_decline_")) {
         await handleDeclineButton(buttonInteraction, gameId);
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Error in deathroll engage/decline collector:", error);
       try {
         const game = activeGames.get(gameId);
@@ -2056,7 +2056,7 @@ export async function executeDeathroll(interaction: any) {
               } else if (bi.customId.startsWith("deathroll_decline_")) {
                 await handleDeclineButton(bi, gameId);
               }
-            } catch (error: any) {
+            } catch (error: unknown) {
               console.error("Error in recovery engage/decline collector:",  error);
             }
           });
@@ -2076,7 +2076,7 @@ export async function executeDeathroll(interaction: any) {
             }
           });
         }
-      } catch (recoveryError: any) {
+      } catch (recoveryError: unknown) {
         console.error(
           "Failed to recover from engage/decline error:",
           recoveryError,
@@ -2173,7 +2173,7 @@ export async function executeDeathrollStats(interaction: any) {
     }
 
     await interaction.editReply({ embeds: [embed] });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Error fetching deathroll stats:", error);
     await interaction.editReply({
       content:
@@ -2269,7 +2269,7 @@ export async function executeDeathrollLeaderboard(interaction: any) {
     embed.setDescription(finalDescription);
 
     await interaction.editReply({ embeds: [embed] });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Error fetching deathroll leaderboard:", error);
     await interaction.editReply({
       content:

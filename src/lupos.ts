@@ -93,7 +93,7 @@ async function main() {
     });
 
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.log(LogFormatter.errorInitialization(error));
   }
 }
@@ -117,8 +117,8 @@ const shutdown = async (signal: string) => {
     const MongoService = (await import("./services/MongoService.ts")).default;
     MongoService.closeClient("lupos");
     console.log("  ✓ MongoDB connections closed");
-  } catch (error: any) {
-    console.error("  ⚠️ Error during shutdown:", error.message);
+  } catch (error: unknown) {
+    console.error("  ⚠️ Error during shutdown:", (error as Error).message);
   }
   process.exit(0);
 };

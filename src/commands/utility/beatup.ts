@@ -295,14 +295,14 @@ export default {
             `**${votesNeeded}** more hit${votesNeeded === 1 ? "" : "s"} are required to knock enemy ${target.user} out**!**`,
         });
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Error executing beatup command:", error);
 
       let errorMessage = "❌ An error occurred while processing the vote.";
 
-      if (error.code === 50013) {
+      if ((error as any).code === 50013) {
         errorMessage = "❌ I don't have permission to timeout this member!";
-      } else if (error.code === 10008) {
+      } else if ((error as any).code === 10008) {
         errorMessage = "❌ The selected user could not be found!";
       }
 

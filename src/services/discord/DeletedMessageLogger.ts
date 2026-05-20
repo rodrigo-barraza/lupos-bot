@@ -27,7 +27,7 @@ async function handleMessageDelete(client: any, mongo: any, message: any) {
   if (message.partial) {
     try {
       await message.fetch();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Failed to fetch partial message:", error);
       return;
     }
@@ -62,8 +62,8 @@ async function handleMessageDelete(client: any, mongo: any, message: any) {
         `🗑️ [DeletedMessageLogger] Deleted message ${deletedMessageId} from MongoDB (author: ${message.author?.id})`,
       );
     }
-  } catch (dbError: any) {
-    console.warn(`🗑️ [DeletedMessageLogger] MongoDB delete failed for ${deletedMessageId}: ${dbError.message}`);
+  } catch (dbError: unknown) {
+    console.warn(`🗑️ [DeletedMessageLogger] MongoDB delete failed for ${deletedMessageId}: ${(dbError as Error).message}`);
   }
 
   // Early returns for invalid cases
@@ -143,7 +143,7 @@ async function handleMessageDelete(client: any, mongo: any, message: any) {
           inline: false,
         });
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Failed to fetch reference message:", error);
       embed.addFields({
         name: "↩️ Replying to",
@@ -215,7 +215,7 @@ async function handleMessageDelete(client: any, mongo: any, message: any) {
   // Send to deleted messages channel
   try {
     await deletedMessagesChannel.send({ embeds });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Failed to send deleted message log:", error);
   }
 }

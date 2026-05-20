@@ -162,10 +162,10 @@ async function randomTag({ client, guildId, channelId }: any) {
             peopleContext += `\n- ${memory.content} (remembered ${timeAgo})`;
           }
         }
-      } catch (memoryErr: any) {
+      } catch (memoryErr: unknown) {
         consoleLog(
           "!",
-          `[RandomTagJob] Memory retrieval for ${person.displayName} failed: ${memoryErr.message}`,
+          `[RandomTagJob] Memory retrieval for ${person.displayName} failed: ${(memoryErr as Error).message}`,
         );
       }
     }
@@ -251,8 +251,8 @@ ${conversationContext ? `## RECENT CHAT CONTEXT (STAY ON THIS TOPIC):\n${convers
       `[RandomTagJob] ✅ Sent message tagging ${namesStr}: ${finalMessage.substring(0, 120)}...`,
     );
     DiscordUtilityService.clearTypingInterval(typingInterval);
-  } catch (error: any) {
-    consoleLog("!", `[RandomTagJob] Error: ${error.message}`);
+  } catch (error: unknown) {
+    consoleLog("!", `[RandomTagJob] Error: ${(error as Error).message}`);
     console.error(error);
   }
 }

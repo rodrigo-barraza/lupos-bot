@@ -132,7 +132,7 @@ export default {
       }
 
       await interaction.editReply({ embeds: [embed] });
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Error fetching leaderboard:", error);
       await interaction.editReply({
         content:

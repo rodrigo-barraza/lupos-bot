@@ -35,12 +35,12 @@ export default class PrismService {
         headers: getHeaders(username),
         ...(body && { body: JSON.stringify(body) }),
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error(
         `[PrismService] Network error on ${endpoint}:`,
-        error.message,
+        (error as Error).message,
       );
-      throw new Error(`Prism unreachable: ${error.message}`);
+      throw new Error(`Prism unreachable: ${(error as Error).message}`);
     }
 
     if (!res.ok) {

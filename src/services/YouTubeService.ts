@@ -288,7 +288,7 @@ class YouTubeService {
 
       nowPlayingMessage = await message.channel.send({ embeds: [embed] });
       YouTubeService.startUpdateInterval();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Error processing queue:", error);
       message.reply("An error occurred while processing the queue!");
       isQueueProcessing = false;
@@ -399,7 +399,7 @@ class YouTubeService {
         isQueueProcessing = true;
         await YouTubeService.processQueue(client, message);
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Error:", error);
       message.reply("An error occurred while searching/playing!");
     }
@@ -536,7 +536,7 @@ class YouTubeService {
                   embeds: [embed],
                   files: [attachment],
                 });
-              } catch (error: any) {
+              } catch (error: unknown) {
                 console.error("Failed to convert combined recording:", error);
               }
             } else {
@@ -601,7 +601,7 @@ class YouTubeService {
           if (stats.size > 0) {
             try {
               await YouTubeService.convertToMp3(pcmPath, mp3Path);
-            } catch (error: any) {
+            } catch (error: unknown) {
               console.error(
                 `Failed to convert recording for user ${userId}:`,
                 error,
@@ -644,7 +644,7 @@ class YouTubeService {
         console.error(`Output stream error for user ${userId}:`, error);
         recordingStreams.delete(userId);
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error(
         `Error creating recording stream for user ${userId}:`,
         error,

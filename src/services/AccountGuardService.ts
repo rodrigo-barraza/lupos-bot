@@ -28,7 +28,7 @@ export async function kickIfTooNew(member: any, callerName: any = "AccountGuard"
     try {
       await member.kick(`Account too new (${ageDays} days old)`);
       return true;
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error(
         `[${callerName}] Failed to kick ${member.user.username}:`,
         error,
@@ -83,7 +83,7 @@ export async function kickIfForbiddenCombo(member: any, callerName: any = "Accou
   try {
     await member.kick(`Forbidden role combo: ${comboNames} (joined ${joinDays}d ago)`);
     return true;
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error(
       `[${callerName}] Failed to kick ${member.user.username}:`,
       error,
@@ -145,11 +145,11 @@ export async function purgeByAccountAge(guild: any, thresholdMs: any, options: R
       console.log(
         `[${callerName}] 🦶 Kicked: ${member.user.username} (${member.id}), age: ${ageDays}d`,
       );
-    } catch (error: any) {
+    } catch (error: unknown) {
       errors++;
       console.error(
         `[${callerName}] ❌ Failed to kick ${member.user.username} (${member.id}):`,
-        error.message,
+        (error as Error).message,
       );
     }
   }

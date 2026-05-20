@@ -190,9 +190,9 @@ async function archiveUrl(url: any, mediaHashesCol: any) {
     stats.urlsArchived++;
     stats.bytesStored += buffer.length;
     return archiveRef;
-  } catch (error: any) {
+  } catch (error: unknown) {
     stats.urlsFailed++;
-    console.warn(`  ❌ ${error.message}: ${url.substring(0, 80)}`);
+    console.warn(`  ❌ ${(error as Error).message}: ${url.substring(0, 80)}`);
     return null;
   }
 }

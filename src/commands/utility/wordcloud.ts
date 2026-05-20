@@ -126,7 +126,7 @@ export default {
         content: `**Word Cloud for <@${user.id}>**\nBased on ${messages.length} messages from the last ${formatTimePeriod(years, months, days, "1 year (default)")} (From ${formattedStartDate} to ${formattedEndDate})`,
         files: [attachment],
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Error generating word cloud:", error);
       await interaction.editReply({
         content:

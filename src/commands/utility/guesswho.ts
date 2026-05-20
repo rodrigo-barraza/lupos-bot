@@ -278,9 +278,9 @@ export default {
               embeds: [createEmbed(remaining)],
               components: createButtons(),
             });
-          } catch (error: any) {
+          } catch (error: unknown) {
             // 50027 = token expired, stop polling entirely
-            if (error.code === 50027) {
+            if ((error as any).code === 50027) {
               clearInterval(timerInterval);
             }
           }
@@ -493,9 +493,9 @@ export default {
             embeds: [finalEmbed],
             components: [disabledRow1, disabledRow2],
           });
-        } catch (editError: any) {
+        } catch (editError: unknown) {
           // Token expired (50027) — fall back to a regular channel message
-          console.error("Failed to edit guesswho final embed (token likely expired):", editError.code);
+          console.error("Failed to edit guesswho final embed (token likely expired):", (editError as any).code);
           try {
             await interaction.channel?.send({
               embeds: [finalEmbed],
@@ -504,7 +504,7 @@ export default {
           } catch { /* channel send also failed, nothing we can do */ }
         }
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Error in guesswho command:", error);
       try {
         await interaction.editReply({
