@@ -11,6 +11,15 @@ import { asyncHandler } from "@rodrigo-barraza/utilities-library/express";
 import { ChannelType } from "discord.js";
 import DiscordWrapper from "#root/wrappers/DiscordWrapper.js";
 import config from "#root/config.js";
+import MoodService from "#root/services/MoodService.js";
+import HungerService from "#root/services/HungerService.js";
+import ThirstService from "#root/services/ThirstService.js";
+import EnergyService from "#root/services/EnergyService.js";
+import SicknessService from "#root/services/SicknessService.js";
+import AlcoholService from "#root/services/AlcoholService.js";
+import BathroomService from "#root/services/BathroomService.js";
+import SubstanceService from "#root/services/SubstanceService.js";
+import { MOODS } from "#root/constants.js";
 
 const router = Router();
 
@@ -617,6 +626,115 @@ router.post("/guild/react", asyncHandler(async (req: any, res: any) => {
   } catch (error: any) {
     console.error("[guild/react] Error:", error.message, error.stack);
     res.status(500).json({ error: "Failed to react", detail: error.message });
+  }
+}));
+
+// ─── GET /bot/stats ─────────────────────────────────────────────
+// Returns live bot somatic status, database counts, and active server stats
+router.get("/bot/stats", asyncHandler(async (req: any, res: any) => {
+  try {
+    const client = DiscordWrapper.getClient("lupos");
+    const MongoService = (await import("#root/services/MongoService.js")).default;
+    const localMongo = MongoService.getClient("local");
+    const db = localMongo ? localMongo.db("lupos") : null;
+
+    // 1. Somatic Status
+    const moodLevel = MoodService.getMoodLevel();
+    const currentMood = MOODS.find((m: any) => m.level === moodLevel) || {
+      name: "Unknown",
+      emoji: "😐",
+    };
+
+    const somatic = {
+      mood: {
+        level: moodLevel,
+        name: currentMood.name,
+        emoji: currentMood.emoji,
+      },
+      hunger: HungerService.getHungerLevel(),
+      thirst: ThirstService.getThirstLevel(),
+      energy: EnergyService.getEnergyLevel(),
+      sickness: SicknessService.getSicknessLevel(),
+      alcohol: AlcoholService.getAlcoholLevel(),
+      bathroom: BathroomService.getBathroomLevel(),
+      substance: SubstanceService.getSubstanceLevel(),
+    };
+
+    // 2. Database Stats
+    let database = {
+      totalMessages: 0,
+      totalUniqueUsers: 0,
+      totalTranscriptions: 0,
+      totalArchivedMedia: 0,
+    };
+
+    if (db) {
+      try {
+        const [msgCount, transcriberCount, mediaCount, distinctAuthors] = await Promise.all([
+          db.collection("Messages").countDocuments().catch(() => 0),
+          db.collection("AudioTranscriptions").countDocuments().catch(() => 0),
+          db.collection("MediaMetadata").countDocuments().catch(() => 0),
+          db.collection("Messages").distinct("author.id").catch(() => []),
+        ]);
+
+        database = {
+          totalMessages: msgCount,
+          totalUniqueUsers: Array.isArray(distinctAuthors) ? distinctAuthors.length : 0,
+          totalTranscriptions: transcriberCount,
+          totalArchivedMedia: mediaCount,
+        };
+      } catch (dbErr: any) {
+        console.warn("[bot/stats] Failed to fetch database metrics:", dbErr.message);
+      }
+    }
+
+    // 3. Game Activity
+    let topGames: any[] = [];
+    if (db) {
+      try {
+        topGames = await db
+          .collection("GameActivity")
+          .find({})
+          .sort({ count: -1 })
+          .limit(5)
+          .toArray();
+      } catch (gameErr: any) {
+        console.warn("[bot/stats] Failed to fetch game activity:", gameErr.message);
+      }
+    }
+
+    // 4. Active Streamers
+    let activeStreamers: any[] = [];
+    if (db) {
+      try {
+        activeStreamers = await db
+          .collection("ActiveStreamers")
+          .find({ isStreaming: true })
+          .toArray();
+      } catch (streamErr: any) {
+        console.warn("[bot/stats] Failed to fetch active streamers:", streamErr.message);
+      }
+    }
+
+    // 5. Discord connection info
+    const discordInfo = {
+      isReady: client?.isReady() || false,
+      guildsCount: client?.guilds?.cache?.size || 0,
+      username: client?.user?.username || null,
+      avatarUrl: client?.user?.displayAvatarURL() || null,
+      uptime: client?.uptime || 0,
+    };
+
+    res.json({
+      somatic,
+      database,
+      topGames,
+      activeStreamers,
+      discordInfo,
+    });
+  } catch (error: any) {
+    console.error("[bot/stats] Error:", error.message, error.stack);
+    res.status(500).json({ error: "Failed to fetch bot stats", detail: error.message });
   }
 }));
 
