@@ -379,6 +379,7 @@ const transformMember = (member: any, concise: any = false): Record<string, any>
         nickname: member.nickname,
         joinedAt: member.joinedAt,
         joinedTimestamp: member.joinedTimestamp,
+        avatar: member.avatar || null,
         // Enhanced Role Styles — gradient (secondary) / holographic (tertiary)
         ...(roleColorsData && { roleColors: roleColorsData }),
       };
@@ -773,6 +774,7 @@ const DiscordUtilityService = {
             pinned: document.pinned,
             "member.displayHexColor": document.member?.displayHexColor || null,
             "member.displayName": document.member?.displayName || null,
+            "member.avatar": document.member?.avatar || null,
             // Enhanced Role Styles (gradient/holographic) — always update to latest
             ...(document.member?.roleColors
               ? { "member.roleColors": document.member.roleColors }
@@ -790,7 +792,7 @@ const DiscordUtilityService = {
           delete insertDoc.editedTimestamp;
           delete insertDoc.pinned;
           if (insertDoc.member) {
-            const { displayHexColor: _dhc, displayName: _dn, roleColors: _rc, ...restMember } = insertDoc.member;
+            const { displayHexColor: _dhc, displayName: _dn, avatar: _av, roleColors: _rc, ...restMember } = insertDoc.member;
             insertDoc.member = restMember;
           }
 
