@@ -251,6 +251,7 @@ let deathrollIndexesEnsured = false;
 
 function getDeathrollCollections() {
   const localMongo = MongoService.getClient("local");
+  if (!localMongo) throw new Error("MongoService: local client not initialized");
   const db = localMongo.db(MONGO_DB_NAME);
   const collections = {
     statsCollection: db.collection("DeathRollUserStats"),

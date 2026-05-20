@@ -20,7 +20,7 @@ const routes = () => {
 
       const audioUrl = decodeURIComponent(req.params.audioUrl);
 
-      const transcription = await AIService.transcribeSpeech(audioUrl, null, null);
+      const transcription = await AIService.transcribeSpeech(audioUrl, "", 0);
 
       res.json({
         success: true,

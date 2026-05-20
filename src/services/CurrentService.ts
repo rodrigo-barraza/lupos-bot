@@ -1,66 +1,64 @@
-let user: any = null;
-let message: any = null;
-let startTime: any = null;
-let endTime: any = null;
-let traceId: any = null;
+let user: unknown = null;
+let message: unknown = null;
+let startTime: unknown = null;
+let endTime: unknown = null;
+let traceId: string | null = null;
 
-let models = new Set();
-let modelTypes = new Set();
-
+let models = new Set<unknown>();
+let modelTypes = new Set<unknown>();
 
 const CurrentService = {
-  setUser(newUser: any) {
+  setUser(newUser: unknown): void {
     user = newUser;
   },
-  getUser() {
+  getUser(): unknown {
     return user;
   },
-  setMessage(newMessage: any) {
+  setMessage(newMessage: unknown): void {
     message = newMessage;
   },
-  getMessage() {
+  getMessage(): unknown {
     return message;
   },
-  setStartTime(newStartTime: any) {
+  setStartTime(newStartTime: unknown): void {
     startTime = newStartTime;
   },
-  getStartTime() {
+  getStartTime(): unknown {
     return startTime;
   },
-  setEndTime(newEndTime: any) {
+  setEndTime(newEndTime: unknown): void {
     endTime = newEndTime;
   },
-  getEndTime() {
+  getEndTime(): unknown {
     return endTime;
   },
-  addModel(model: any) {
+  addModel(model: unknown): void {
     models.add(model);
   },
-  getModels() {
+  getModels(): unknown[] {
     return Array.from(models);
   },
-  clearModels() {
-    models = new Set();
+  clearModels(): void {
+    models = new Set<unknown>();
   },
-  addModelType(modelType: any) {
+  addModelType(modelType: unknown): void {
     modelTypes.add(modelType);
   },
-  getModelTypes() {
+  getModelTypes(): unknown[] {
     return Array.from(modelTypes);
   },
-  clearModelTypes() {
-    modelTypes = new Set();
+  clearModelTypes(): void {
+    modelTypes = new Set<unknown>();
   },
-  setTraceId(newTraceId: any) {
+  setTraceId(newTraceId: string | null): void {
     traceId = newTraceId;
   },
-  getTraceId() {
+  getTraceId(): string | null {
     return traceId;
   },
-  clearTraceId() {
+  clearTraceId(): void {
     traceId = null;
   },
-
 };
 
 export default CurrentService;

@@ -1,4 +1,4 @@
-import { SlashCommandBuilder, EmbedBuilder } from "discord.js";
+import { SlashCommandBuilder, EmbedBuilder, ChatInputCommandInteraction } from "discord.js";
 import {
   getMongoDb,
   getServerAgeYears,
@@ -7,17 +7,24 @@ import {
   getMedal,
 } from "./commandUtils.ts";
 
+interface MentionerEntry {
+  _id: string;
+  username: string;
+  avatar: string;
+  count: number;
+}
+
 export default {
   data: new SlashCommandBuilder()
     .setName("mentions")
     .setDescription("Shows top 5 users who have mentioned a specific user")
-    .addUserOption((option: any) =>
+    .addUserOption((option) =>
       option
         .setName("user")
         .setDescription("User to check mentions for")
         .setRequired(true),
     )
-    .addIntegerOption((option: any) =>
+    .addIntegerOption((option) =>
       option
         .setName("years")
         .setDescription("Number of years to look back")
@@ -25,7 +32,7 @@ export default {
         .setMinValue(0)
         .setMaxValue(7),
     )
-    .addIntegerOption((option: any) =>
+    .addIntegerOption((option) =>
       option
         .setName("months")
         .setDescription("Number of months to look back")
@@ -33,7 +40,7 @@ export default {
         .setMinValue(0)
         .setMaxValue(12),
     )
-    .addIntegerOption((option: any) =>
+    .addIntegerOption((option) =>
       option
         .setName("days")
         .setDescription("Number of days to look back")
@@ -41,35 +48,37 @@ export default {
         .setMinValue(0)
         .setMaxValue(31),
     )
-    .addChannelOption((option: any) =>
+    .addChannelOption((option) =>
       option
         .setName("channel")
         .setDescription("Channel to check (default: all channels)")
         .setRequired(false),
     ),
 
-  async execute(interaction: any) {
+  async execute(interaction: ChatInputCommandInteraction): Promise<void> {
     const db = getMongoDb();
     const messagesCollection = db.collection("Messages");
 
     await interaction.deferReply();
 
     // Get parameters
-    const targetUser = interaction.options.getUser("user");
+    const targetUser = interaction.options.getUser("user", true);
     let years = interaction.options.getInteger("years") || 0;
     const months = interaction.options.getInteger("months") || 0;
     const days = interaction.options.getInteger("days") || 0;
     const channel = interaction.options.getChannel("channel");
 
     if (years === 0 && months === 0 && days === 0) {
-      years = getServerAgeYears(interaction.guild);
+      if (interaction.guild) {
+        years = getServerAgeYears(interaction.guild);
+      }
     }
 
     const now = new Date();
     const { startDate, unixStartDate } = computeStartDate(years, months, days);
 
     // Build match query
-    const match: Record<string, any> = {
+    const match: Record<string, unknown> = {
       createdTimestamp: { $gte: unixStartDate },
       guildId: interaction.guildId,
       "mentions.users": {
@@ -139,11 +148,11 @@ export default {
         ])
         .toArray();
 
-      const topMentioners = result.topMentioners || [];
-      const stats = result.stats[0] || {
+      const topMentioners = (result?.topMentioners || []) as MentionerEntry[];
+      const stats = (result?.stats[0] || {
         totalMentions: 0,
         uniqueMentioners: 0,
-      };
+      }) as { totalMentions: number; uniqueMentioners: number };
 
       const description = `**User:** ${targetUser.toString()}\n**Time Period:** ${formatTimePeriod(years, months, days, "Last 30 days (default)")}\n**Channel:** ${channel ? channel.toString() : "All Channels"}\n**Total Mentions:** ${stats.totalMentions}\n\n`;
 
@@ -158,7 +167,7 @@ export default {
         });
 
       // Set thumbnail to target user's avatar
-      if (targetUser.displayAvatarURL) {
+      if (targetUser.avatar) {
         embed.setThumbnail(targetUser.displayAvatarURL());
       }
 
@@ -170,7 +179,7 @@ export default {
         });
       } else {
         const leaderboardText = topMentioners
-          .map((user: any, index: any) => {
+          .map((user, index) => {
             const medal = getMedal(index);
             const percentage = (
               (user.count / stats.totalMentions) *
@@ -192,7 +201,7 @@ export default {
       }
 
       await interaction.editReply({ embeds: [embed] });
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Error fetching mention leaderboard:", error);
       await interaction.editReply({
         content:

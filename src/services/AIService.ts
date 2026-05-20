@@ -13,14 +13,50 @@ import CurrentService from "#root/services/CurrentService.js";
 import DiscordUtilityService from "#root/services/DiscordUtilityService.js";
 
 import sharp from "sharp";
+import { Message, Client } from "discord.js";
+import { MongoClient, Db } from "mongodb";
 
-async function convertGifToPng(imageBuffer: Buffer) {
+async function convertGifToPng(imageBuffer: Buffer): Promise<Buffer> {
   return sharp(imageBuffer, { animated: false })
     .png()
     .toBuffer();
 }
 
-function assembleConversation(systemMessage: any, userMessage: any, message: any) {
+export interface CaptionMapObject {
+  hash: string;
+  url: string;
+  caption: string;
+  fileType: string | null;
+  userId: string | null;
+  model: string | null;
+  provider: string | null;
+  cached: boolean;
+}
+
+export interface ChatMessage {
+  role: string;
+  name?: string;
+  content: string;
+}
+
+export interface GenerateTextOptions {
+  conversation: ChatMessage[];
+  type?: string;
+  modelPerformance?: string;
+  temperature?: number;
+  tokens?: number;
+  model?: string | null;
+  _label?: string | null;
+  localMongo?: MongoClient | null;
+  label?: string;
+}
+
+export interface GenerateVisionOptions {
+  model?: string;
+  provider?: string;
+}
+
+function assembleConversation(systemMessage: string, userMessage: string, message: Message): ChatMessage[] {
   const conversation = [
     {
       role: "system",
@@ -56,7 +92,7 @@ const AIService = {
    * and reuses it for subsequent calls (CurrentService.clearTraceId()
    * resets at the start of each cycle).
    */
-  _getTraceParams() {
+  _getTraceParams(): { traceId: string } {
     let traceId = CurrentService.getTraceId();
     if (!traceId) {
       traceId = crypto.randomUUID();
@@ -66,25 +102,25 @@ const AIService = {
   },
   /**
    * Get the current Discord username from CurrentService, with "lupos" fallback.
-
    */
-  _getDiscordUsername() {
-    return CurrentService.getMessage()?.author?.username || "lupos";
+  _getDiscordUsername(): string {
+    const msg = CurrentService.getMessage() as Message | null | undefined;
+    return msg?.author?.username || "lupos";
   },
   /**
    * Convert image URLs to { imageData, mimeType } objects for Prism.
    * Optionally converts GIFs to PNG (first frame) for providers that don't support GIFs.
-
-   * @param {{ convertGifs?: boolean }} [options]
-   * @returns {Promise<Array<{ imageData: string, mimeType: string }>>}
    */
-  async _convertImageUrlsToBase64(urls: any, { convertGifs = false }: any = {}) {
-    const imageObjects: any[] = [];
+  async _convertImageUrlsToBase64(
+    urls: string[],
+    { convertGifs = false }: { convertGifs?: boolean } = {}
+  ): Promise<Array<{ imageData: string; mimeType: string }>> {
+    const imageObjects: Array<{ imageData: string; mimeType: string }> = [];
     for (const url of urls) {
       const response = await fetch(url);
       const bytes = await response.bytes();
       const buffer = Buffer.from(bytes);
-      const mimeType = response.headers.get("content-type");
+      const mimeType = response.headers.get("content-type") || "image/png";
 
       if (convertGifs && mimeType === "image/gif") {
         const pngBuffer = await convertGifToPng(buffer);
@@ -106,13 +142,15 @@ const AIService = {
     conversation,
     type = config.LANGUAGE_MODEL_TYPE,
     modelPerformance = config.LANGUAGE_MODEL_PERFORMANCE,
-    temperature = config.LANGUAGE_MODEL_TEMPERATURE,
-    tokens = config.LANGUAGE_MODEL_MAX_TOKENS,
+    temperature,
+    tokens,
     model = null,
-    _label = null,
-  }: any) {
-    let textResponse: any;
-    let generateTextModel: any;
+  }: GenerateTextOptions): Promise<string | null> {
+    let textResponse: string | null = null;
+    let generateTextModel: string | undefined;
+
+    const finalTemperature = temperature !== undefined ? temperature : (config.LANGUAGE_MODEL_TEMPERATURE ? parseFloat(config.LANGUAGE_MODEL_TEMPERATURE) : undefined);
+    const finalTokens = tokens !== undefined ? tokens : (config.LANGUAGE_MODEL_MAX_TOKENS ? parseInt(config.LANGUAGE_MODEL_MAX_TOKENS, 10) : undefined);
 
     // Determine initial model based on type and performance
     if (type === "OPENAI") {
@@ -146,7 +184,7 @@ const AIService = {
     }
 
     // Route through Prism API gateway
-    let usedModel = model || generateTextModel;
+    let usedModel = model || generateTextModel || "";
     const discordUsername = AIService._getDiscordUsername();
 
     try {
@@ -154,12 +192,11 @@ const AIService = {
         messages: conversation,
         type,
         model: usedModel,
-        maxTokens: tokens,
-        temperature,
+        maxTokens: finalTokens,
+        temperature: finalTemperature,
         username: discordUsername,
         ...AIService._getTraceParams(),
       });
-
 
       textResponse = prismResult.text;
 
@@ -167,10 +204,11 @@ const AIService = {
         usedModel = prismResult.model;
       }
 
-    } catch (prismError: any) {
+    } catch (prismError: unknown) {
+      const err = prismError instanceof Error ? prismError : new Error(String(prismError));
       console.error(
         `Prism API error for ${type}/${usedModel}:`,
-        prismError.message,
+        err.message,
       );
       return null;
     }
@@ -178,10 +216,15 @@ const AIService = {
     return textResponse;
   },
   // Base Text-to-Image Generation (Diffusion)
-  async generateImage(type: any, prompt: any, client: any, imageUrls: any = [], username: any = null) {
-    let generatedImage: any;
-    let usedModel: any;
-
+  async generateImage(
+    type: string,
+    prompt: string,
+    client: Client,
+    imageUrls: string[] = [],
+    username: string | null = null
+  ): Promise<string | null> {
+    let generatedImage: string | null = null;
+    let usedModel: string;
 
     if (type === "GOOGLE") {
       let hasError = false;
@@ -202,8 +245,6 @@ const AIService = {
           ...AIService._getTraceParams(),
         });
 
-  
-
         if (prismResult.imageData) {
           generatedImage = prismResult.imageData;
         } else {
@@ -221,8 +262,9 @@ const AIService = {
           );
           generatedImage = generatedImageResponseLocal;
         }
-      } catch (error: any) {
-        console.error(...LogFormatter.error("generateImage", error));
+      } catch (error: unknown) {
+        const err = error instanceof Error ? error : new Error(String(error));
+        console.error(...LogFormatter.error("generateImage", err));
         hasError = true;
       }
       if (hasError) {
@@ -254,20 +296,27 @@ const AIService = {
           ...AIService._getTraceParams(),
         });
 
-  
-
         generatedImage = prismResult.imageData;
 
-      } catch (error: any) {
-        console.error(...LogFormatter.error("generateImage", error));
+      } catch (error: unknown) {
+        const err = error instanceof Error ? error : new Error(String(error));
+        console.error(...LogFormatter.error("generateImage", err));
       }
     }
-
 
     return generatedImage;
   },
   // Base Image-to-Text Generation (Captioning) — via Prism
-  async generateVision(imageUrl: any, text: any, { model, provider }: any = {}) {
+  async generateVision(
+    imageUrl: string,
+    text: string,
+    { model, provider }: GenerateVisionOptions = {}
+  ): Promise<{
+    response: { choices: Array<{ message: { content: string } }> } | null;
+    model: string;
+    provider: string;
+    error: Error | null;
+  }> {
     try {
       const discordUsername = AIService._getDiscordUsername();
 
@@ -280,19 +329,24 @@ const AIService = {
         ...AIService._getTraceParams(),
       });
 
-
       return {
         response: { choices: [{ message: { content: result.text } }] },
         model: result.model || model || "gemini-3-flash-preview",
         provider: result.provider || provider || "google",
         error: null,
       };
-    } catch (error: any) {
-      return { response: null, error };
+    } catch (error: unknown) {
+      const err = error instanceof Error ? error : new Error(String(error));
+      return {
+        response: null,
+        model: model || "gemini-3-flash-preview",
+        provider: provider || "google",
+        error: err,
+      };
     }
   },
   // Base Speech-to-Text Generation (Transcription) — via Prism
-  async transcribeSpeech(audioUrl: any, _messageId: any, _index: any) {
+  async transcribeSpeech(audioUrl: string, _messageId: string, _index: number): Promise<string> {
     // Parse the URL to get just the filename without query parameters
     const url = new URL(audioUrl);
     const filename = path.basename(url.pathname);
@@ -325,14 +379,20 @@ const AIService = {
       ...AIService._getTraceParams(),
     });
 
-
     const transcription = (result.text || "").trim().replace(/\n+/g, " ");
     return transcription;
   },
   // Caption images and store data in MongoDB
-  async captionImages(imageUrls: any, localMongo: any, type: any) {
-    const images: any[] = [];
-    const imagesMap = new Map();
+  async captionImages(
+    imageUrls: Array<string | { url: string; userId: string | null }>,
+    localMongo: MongoClient,
+    type: string
+  ): Promise<{
+    images: string[];
+    imagesMap: Map<string, CaptionMapObject>;
+  }> {
+    const images: string[] = [];
+    const imagesMap = new Map<string, CaptionMapObject>();
     const collectionName = CAPTION_COLLECTION_MAP[type as keyof typeof CAPTION_COLLECTION_MAP];
     if (collectionName) {
       const db = localMongo.db(MONGO_DB_NAME);
@@ -342,13 +402,14 @@ const AIService = {
         : `Describe this ${type.toLowerCase()}. Make no mention about the quality, resolution, or pixelation.`;
 
       if (imageUrls?.length) {
-        const isObject = imageUrls[0]?.url;
+        const first = imageUrls[0];
+        const isObject = typeof first === "object" && first !== null && "url" in first;
 
         // Process all images in parallel — each checks cache first,
         // then fires vision call only for uncached images
-        const captionPromises = imageUrls.map(async (imageUrl: any) => {
-          const realImageUrl = isObject ? imageUrl.url : imageUrl;
-          const userId = isObject ? imageUrl.userId : null;
+        const captionPromises = imageUrls.map(async (imageUrl) => {
+          const realImageUrl = isObject ? (imageUrl as { url: string }).url : (imageUrl as string);
+          const userId = isObject ? (imageUrl as { userId: string | null }).userId : null;
 
           const hashResult =
             await utilities.generateFileHash(realImageUrl);
@@ -367,7 +428,7 @@ const AIService = {
               provider: existingImage.provider || null,
               cached: true,
             };
-            return { caption: existingImage.caption, mapObject, hash };
+            return { caption: existingImage.caption as string, mapObject, hash };
           }
 
           // Uncached — fire vision call
@@ -413,8 +474,14 @@ const AIService = {
     return { images, imagesMap };
   },
   // Transcribe audio files from URLs and store data in MongoDB
-  async transcribeAudioUrls(audioUrls: any, messageId: any, localMongo: any) {
-    const transcriptionsMap = new Map();
+  async transcribeAudioUrls(
+    audioUrls: string[],
+    messageId: string,
+    localMongo: MongoClient
+  ): Promise<{
+    transcriptionsMap: Map<string, unknown>;
+  }> {
+    const transcriptionsMap = new Map<string, unknown>();
     const db = localMongo.db(MONGO_DB_NAME);
     const collection = db.collection("AudioTranscriptions");
     let existingAudio: any;
@@ -464,7 +531,7 @@ const AIService = {
   },
 
   // "mini-brains" for specific tasks
-  async generateTextSummaryFromMessage(message: any, messageContent: any) {
+  async generateTextSummaryFromMessage(message: Message, messageContent: string): Promise<string> {
     const systemContent = `You are an expert at summarizing the text that is given to you in two to three words. Start with an emoji. Do not use any other formatting, just give the emoji and the two to three words.`;
     const conversation = assembleConversation(
       systemContent,
@@ -479,25 +546,28 @@ const AIService = {
     // trim generatedText to 128 characters
     return generatedText.substring(0, 128);
   },
-  async generateTextCustomEmojiReactFromMessage(message: any, localMongo: any) {
+  async generateTextCustomEmojiReactFromMessage(message: Message, localMongo: MongoClient): Promise<string | null> {
     const client = message.client;
     const guild = message.guild;
     const bot = client.user;
     const content = message.content;
+    if (!bot) return null;
     const modifiedMessageContent = content.replace(`<@${bot.id}>`, "");
 
-    let guildEmojiList: any;
-    let serverEmojisArray: any[] = [];
+    let guildEmojiList = "";
+    let serverEmojisArray: unknown[] = [];
 
     if (guild) {
-      const serverEmojis = client.guilds.cache.get(guild.id).emojis.cache;
-      serverEmojisArray = Array.from(serverEmojis.values());
-      if (serverEmojisArray.length) {
-        guildEmojiList = `# CUSTOM EMOJIS AVAILABLE:\n`;
-        guildEmojiList += serverEmojisArray
-          .map((emoji: any) => emoji.name)
-          .join(", ");
-        guildEmojiList += `\n\n`;
+      const serverEmojis = client.guilds.cache.get(guild.id)?.emojis.cache;
+      if (serverEmojis) {
+        serverEmojisArray = Array.from(serverEmojis.values());
+        if (serverEmojisArray.length) {
+          guildEmojiList = `# CUSTOM EMOJIS AVAILABLE:\n`;
+          guildEmojiList += serverEmojisArray
+            .map((emoji) => (emoji as { name: string }).name)
+            .join(", ");
+          guildEmojiList += `\n\n`;
+        }
       }
     }
 
@@ -538,22 +608,27 @@ ${guildEmojiList}
     if (serverEmojisArray.length) {
       // check if its emoji or custom emoji
       const isCustomEmoji = serverEmojisArray.some(
-        (emoji: any) => emoji.name === cleanedResponse,
+        (emoji) => (emoji as { name: string }).name === cleanedResponse,
       );
       if (isCustomEmoji) {
         // <:blobreach:123456789012345678>
         // if its custom, wrap it in <:
-        cleanedResponse = `${serverEmojisArray.find((emoji: any) => emoji.name === cleanedResponse).id}`;
+        const found = serverEmojisArray.find(
+          (emoji) => (emoji as { name: string }).name === cleanedResponse
+        ) as { id: string } | undefined;
+        if (found) {
+          cleanedResponse = found.id;
+        }
       }
     }
 
     return cleanedResponse;
   },
   async generateTextDetermineHowManyMessagesToFetch(
-    content: any,
-    _message: any,
-    _messageCountText: any,
-  ) {
+    content: string,
+    _message: Message,
+    _messageCountText: string
+  ): Promise<number> {
     // Fully deterministic — the old AI prompt's decision rules were keyword-based,
     // so we replicate them exactly without an LLM call.
     const strippedContent = content
@@ -607,10 +682,10 @@ ${guildEmojiList}
     return 20;
   },
   async generateTextFromUserConversation(
-    userName: any,
-    cleanUserName: any,
-    userMessagesAsText: any,
-  ) {
+    userName: string,
+    cleanUserName: string,
+    userMessagesAsText: string
+  ): Promise<string | null> {
     const conversation = [
       {
         role: "system",
@@ -628,11 +703,9 @@ As the output, I want you to provide the descriptions in dash list form, without
       conversation: conversation,
       type: "OPENAI",
       model: config.OPENAI_LANGUAGE_MODEL_GPT4_1_NANO,
-      label: "🧠 User Analysis",
     });
     return generatedText;
   },
 };
 
 export default AIService;
-

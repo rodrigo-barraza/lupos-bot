@@ -264,7 +264,7 @@ async function main() {
   const minioSecretKey = process.env.MINIO_SECRET_KEY;
   const minioBucket = process.env.LUPOS_BOT_MINIO_BUCKET_NAME || process.env.LUPOS_MINIO_BUCKET_NAME;
 
-  if (!minioEndpoint || !minioAccessKey || !minioSecretKey) {
+  if (!minioEndpoint || !minioAccessKey || !minioSecretKey || !minioBucket) {
     console.error("❌ MinIO credentials not configured");
     process.exit(1);
   }

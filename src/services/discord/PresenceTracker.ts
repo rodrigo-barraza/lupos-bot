@@ -29,6 +29,7 @@ async function handlePresenceUpdate(client: any, oldPresence: any, newPresence: 
   const functionName = "luposOnPresenceUpdate";
 
   const mongo = MongoService.getClient("local");
+  if (!mongo) return;
   if (newPresence.guild.id !== config.GUILD_ID_PRIMARY) return;
 
   try {
