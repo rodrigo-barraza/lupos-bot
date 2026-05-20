@@ -17,15 +17,30 @@
 
 import utilities from "#root/utilities.js";
 
+export interface StatOptions {
+  min?: number;
+  max?: number;
+  initial?: number;
+  step?: number;
+  onChange?: ((level: number, name: string) => void) | null;
+}
+
+export interface StatInstance {
+  getName(): string;
+  getLevel(): number;
+  setLevel(newLevel: number): number;
+  increase(multiplier?: number): number;
+  decrease(multiplier?: number): number;
+  reset(): number;
+}
+
 const StatService = {
   /**
    * Creates a new stat instance with clamped get/set/increase/decrease.
    *
-
-
-   * @returns {object} A stat instance with getLevel, setLevel, increase, decrease, getName.
+   * @returns {StatInstance} A stat instance with getLevel, setLevel, increase, decrease, getName.
    */
-  create(name: any, options: Record<string, any> = {}) {
+  create(name: string, options: StatOptions = {}): StatInstance {
     const {
       min = 0,
       max = 100,
@@ -36,9 +51,9 @@ const StatService = {
 
     let level = initial;
 
-    const clamp = (value: any) => Math.max(min, Math.min(max, value));
+    const clamp = (value: number) => Math.max(min, Math.min(max, value));
 
-    const stat = {
+    const stat: StatInstance = {
       getName() {
         return name;
       },
@@ -47,13 +62,13 @@ const StatService = {
         return level;
       },
 
-      setLevel(newLevel: any) {
+      setLevel(newLevel: number) {
         level = clamp(newLevel);
         if (onChange) onChange(level, name);
         return level;
       },
 
-      increase(multiplier: any = 1) {
+      increase(multiplier: number = 1) {
         const amount = step * multiplier;
         level = clamp(level + amount);
         const capitalized = utilities.capitalize(name);
@@ -64,7 +79,7 @@ const StatService = {
         return level;
       },
 
-      decrease(multiplier: any = 1) {
+      decrease(multiplier: number = 1) {
         const amount = step * multiplier;
         level = clamp(level - amount);
         const capitalized = utilities.capitalize(name);

@@ -163,8 +163,8 @@ export default {
           const user =
             userId === correctUserId
               ? { username: correctUsername }
-              : decoyUsers.find((u: any) => u._id === userId);
-          return { userId, displayName: user.username };
+              : decoyUsers.find((u: Record<string, unknown>) => u._id === userId);
+          return { userId, displayName: (user as Record<string, string> | undefined)?.username ?? userId };
         }
       });
 

@@ -234,13 +234,16 @@ router.get("/guild/members", asyncHandler(async (req: any, res: any) => {
       };
 
       if (hoistedRole) {
-        roleMap.getOrInsertComputed(hoistedRole.id, () => ({
-          id: hoistedRole.id,
-          name: hoistedRole.name,
-          color: hoistedRole.hexColor !== "#000000" ? hoistedRole.hexColor : null,
-          position: hoistedRole.position,
-          members: [],
-        })).members.push(memberData);
+        if (!roleMap.has(hoistedRole.id)) {
+          roleMap.set(hoistedRole.id, {
+            id: hoistedRole.id,
+            name: hoistedRole.name,
+            color: hoistedRole.hexColor !== "#000000" ? hoistedRole.hexColor : null,
+            position: hoistedRole.position,
+            members: [],
+          });
+        }
+        roleMap.get(hoistedRole.id).members.push(memberData);
       } else if (member.user.bot) {
         ungroupedBots.push(memberData);
       } else {
@@ -584,6 +587,7 @@ router.post("/guild/react", asyncHandler(async (req: any, res: any) => {
       const freshMessage = await channel.messages.fetch(messageId);
       const MongoService = (await import("#root/services/MongoService.js")).default;
       const localMongo = MongoService.getClient("local");
+      if (!localMongo) throw new Error("MongoService: local client not initialized");
       const db = localMongo.db("lupos");
       const col = db.collection("Messages");
 

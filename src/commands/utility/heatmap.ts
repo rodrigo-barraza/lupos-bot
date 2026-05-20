@@ -2,6 +2,7 @@ import {
   SlashCommandBuilder,
   AttachmentBuilder,
   EmbedBuilder,
+  ChatInputCommandInteraction,
 } from "discord.js";
 import { chromium } from "playwright";
 import {
@@ -11,23 +12,40 @@ import {
   getPlaywrightOptions,
 } from "./commandUtils.ts";
 
+interface HourlyMessageEntry {
+  day: number;
+  block: number;
+  count: number;
+}
+
+interface MonthlyMessageEntry {
+  year: number;
+  month: number;
+  count: number;
+}
+
+interface MonthlyYearData {
+  year: number;
+  data: number[];
+}
+
 export default {
   data: new SlashCommandBuilder()
     .setName("heatmap")
     .setDescription("Shows activity heatmap by day/hour for a user")
-    .addUserOption((option: any) =>
+    .addUserOption((option) =>
       option
         .setName("user")
         .setDescription("User to analyze (default: you)")
         .setRequired(false),
     )
-    .addChannelOption((option: any) =>
+    .addChannelOption((option) =>
       option
         .setName("channel")
         .setDescription("Channel to check (default: all channels)")
         .setRequired(false),
     )
-    .addIntegerOption((option: any) =>
+    .addIntegerOption((option) =>
       option
         .setName("years")
         .setDescription("Number of years to look back")
@@ -35,7 +53,7 @@ export default {
         .setMinValue(0)
         .setMaxValue(7),
     )
-    .addIntegerOption((option: any) =>
+    .addIntegerOption((option) =>
       option
         .setName("months")
         .setDescription("Number of months to look back")
@@ -43,7 +61,7 @@ export default {
         .setMinValue(0)
         .setMaxValue(12),
     )
-    .addIntegerOption((option: any) =>
+    .addIntegerOption((option) =>
       option
         .setName("days")
         .setDescription("Number of days to look back")
@@ -52,7 +70,7 @@ export default {
         .setMaxValue(31),
     ),
 
-  async execute(interaction: any) {
+  async execute(interaction: ChatInputCommandInteraction): Promise<void> {
     const db = getMongoDb();
     const messagesCollection = db.collection("Messages");
 
@@ -66,7 +84,11 @@ export default {
     const days = interaction.options.getInteger("days") || 0;
 
     if (years === 0 && months === 0 && days === 0) {
-      years = getServerAgeYears(interaction.guild) + 1;
+      if (interaction.guild) {
+        years = getServerAgeYears(interaction.guild) + 1;
+      } else {
+        years = 1;
+      }
     }
 
     const now = new Date();
@@ -77,7 +99,7 @@ export default {
       (now.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24),
     );
 
-    const match: Record<string, any> = {
+    const match: Record<string, unknown> = {
       createdTimestamp: { $gte: unixStartDate },
       guildId: interaction.guildId,
       "author.id": user.id,
@@ -202,22 +224,23 @@ export default {
         .toArray();
 
       if (!hourlyResult || hourlyResult.totalMessages === 0) {
-        return await interaction.editReply({
+        await interaction.editReply({
           content: `No messages found for ${user.username} in the specified period.`,
         });
+        return;
       }
 
-      const hourlyMessages = hourlyResult.messages;
-      const totalMessages = hourlyResult.totalMessages;
-      const monthlyMessages = monthlyResult?.messages || [];
+      const hourlyMessages = hourlyResult.messages as HourlyMessageEntry[];
+      const totalMessages = hourlyResult.totalMessages as number;
+      const monthlyMessages = (monthlyResult?.messages || []) as MonthlyMessageEntry[];
 
       // Create 7x48 grid (days x 30-minute blocks)
       const heatmapData = Array(7)
         .fill(null)
-        .map(() => Array(48).fill(0));
+        .map(() => Array<number>(48).fill(0));
 
       // Fill in the hourly data
-      hourlyMessages.forEach((message: any) => {
+      hourlyMessages.forEach((message) => {
         heatmapData[message.day][message.block] = message.count;
       });
 
@@ -226,8 +249,8 @@ export default {
       let peakDay = 0;
       let peakBlock = 0;
 
-      heatmapData.forEach((dayData: any, day: any) => {
-        dayData.forEach((count: any, block: any) => {
+      heatmapData.forEach((dayData, day) => {
+        dayData.forEach((count, block) => {
           if (count > maxCount) {
             maxCount = count;
             peakDay = day;
@@ -237,15 +260,15 @@ export default {
       });
 
       // Process monthly data
-      const yearSet = new Set();
-      monthlyMessages.forEach((message: any) => yearSet.add(message.year));
+      const yearSet = new Set<number>();
+      monthlyMessages.forEach((message) => yearSet.add(message.year));
       const uniqueYears = Array.from(yearSet).sort();
 
       // Create year x month grid (dynamic years x 12 months)
-      const monthlyHeatmapData: any[] = [];
-      uniqueYears.forEach((year: any) => {
-        const yearData = Array(12).fill(0);
-        monthlyMessages.forEach((message: any) => {
+      const monthlyHeatmapData: MonthlyYearData[] = [];
+      uniqueYears.forEach((year) => {
+        const yearData = Array<number>(12).fill(0);
+        monthlyMessages.forEach((message) => {
           if (message.year === year) {
             yearData[message.month - 1] = message.count;
           }
@@ -255,8 +278,8 @@ export default {
 
       // Find max for monthly heatmap
       let maxMonthlyCount = 0;
-      monthlyHeatmapData.forEach((yearData: any) => {
-        yearData.data.forEach((count: any) => {
+      monthlyHeatmapData.forEach((yearData) => {
+        yearData.data.forEach((count) => {
           if (count > maxMonthlyCount) {
             maxMonthlyCount = count;
           }
@@ -326,7 +349,7 @@ export default {
         embeds: [embed],
         files: [attachment],
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Error fetching heatmap:", error);
       await interaction.editReply({
         content:
@@ -338,11 +361,11 @@ export default {
 
 // Generate heatmap image using Playwright and D3
 async function generateHeatmapImage(
-  hourlyData: any,
-  maxHourlyCount: any,
-  monthlyData: any,
-  maxMonthlyCount: any,
-) {
+  hourlyData: number[][],
+  maxHourlyCount: number,
+  monthlyData: MonthlyYearData[],
+  maxMonthlyCount: number,
+): Promise<Buffer> {
   const browser = await chromium.launch(getPlaywrightOptions());
 
   try {
@@ -365,7 +388,7 @@ async function generateHeatmapImage(
     await page.setContent(html, { waitUntil: "networkidle" });
 
     // Wait for rendering
-    await new Promise((resolve: any) => setTimeout(resolve, 500));
+    await new Promise((resolve) => setTimeout(resolve, 500));
 
     // Take screenshot
     const screenshot = await page.screenshot({
@@ -382,11 +405,11 @@ async function generateHeatmapImage(
 
 // Generate HTML with D3 heatmaps
 function generateHeatmapHTML(
-  hourlyData: any,
-  maxHourlyCount: any,
-  monthlyData: any,
-  maxMonthlyCount: any,
-) {
+  hourlyData: number[][],
+  maxHourlyCount: number,
+  monthlyData: MonthlyYearData[],
+  maxMonthlyCount: number,
+): string {
   const hourlyDataJson = JSON.stringify(hourlyData);
   const monthlyDataJson = JSON.stringify(monthlyData);
 
@@ -524,14 +547,14 @@ function generateHeatmapHTML(
                 const color = count === 0 ? '#23272A' : hourlyColorScale(count);
                 
                 hourlyGroup.append('rect')
-                    .attr('class', 'cell')
-                    .attr('x', block * hourlyCellWidth)
-                    .attr('y', dayIndex * hourlyCellHeight)
-                    .attr('width', hourlyCellWidth)
-                    .attr('height', hourlyCellHeight)
-                    .attr('fill', color)
-                    .append('title')
-                    .text(day + ' ' + blockToTime(block) + ' - ' + count + ' messages');
+                     .attr('class', 'cell')
+                     .attr('x', block * hourlyCellWidth)
+                     .attr('y', dayIndex * hourlyCellHeight)
+                     .attr('width', hourlyCellWidth)
+                     .attr('height', hourlyCellHeight)
+                     .attr('fill', color)
+                     .append('title')
+                     .text(day + ' ' + blockToTime(block) + ' - ' + count + ' messages');
             }
         });
         
@@ -628,11 +651,11 @@ function generateHeatmapHTML(
             
             // Monthly title
             monthlyGroup.append('text')
-                .attr('class', 'section-title')
-                .attr('x', monthlyWidth / 2)
-                .attr('y', -50)
-                .attr('text-anchor', 'middle')
-                .text('Monthly Activity Over Time (Year × Month)');
+                 .attr('class', 'section-title')
+                 .attr('x', monthlyWidth / 2)
+                 .attr('y', -50)
+                 .attr('text-anchor', 'middle')
+                 .text('Monthly Activity Over Time (Year × Month)');
             
             // Create monthly cells
             monthlyData.forEach((yearData, yearIndex) => {
@@ -687,6 +710,7 @@ function generateHeatmapHTML(
                 .attr('y', monthlyLegendY - 10)
                 .text('Message Count');
             
+            const monthlyDefs = svg.append('defs');
             const monthlyGradient = hourlyDefs.append('linearGradient')
                 .attr('id', 'monthly-legend-gradient')
                 .attr('x1', '0%')
@@ -740,11 +764,11 @@ const DAYS = [
   "Sunday",
 ];
 
-function getDayName(dayIndex: any) {
+function getDayName(dayIndex: number): string {
   return DAYS[dayIndex];
 }
 
-function formatTimeBlock(block: any) {
+function formatTimeBlock(block: number): string {
   const hour = Math.floor(block / 2);
   const minute = (block % 2) * 30;
   const period = hour >= 12 ? "PM" : "AM";
@@ -752,29 +776,29 @@ function formatTimeBlock(block: any) {
   return `${displayHour}:${minute === 0 ? "00" : minute} ${period}`;
 }
 
-function getMostActiveDay(data: any) {
-  const dayCounts = data.map((dayData: any) =>
-    dayData.reduce((sum: any, count: any) => sum + count, 0),
+function getMostActiveDay(data: number[][]): string {
+  const dayCounts = data.map((dayData) =>
+    dayData.reduce((sum, count) => sum + count, 0),
   );
   const maxIndex = dayCounts.indexOf(Math.max(...dayCounts));
   return `${DAYS[maxIndex]} (${dayCounts[maxIndex]} messages)`;
 }
 
-function getMostActiveBlocks(data: any) {
-  const blockCounts = Array(48).fill(0);
+function getMostActiveBlocks(data: number[][]): string {
+  const blockCounts = Array<number>(48).fill(0);
 
-  data.forEach((dayData: any) => {
-    dayData.forEach((count: any, block: any) => {
+  data.forEach((dayData) => {
+    dayData.forEach((count, block) => {
       blockCounts[block] += count;
     });
   });
 
   // Get top 3 time blocks
   const blockIndices = blockCounts
-    .map((count: any, block: any) => ({ block, count }))
-    .sort((a: any, b: any) => b.count - a.count)
+    .map((count, block) => ({ block, count }))
+    .sort((a, b) => b.count - a.count)
     .slice(0, 3)
-    .map((b: any) => formatTimeBlock(b.block));
+    .map((b) => formatTimeBlock(b.block));
 
   return blockIndices.join(", ");
 }

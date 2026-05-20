@@ -29,7 +29,7 @@ import YouTubeService from "#root/services/YouTubeService.js";
 import MongoService from "#root/services/MongoService.js";
 import PrismService from "#root/services/PrismService.js";
 import DiscordUtilityService from "#root/services/DiscordUtilityService.js";
-import AIService from "#root/services/AIService.js";
+import AIService, { type CaptionMapObject } from "#root/services/AIService.js";
 import CurrentService from "#root/services/CurrentService.js";
 
 import BirthdayJob from "#root/jobs/scheduled/BirthdayJob.js";
@@ -3646,7 +3646,7 @@ const DiscordService = {
       config.VENDER_TOKEN,
     );
     // Initialize MongoDB client
-    await MongoService.createClient("local", config.DATABASE_URL);
+    await MongoService.createClient("local", config.DATABASE_URL!);
     const mongo = MongoService.getClient("local");
     DiscordUtilityService.onEventClientReady(
       venderClient,
@@ -3671,7 +3671,7 @@ const DiscordService = {
       config.LUPOS_TOKEN,
     );
     // Initialize MongoDB client
-    await MongoService.createClient("local", config.DATABASE_URL);
+    await MongoService.createClient("local", config.DATABASE_URL!);
     const mongo = MongoService.getClient("local");
     const localMongo = mongo;
     DiscordUtilityService.onEventClientReady(
@@ -3682,19 +3682,19 @@ const DiscordService = {
     // ─── Data-driven event registration ─────────────────────────────
     // Each entry: [registrationMethod, ...args]
     // "mongoBoth" = { mongo, localMongo }, "mongo" = mongo only, "none" = no db arg
-    const cloneEvents = [
+    const cloneEvents: [string, ...unknown[]][] = [
       ["onEventMessageCreate",      { mongo, localMongo }, luposOnMessageCreateCloneMessage],
       ["onEventMessageUpdate",      { mongo, localMongo }, luposOnMessageUpdateCloneMessage],
     ];
-    const messageEvents = [
+    const messageEvents: [string, ...unknown[]][] = [
       ["onEventMessageCreate",      { mongo, localMongo }, luposOnMessageCreate],
       ["onEventMessageUpdate",      { mongo, localMongo }, luposOnMessageUpdate],
     ];
-    const guildEvents = [
+    const guildEvents: [string, ...unknown[]][] = [
       ["onEventGuildMemberAdd",     mongo, luposOnGuildMemberAdd],
       ["onEventGuildMemberUpdate",  mongo, luposOnGuildMemberUpdate],
     ];
-    const interactionEvents = [
+    const interactionEvents: [string, ...unknown[]][] = [
       ["onEventMessageReactionAdd",    mongo, luposOnReactionCreateQueue],
       ["onEventMessageReactionRemove", mongo, luposOnReactionRemoveQueue],
       ["onEventInteractionCreate",     mongo, luposOnInteractionCreate],
@@ -3704,13 +3704,13 @@ const DiscordService = {
       ["onEventVoiceStateUpdate",      mongo, luposOnVoiceStateUpdate],
     ];
 
-    const EVENT_REGISTRATIONS = {
+    const EVENT_REGISTRATIONS: Record<string, [string, ...unknown[]][]> = {
       services: [...cloneEvents, ...guildEvents, ...interactionEvents],
       messages: [...messageEvents],
       default:  [...cloneEvents, ...guildEvents, ...messageEvents, ...interactionEvents],
     };
 
-    const eventsToRegister = EVENT_REGISTRATIONS[mode as keyof typeof EVENT_REGISTRATIONS] || EVENT_REGISTRATIONS.default;
+    const eventsToRegister = EVENT_REGISTRATIONS[mode ?? "default"] ?? EVENT_REGISTRATIONS.default;
     for (const [method, ...args] of eventsToRegister) {
       (DiscordUtilityService as any)[method](luposClient, ...args);
     }
@@ -3758,7 +3758,7 @@ const DiscordService = {
       "lupos",
       config.LUPOS_TOKEN,
     );
-    await MongoService.createClient("local", config.DATABASE_URL);
+    await MongoService.createClient("local", config.DATABASE_URL!);
     const localMongo = MongoService.getClient("local");
     DiscordUtilityService.onEventClientReady(
       luposClient,
@@ -3773,7 +3773,7 @@ const DiscordService = {
       "lupos",
       config.LUPOS_TOKEN,
     );
-    await MongoService.createClient("local", config.DATABASE_URL);
+    await MongoService.createClient("local", config.DATABASE_URL!);
     const localMongo = MongoService.getClient("local");
     DiscordUtilityService.onEventClientReady(
       luposClient,
@@ -3791,7 +3791,7 @@ const DiscordService = {
       "lupos",
       config.LUPOS_TOKEN,
     );
-    await MongoService.createClient("local", config.DATABASE_URL);
+    await MongoService.createClient("local", config.DATABASE_URL!);
     const localMongo = MongoService.getClient("local");
     DiscordUtilityService.onEventClientReady(
       luposClient,

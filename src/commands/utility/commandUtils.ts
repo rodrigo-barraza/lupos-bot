@@ -6,14 +6,17 @@
 
 import MongoService from "#root/services/MongoService.js";
 import { MONGO_DB_NAME } from "#root/constants.js";
+import { Guild } from "discord.js";
+import { Db } from "mongodb";
 
 // ─── Database ─────────────────────────────────────────────────────────
 
 /**
  * Returns the Lupos database instance from the local Mongo client.
  */
-export function getMongoDb() {
+export function getMongoDb(): Db {
   const localMongo = MongoService.getClient("local");
+  if (!localMongo) throw new Error("MongoService: local client not initialized");
   return localMongo.db(MONGO_DB_NAME);
 }
 
@@ -22,7 +25,7 @@ export function getMongoDb() {
 /**
  * Calculates the server's age in whole years from its creation timestamp.
  */
-export function getServerAgeYears(guild: any) {
+export function getServerAgeYears(guild: Guild): number {
   const serverAgeInDays = Math.floor(
     (Date.now() - guild.createdTimestamp) / (1000 * 60 * 60 * 24),
   );
@@ -33,7 +36,7 @@ export function getServerAgeYears(guild: any) {
  * Computes a start date offset from now by the given years/months/days.
  * Returns { startDate: Date, unixStartDate: number }.
  */
-export function computeStartDate(years: any, months: any, days: any) {
+export function computeStartDate(years: number, months: number, days: number): { startDate: Date; unixStartDate: number } {
   const startDate = new Date();
   startDate.setFullYear(startDate.getFullYear() - years);
   startDate.setMonth(startDate.getMonth() - months);
@@ -45,8 +48,8 @@ export function computeStartDate(years: any, months: any, days: any) {
  * Formats a human-readable time period string.
  * @param {string} [fallback] — text to return when all values are 0.
  */
-export function formatTimePeriod(years: any, months: any, days: any, fallback: any = "All time") {
-  const parts: any[] = [];
+export function formatTimePeriod(years: number, months: number, days: number, fallback = "All time"): string {
+  const parts: string[] = [];
   if (years > 0) parts.push(`${years} year${years !== 1 ? "s" : ""}`);
   if (months > 0) parts.push(`${months} month${months !== 1 ? "s" : ""}`);
   if (days > 0) parts.push(`${days} day${days !== 1 ? "s" : ""}`);
@@ -60,7 +63,7 @@ export function formatTimePeriod(years: any, months: any, days: any, fallback: a
 /**
  * Returns a medal emoji for leaderboard positions 0-4.
  */
-export function getMedal(index: any) {
+export function getMedal(index: number): string {
   switch (index) {
     case 0:
       return "🥇";
@@ -82,7 +85,7 @@ export function getMedal(index: any) {
  * Returns platform-aware Playwright launch options.
  * Windows uses the bundled Chromium; Linux uses the system chromium.
  */
-export function getPlaywrightOptions() {
+export function getPlaywrightOptions(): Record<string, unknown> {
   if (process.platform === "win32") {
     return { headless: true };
   }
@@ -98,7 +101,7 @@ export function getPlaywrightOptions() {
 /**
  * Fisher-Yates in-place shuffle.
  */
-export function shuffleArray(array: any) {
+export function shuffleArray<T>(array: T[]): void {
   for (let i = array.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
     [array[i], array[j]] = [array[j], array[i]];
