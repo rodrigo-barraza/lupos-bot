@@ -170,9 +170,6 @@ const MediaArchivalService = {
   /**
    * Download a URL, hash it, and store in MinIO if unique.
    * Returns the archive reference object (same shape for new or existing).
-   *
-
-   * @returns {Promise<{ hash: string, minioKey: string, publicUrl: string, contentType: string, size: number } | null>}
    */
   async archiveFromUrl(url: any) {
     if (!MinioWrapper.isAvailable() || !url) return null;
@@ -248,9 +245,6 @@ const MediaArchivalService = {
   /**
    * Archive all media from a Discord.js message object.
    * Processes: attachments, stickers, embed images/thumbnails/videos, Tenor GIFs.
-   *
-
-   * @returns {Promise<Object<string, object>>} Map of { originalUrl → archiveRef }
    */
   async archiveMessageMedia(message: any) {
     if (!MinioWrapper.isAvailable()) return {};
@@ -346,9 +340,6 @@ const MediaArchivalService = {
    *
    * Mutates the document in-place. Only rewrites URLs that were
    * successfully archived (present in archiveMap).
-   *
-
-
    */
   rewriteDocumentUrls(document: any, archiveMap: any) {
     if (!archiveMap || Object.keys(archiveMap).length === 0) return;

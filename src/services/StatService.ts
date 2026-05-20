@@ -37,8 +37,6 @@ export interface StatInstance {
 const StatService = {
   /**
    * Creates a new stat instance with clamped get/set/increase/decrease.
-   *
-   * @returns {StatInstance} A stat instance with getLevel, setLevel, increase, decrease, getName.
    */
   create(name: string, options: StatOptions = {}): StatInstance {
     const {

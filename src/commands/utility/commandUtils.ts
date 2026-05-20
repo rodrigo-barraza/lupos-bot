@@ -46,7 +46,6 @@ export function computeStartDate(years: number, months: number, days: number): {
 
 /**
  * Formats a human-readable time period string.
- * @param {string} [fallback] — text to return when all values are 0.
  */
 export function formatTimePeriod(years: number, months: number, days: number, fallback = "All time"): string {
   const parts: string[] = [];

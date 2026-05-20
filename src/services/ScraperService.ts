@@ -16,9 +16,6 @@ const SCRAPE_TIMEOUT_MS = 15_000;
 
 /**
  * Fetch page metadata from tools-api's /utility/scrape/metadata endpoint.
- *
-
- * @returns {Promise<object>} Metadata object ({ title, description, image, video, keywords, ... })
  */
 async function fetchMetadata(url: any) {
   const endpoint = `${TOOLS_SERVICE_URL}/utility/scrape/metadata?url=${encodeURIComponent(url)}`;
@@ -31,9 +28,6 @@ class ScraperService {
    * Extract Tenor GIF metadata (image URL, title, keywords).
    * Previously used Puppeteer to render the page — now delegates
    * to tools-api Cheerio extraction.
-   *
-
-   * @returns {Promise<object>} { title, image, keywords, name }
    */
   static async scrapeTenor(url: any) {
     const metadata = await fetchMetadata(url);
@@ -58,9 +52,6 @@ class ScraperService {
    * Extract Twitch stream metadata (title, description, image).
    * Previously used Puppeteer to render the page — now delegates
    * to tools-api Cheerio extraction.
-   *
-
-   * @returns {Promise<object>} { title, description, image, video }
    */
   static async scrapeTwitchUrl(url: any) {
     return await fetchMetadata(url);
