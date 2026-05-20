@@ -262,14 +262,14 @@ export default {
       await interaction.editReply({
         content: battleMessage,
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Error executing shock command:", error);
 
       let errorMessage = "⚡ An error occurred while trying to shock someone.";
 
-      if (error.code === 50013) {
+      if ((error as any).code === 50013) {
         errorMessage = "⚡ I don't have permission to timeout this member!";
-      } else if (error.code === 10008) {
+      } else if ((error as any).code === 10008) {
         errorMessage = "⚡ The selected user could not be found!";
       }
 

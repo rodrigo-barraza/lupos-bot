@@ -40,7 +40,7 @@ async function loginWithRetry(client: any, token: any, name: any) {
     try {
       await client.login(token);
       return; // success
-    } catch (error: any) {
+    } catch (error: unknown) {
       // ── Session exhaustion — sleep until reset ──────────────
       const resetTime = parseSessionResetTime(error);
       if (resetTime) {
@@ -61,7 +61,7 @@ async function loginWithRetry(client: any, token: any, name: any) {
       const delay = BASE_RETRY_DELAY * Math.pow(2, attempt);
       console.error(
         `⚠️ [DiscordWrapper] Login attempt ${attempt + 1}/${MAX_LOGIN_RETRIES} ` +
-        `failed for "${name}": ${error.message}. Retrying in ${delay}ms...`,
+        `failed for "${name}": ${(error as Error).message}. Retrying in ${delay}ms...`,
       );
       await sleep(delay);
     }

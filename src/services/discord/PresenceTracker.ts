@@ -186,12 +186,12 @@ async function handlePresenceUpdate(client: any, oldPresence: any, newPresence: 
               `Streaming channel with ID ${config.CHANNEL_ID_STREAMERS} not found`,
             );
           }
-        } catch (notificationError: any) {
+        } catch (notificationError: unknown) {
           console.error(...LogFormatter.error(functionName, notificationError));
         }
       }
     }
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error(...LogFormatter.error(functionName, error));
   }
 }

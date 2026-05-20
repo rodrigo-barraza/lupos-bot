@@ -86,8 +86,8 @@ router.get("/guild/channels", (req: any, res: any) => {
       guildSplash: guild.splashURL({ extension: "png", size: 480 }),
       channels,
     });
-  } catch (error: any) {
-    console.error("[guild/channels] Error:", error.message);
+  } catch (error: unknown) {
+    console.error("[guild/channels] Error:", (error as Error).message);
     res.status(500).json({ error: "Failed to fetch channels" });
   }
 });
@@ -110,9 +110,9 @@ router.get("/guild/members", asyncHandler(async (req: any, res: any) => {
     // Gracefully fall back to cache if the fetch fails (rate-limit, timeout, etc.)
     try {
       await guild.members.fetch({ withPresences: true });
-    } catch (fetchErr: any) {
+    } catch (fetchErr: unknown) {
       console.warn(
-        `[guild/members] guild.members.fetch failed, falling back to cache: ${fetchErr.message}`,
+        `[guild/members] guild.members.fetch failed, falling back to cache: ${(fetchErr as Error).message}`,
       );
     }
 
@@ -258,8 +258,8 @@ router.get("/guild/members", asyncHandler(async (req: any, res: any) => {
       } else {
         ungrouped.push(memberData);
       }
-      } catch (memberErr: any) {
-        console.warn(`[guild/members] Skipping member ${member?.id} (${member?.user?.username}): ${memberErr.message} | Stack: ${memberErr.stack?.split('\n')[1]?.trim()}`);
+      } catch (memberErr: unknown) {
+        console.warn(`[guild/members] Skipping member ${member?.id} (${member?.user?.username}): ${(memberErr as Error).message} | Stack: ${(memberErr as any).stack?.split('\n')[1]?.trim()}`);
       }
     }
 
@@ -307,9 +307,9 @@ router.get("/guild/members", asyncHandler(async (req: any, res: any) => {
       roles,
       bots,
     });
-  } catch (error: any) {
-    console.error("[guild/members] Error:", error.message, error.stack);
-    res.status(500).json({ error: "Failed to fetch members", detail: error.message });
+  } catch (error: unknown) {
+    console.error("[guild/members] Error:", (error as Error).message, (error as any).stack);
+    res.status(500).json({ error: "Failed to fetch members", detail: (error as Error).message });
   }
 }));
 
@@ -396,9 +396,9 @@ router.post("/guild/rescrape", asyncHandler(async (req: any, res: any) => {
       failJob(job.id, error.message);
       console.error("[guild/rescrape] Error:", error.message);
     });
-  } catch (error: any) {
-    console.error("[guild/rescrape] Error:", error.message, error.stack);
-    res.status(500).json({ error: "Failed to start rescrape", detail: error.message });
+  } catch (error: unknown) {
+    console.error("[guild/rescrape] Error:", (error as Error).message, (error as any).stack);
+    res.status(500).json({ error: "Failed to start rescrape", detail: (error as Error).message });
   }
 }));
 
@@ -456,9 +456,9 @@ router.post("/guild/backfill-media", asyncHandler(async (req: any, res: any) => 
       failJob(job.id, error.message);
       console.error("[guild/backfill-media] Error:", error.message);
     });
-  } catch (error: any) {
-    console.error("[guild/backfill-media] Error:", error.message, error.stack);
-    res.status(500).json({ error: "Failed to start media backfill", detail: error.message });
+  } catch (error: unknown) {
+    console.error("[guild/backfill-media] Error:", (error as Error).message, (error as any).stack);
+    res.status(500).json({ error: "Failed to start media backfill", detail: (error as Error).message });
   }
 }));
 
@@ -499,8 +499,8 @@ router.get("/guild/emojis", (req: any, res: any) => {
           animated: emoji.animated || false,
           url: emoji.imageURL({ extension: emoji.animated ? "gif" : "webp", size: 48 }),
         });
-      } catch (emojiErr: any) {
-        console.warn(`[guild/emojis] Skipping emoji ${emoji.id} (${emoji.name}): ${emojiErr.message}`);
+      } catch (emojiErr: unknown) {
+        console.warn(`[guild/emojis] Skipping emoji ${emoji.id} (${emoji.name}): ${(emojiErr as Error).message}`);
       }
     }
 
@@ -509,9 +509,9 @@ router.get("/guild/emojis", (req: any, res: any) => {
       guildName: guild.name,
       emojis,
     });
-  } catch (error: any) {
-    console.error("[guild/emojis] Error:", error.message, error.stack);
-    res.status(500).json({ error: "Failed to fetch emojis", detail: error.message });
+  } catch (error: unknown) {
+    console.error("[guild/emojis] Error:", (error as Error).message, (error as any).stack);
+    res.status(500).json({ error: "Failed to fetch emojis", detail: (error as Error).message });
   }
 });
 
@@ -617,15 +617,15 @@ router.post("/guild/react", asyncHandler(async (req: any, res: any) => {
         { id: messageId },
         { $set: { reactions: transformedReactions } },
       );
-    } catch (syncErr: any) {
+    } catch (syncErr: unknown) {
       // Non-critical — the reaction was added on Discord, MongoDB sync can lag
-      console.warn("[guild/react] MongoDB sync failed:", syncErr.message);
+      console.warn("[guild/react] MongoDB sync failed:", (syncErr as Error).message);
     }
 
     res.json({ success: true });
-  } catch (error: any) {
-    console.error("[guild/react] Error:", error.message, error.stack);
-    res.status(500).json({ error: "Failed to react", detail: error.message });
+  } catch (error: unknown) {
+    console.error("[guild/react] Error:", (error as Error).message, (error as any).stack);
+    res.status(500).json({ error: "Failed to react", detail: (error as Error).message });
   }
 }));
 
@@ -683,8 +683,8 @@ router.get("/bot/stats", asyncHandler(async (req: any, res: any) => {
           totalTranscriptions: transcriberCount,
           totalArchivedMedia: mediaCount,
         };
-      } catch (dbErr: any) {
-        console.warn("[bot/stats] Failed to fetch database metrics:", dbErr.message);
+      } catch (dbErr: unknown) {
+        console.warn("[bot/stats] Failed to fetch database metrics:", (dbErr as Error).message);
       }
     }
 
@@ -698,8 +698,8 @@ router.get("/bot/stats", asyncHandler(async (req: any, res: any) => {
           .sort({ count: -1 })
           .limit(5)
           .toArray();
-      } catch (gameErr: any) {
-        console.warn("[bot/stats] Failed to fetch game activity:", gameErr.message);
+      } catch (gameErr: unknown) {
+        console.warn("[bot/stats] Failed to fetch game activity:", (gameErr as Error).message);
       }
     }
 
@@ -711,8 +711,8 @@ router.get("/bot/stats", asyncHandler(async (req: any, res: any) => {
           .collection("ActiveStreamers")
           .find({ isStreaming: true })
           .toArray();
-      } catch (streamErr: any) {
-        console.warn("[bot/stats] Failed to fetch active streamers:", streamErr.message);
+      } catch (streamErr: unknown) {
+        console.warn("[bot/stats] Failed to fetch active streamers:", (streamErr as Error).message);
       }
     }
 
@@ -732,9 +732,9 @@ router.get("/bot/stats", asyncHandler(async (req: any, res: any) => {
       activeStreamers,
       discordInfo,
     });
-  } catch (error: any) {
-    console.error("[bot/stats] Error:", error.message, error.stack);
-    res.status(500).json({ error: "Failed to fetch bot stats", detail: error.message });
+  } catch (error: unknown) {
+    console.error("[bot/stats] Error:", (error as Error).message, (error as any).stack);
+    res.status(500).json({ error: "Failed to fetch bot stats", detail: (error as Error).message });
   }
 }));
 

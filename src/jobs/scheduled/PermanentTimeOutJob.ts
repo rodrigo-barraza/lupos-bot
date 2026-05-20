@@ -23,7 +23,7 @@ async function timeOutUsers(client: any) {
         );
         await member.timeout(totalTime, "Permanent timeout job");
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.log(
         ...LogFormatter.memberTimeOutError(functionName, member, guild, error),
       );

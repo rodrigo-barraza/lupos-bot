@@ -99,8 +99,8 @@ const MediaArchivalService = {
     try {
       await col.createIndex({ hash: 1 }, { unique: true, background: true });
       console.log(`📦 MediaArchivalService: MediaHashes index ensured`);
-    } catch (error: any) {
-      console.warn(`📦 MediaArchivalService: index warning: ${error.message}`);
+    } catch (error: unknown) {
+      console.warn(`📦 MediaArchivalService: index warning: ${(error as Error).message}`);
     }
   },
 
@@ -159,10 +159,10 @@ const MediaArchivalService = {
         { upsert: true },
       );
       hashCache.set(archiveRef.hash, archiveRef);
-    } catch (error: any) {
+    } catch (error: unknown) {
       // Duplicate key is fine — another concurrent write won
-      if (error.code !== 11000) {
-        console.error(`📦 MediaArchivalService: register error: ${error.message}`);
+      if ((error as any).code !== 11000) {
+        console.error(`📦 MediaArchivalService: register error: ${(error as Error).message}`);
       }
     }
   },
@@ -235,9 +235,9 @@ const MediaArchivalService = {
       await this._registerHash(archiveRef, url);
 
       return archiveRef;
-    } catch (error: any) {
+    } catch (error: unknown) {
       // Non-fatal — don't let archival failures break message processing
-      console.warn(`📦 Archive error for ${url}: ${error.message}`);
+      console.warn(`📦 Archive error for ${url}: ${(error as Error).message}`);
       return null;
     }
   },
@@ -286,8 +286,8 @@ const MediaArchivalService = {
           try {
             const tenorImage = await ScraperService.scrapeTenor(tenorUrl);
             if (tenorImage?.image) urlsToArchive.add(tenorImage.image);
-          } catch (error: any) {
-            console.warn(`📦 Tenor scrape failed: ${error.message}`);
+          } catch (error: unknown) {
+            console.warn(`📦 Tenor scrape failed: ${(error as Error).message}`);
           }
         }
       }

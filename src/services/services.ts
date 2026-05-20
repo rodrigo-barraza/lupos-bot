@@ -26,10 +26,10 @@ const routes = () => {
         success: true,
         transcription: transcription,
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Transcription error:", error);
       res.status(500).json({
-        error: error.message || "Transcription failed",
+        error: (error as Error).message || "Transcription failed",
         success: false,
       });
     }

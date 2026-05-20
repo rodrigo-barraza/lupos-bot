@@ -610,8 +610,8 @@ const DiscordUtilityService = {
     try {
       await collection.createIndex({ id: 1 }, { unique: true, background: true });
       console.log(`[INDEX] Ensured unique index on "${collectionName}.id"`);
-    } catch (indexError: any) {
-      if (indexError.code === 11000) {
+    } catch (indexError: unknown) {
+      if ((indexError as any).code === 11000) {
         console.log(`[INDEX] Duplicate keys found — deduplicating before indexing...`);
         await DiscordUtilityService.deleteDuplicateMessagesByID(mongo, collectionName);
         await collection.createIndex({ id: 1 }, { unique: true, background: true });
@@ -729,15 +729,15 @@ const DiscordUtilityService = {
                 document.mediaArchive = archiveMap;
                 MediaArchivalService.rewriteDocumentUrls(document, archiveMap);
               }
-            } catch (archiveErr: any) {
-              console.warn(`  [ARCHIVE] Media archival failed for ${message.id}: ${archiveErr.message}`);
+            } catch (archiveErr: unknown) {
+              console.warn(`  [ARCHIVE] Media archival failed for ${message.id}: ${(archiveErr as Error).message}`);
             }
           }
 
           documents.push(document);
-        } catch (transformError: any) {
+        } catch (transformError: unknown) {
           console.error(
-            `  [ERROR] Failed to transform message ${message.id}: ${transformError.message}`,
+            `  [ERROR] Failed to transform message ${message.id}: ${(transformError as Error).message}`,
           );
           transformErrorCount++;
         }
@@ -820,20 +820,20 @@ const DiscordUtilityService = {
           duplicates: (result.matchedCount || 0) - updated,
           errors: transformErrorCount,
         };
-      } catch (error: any) {
-        if (error.writeErrors) {
-          const savedCount = error.result?.nUpserted || 0;
+      } catch (error: unknown) {
+        if ((error as any).writeErrors) {
+          const savedCount = (error as any).result?.nUpserted || 0;
           console.error(
-            `  [ERROR] Bulk write partial failure: ${savedCount} saved, ${error.writeErrors.length} errors`,
+            `  [ERROR] Bulk write partial failure: ${savedCount} saved, ${(error as any).writeErrors.length} errors`,
           );
           return {
             saved: savedCount,
             duplicates: 0,
-            errors: error.writeErrors.length + transformErrorCount,
+            errors: (error as any).writeErrors.length + transformErrorCount,
           };
         }
 
-        console.error(`  [ERROR] Bulk save failed: ${error.message}`);
+        console.error(`  [ERROR] Bulk save failed: ${(error as Error).message}`);
         return { saved: 0, duplicates: 0, errors: messages.length };
       }
     };
@@ -988,9 +988,9 @@ const DiscordUtilityService = {
           })();
 
           // discord.js handles rate limiting internally — no artificial delay needed
-        } catch (fetchError: any) {
+        } catch (fetchError: unknown) {
           console.error(
-            `  [ERROR] Failed to fetch messages from #${channel.name}: ${fetchError.message}`,
+            `  [ERROR] Failed to fetch messages from #${channel.name}: ${(fetchError as Error).message}`,
           );
           channelErrors++;
           totalErrors++;
@@ -1013,9 +1013,9 @@ const DiscordUtilityService = {
               `  [PROGRESS] #${channel.name}: +${result.saved} saved (${result.duplicates} skipped) | Date: ${result._lastDate}`,
             );
           }
-        } catch (writeError: any) {
+        } catch (writeError: unknown) {
           console.error(
-            `  [ERROR] Final batch write failed for #${channel.name}: ${writeError.message}`,
+            `  [ERROR] Final batch write failed for #${channel.name}: ${(writeError as Error).message}`,
           );
           channelErrors++;
           totalErrors++;
@@ -1046,9 +1046,9 @@ const DiscordUtilityService = {
               `  [CLEANUP] #${channel.name}: Removed ${deleteResult.deletedCount} orphaned message(s) from tracked users`,
             );
           }
-        } catch (cleanupErr: any) {
+        } catch (cleanupErr: unknown) {
           console.warn(
-            `  [CLEANUP] #${channel.name}: cleanup failed: ${cleanupErr.message}`,
+            `  [CLEANUP] #${channel.name}: cleanup failed: ${(cleanupErr as Error).message}`,
           );
         }
       }
@@ -1145,7 +1145,10 @@ const DiscordUtilityService = {
     // Group by channel for efficient processing
     const byChannel = new Map();
     for (const document of mongoMessages) {
-      byChannel.getOrInsert(document.channelId, []).push(document.id);
+      if (!byChannel.has(document.channelId)) {
+        byChannel.set(document.channelId, []);
+      }
+      byChannel.get(document.channelId).push(document.id);
     }
 
     let totalVerified = 0;
@@ -1170,9 +1173,9 @@ const DiscordUtilityService = {
             try {
               await channel.messages.fetch(msgId);
               return { exists: true, id: msgId };
-            } catch (error: any) {
+            } catch (error: unknown) {
               // 10008 = Unknown Message (deleted)
-              if (error.code === 10008) {
+              if ((error as any).code === 10008) {
                 return { exists: false, id: msgId };
               }
               // Other errors (permissions, rate limit) — don't assume deleted
@@ -1272,7 +1275,10 @@ const DiscordUtilityService = {
     const docs = await collection.find(query).batchSize(batchSize).toArray();
     const byChannel = new Map();
     for (const document of docs) {
-      byChannel.getOrInsert(document.channelId, []).push(document);
+      if (!byChannel.has(document.channelId)) {
+        byChannel.set(document.channelId, []);
+      }
+      byChannel.get(document.channelId).push(document);
     }
 
     const guild = guildId ? client.guilds.cache.get(guildId) : null;
@@ -1304,8 +1310,8 @@ const DiscordUtilityService = {
           let liveMessage: any;
           try {
             liveMessage = await channel.messages.fetch(document.id);
-          } catch (fetchErr: any) {
-            if (fetchErr.code === 10008) {
+          } catch (fetchErr: unknown) {
+            if ((fetchErr as any).code === 10008) {
               // Message was deleted — mark and skip
               console.log(`  [BACKFILL] Message ${document.id} deleted from Discord — marking empty`);
               await collection.updateOne({ _id: document._id }, { $set: { mediaArchive: {} } });
@@ -1342,9 +1348,9 @@ const DiscordUtilityService = {
           if (processed % 25 === 0) {
             console.log(`  [BACKFILL] Progress: ${processed}/${totalCount} processed, ${archived} archived`);
           }
-        } catch (error: any) {
+        } catch (error: unknown) {
           errors++;
-          console.error(`  [BACKFILL] Error processing message ${document.id}: ${error.message}`);
+          console.error(`  [BACKFILL] Error processing message ${document.id}: ${(error as Error).message}`);
           // Mark failed so we don't retry on next run (can be cleared manually)
           await collection.updateOne({ _id: document._id }, { $set: { mediaArchive: {} } });
         }
@@ -1439,8 +1445,8 @@ const DiscordUtilityService = {
           messageObject.mediaArchive = archiveMap;
           MediaArchivalService.rewriteDocumentUrls(messageObject, archiveMap);
         }
-      } catch (error: any) {
-        console.warn(`📦 Media archival failed for message ${message.id}: ${error.message}`);
+      } catch (error: unknown) {
+        console.warn(`📦 Media archival failed for message ${message.id}: ${(error as Error).message}`);
       }
     }
 
@@ -1486,8 +1492,8 @@ const DiscordUtilityService = {
           messageObject.mediaArchive = archiveMap;
           MediaArchivalService.rewriteDocumentUrls(messageObject, archiveMap);
         }
-      } catch (error: any) {
-        console.warn(`📦 Media archival failed for message ${message.id}: ${error.message}`);
+      } catch (error: unknown) {
+        console.warn(`📦 Media archival failed for message ${message.id}: ${(error as Error).message}`);
       }
     }
 
@@ -1512,8 +1518,8 @@ const DiscordUtilityService = {
         { id: reactionMessage.id },
         { $set: { reactions: transformedReactions } },
       );
-    } catch (error: any) {
-      console.warn(`[syncReactionsToMongo] Failed for message ${reactionMessage.id}: ${error.message}`);
+    } catch (error: unknown) {
+      console.warn(`[syncReactionsToMongo] Failed for message ${reactionMessage.id}: ${(error as Error).message}`);
     }
   },
 
@@ -1578,7 +1584,7 @@ const DiscordUtilityService = {
           messageReference = await message.channel.messages.fetch(
             message.reference.messageId,
           );
-        } catch (error: any) {
+        } catch (error: unknown) {
           console.error("Error fetching message reference:", error);
         }
       }
@@ -1685,10 +1691,10 @@ const DiscordUtilityService = {
     if (!user) {
       try {
         user = await client.users.fetch(userId, { force });
-      } catch (error: any) {
+      } catch (error: unknown) {
         consoleLog(
           "!",
-          `Could not fetch user with ID ${userId}. Error: ${error.message}`,
+          `Could not fetch user with ID ${userId}. Error: ${(error as Error).message}`,
         );
         return null;
       }
@@ -1917,10 +1923,10 @@ const DiscordUtilityService = {
     if (!channel) {
       try {
         channel = await client.channels.fetch(channelId);
-      } catch (error: any) {
+      } catch (error: unknown) {
         consoleLog(
           "!",
-          `Could not fetch channel with ID ${channelId}. Error: ${error.message}`,
+          `Could not fetch channel with ID ${channelId}. Error: ${(error as Error).message}`,
         );
         return null;
       }
@@ -2399,12 +2405,12 @@ const DiscordUtilityService = {
           },
           localUserStats: localUserStats,
         };
-      } catch (error: any) {
+      } catch (error: unknown) {
         console.error(
           `  ${logPrefix} [ERROR] Failed to fetch messages for channel ${channel.name}:`,
-          error.message,
+          (error as Error).message,
         );
-        console.error(`  ${logPrefix} [ERROR] Stack trace:`, error.stack);
+        console.error(`  ${logPrefix} [ERROR] Stack trace:`, (error as any).stack);
         processedChannelCount++;
         return null;
       }
@@ -2607,9 +2613,9 @@ const DiscordUtilityService = {
           lastMessageDate = new Date(recentMsg.createdTimestamp);
         }
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.log(
-        `Error fetching messages from channel ${channel.name}: ${error.message}`,
+        `Error fetching messages from channel ${channel.name}: ${(error as Error).message}`,
       );
       return;
     }
@@ -2646,9 +2652,9 @@ const DiscordUtilityService = {
         await member.roles.add(role);
         console.log(...LogFormatter.roleAdded(member, role));
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error(
-        ...LogFormatter.roleFailedToAdd(member.user.id, role, error.message),
+        ...LogFormatter.roleFailedToAdd(member.user.id, role, (error as Error).message),
       );
     }
   },
@@ -2664,9 +2670,9 @@ const DiscordUtilityService = {
         await member.roles.remove(role);
         console.log(...LogFormatter.roleRemoved(member, role));
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error(
-        ...LogFormatter.roleFailedToRemove(member.user.id, role, error.message),
+        ...LogFormatter.roleFailedToRemove(member.user.id, role, (error as Error).message),
       );
     }
   },
@@ -2674,8 +2680,8 @@ const DiscordUtilityService = {
     try {
       await client.user.setStatus(status);
       console.log(`Set bot status to ${status}`);
-    } catch (error: any) {
-      console.error(`Failed to set bot status to ${status}:`, error.message);
+    } catch (error: unknown) {
+      console.error(`Failed to set bot status to ${status}:`, (error as Error).message);
     }
   },
 };

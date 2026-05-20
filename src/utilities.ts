@@ -22,7 +22,7 @@ const utilities = {
 
       const hash = crypto.createHash("sha256").update(buffer).digest("hex");
       return { hash, fileType };
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.log(
         `❌ [utilities:generateFileHash] Error generating hash:\n`,
         `${error}`,
@@ -148,7 +148,7 @@ const utilities = {
       const response = await fetch(url);
       const contentType = response.headers.get("content-type");
       return contentType ? contentType.startsWith("image/") : false;
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error(
         `❌ [utilities:isImageUrl] Error checking if URL is an image:\n`,
         `${error}`,

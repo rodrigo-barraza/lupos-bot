@@ -56,8 +56,8 @@ async function rotateIcon({ client, guildId }: any) {
       "=",
       `[ServerIconJob] 🖼️ Updated server icon to: ${chosen}`,
     );
-  } catch (error: any) {
-    consoleLog("!", `[ServerIconJob] Error: ${error.message}`);
+  } catch (error: unknown) {
+    consoleLog("!", `[ServerIconJob] Error: ${(error as Error).message}`);
     console.error(error);
   }
 }

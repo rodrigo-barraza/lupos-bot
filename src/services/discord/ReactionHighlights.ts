@@ -32,7 +32,7 @@ async function processCreateReaction(client: any, queuedReaction: any) {
   if (reaction.partial) {
     try {
       await reaction.fetch();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Error fetching partial reaction:", error);
       return;
     }
@@ -40,7 +40,7 @@ async function processCreateReaction(client: any, queuedReaction: any) {
   if (reaction.message.partial) {
     try {
       await reaction.message.fetch();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Error fetching partial reaction message:", error);
       return;
     }
@@ -65,10 +65,10 @@ async function processCreateReaction(client: any, queuedReaction: any) {
   let users;
   try {
     users = await reaction.users.fetch();
-  } catch (fetchErr: any) {
+  } catch (fetchErr: unknown) {
     // Message was deleted between the reaction event and this fetch — non-critical
-    if (fetchErr.code === 10008 || fetchErr.code === 10003) {
-      console.warn(`[ReactionHighlights] Skipping deleted message ${messageId} (code ${fetchErr.code})`);
+    if ((fetchErr as any).code === 10008 || (fetchErr as any).code === 10003) {
+      console.warn(`[ReactionHighlights] Skipping deleted message ${messageId} (code ${(fetchErr as any).code})`);
       return;
     }
     throw fetchErr;
@@ -235,8 +235,8 @@ async function handleReactionCreate(client: any, mongo: any, reaction: any, user
     if (reaction.message.partial) await reaction.message.fetch();
     const localMongo = MongoService.getClient("local");
     await DiscordUtilityService.syncReactionsToMongo(reaction.message, localMongo);
-  } catch (syncErr: any) {
-    console.warn(`[ReactionHighlights] MongoDB reaction sync failed: ${syncErr.message}`);
+  } catch (syncErr: unknown) {
+    console.warn(`[ReactionHighlights] MongoDB reaction sync failed: ${(syncErr as Error).message}`);
   }
 
   if (isHighlightChannel) return;
@@ -250,8 +250,8 @@ async function handleReactionCreate(client: any, mongo: any, reaction: any, user
       const queuedReaction = DiscordState.reactionQueue.shift();
       try {
         await processCreateReaction(client, queuedReaction);
-      } catch (err: any) {
-        console.error(`[ReactionHighlights] Queue item failed (code ${err.code ?? "N/A"}): ${err.message}`);
+      } catch (err: unknown) {
+        console.error(`[ReactionHighlights] Queue item failed (code ${(err as any).code ?? "N/A"}): ${(err as Error).message}`);
       }
     }
     DiscordState.isProcessingOnReactionQueue = false;
@@ -270,10 +270,10 @@ async function handleReactionRemove(client: any, mongo: any, reaction: any, _use
     if (reaction.message.partial) await reaction.message.fetch();
     const localMongo = MongoService.getClient("local");
     await DiscordUtilityService.syncReactionsToMongo(reaction.message, localMongo);
-  } catch (syncErr: any) {
+  } catch (syncErr: unknown) {
     // Partial fetch can fail if the message was deleted — non-critical
-    if (syncErr.code !== 10008) {
-      console.warn(`[ReactionHighlights] MongoDB reaction remove sync failed: ${syncErr.message}`);
+    if ((syncErr as any).code !== 10008) {
+      console.warn(`[ReactionHighlights] MongoDB reaction remove sync failed: ${(syncErr as Error).message}`);
     }
   }
 }

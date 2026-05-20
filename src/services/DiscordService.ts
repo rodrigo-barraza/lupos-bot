@@ -82,13 +82,13 @@ async function fetchMembersWithRetry(guild: any, maxRetries: any = 3) {
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
       return await guild.members.fetch();
-    } catch (error: any) {
+    } catch (error: unknown) {
       const isGatewayRateLimit =
-        error.constructor?.name === "GatewayRateLimitError" ||
-        (error.data?.retry_after && error.data?.opcode === 8);
+        (error as any).constructor?.name === "GatewayRateLimitError" ||
+        ((error as any).data?.retry_after && (error as any).data?.opcode === 8);
 
       if (isGatewayRateLimit && attempt < maxRetries) {
-        const waitMs = Math.ceil((error.data?.retry_after || 30) * 1000) + 1000;
+        const waitMs = Math.ceil(((error as any).data?.retry_after || 30) * 1000) + 1000;
         console.warn(
           `⏳ [fetchMembersWithRetry] Gateway rate-limited (attempt ${attempt}/${maxRetries}). ` +
           `Retrying in ${(waitMs / 1000).toFixed(1)}s...`
@@ -1012,9 +1012,9 @@ Respond with ONLY "yes" or "no". Nothing else.`,
               `🪞 [DiscordService] Self-referential detected (LLM fallback) — adding author ${message.author.id} to image references`,
             );
           }
-        } catch (classifyErr: any) {
+        } catch (classifyErr: unknown) {
           console.warn(
-            `🪞 [DiscordService] Self-referential LLM classification failed: ${classifyErr.message}`,
+            `🪞 [DiscordService] Self-referential LLM classification failed: ${(classifyErr as Error).message}`,
           );
         }
       }
@@ -1217,9 +1217,9 @@ Respond with ONLY "yes" or "no". Nothing else.`,
             }
           }
         }
-      } catch (memoryErr: any) {
+      } catch (memoryErr: unknown) {
         console.warn(
-          `🧠 [DiscordService] Memory retrieval failed: ${memoryErr.message}`,
+          `🧠 [DiscordService] Memory retrieval failed: ${(memoryErr as Error).message}`,
         );
       }
     }
@@ -1560,8 +1560,8 @@ Respond with ONLY "yes" or "no". Nothing else.`,
           }
           agentContext.clockCrewContext = clockCtx;
         }
-      } catch (clockErr: any) {
-        console.warn(`⏰ [DiscordService] Clock Crew context failed: ${clockErr.message}`);
+      } catch (clockErr: unknown) {
+        console.warn(`⏰ [DiscordService] Clock Crew context failed: ${(clockErr as Error).message}`);
       }
     }
 
@@ -1650,7 +1650,7 @@ Respond with ONLY "yes" or "no". Nothing else.`,
     generatedText = utilities.removeMentions(generatedText);
     generatedText = CensorService.removeFlaggedWords(generatedText);
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     generatedText = "...";
     console.error(...LogFormatter.error("buildAndGenerateReply", error));
   }
@@ -1831,7 +1831,7 @@ ${combinedGuildInformation && combinedChannelInformation ? `URL: ${utilities.get
     );
     repliedMessagesCollection.set(message.id, messageSent.id);
     // LightsService.cycleColor(config.PRIMARY_LIGHT_ID, DEFAULT_LIGHT_CYCLE);
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.warn(`❌ [DiscordService:replyMessage] MESSAGE NOT FOUND (OR DELETED)
             ${error}
     ${member ? `Member: ${combinedNames}` : `User: ${combinedNames}`}
@@ -2771,8 +2771,8 @@ async function luposOnReady(client: any, { mongo }: any) {
   try {
     await client.application.fetch();
     console.log('🔌 [DiscordService] REST connection pool warmed up');
-  } catch (error: any) {
-    console.warn(`⚠️ [DiscordService] REST warmup failed: ${error.message}`);
+  } catch (error: unknown) {
+    console.warn(`⚠️ [DiscordService] REST warmup failed: ${(error as Error).message}`);
   }
 
   // ─── Maintenance Gate ──────────────────────────────────────────
@@ -2836,7 +2836,7 @@ async function luposOnReady(client: any, { mongo }: any) {
           );
         }
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Failed to reset bot nickname on startup:", error);
     }
 
@@ -2868,7 +2868,7 @@ async function luposOnReadyReports(client: any, mongo: any) {
   try {
     await mongo.connect();
     utilities.consoleLog("=", "Connected to MongoDB");
-  } catch (error: any) {
+  } catch (error: unknown) {
     utilities.consoleLog("=", `Error connecting to MongoDB \n${error}`);
   }
   DiscordUtilityService.displayAllChannelActivity(client);
@@ -3006,9 +3006,9 @@ async function revokeRoleFromAllMembers(client: any) {
       await member.roles.remove(REVOKE_ROLE_ID, `[${functionName}] Startup bulk role revocation`);
       revoked++;
       console.log(`[${functionName}] ✅ Removed role from ${member.user.tag} (${member.id})`);
-    } catch (error: any) {
+    } catch (error: unknown) {
       failed++;
-      console.error(`[${functionName}] ❌ Failed to remove role from ${member.user.tag} (${member.id}): ${error.message}`);
+      console.error(`[${functionName}] ❌ Failed to remove role from ${member.user.tag} (${member.id}): ${(error as Error).message}`);
     }
   }
 
@@ -3026,7 +3026,7 @@ async function rejectIfFlaggedContent(message: any) {
   // Check direct message content
   if (message.content && CensorService.containsFlaggedWords(message.content)) {
     console.log(`⛔ [DiscordService] Message contains flagged words, ignoring.`);
-    try { await message.reply(FLAGGED_REPLY); } catch (error: any) { console.log("Error sending flagged words response:",  error); }
+    try { await message.reply(FLAGGED_REPLY); } catch (error: unknown) { console.log("Error sending flagged words response:",  error); }
     return true;
   }
 
@@ -3036,10 +3036,10 @@ async function rejectIfFlaggedContent(message: any) {
       const repliedMessage = await message.channel.messages.fetch(message.reference.messageId);
       if (repliedMessage.content && CensorService.containsFlaggedWords(repliedMessage.content)) {
         console.log(`⛔ [DiscordService] Replied message contains flagged words, ignoring.`);
-        try { await message.reply(FLAGGED_REPLY); } catch (error: any) { console.log("Error sending flagged words response:",  error); }
+        try { await message.reply(FLAGGED_REPLY); } catch (error: unknown) { console.log("Error sending flagged words response:",  error); }
         return true;
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.log("Error fetching replied message:", error);
     }
   }
@@ -3075,12 +3075,12 @@ async function sendMaintenanceCountdown(message: any) {
             `I AM CURRENTLY UNDER MAINTENANCE, TRY AGAIN LATER.\nMESSAGE SELF DESTRUCTING IN ${secondsRemaining} SECONDS`,
           );
         }
-      } catch (error: any) {
+      } catch (error: unknown) {
         console.error(error);
         clearInterval(interval);
       }
     }, 1000);
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error(error);
   }
 }
@@ -3143,7 +3143,7 @@ URL: ${utilities.getDiscordMessageUrl(message.guild?.id, message.channel.id, mes
 
       console.log(logMessage);
     }
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.log("Error saving message to MongoDB:", error);
   }
 
@@ -3213,8 +3213,8 @@ URL: ${utilities.getDiscordMessageUrl(message.guild?.id, message.channel.id, mes
     try {
       typingIntervals[message.channel.id] =
         await DiscordUtilityService.startTypingInterval(message.channel);
-    } catch (error: any) {
-      console.warn(`⚠️ [processMessage] Could not start typing: ${error.message}`);
+    } catch (error: unknown) {
+      console.warn(`⚠️ [processMessage] Could not start typing: ${(error as Error).message}`);
     }
   }
 
@@ -3260,7 +3260,7 @@ URL: ${utilities.getDiscordMessageUrl(message.guild?.id, message.channel.id, mes
         const currentChannelId = queuedDatum.message.channel.id;
         try {
           await replyMessage(queuedDatum, localMongo);
-        } catch (error: any) {
+        } catch (error: unknown) {
           console.error(
             `❌ [processMessage] Uncaught error in replyMessage — queue will continue processing:\n`,
             error,
@@ -3397,7 +3397,7 @@ async function luposOnGuildMemberUpdate(client: any, mongo: any, oldMember: any,
         console.log(
           `[${functionName}] Bot nickname was changed to "${newMember.nickname}", reverted to "${expectedNickname}"`,
         );
-      } catch (error: any) {
+      } catch (error: unknown) {
         console.error(
           `[${functionName}] Failed to revert bot nickname:`,
           error,
@@ -3524,7 +3524,7 @@ async function luposOnInteractionCreate(client: any, mongo: any, interaction: an
 
       try {
         await command.execute(interaction);
-      } catch (error: any) {
+      } catch (error: unknown) {
         if (interaction.replied || interaction.deferred) {
           // Already responded — silently swallow
           return;

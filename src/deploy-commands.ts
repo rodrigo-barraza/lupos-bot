@@ -56,14 +56,14 @@ const client = new Client({ intents: [GatewayIntentBits.Guilds] });
           `Successfully deployed ${(data as any[]).length} commands to ${guild.name}`,
         );
         successCount++;
-      } catch (error: any) {
+      } catch (error: unknown) {
         console.error(`Failed to deploy commands to ${guild.name}:`, error);
       }
     }
 
     console.log(`Successfully deployed commands to ${successCount} guilds.`);
     client.destroy();
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error(error);
     client.destroy();
   }
