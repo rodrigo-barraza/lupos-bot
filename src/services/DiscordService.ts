@@ -1569,7 +1569,7 @@ Respond with ONLY "yes" or "no". Nothing else.`,
       model: config.ANTHROPIC_LANGUAGE_MODEL_FAST,
       agentContext,
       maxTokens: 4096, // Agent needs headroom for tool-call JSON + reasoning + final reply
-      temperature: config.LANGUAGE_MODEL_TEMPERATURE,
+      temperature: config.LANGUAGE_MODEL_TEMPERATURE ? parseFloat(config.LANGUAGE_MODEL_TEMPERATURE) : undefined,
       thinkingEnabled: true,
       thinkingBudget: 10_000,
       username: message.author?.username || "unknown",
