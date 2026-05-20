@@ -1114,9 +1114,6 @@ const DiscordUtilityService = {
    * Queries MongoDB for all messages by the given user IDs, then verifies
    * each one against Discord. Messages that no longer exist (404/10008)
    * are deleted from MongoDB.
-   *
-
-
    */
   async purgeDeletedMessagesForUsers(client: any, mongo: any, guildId: any, userIds: any, options: Record<string, any> = {}) {
     const {
@@ -1221,9 +1218,6 @@ const DiscordUtilityService = {
    * Backfill media archive for messages that still have Discord CDN URLs.
    * Finds messages missing `mediaArchive` that have attachments, downloads
    * the media to MinIO, and updates the document with permanent URLs.
-   *
-
-
    */
   async backfillMediaArchive(client: any, mongo: any, options: Record<string, any> = {}) {
     const {
@@ -1506,9 +1500,6 @@ const DiscordUtilityService = {
   /**
    * Sync only the reactions field for a message to MongoDB.
    * Called from Discord reaction add/remove event handlers.
-   *
-
-
    */
   async syncReactionsToMongo(reactionMessage: any, mongo: any, collectionName: any = "Messages") {
     try {

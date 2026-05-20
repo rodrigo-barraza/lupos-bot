@@ -29,7 +29,7 @@ import YouTubeService from "#root/services/YouTubeService.js";
 import MongoService from "#root/services/MongoService.js";
 import PrismService from "#root/services/PrismService.js";
 import DiscordUtilityService from "#root/services/DiscordUtilityService.js";
-import AIService, { type CaptionMapObject } from "#root/services/AIService.js";
+import AIService from "#root/services/AIService.js";
 import CurrentService from "#root/services/CurrentService.js";
 
 import BirthdayJob from "#root/jobs/scheduled/BirthdayJob.js";
@@ -59,6 +59,15 @@ import {
 } from "#root/constants.js";
 import CensorService from "#root/services/CensorService.js";
 import { kickIfTooNew, kickIfForbiddenCombo, purgeByAccountAge } from "#root/services/AccountGuardService.js";
+import MoodService from "#root/services/MoodService.js";
+import HungerService from "#root/services/HungerService.js";
+import ThirstService from "#root/services/ThirstService.js";
+import EnergyService from "#root/services/EnergyService.js";
+import SicknessService from "#root/services/SicknessService.js";
+import AlcoholService from "#root/services/AlcoholService.js";
+import BathroomService from "#root/services/BathroomService.js";
+import SubstanceService from "#root/services/SubstanceService.js";
+import SomaticAdaptationService from "#root/services/SomaticAdaptationService.js";
 
 /**
  * Fetch guild members with automatic retry on Gateway rate limits (opcode 8).
@@ -1225,11 +1234,14 @@ Respond with ONLY "yes" or "no". Nothing else.`,
     let edittedMessageCleanContent = "";
     let composition = String(message.cleanContent);
 
-    // // Remove first occurrence of bot mention from the clean content '@Lupos'
+    // Remove first occurrence of bot mention from the clean content '@Lupos'
     const botMentionSyntax = `@${bot.username}`;
     if (composition.includes(botMentionSyntax)) {
       composition = composition.replace(botMentionSyntax, "").trim();
     }
+
+    // Adapt somatic state of Lupos in real-time depending on what is being talked about
+    SomaticAdaptationService.adaptFromMessage(composition);
 
     // if has image attachment, check if messagesImagesCollection has any images using the message id as the key
     if (message.attachments && message.attachments.size > 0) {
@@ -1469,6 +1481,40 @@ Respond with ONLY "yes" or "no". Nothing else.`,
       guildId: message.guildId || null,
       channelId: message.channelId || null,
       aprilFoolsMode: APRIL_FOOLS_MODE,
+      somaticState: {
+        mood: {
+          level: MoodService.getMoodLevel(),
+          name: MoodService.getMoodName(),
+        },
+        hunger: {
+          level: HungerService.getHungerLevel(),
+          label: HungerService.getHungerLevel() >= 80 ? "Starving" : HungerService.getHungerLevel() >= 40 ? "Hungry" : "Satisfied",
+        },
+        thirst: {
+          level: ThirstService.getThirstLevel(),
+          label: ThirstService.getThirstLevel() >= 80 ? "Dehydrated" : ThirstService.getThirstLevel() >= 40 ? "Thirsty" : "Quenched",
+        },
+        energy: {
+          level: EnergyService.getEnergyLevel(),
+          label: EnergyService.getEnergyLevel() <= 30 ? "Exhausted" : EnergyService.getEnergyLevel() <= 60 ? "Tired" : "Energized",
+        },
+        sickness: {
+          level: SicknessService.getSicknessLevel(),
+          label: SicknessService.getSicknessLevel() >= 70 ? "Severely Ill" : SicknessService.getSicknessLevel() >= 30 ? "Nauseous" : "Healthy",
+        },
+        alcohol: {
+          level: AlcoholService.getAlcoholLevel(),
+          label: AlcoholService.getAlcoholLevel() >= 7 ? "Wasted" : AlcoholService.getAlcoholLevel() >= 4 ? "Drunk" : AlcoholService.getAlcoholLevel() >= 1 ? "Tipsy" : "Sober",
+        },
+        substance: {
+          level: SubstanceService.getSubstanceLevel(),
+          label: SubstanceService.getSubstanceLevel() >= 7 ? "Tripping / Stoned" : SubstanceService.getSubstanceLevel() >= 4 ? "High / Baked" : SubstanceService.getSubstanceLevel() >= 1 ? "Buzzed / Elevated" : "Sober",
+        },
+        bathroom: {
+          level: BathroomService.getBathroomLevel(),
+          label: BathroomService.getBathroomLevel() >= 80 ? "Needs to use restroom urgently" : BathroomService.getBathroomLevel() >= 40 ? "Needs to pee" : "Fine",
+        },
+      },
     };
 
     // Discord context — the systemPrompt variable contains server info,
@@ -1563,10 +1609,19 @@ Respond with ONLY "yes" or "no". Nothing else.`,
     }
 
     // ── Single agent call — Prism handles personality + tools ─────
+    const agentModel =
+      config.LANGUAGE_MODEL_TYPE === "GOOGLE"
+        ? config.GOOGLE_LANGUAGE_MODEL_FAST
+        : config.LANGUAGE_MODEL_TYPE === "OPENAI"
+          ? config.FAST_LANGUAGE_MODEL_OPENAI
+          : config.LANGUAGE_MODEL_TYPE === "LOCAL"
+            ? config.FAST_LANGUAGE_MODEL_LOCAL
+            : config.ANTHROPIC_LANGUAGE_MODEL_FAST;
+
     const agentResponse = await PrismService.generateAgentResponse({
       messages: agentConversation,
       type: config.LANGUAGE_MODEL_TYPE,
-      model: config.ANTHROPIC_LANGUAGE_MODEL_FAST,
+      model: agentModel,
       agentContext,
       maxTokens: 4096, // Agent needs headroom for tool-call JSON + reasoning + final reply
       temperature: config.LANGUAGE_MODEL_TEMPERATURE ? parseFloat(config.LANGUAGE_MODEL_TEMPERATURE) : undefined,
@@ -2623,8 +2678,6 @@ async function generateRolesEmbedMessage(client: any) {
    * Build a role-picker embed + button rows for a given role source array.
 
 
-   * @param {{ sort?: boolean }} [options]
-   * @returns {{ embed: EmbedBuilder, rows: ActionRowBuilder[] }}
    */
   function buildRolePickerSection(title: any, description: any, sourceArray: any, options: Record<string, any> = {}) {
     const maxButtonsPerRow = 5;
@@ -2966,7 +3019,6 @@ async function revokeRoleFromAllMembers(client: any) {
  * Check if a message or its replied-to message contains flagged words.
  * If flagged, sends a reply and returns true; otherwise returns false.
 
- * @returns {Promise<boolean>} true if message was rejected
  */
 async function rejectIfFlaggedContent(message: any) {
   const FLAGGED_REPLY = "beep boop, no slurs, ya dumbass";

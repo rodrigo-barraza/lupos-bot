@@ -11,10 +11,6 @@ import { ACCOUNT_AGE_THRESHOLD_MS, MS_PER_DAY } from "#root/constants.js";
 /**
  * Kick a member if their Discord account is too new (< 4 weeks old)
  * and they are not on the whitelist.
- *
-
-
- * @returns {boolean} true if the member was kicked, false otherwise.
  */
 export async function kickIfTooNew(member: any, callerName: any = "AccountGuard") {
   if (member.user.bot) return false;
@@ -55,10 +51,6 @@ const FORBIDDEN_COMBO_ROLE_IDS = [
 /**
  * Kick a member if they hold both roles in the forbidden combo
  * (currently: Horde + Apex Legends).
- *
-
-
- * @returns {boolean} true if the member was kicked, false otherwise.
  */
 export async function kickIfForbiddenCombo(member: any, callerName: any = "AccountGuard") {
   if (member.user.bot) return false;
@@ -103,10 +95,6 @@ export async function kickIfForbiddenCombo(member: any, callerName: any = "Accou
 
 /**
  * Bulk-purge members whose Discord account age is below a given threshold.
- *
-
-
- * @returns {{ kicked: number, skipped: number, errors: number }}
  */
 export async function purgeByAccountAge(guild: any, thresholdMs: any, options: Record<string, any> = {}) {
   const { dryRun = false, callerName = "purgeByAccountAge" } = options;

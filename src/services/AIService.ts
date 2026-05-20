@@ -14,7 +14,7 @@ import DiscordUtilityService from "#root/services/DiscordUtilityService.js";
 
 import sharp from "sharp";
 import { Message, Client } from "discord.js";
-import { MongoClient, Db } from "mongodb";
+import { MongoClient } from "mongodb";
 
 async function convertGifToPng(imageBuffer: Buffer): Promise<Buffer> {
   return sharp(imageBuffer, { animated: false })
@@ -176,6 +176,11 @@ const AIService = {
       if (conversation[conversation.length - 1].content === "") {
         conversation[conversation.length - 1].content = "hey";
       }
+    } else if (type === "GOOGLE") {
+      generateTextModel =
+        modelPerformance === "FAST"
+          ? config.GOOGLE_LANGUAGE_MODEL_FAST
+          : config.GOOGLE_LANGUAGE_MODEL_SMART;
     } else if (type === "LOCAL") {
       generateTextModel =
         modelPerformance === "FAST"

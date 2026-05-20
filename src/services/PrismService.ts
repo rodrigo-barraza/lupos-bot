@@ -58,12 +58,7 @@ export default class PrismService {
   /**
    * Generate text via Prism's /chat endpoint.
 
-   * @param {Array}  payload.messages - Array of { role, name?, content } message objects
-   * @param {string} payload.type - Provider type: "OPENAI" | "ANTHROPIC" | "LOCAL" | "GOOGLE"
-   * @param {string} payload.model - Model name
 
-
-   * @returns {Promise<{ text: string, model: string, provider: string }>}
    */
   static async generateText({
     messages,
@@ -118,17 +113,7 @@ export default class PrismService {
    * (Discord info, participants, trending data, etc.) via agentContext.
    *
 
-   * @param {Array}  payload.messages      - Conversation messages [{ role, name?, content, images? }]
-   * @param {string} payload.type          - Provider type: "OPENAI" | "ANTHROPIC" | "LOCAL" | "GOOGLE"
-   * @param {string} payload.model         - Model name
 
-
-   * @returns {Promise<{
-   *   text: string|null,
-   *   images: Array<{ data: string, mimeType: string, minioRef: string|null }>,
-   *   toolCalls: Array<object>,
-   *   model: string,
-   *   provider: string,
    * }>}
    */
   static async generateAgentResponse({
@@ -182,13 +167,7 @@ export default class PrismService {
   /**
    * Generate an image via Prism's /chat endpoint.
 
-   * @param {string} payload.prompt - Image generation prompt
 
-   * @param {string} payload.model - Model name
-   * @param {Array}  [payload.images=[]] - Array of base64 data URLs or { imageData, mimeType } objects
-
-
-   * @returns {Promise<{ imageData: string, mimeType: string, text: string, minioRef: string|null, model: string, provider: string }>}
    */
   static async generateImage({
     prompt,
@@ -241,11 +220,7 @@ export default class PrismService {
   /**
    * Caption / describe an image via Prism's /chat endpoint.
 
-   * @param {string|string[]} payload.images - URL/base64 string or array of them
-   * @param {string} payload.prompt - Caption prompt
 
-
-   * @returns {Promise<{ text: string }>}
    */
   static async captionImage({
     images,
@@ -275,11 +250,7 @@ export default class PrismService {
   /**
    * Transcribe audio via Prism's /audio-to-text endpoint.
 
-   * @param {Buffer|string} payload.audio - Audio file buffer or base64 string
-   * @param {string} payload.mimeType - MIME type of the audio
 
-
-   * @returns {Promise<{ text: string }>}
    */
   static async transcribeAudio({
     audio,
@@ -318,12 +289,7 @@ export default class PrismService {
   /**
    * Extract and store memories from a conversation chunk.
 
-   * @param {string} payload.guildId
-   * @param {string} payload.channelId
-   * @param {Array}  payload.messages - Recent conversation messages
-   * @param {Array}  payload.participants - Array of { id, username, displayName }
 
-   * @returns {Promise<{ memories: Array, count: number }>}
    */
   static async extractMemories({
     guildId,
@@ -343,11 +309,7 @@ export default class PrismService {
   /**
    * Search for relevant memories using vector similarity.
 
-   * @param {string} payload.guildId
 
-   * @param {string} payload.queryText
-
-   * @returns {Promise<{ memories: Array, count: number }>}
    */
   static async searchMemories({ guildId, userIds, queryText, limit = 10, traceId }: any) {
     const body: Record<string, any> = { guildId, queryText, limit };
@@ -364,10 +326,7 @@ export default class PrismService {
   /**
    * Generate an embedding vector for text via Prism's /embed endpoint.
 
-   * @param {string} payload.text
 
-
-   * @returns {Promise<{ embedding: number[], dimensions: number }>}
    */
   static async generateEmbedding({ text, provider = "openai", model, traceId }: any) {
     const body: Record<string, any> = { provider, text };

@@ -458,7 +458,6 @@ const utilities = {
   /**
    * Format a millisecond duration into a human-readable string.
 
-   * @returns {string} e.g. "2d 5h 30m", "1h 15m 30s", "45s"
    */
   formatTimeSpan(ms: any) {
     const seconds = Math.floor(ms / 1000);
@@ -487,7 +486,6 @@ const utilities = {
   /**
    * Format a millisecond duration as playback time (m:ss).
 
-   * @returns {string} e.g. "3:07"
    */
   formatPlaybackTime(ms: any) {
     const totalSeconds = Math.floor(ms / 1000);
@@ -529,7 +527,6 @@ const utilities = {
    *   - "list":   "\n- emoji x count (by you, Lupos)"
    *   - "inline": "emoji(by you, Lupos), emoji2"
    *   - "names":  "emoji, emoji2" (names only, no counts)
-   * @returns {string} Formatted string, or "" if no reactions
    */
   formatReactions(reactionsCache: any, format: any = "list") {
     if (!reactionsCache?.size) return "";
