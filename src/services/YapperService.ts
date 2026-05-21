@@ -1,16 +1,22 @@
+import type { ChatInputCommandInteraction } from "discord.js";
 import AIService from "#root/services/AIService.js";
 import MoodService from "#root/services/MoodService.js";
 
-let currentYappers: any[] = [];
+interface YapperEntry {
+  displayName: string;
+  count: number;
+}
+
+let currentYappers: YapperEntry[] = [];
 
 const YapperService = {
-  setYappers(yappers: any) {
+  setYappers(yappers: YapperEntry[]) {
     currentYappers = yappers;
   },
   getYappers() {
     return currentYappers;
   },
-  async yapperMessage(_interaction: any) {
+  async yapperMessage(_interaction: ChatInputCommandInteraction) {
     MoodService.decreaseMoodLevel();
     const yappers = YapperService.getYappers();
     let systemContent = `

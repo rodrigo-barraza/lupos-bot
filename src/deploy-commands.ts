@@ -1,3 +1,4 @@
+import type { RESTPostAPIChatInputApplicationCommandsJSONBody } from "discord.js";
 import { REST, Routes, Client, GatewayIntentBits } from "discord.js";
 import secrets from "./config.ts";
 import fs from "node:fs";
@@ -5,7 +6,7 @@ import path from "node:path";
 import { pathToFileURL } from "node:url";
 const { LUPOS_TOKEN } = secrets;
 
-const commands: any[] = [];
+const commands: RESTPostAPIChatInputApplicationCommandsJSONBody[] = [];
 const foldersPath = path.join(import.meta.dirname, "commands");
 const commandFolders = fs.readdirSync(foldersPath);
 
@@ -13,7 +14,7 @@ for (const folder of commandFolders) {
   const commandsPath = path.join(foldersPath, folder);
   const commandFiles = fs
     .readdirSync(commandsPath)
-    .filter((file: any) => file.endsWith(".js"));
+    .filter((file: string) => file.endsWith(".js"));
 
   for (const file of commandFiles) {
     const filePath = path.join(commandsPath, file);
@@ -53,7 +54,7 @@ const client = new Client({ intents: [GatewayIntentBits.Guilds] });
           { body: commands },
         );
         console.log(
-          `Successfully deployed ${(data as any[]).length} commands to ${guild.name}`,
+          `Successfully deployed ${(data as unknown[]).length} commands to ${guild.name}`,
         );
         successCount++;
       } catch (error: unknown) {

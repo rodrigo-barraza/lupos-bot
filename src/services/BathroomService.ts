@@ -17,7 +17,7 @@ const BathroomService = {
   getBathroomLevel() {
     return bathroomStat.getLevel();
   },
-  setBathroomLevel(level: any) {
+  setBathroomLevel(level: number) {
     return bathroomStat.setLevel(level);
   },
   increaseBathroomLevel() {

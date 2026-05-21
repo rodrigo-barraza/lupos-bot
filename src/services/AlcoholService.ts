@@ -34,7 +34,7 @@ const AlcoholService = {
   getAlcoholLevel() {
     return alcoholStat.getLevel();
   },
-  setAlcoholLevel(level: any) {
+  setAlcoholLevel(level: number) {
     return alcoholStat.setLevel(level);
   },
   increaseAlcoholLevel() {

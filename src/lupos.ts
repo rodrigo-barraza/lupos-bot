@@ -10,18 +10,19 @@ import MinioWrapper from "./wrappers/MinioWrapper.ts";
 import MediaArchivalService from "./services/MediaArchivalService.ts";
 import DiscordWrapper from "./wrappers/DiscordWrapper.ts";
 
+import type { Request, Response, NextFunction } from "express";
 import express from "express";
 const app = express();
 import services from "./services/services.ts";
 
 // Parse command line arguments
 const args = process.argv.slice(2);
-const mode = args.find((arg: any) => arg.startsWith("mode="))?.split("=")[1];
-const channelIdsArg = args.find((arg: any) => arg.startsWith("channels="))?.split("=")[1];
+const mode = args.find((arg: string) => arg.startsWith("mode="))?.split("=")[1];
+const channelIdsArg = args.find((arg: string) => arg.startsWith("channels="))?.split("=")[1];
 const channelIds = channelIdsArg ? channelIdsArg.split(",").filter(Boolean) : null;
-const guildIdsArg = args.find((arg: any) => arg.startsWith("guilds="))?.split("=")[1];
+const guildIdsArg = args.find((arg: string) => arg.startsWith("guilds="))?.split("=")[1];
 const guildIds = guildIdsArg ? guildIdsArg.split(",").filter(Boolean) : null;
-const dateLimit = args.find((arg: any) => arg.startsWith("dateLimit="))?.split("=")[1] || null;
+const dateLimit = args.find((arg: string) => arg.startsWith("dateLimit="))?.split("=")[1] || null;
 
 async function main() {
   try {
@@ -67,7 +68,7 @@ async function main() {
     // API SERVER
     app.use(express.json());
     app.use(express.urlencoded({ extended: true }));
-    app.use((req: any, res: any, next: any) => {
+    app.use((req: Request, res: Response, next: NextFunction) => {
       const origin = req.headers.origin;
       res.setHeader("Access-Control-Allow-Origin", origin || "*");
       res.setHeader(
@@ -78,7 +79,7 @@ async function main() {
       res.setHeader("Access-Control-Allow-Credentials", "true");
       next();
     });
-    app.get("/health", (_req: any, res: any) => {
+    app.get("/health", (_req: Request, res: Response) => {
       res.json({
         name: "Lupos",
         status: "ok",

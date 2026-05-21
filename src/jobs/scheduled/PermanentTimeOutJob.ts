@@ -1,18 +1,19 @@
 import config from "#root/config.js";
 import DiscordUtilityService from "#root/services/DiscordUtilityService.js";
 import LogFormatter from "#root/formatters/LogFormatter.js";
+import type { Client, GuildMember } from "discord.js";
 
 const timeoutLength = 168 * 60 * 60 * 1000;
 const intervalLength = 167 * 60 * 60 * 1000;
 
-async function timeOutUsers(client: any) {
+async function timeOutUsers(client: Client) {
   const functionName = "timeOutUsers";
   const guild = DiscordUtilityService.getGuildById(
     client,
     config.GUILD_ID_PRIMARY,
   );
   for (const userId of config.USER_IDS_TIMED_OUT) {
-    let member: any;
+    let member: GuildMember | undefined;
     try {
       member = await guild.members.fetch(userId);
       if (member) {
@@ -43,7 +44,7 @@ async function timeOutUsers(client: any) {
 }
 
 const PermanentTimeOutJob = {
-  async startJob(client: any) {
+  async startJob(client: Client) {
     await timeOutUsers(client); // Execute immediately
     setInterval(() => {
       timeOutUsers(client);

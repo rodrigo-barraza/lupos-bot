@@ -14,12 +14,20 @@ import utilities from "#root/utilities.js";
 const TOOLS_SERVICE_URL = config.TOOLS_SERVICE_URL;
 const SCRAPE_TIMEOUT_MS = 15_000;
 
+interface ScrapedMetadata {
+  title?: string;
+  image?: string;
+  keywords?: string;
+  description?: string;
+  [key: string]: string | undefined;
+}
+
 /**
  * Fetch page metadata from tools-api's /utility/scrape/metadata endpoint.
  */
-async function fetchMetadata(url: any) {
+async function fetchMetadata(url: string): Promise<ScrapedMetadata> {
   const endpoint = `${TOOLS_SERVICE_URL}/utility/scrape/metadata?url=${encodeURIComponent(url)}`;
-  const result: any = await utilities.fetchWithTimeout(endpoint, SCRAPE_TIMEOUT_MS);
+  const result = await utilities.fetchWithTimeout(endpoint, SCRAPE_TIMEOUT_MS) as ScrapedMetadata | null;
   return result ?? {};
 }
 
@@ -29,11 +37,11 @@ class ScraperService {
    * Previously used Puppeteer to render the page — now delegates
    * to tools-api Cheerio extraction.
    */
-  static async scrapeTenor(url: any) {
+  static async scrapeTenor(url: string) {
     const metadata = await fetchMetadata(url);
 
     // Build the same shape as the old Puppeteer-based response
-    const result: Record<string, any> = {};
+    const result: Record<string, string | undefined> = {};
 
     if (metadata.title) result.title = metadata.title;
     if (metadata.image) result.image = metadata.image;
@@ -53,7 +61,7 @@ class ScraperService {
    * Previously used Puppeteer to render the page — now delegates
    * to tools-api Cheerio extraction.
    */
-  static async scrapeTwitchUrl(url: any) {
+  static async scrapeTwitchUrl(url: string) {
     return await fetchMetadata(url);
   }
 }

@@ -1,7 +1,8 @@
 import { Client, GatewayIntentBits, Partials } from "discord.js";
 import { sleep } from "@rodrigo-barraza/utilities-library";
+import type { DiscordClientEntry } from "#root/types/index.js";
 
-const clients: any[] = [];
+const clients: DiscordClientEntry[] = [];
 
 /**
  * Maximum number of login retry attempts before giving up.
@@ -19,8 +20,9 @@ const BASE_RETRY_DELAY = 1000;
  * Parse the session reset timestamp from Discord's "Not enough sessions"
  * error message. Returns null if not a session exhaustion error.
  */
-function parseSessionResetTime(error: any) {
-  const match = error?.message?.match(/resets at (.+)$/i);
+function parseSessionResetTime(error: unknown): Date | null {
+  const message = error instanceof Error ? error.message : String(error);
+  const match = message.match(/resets at (.+)$/i);
   if (!match) return null;
   const resetDate = new Date(match[1]);
   return isNaN(resetDate.getTime()) ? null : resetDate;
@@ -35,7 +37,7 @@ function parseSessionResetTime(error: any) {
  * - Fatal/unknown errors after retries: keeps the process alive but
  *   logs the failure — prevents Docker restart loops from burning sessions.
  */
-async function loginWithRetry(client: any, token: any, name: any) {
+async function loginWithRetry(client: Client, token: string, name: string) {
   for (let attempt = 0; attempt < MAX_LOGIN_RETRIES; attempt++) {
     try {
       await client.login(token);
@@ -76,7 +78,7 @@ async function loginWithRetry(client: any, token: any, name: any) {
 
 const DiscordWrapper = {
   clients: clients,
-  createClient(name: any, token: any) {
+  createClient(name: string, token: string): Client {
     const client = new Client({
       intents: [
         GatewayIntentBits.Guilds,
@@ -113,8 +115,10 @@ const DiscordWrapper = {
 
     return client;
   },
-  getClient(name: any) {
-    return clients.find((client: any) => client.name === name).client;
+  getClient(name: string): Client {
+    const entry = clients.find((c) => c.name === name);
+    if (!entry) throw new Error(`DiscordWrapper: no client named "${name}"`);
+    return entry.client;
   },
 };
 

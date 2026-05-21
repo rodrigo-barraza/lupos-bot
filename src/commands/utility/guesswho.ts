@@ -4,7 +4,15 @@ import {
   ActionRowBuilder,
   ButtonBuilder,
   ButtonStyle,
+  Collection,
 } from "discord.js";
+import type {
+  ChatInputCommandInteraction,
+  ButtonInteraction,
+  SlashCommandIntegerOption,
+  MessageComponentInteraction,
+} from "discord.js";
+import type { Document } from "mongodb";
 import {
   getMongoDb,
   getServerAgeYears,
@@ -14,11 +22,24 @@ import {
 } from "./commandUtils.ts";
 import { WRONG_GUESS_ROASTS } from "../../constants/GuessWhoConstants.ts";
 
+interface GuessOption {
+  userId: string;
+  displayName: string;
+  isCorrect: boolean;
+}
+
+interface GuessData {
+  guessedUserId: string;
+  isCorrect: boolean;
+  guessedName: string;
+  pointsChange: number;
+}
+
 export default {
   data: new SlashCommandBuilder()
     .setName("guesswho")
     .setDescription("Guess the user from an anonymous message quote")
-    .addIntegerOption((option: any) =>
+    .addIntegerOption((option: SlashCommandIntegerOption) =>
       option
         .setName("years")
         .setDescription("Number of years to look back")
@@ -26,7 +47,7 @@ export default {
         .setMinValue(0)
         .setMaxValue(10),
     )
-    .addIntegerOption((option: any) =>
+    .addIntegerOption((option: SlashCommandIntegerOption) =>
       option
         .setName("months")
         .setDescription("Number of months to look back")
@@ -34,7 +55,7 @@ export default {
         .setMinValue(0)
         .setMaxValue(12),
     )
-    .addIntegerOption((option: any) =>
+    .addIntegerOption((option: SlashCommandIntegerOption) =>
       option
         .setName("days")
         .setDescription("Number of days to look back")
@@ -42,7 +63,7 @@ export default {
         .setMinValue(0)
         .setMaxValue(365),
     )
-    .addIntegerOption((option: any) =>
+    .addIntegerOption((option: SlashCommandIntegerOption) =>
       option
         .setName("min_length")
         .setDescription("Minimum message length (default: 20)")
@@ -51,12 +72,17 @@ export default {
         .setMaxValue(500),
     ),
 
-  async execute(interaction: any) {
+  async execute(interaction: ChatInputCommandInteraction) {
     const db = getMongoDb();
     const messagesCollection = db.collection("Messages");
     const scoresCollection = db.collection("GuessWhoGameScore");
 
     await interaction.deferReply();
+
+    if (!interaction.guild) {
+      await interaction.editReply("This command can only be used in a server.");
+      return;
+    }
 
     // Get time parameters
     let years = interaction.options.getInteger("years") || 0;
@@ -74,7 +100,7 @@ export default {
 
     const invokerId = interaction.user.id;
 
-    const match: Record<string, any> = {
+    const match: Record<string, unknown> = {
       createdTimestamp: { $gte: unixStartDate },
       guildId: interaction.guildId,
       "author.bot": { $ne: true },
@@ -154,10 +180,10 @@ export default {
       }
 
       // Fetch guild members to get display names
-      const allUserIds = [correctUserId, ...decoyUsers.map((u: any) => u._id)];
-      const memberPromises = allUserIds.map(async (userId: any) => {
+      const allUserIds = [correctUserId, ...decoyUsers.map((u: Document) => String(u._id))];
+      const memberPromises = allUserIds.map(async (userId: string) => {
         try {
-          const member = await interaction.guild.members.fetch(userId);
+          const member = await interaction.guild!.members.fetch(userId);
           return { userId, displayName: member.displayName };
         } catch {
           const user =
@@ -170,19 +196,19 @@ export default {
 
       const memberData = await Promise.all(memberPromises);
       const userDisplayNames = new Map(
-        memberData.map((m: any) => [m.userId, m.displayName]),
+        memberData.map((m: { userId: string; displayName: string }) => [m.userId, m.displayName]),
       );
 
       // Create array of all options and shuffle
-      const allOptions = [
+      const allOptions: GuessOption[] = [
         {
           userId: correctUserId,
-          displayName: userDisplayNames.get(correctUserId),
+          displayName: userDisplayNames.get(correctUserId) ?? "Unknown",
           isCorrect: true,
         },
-        ...decoyUsers.map((u: any) => ({
-          userId: u._id,
-          displayName: userDisplayNames.get(u._id),
+        ...decoyUsers.map((u: Document) => ({
+          userId: String(u._id),
+          displayName: userDisplayNames.get(String(u._id)) ?? "",
           isCorrect: false,
         })),
       ];
@@ -195,12 +221,12 @@ export default {
       }
 
       // ─── Live Guess Feed State ────────────────────────────────────
-      const guesses = new Map();
-      const guessLog: any[] = []; // Public log of all guesses as they happen
-      const eliminatedOptionIds = new Set(); // Track eliminated wrong choices
+      const guesses = new Map<string, GuessData>();
+      const guessLog: string[] = []; // Public log of all guesses as they happen
+      const eliminatedOptionIds = new Set<string>(); // Track eliminated wrong choices
 
       // Build the embed with live guess feed
-      const createEmbed = (timeRemaining: any, status: any = "active") => {
+      const createEmbed = (timeRemaining: number, status: "active" | "correct" | "timeout" = "active") => {
         const color =
           status === "correct"
             ? 0x57f287
@@ -229,7 +255,7 @@ export default {
         // Live guess feed — the spectacle
         if (guessLog.length > 0) {
           const remaining = allOptions.filter(
-            (o: any) => !eliminatedOptionIds.has(o.userId),
+            (o: GuessOption) => !eliminatedOptionIds.has(o.userId),
           ).length;
           embed.addFields({
             name: `📋 Guesses (${remaining} option${remaining !== 1 ? "s" : ""} remaining)`,
@@ -242,7 +268,7 @@ export default {
 
       // Build buttons across two rows (Discord max 5 per ActionRow)
       const createButtons = () => {
-        const buttons = allOptions.map((option: any) => {
+        const buttons = allOptions.map((option: GuessOption) => {
           const eliminated = eliminatedOptionIds.has(option.userId);
           return new ButtonBuilder()
             .setCustomId(`whosthat_${option.userId}_${option.isCorrect}`)
@@ -252,8 +278,8 @@ export default {
             .setStyle(eliminated ? ButtonStyle.Secondary : ButtonStyle.Primary)
             .setDisabled(eliminated);
         });
-        const row1 = new ActionRowBuilder().addComponents(buttons.slice(0, 4));
-        const row2 = new ActionRowBuilder().addComponents(buttons.slice(4));
+        const row1 = new ActionRowBuilder<ButtonBuilder>().addComponents(buttons.slice(0, 4));
+        const row2 = new ActionRowBuilder<ButtonBuilder>().addComponents(buttons.slice(4));
         return [row1, row2];
       };
 
@@ -265,8 +291,7 @@ export default {
       // Timer update logic — update every 5s instead of 1s to reduce API spam
       const startTime = Date.now();
       const timeLimit = 60000;
-      // eslint-disable-next-line prefer-const
-      let timerInterval: any;
+      const timerState: { interval: ReturnType<typeof setInterval> | null } = { interval: null };
 
       const updateTimer = async () => {
         const elapsed = Date.now() - startTime;
@@ -280,22 +305,22 @@ export default {
             });
           } catch (error: unknown) {
             // 50027 = token expired, stop polling entirely
-            if ((error as any).code === 50027) {
-              clearInterval(timerInterval);
+            if ((error as { code?: number }).code === 50027) {
+              if (timerState.interval) clearInterval(timerState.interval);
             }
           }
         }
       };
 
       // Update every 5 seconds to reduce rate limit pressure
-      timerInterval = setInterval(updateTimer, 5000);
+      timerState.interval = setInterval(updateTimer, 5000);
 
       // Create collector for button interactions
       const collector = response.createMessageComponentCollector({
         time: timeLimit,
       });
 
-      collector.on("collect", async (i: any) => {
+      collector.on("collect", async (i: ButtonInteraction) => {
         // Check if user already guessed
         if (guesses.has(i.user.id)) {
           await i.reply({
@@ -360,7 +385,7 @@ export default {
 
           // Check if only the correct answer remains (process of elimination)
           const remainingOptions = allOptions.filter(
-            (o: any) => !eliminatedOptionIds.has(o.userId),
+            (o: GuessOption) => !eliminatedOptionIds.has(o.userId),
           );
           if (remainingOptions.length === 1) {
             await i.deferUpdate();
@@ -383,12 +408,12 @@ export default {
         }
       });
 
-      collector.on("end", async (collected: any, reason: any) => {
+      collector.on("end", async (_collected: Collection<string, MessageComponentInteraction>, reason: string) => {
         // Clear timer interval
-        clearInterval(timerInterval);
+        if (timerState.interval) clearInterval(timerState.interval);
 
         // Disable all buttons and highlight correct answer
-        const disabledButtons = allOptions.map((option: any) => {
+        const disabledButtons = allOptions.map((option: GuessOption) => {
           const button = new ButtonBuilder()
             .setCustomId(
               `whosthat_${option.userId}_${option.isCorrect}_disabled`,
@@ -404,10 +429,10 @@ export default {
 
           return button;
         });
-        const disabledRow1 = new ActionRowBuilder().addComponents(
+        const disabledRow1 = new ActionRowBuilder<ButtonBuilder>().addComponents(
           disabledButtons.slice(0, 4),
         );
-        const disabledRow2 = new ActionRowBuilder().addComponents(
+        const disabledRow2 = new ActionRowBuilder<ButtonBuilder>().addComponents(
           disabledButtons.slice(4),
         );
 
@@ -420,7 +445,7 @@ export default {
           })
           .toArray();
 
-        const scoreMap = new Map(scores.map((s: any) => [s.userId, s.score]));
+        const scoreMap = new Map<string, number>(scores.map((s: Document) => [String(s.userId), s.score as number]));
 
         // Determine final status
         const wasGuessed =
@@ -450,10 +475,10 @@ export default {
         }
 
         // Correct/incorrect summary
-        const correctGuesses: any[] = [];
-        const incorrectGuesses: any[] = [];
+        const correctGuesses: string[] = [];
+        const incorrectGuesses: string[] = [];
 
-        for (const [usrId, data] of guesses.entries()) {
+        for (const [usrId, data] of guesses.entries() as IterableIterator<[string, GuessData]>) {
           const currentScore = scoreMap.get(usrId) || 0;
           const pointsDisplay =
             data.pointsChange > 0 ? `+${data.pointsChange}` : data.pointsChange;
@@ -495,12 +520,14 @@ export default {
           });
         } catch (editError: unknown) {
           // Token expired (50027) — fall back to a regular channel message
-          console.error("Failed to edit guesswho final embed (token likely expired):", (editError as any).code);
+          console.error("Failed to edit guesswho final embed (token likely expired):", (editError as { code?: number }).code);
           try {
-            await interaction.channel?.send({
-              embeds: [finalEmbed],
-              components: [disabledRow1, disabledRow2],
-            });
+            if (interaction.channel && "send" in interaction.channel) {
+              await interaction.channel.send({
+                embeds: [finalEmbed],
+                components: [disabledRow1, disabledRow2],
+              });
+            }
           } catch { /* channel send also failed, nothing we can do */ }
         }
       });

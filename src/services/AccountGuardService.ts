@@ -5,6 +5,7 @@
  * luposOnGuildMemberAdd() and luposOnReadyDeleteNewAccounts().
  */
 
+import type { Guild, GuildMember } from "discord.js";
 import config from "#root/config.js";
 import { ACCOUNT_AGE_THRESHOLD_MS, MS_PER_DAY } from "#root/constants.js";
 
@@ -12,7 +13,7 @@ import { ACCOUNT_AGE_THRESHOLD_MS, MS_PER_DAY } from "#root/constants.js";
  * Kick a member if their Discord account is too new (< 4 weeks old)
  * and they are not on the whitelist.
  */
-export async function kickIfTooNew(member: any, callerName: any = "AccountGuard") {
+export async function kickIfTooNew(member: GuildMember, callerName: string = "AccountGuard") {
   if (member.user.bot) return false;
 
   const accountAge = Date.now() - member.user.createdAt.getTime();
@@ -52,10 +53,10 @@ const FORBIDDEN_COMBO_ROLE_IDS = [
  * Kick a member if they hold both roles in the forbidden combo
  * (currently: Horde + Apex Legends).
  */
-export async function kickIfForbiddenCombo(member: any, callerName: any = "AccountGuard") {
+export async function kickIfForbiddenCombo(member: GuildMember, callerName: string = "AccountGuard") {
   if (member.user.bot) return false;
 
-  const hasBoth = FORBIDDEN_COMBO_ROLE_IDS.every((roleId: any) =>
+  const hasBoth = FORBIDDEN_COMBO_ROLE_IDS.every((roleId: string) =>
     member.roles.cache.has(roleId),
   );
 
@@ -71,7 +72,7 @@ export async function kickIfForbiddenCombo(member: any, callerName: any = "Accou
   if (joinAge > ACCOUNT_AGE_THRESHOLD_MS) return false;
 
   const joinDays = Math.floor(joinAge / MS_PER_DAY);
-  const comboNames = FORBIDDEN_COMBO_ROLE_IDS.map((id: any) => {
+  const comboNames = FORBIDDEN_COMBO_ROLE_IDS.map((id: string) => {
     const role = member.guild.roles.cache.get(id);
     return role ? role.name : id;
   }).join(" + ");
@@ -96,7 +97,7 @@ export async function kickIfForbiddenCombo(member: any, callerName: any = "Accou
 /**
  * Bulk-purge members whose Discord account age is below a given threshold.
  */
-export async function purgeByAccountAge(guild: any, thresholdMs: any, options: Record<string, any> = {}) {
+export async function purgeByAccountAge(guild: Guild, thresholdMs: number, options: { dryRun?: boolean; callerName?: string } = {}) {
   const { dryRun = false, callerName = "purgeByAccountAge" } = options;
   const thresholdDays = Math.floor(thresholdMs / MS_PER_DAY);
 

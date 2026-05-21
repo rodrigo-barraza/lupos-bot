@@ -6,6 +6,7 @@ import { MessageConstant } from "#root/constants.js";
 import config from "#root/config.js";
 import utilities from "#root/utilities.js";
 import TemporalHelpers from "#root/utilities/TemporalHelpers.js";
+import type { Client, GuildMember, Message } from "discord.js";
 
 const { consoleLog } = utilities;
 
@@ -16,6 +17,25 @@ function getRandomInterval() {
   return utilities.getRandomInterval(INTERVAL_MIN_MS, INTERVAL_MAX_MS);
 }
 
+interface RandomTagJobConfig {
+  client: Client;
+  guildId: string;
+  channelId: string;
+}
+
+interface SelectedMember {
+  member: GuildMember;
+  displayName: string;
+  username: string;
+  id: string;
+}
+
+interface CustomContext {
+  title: string;
+  keywords: string;
+  description: string;
+}
+
 /**
  * RandomTagJob — April Fools scheduled job.
  *
@@ -24,7 +44,7 @@ function getRandomInterval() {
  * and sends it unprompted. Maximum chaos energy.
  */
 
-async function randomTag({ client, guildId, channelId }: any) {
+async function randomTag({ client, guildId, channelId }: RandomTagJobConfig) {
   try {
     const guild = client.guilds.cache.get(guildId);
     if (!guild) {
@@ -40,7 +60,7 @@ async function randomTag({ client, guildId, channelId }: any) {
 
     // Scan all text channels under the target categories for active users
     const CATEGORY_IDS = ["610921893071028408", "610924121311674415", "609652454375555082"];
-    const activeAuthors = new Map(); // userId -> member
+    const activeAuthors = new Map<string, GuildMember>(); // userId -> member
 
     for (const [, ch] of guild.channels.cache) {
       if (ch.type !== 0) continue; // GuildText = 0
@@ -67,8 +87,8 @@ async function randomTag({ client, guildId, channelId }: any) {
     // Pick 3 random active members (or fewer if pool is small)
     const membersArray = Array.from(activeAuthors.values());
     const TARGET_COUNT = Math.min(3, membersArray.length);
-    const selectedMembers: any[] = [];
-    const usedIndices = new Set();
+    const selectedMembers: SelectedMember[] = [];
+    const usedIndices = new Set<number>();
 
     while (selectedMembers.length < TARGET_COUNT) {
       const index = Math.floor(Math.random() * membersArray.length);
@@ -84,7 +104,7 @@ async function randomTag({ client, guildId, channelId }: any) {
       });
     }
 
-    const namesStr = selectedMembers.map((s: any) => s.displayName).join(", ");
+    const namesStr = selectedMembers.map((s: SelectedMember) => s.displayName).join(", ");
     consoleLog(
       "=",
       `[RandomTagJob] 🎯 Targeting: ${namesStr} [pool: ${activeAuthors.size} active users]`,
@@ -112,7 +132,7 @@ async function randomTag({ client, guildId, channelId }: any) {
     // Build a simplified conversation context from recent messages
     let conversationContext = "";
     if (recentMessages && recentMessages.size > 0) {
-      const messagesArray: any[] = Array.from(recentMessages.values()).reverse();
+      const messagesArray: Message[] = Array.from(recentMessages.values()).reverse();
       for (const message of messagesArray.slice(-15)) {
         const author =
           message.member?.displayName ||
@@ -132,10 +152,10 @@ async function randomTag({ client, guildId, channelId }: any) {
       const usernameLower = person.username.toLowerCase();
       const displayNameLower = person.displayName.toLowerCase();
       const matchedContext = MessageConstant.customContextWhitemane?.find(
-        (context: any) => {
+        (context: CustomContext) => {
           const keywords = context.keywords
             .split(",")
-            .map((k: any) => k.trim().toLowerCase());
+            .map((k: string) => k.trim().toLowerCase());
           return (
             keywords.includes(usernameLower) ||
             keywords.includes(displayNameLower)
@@ -172,10 +192,10 @@ async function randomTag({ client, guildId, channelId }: any) {
 
     // Build tag strings
     const tagsList = selectedMembers
-      .map((s: any) => `<@${s.id}>`)
+      .map((s: SelectedMember) => `<@${s.id}>`)
       .join(" ");
     const namesList = selectedMembers
-      .map((s: any) => `${s.displayName} (<@${s.id}>)`)
+      .map((s: SelectedMember) => `${s.displayName} (<@${s.id}>)`)
       .join(", ");
 
     // Build the system prompt using the existing personality
@@ -258,7 +278,7 @@ ${conversationContext ? `## RECENT CHAT CONTEXT (STAY ON THIS TOPIC):\n${convers
 }
 
 const RandomTagJob = {
-  startJob({ client, guildId, channelId }: any) {
+  startJob({ client, guildId, channelId }: RandomTagJobConfig) {
     const scheduleNext = () => {
       const delay = getRandomInterval();
       const delayMinutes = (delay / 60_000).toFixed(1);

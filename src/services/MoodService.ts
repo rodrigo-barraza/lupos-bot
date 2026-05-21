@@ -1,8 +1,10 @@
+import type { Message } from "discord.js";
 import { ActivityType } from "discord.js";
 import DiscordUtilityService from "#root/services/DiscordUtilityService.js";
 import DiscordWrapper from "#root/wrappers/DiscordWrapper.js";
 import StatService from "#root/services/StatService.js";
 import { MOODS, MOOD_TEMPERATURE_THRESHOLDS } from "#root/constants.js";
+import type { MoodEntry } from "#root/types/index.js";
 
 const moodStat = StatService.create("mood", {
   min: -10,
@@ -13,7 +15,7 @@ const moodStat = StatService.create("mood", {
       const client = DiscordWrapper.getClient("lupos");
       if (client?.user) {
         const currentMood = MOODS.find(
-          (mood: any) => mood.level === moodStat.getLevel(),
+          (mood: MoodEntry) => mood.level === moodStat.getLevel(),
         );
         if (currentMood) {
           client.user.setActivity(
@@ -37,21 +39,21 @@ const MoodService = {
     return moodStat.getLevel();
   },
   getMoodName() {
-    const mood = MOODS.find((mood: any) => mood.level === moodStat.getLevel());
+    const mood = MOODS.find((mood: MoodEntry) => mood.level === moodStat.getLevel());
     return mood?.name || "Unknown";
   },
-  setMoodLevel(level: any) {
+  setMoodLevel(level: number) {
     return moodStat.setLevel(level);
   },
-  increaseMoodLevel(multiplier: any = 1) {
+  increaseMoodLevel(multiplier: number = 1) {
     return moodStat.increase(multiplier);
   },
-  decreaseMoodLevel(multiplier: any = 1) {
+  decreaseMoodLevel(multiplier: number = 1) {
     return moodStat.decrease(multiplier);
   },
-  async generateMoodMessage(message: any) {
+  async generateMoodMessage(message: Message) {
     const moodTemperature =
-      await (DiscordUtilityService as any).generateMoodTemperature(message);
+      await (DiscordUtilityService as typeof DiscordUtilityService & { generateMoodTemperature(message: Message): Promise<number> }).generateMoodTemperature(message);
 
     // Apply mood change based on temperature thresholds
     for (const [min, max, direction, multiplier] of MOOD_TEMPERATURE_THRESHOLDS) {
@@ -66,7 +68,7 @@ const MoodService = {
     }
 
     const currentMood = MOODS.find(
-      (mood: any) => mood.level === moodStat.getLevel(),
+      (mood: MoodEntry) => mood.level === moodStat.getLevel(),
     );
     const moodResponse = currentMood?.description || "";
 

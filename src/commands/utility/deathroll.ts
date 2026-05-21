@@ -1,4 +1,5 @@
 import { SlashCommandBuilder } from "discord.js";
+import type { SlashCommandUserOption, SlashCommandIntegerOption } from "discord.js";
 import { executeDeathroll } from "./deathrollUtils.ts";
 
 export default {
@@ -7,13 +8,13 @@ export default {
     .setDescription(
       "Start a deathroll game - roll until someone hits 0! The loser gets timed out for 5 minutes.",
     )
-    .addUserOption((option: any) =>
+    .addUserOption((option: SlashCommandUserOption) =>
       option
         .setName("opponent")
         .setDescription("Challenge a specific user to deathroll")
         .setRequired(false),
     )
-    .addIntegerOption((option: any) =>
+    .addIntegerOption((option: SlashCommandIntegerOption) =>
       option
         .setName("number")
         .setDescription("Starting number for the deathroll (default: 100)")

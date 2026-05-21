@@ -1,3 +1,4 @@
+import type { Client } from "discord.js";
 import StatService from "#root/services/StatService.js";
 import AIService from "#root/services/AIService.js";
 import config from "#root/config.js";
@@ -10,7 +11,7 @@ const hungerStat = StatService.create("hunger", {
 
 let hasMessageBeenSent = false;
 
-async function instantiate(client: any) {
+async function instantiate(client: Client) {
   const channel = client.channels.cache.get(config.CHANNEL_ID_BOT_STATUS);
   if (hungerStat.getLevel() >= 0) {
     hungerStat.increase();
@@ -28,7 +29,9 @@ async function instantiate(client: any) {
       modelPerformance: "POWERFUL",
     });
     if (response) {
-      await channel.send(response);
+      if (channel && channel.isSendable()) {
+        await channel.send(response);
+      }
     }
     hasMessageBeenSent = true;
     return;
@@ -36,13 +39,13 @@ async function instantiate(client: any) {
 }
 
 const HungerService = {
-  instantiate(client: any) {
+  instantiate(client: Client) {
     setInterval(() => instantiate(client), 45 * 1000);
   },
   getHungerLevel() {
     return hungerStat.getLevel();
   },
-  setHungerLevel(level: any) {
+  setHungerLevel(level: number) {
     return hungerStat.setLevel(level);
   },
   increaseHungerLevel() {

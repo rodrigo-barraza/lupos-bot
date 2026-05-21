@@ -1,4 +1,6 @@
 import { SlashCommandBuilder, AttachmentBuilder } from "discord.js";
+import type { ChatInputCommandInteraction, SlashCommandUserOption, SlashCommandIntegerOption } from "discord.js";
+import type { WithId, Document } from "mongodb";
 import { chromium } from "playwright";
 import {
   getMongoDb,
@@ -7,6 +9,11 @@ import {
   formatTimePeriod,
   getPlaywrightOptions,
 } from "./commandUtils.ts";
+
+interface WordFrequency {
+  text: string;
+  value: number;
+}
 
 // Common stop words to filter out
 const STOP_WORDS = new Set([
@@ -27,13 +34,13 @@ export default {
   data: new SlashCommandBuilder()
     .setName("wordcloud")
     .setDescription("Generate a word cloud of most common words for a member")
-    .addUserOption((option: any) =>
+    .addUserOption((option: SlashCommandUserOption) =>
       option
         .setName("user")
         .setDescription("The user to generate word cloud for")
         .setRequired(true),
     )
-    .addIntegerOption((option: any) =>
+    .addIntegerOption((option: SlashCommandIntegerOption) =>
       option
         .setName("years")
         .setDescription("Number of years to look back")
@@ -41,7 +48,7 @@ export default {
         .setMinValue(0)
         .setMaxValue(7),
     )
-    .addIntegerOption((option: any) =>
+    .addIntegerOption((option: SlashCommandIntegerOption) =>
       option
         .setName("months")
         .setDescription("Number of months to look back")
@@ -49,7 +56,7 @@ export default {
         .setMinValue(0)
         .setMaxValue(12),
     )
-    .addIntegerOption((option: any) =>
+    .addIntegerOption((option: SlashCommandIntegerOption) =>
       option
         .setName("days")
         .setDescription("Number of days to look back")
@@ -58,7 +65,7 @@ export default {
         .setMaxValue(365),
     ),
 
-  async execute(interaction: any) {
+  async execute(interaction: ChatInputCommandInteraction) {
     const db = getMongoDb();
     const messagesCollection = db.collection("Messages");
 
@@ -71,7 +78,7 @@ export default {
     const days = interaction.options.getInteger("days") || 0;
 
     if (years === 0 && months === 0 && days === 0) {
-      years = getServerAgeYears(interaction.guild);
+      years = getServerAgeYears(interaction.guild!);
     }
 
     const { startDate, unixStartDate } = computeStartDate(years, months, days);
@@ -92,14 +99,14 @@ export default {
       // Fetch all messages from the user
       const messages = await messagesCollection
         .find({
-          "author.id": user.id,
+          "author.id": user!.id,
           createdTimestamp: { $gte: unixStartDate },
         })
         .toArray();
 
       if (messages.length === 0) {
         await interaction.editReply({
-          content: `No messages found for ${user.username} in the specified time period.`,
+          content: `No messages found for ${user!.username} in the specified time period.`,
         });
         return;
       }
@@ -109,7 +116,7 @@ export default {
 
       if (wordFreq.length === 0) {
         await interaction.editReply({
-          content: `No valid words found for <@${user.id}>.`,
+          content: `No valid words found for <@${user!.id}>.`,
         });
         return;
       }
@@ -119,11 +126,11 @@ export default {
 
       // Create attachment
       const attachment = new AttachmentBuilder(imageBuffer, {
-        name: `wordcloud-${user.username}.png`,
+        name: `wordcloud-${user!.username}.png`,
       });
 
       await interaction.editReply({
-        content: `**Word Cloud for <@${user.id}>**\nBased on ${messages.length} messages from the last ${formatTimePeriod(years, months, days, "1 year (default)")} (From ${formattedStartDate} to ${formattedEndDate})`,
+        content: `**Word Cloud for <@${user!.id}>**\nBased on ${messages.length} messages from the last ${formatTimePeriod(years, months, days, "1 year (default)")} (From ${formattedStartDate} to ${formattedEndDate})`,
         files: [attachment],
       });
     } catch (error: unknown) {
@@ -137,8 +144,8 @@ export default {
 };
 
 // Process messages to extract word frequencies
-function processWords(messages: any, limit: any) {
-  const freqMap: Record<string, any> = {};
+function processWords(messages: WithId<Document>[], limit: number): WordFrequency[] {
+  const freqMap: Record<string, number> = {};
 
   for (const message of messages) {
     if (!message.content) continue;
@@ -153,7 +160,7 @@ function processWords(messages: any, limit: any) {
       .replace(/[^\w\s'-]/g, " ") // Remove punctuation except hyphens and apostrophes
       .toLowerCase();
 
-    const words = cleanContent.split(/\s+/).filter((word: any) => {
+    const words = cleanContent.split(/\s+/).filter((word: string) => {
       word = word.trim();
       return (
         word.length > 2 && // At least 3 characters
@@ -170,13 +177,13 @@ function processWords(messages: any, limit: any) {
 
   // Convert to array and sort
   return Object.entries(freqMap)
-    .map(([text, value]: any) => ({ text, value }))
-    .sort((a: any, b: any) => b.value - a.value)
+    .map(([text, value]: [string, number]) => ({ text, value }))
+    .sort((a: WordFrequency, b: WordFrequency) => b.value - a.value)
     .slice(0, limit);
 }
 
 // Generate word cloud image using Playwright
-async function generateWordCloudImage(words: any) {
+async function generateWordCloudImage(words: WordFrequency[]) {
   const browser = await chromium.launch(getPlaywrightOptions());
 
   try {
@@ -188,7 +195,7 @@ async function generateWordCloudImage(words: any) {
     await page.setContent(html, { waitUntil: "networkidle" });
 
     // Wait for layout to settle
-    await new Promise((resolve: any) => setTimeout(resolve, 500));
+    await new Promise((resolve: (value: void) => void) => setTimeout(resolve, 500));
 
     // Take screenshot
     const screenshot = await page.screenshot({
@@ -203,7 +210,7 @@ async function generateWordCloudImage(words: any) {
 }
 
 // Generate HTML with word cloud using d3-cloud
-function generateWordCloudHTML(words: any) {
+function generateWordCloudHTML(words: WordFrequency[]) {
   const wordsJson = JSON.stringify(words);
 
   return `

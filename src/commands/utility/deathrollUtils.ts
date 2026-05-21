@@ -61,7 +61,7 @@ const MULTIPLIER_NAMES = {
   1024: "Milliduoquattuorsexagesimal (1024x)",
 };
 
-function getMultiplierName(multiplier: any) {
+function getMultiplierName(multiplier: number) {
   return MULTIPLIER_NAMES[multiplier as keyof typeof MULTIPLIER_NAMES] || `${multiplier}x`;
 }
 
@@ -70,6 +70,90 @@ const activeGames = new Map();
 // Store active collectors
 const activeCollectors = new Map();
 
+
+export interface GameRoll {
+  userId: string;
+  username: string | null | undefined;
+  roll: number;
+  maxNumber: number;
+}
+export interface H2HStats {
+  player1Wins: number;
+  player2Wins: number;
+}
+export interface GameState {
+  initiator: string;
+  initiatorName: string | null | undefined;
+  opponent: string | null;
+  opponentName: string | null | undefined;
+  targetUserId: string | null;
+  currentNumber: number;
+  currentTurn: string | null;
+  messageId: string;
+  channelId: string;
+  startingNumber: number;
+  rolls: GameRoll[];
+  startedAt: number;
+  currentMessageId: string | null;
+  timeoutMultiplier: number;
+  h2h?: H2HStats | null;
+}
+export interface PendingTimeoutData {
+  loserId: string;
+  timeoutDuration: number;
+}
+export interface PendingGameData {
+  game: GameState;
+  winnerId: string;
+  loserId: string;
+  winnerInfo: { username: string; displayName: string };
+  loserInfo: { username: string; displayName: string };
+}
+export interface UserStats {
+  mmrSeason?: string;
+  multiplierGames?: number;
+  multiplierWins?: number;
+  multiplierLosses?: number;
+  createdAt?: number;
+  userId: string;
+  guildId: string;
+  mmr: number;
+  rd: number;
+  currentStreak: number;
+  bestStreak: number;
+  lastPlayedAt: number;
+  wins?: number;
+  losses?: number;
+  totalGames?: number;
+}
+export interface PlayerProfile {
+  multiplierGames?: number;
+  multiplierWins?: number;
+  multiplierLosses?: number;
+  createdAt?: number;
+  wins: number;
+  losses: number;
+  totalGames: number;
+  winRate: number;
+  mmr: number;
+  rd: number;
+  isPlacement: boolean;
+  rank: { title: string; emoji: string };
+  confidence: number;
+  currentStreak: number;
+  bestStreak: number;
+  lastPlayedAt?: number;
+}
+export interface AggregatedStats {
+  multiplierGames?: number;
+  multiplierWins?: number;
+  multiplierLosses?: number;
+  userId: string;
+  wins: number;
+  losses: number;
+  totalGames: number;
+}
+
 // ─── Pure Computation Helpers ─────────────────────────────────────────
 
 /**
@@ -77,7 +161,7 @@ const activeCollectors = new Map();
  * High RD (uncertain) = larger swings (up to 50).
  * Low RD (confident) = stable swings (25).
  */
-function calculateKFactor(rd: any) {
+function calculateKFactor(rd: number) {
   const clampedRD = Math.max(MIN_RD, Math.min(MAX_RD, rd));
   return BASE_K + (BASE_K * (clampedRD - MIN_RD)) / (MAX_RD - MIN_RD);
 }
@@ -90,7 +174,7 @@ function calculateKFactor(rd: any) {
  * Above: returns < 1.0 (reduced gains).
  * Below: returns > 1.0 (boosted gains).
  */
-function gravityGainScale(mmr: any) {
+function gravityGainScale(mmr: number) {
   return Math.max(
     0.15,
     1 - ((mmr - GRAVITY_CENTER) / GRAVITY_RANGE) * GRAVITY_STRENGTH,
@@ -101,7 +185,7 @@ function gravityGainScale(mmr: any) {
  * Gravity loss scale: players above GRAVITY_CENTER lose more, below lose less.
  * Mirror of gravityGainScale for losses.
  */
-function gravityLossScale(mmr: any) {
+function gravityLossScale(mmr: number) {
   return Math.max(
     0.15,
     1 + ((mmr - GRAVITY_CENTER) / GRAVITY_RANGE) * GRAVITY_STRENGTH,
@@ -113,7 +197,7 @@ function gravityLossScale(mmr: any) {
  * Each Double or Nothing adds +0.25 to the MMR effect instead of doubling.
  * 1x→1, 2x→1.25, 4x→1.5, 16x→2, 1024x→3.5
  */
-function mmrMultiplier(timeoutMultiplier: any) {
+function mmrMultiplier(timeoutMultiplier: number) {
   if (timeoutMultiplier <= 1) return 1;
   return Math.log2(timeoutMultiplier) * 0.25 + 1;
 }
@@ -122,7 +206,7 @@ function mmrMultiplier(timeoutMultiplier: any) {
  * Rank Confidence: 0% (totally uncertain) to 100% (fully confident).
  * Derived from Rating Deviation.
  */
-function calculateConfidence(rd: any) {
+function calculateConfidence(rd: number) {
   const clampedRD = Math.max(MIN_RD, Math.min(MAX_RD, rd));
   return Math.round((1 - (clampedRD - MIN_RD) / (MAX_RD - MIN_RD)) * 100);
 }
@@ -131,7 +215,7 @@ function calculateConfidence(rd: any) {
  * Time-decay for Rating Deviation: RD grows by RD_DECAY_PER_DAY for each
  * day of inactivity, capped at MAX_RD. Returning players become volatile.
  */
-function applyTimeDecayRD(rd: any, lastPlayedAt: any) {
+function applyTimeDecayRD(rd: number, lastPlayedAt: number | undefined) {
   if (!lastPlayedAt) return MAX_RD;
   const daysSince = (Date.now() - lastPlayedAt) / MS_PER_DAY;
   return Math.min(MAX_RD, rd + daysSince * RD_DECAY_PER_DAY);
@@ -141,7 +225,7 @@ function applyTimeDecayRD(rd: any, lastPlayedAt: any) {
  * Returns the current-season MMR/RD for a player from their UserStats doc.
  * If mmrSeason doesn't match the current season, returns defaults.
  */
-function getSeasonMMR(userStats: any) {
+function getSeasonMMR(userStats: Partial<UserStats> | null) {
   if (!userStats || userStats.mmrSeason !== config.DEATHROLL_SEASON) {
     return { mmr: BASE_MMR, rd: MAX_RD };
   }
@@ -154,17 +238,17 @@ function getSeasonMMR(userStats: any) {
 /**
  * Returns { title, emoji } for the given MMR value.
  */
-function getRankTitle(mmr: any) {
-  const tier = RANK_TIERS.find((t: any) => mmr >= t.min);
+function getRankTitle(mmr: number) {
+  const tier = RANK_TIERS.find((t: { min: number; title: string; emoji: string }) => mmr >= t.min);
   return tier || RANK_TIERS[RANK_TIERS.length - 1];
 }
 
 /**
  * Formats a compact stats string including rank and MMR.
  */
-function formatStatsString(stats: any) {
+function formatStatsString(stats: Partial<PlayerProfile>) {
   if (!stats) return "";
-  const { wins, losses, mmr, rank, isPlacement } = stats;
+  const { wins = 0, losses = 0, mmr, rank, isPlacement } = stats;
   const total = wins + losses;
   const winrate = total > 0 ? Math.round((wins / total) * 100) : 0;
   let rankInfo = "";
@@ -179,7 +263,7 @@ function formatStatsString(stats: any) {
 /**
  * Formats a streak display like "🔥×3" or "💀×2"
  */
-function formatStreak(currentStreak: any) {
+function formatStreak(currentStreak: number) {
   if (!currentStreak || currentStreak === 0) return "";
   if (currentStreak > 0) return `🔥×${currentStreak}`;
   return `💀×${Math.abs(currentStreak)}`;
@@ -189,10 +273,10 @@ function formatStreak(currentStreak: any) {
  * Computes a full player profile.
  * MMR and RD are stored state (passed in), not derived.
  */
-function computePlayerProfile(playerStats: any) {
+function computePlayerProfile(playerStats: Partial<AggregatedStats> & Partial<UserStats> | null): PlayerProfile {
   const wins = playerStats?.wins || 0;
   const losses = playerStats?.losses || 0;
-  const totalGames = playerStats?.totalGames || wins + losses;
+  const totalGames = playerStats?.totalGames || (wins || 0) + (losses || 0);
   const winRate = totalGames > 0 ? Math.round((wins / totalGames) * 100) : 0;
   const mmr = playerStats?.mmr ?? BASE_MMR;
   const rd = playerStats?.rd ?? MAX_RD;
@@ -206,8 +290,8 @@ function computePlayerProfile(playerStats: any) {
   const multiplierGames = playerStats?.multiplierGames || 0;
   const multiplierWins = playerStats?.multiplierWins || 0;
   const multiplierLosses = playerStats?.multiplierLosses || 0;
-  const lastPlayedAt = playerStats?.lastPlayedAt || null;
-  const createdAt = playerStats?.createdAt || null;
+  const lastPlayedAt = playerStats?.lastPlayedAt || undefined;
+  const createdAt = playerStats?.createdAt || undefined;
 
   return {
     wins,
@@ -232,7 +316,7 @@ function computePlayerProfile(playerStats: any) {
 /**
  * Returns a medal emoji for leaderboard position.
  */
-function getMedal(index: any) {
+function getMedal(index: number) {
   switch (index) {
     case 0:
       return "🥇";
@@ -261,7 +345,7 @@ function getDeathrollCollections() {
   // Ensure indexes once on first access (lazy init)
   if (!deathrollIndexesEnsured) {
     deathrollIndexesEnsured = true;
-    ensureDeathrollIndexes(collections).catch((err: any) =>
+    ensureDeathrollIndexes(collections).catch(() =>
       console.error("Failed to ensure deathroll indexes:", err.message),
     );
   }
@@ -274,7 +358,7 @@ function getDeathrollCollections() {
  * Prevents full collection scans on findOne({ userId, guildId }),
  * aggregate({ guildId, season }), and leaderboard queries.
  */
-async function ensureDeathrollIndexes({ statsCollection, gamesCollection }: any) {
+async function ensureDeathrollIndexes({ statsCollection, gamesCollection }: { statsCollection: import("mongodb").Collection; gamesCollection: import("mongodb").Collection }) {
   await Promise.all([
     // DeathRollUserStats — primary lookup pattern
     statsCollection.createIndex({ userId: 1, guildId: 1 }, { unique: true }),
@@ -297,7 +381,7 @@ async function ensureDeathrollIndexes({ statsCollection, gamesCollection }: any)
  * Returns wins, losses, totalGames, mmrWins, mmrLosses, multiplier stats,
  * lastPlayedAt, and createdAt — all derived from game records.
  */
-async function aggregatePlayerStats(guildId: any, userId: any) {
+async function aggregatePlayerStats(guildId: string, userId: string) {
   const { gamesCollection } = getDeathrollCollections();
   const season = config.DEATHROLL_SEASON;
   const results = await gamesCollection
@@ -388,7 +472,7 @@ async function aggregatePlayerStats(guildId: any, userId: any) {
  * Aggregates all players' stats from DeathRollGameHistory for leaderboard.
  * Each game doc is split into a winner and loser record, then grouped per player.
  */
-async function aggregateAllPlayerStats(guildId: any) {
+async function aggregateAllPlayerStats(guildId: string) {
   const { gamesCollection } = getDeathrollCollections();
   const season = config.DEATHROLL_SEASON;
   const results = await gamesCollection
@@ -496,12 +580,12 @@ async function aggregateAllPlayerStats(guildId: any) {
 
 // ─── Data Access Functions ────────────────────────────────────────────
 
-async function fetchSinglePlayerStats(guildId: any, userId: any) {
+async function fetchSinglePlayerStats(guildId: string, userId: string) {
   try {
     const { statsCollection } = getDeathrollCollections();
     const [historyStats, userStats] = await Promise.all([
       aggregatePlayerStats(guildId, userId),
-      statsCollection.findOne({ userId, guildId }),
+      statsCollection.findOne({ userId, guildId }) as unknown as Partial<UserStats> | null,
     ]);
 
     if (!historyStats) return computePlayerProfile(null);
@@ -522,7 +606,7 @@ async function fetchSinglePlayerStats(guildId: any, userId: any) {
   }
 }
 
-async function fetchMidGameStats(guildId: any, initiatorId: any, opponentId: any) {
+async function fetchMidGameStats(guildId: string, initiatorId: string, opponentId: string) {
   try {
     const { statsCollection } = getDeathrollCollections();
     const [
@@ -533,8 +617,8 @@ async function fetchMidGameStats(guildId: any, initiatorId: any, opponentId: any
     ] = await Promise.all([
       aggregatePlayerStats(guildId, initiatorId),
       aggregatePlayerStats(guildId, opponentId),
-      statsCollection.findOne({ userId: initiatorId, guildId }),
-      statsCollection.findOne({ userId: opponentId, guildId }),
+      statsCollection.findOne({ userId: initiatorId, guildId }) as unknown as Promise<Partial<UserStats> | null>,
+      statsCollection.findOne({ userId: opponentId, guildId }) as unknown as Promise<Partial<UserStats> | null>,
     ]);
 
     const initiatorMMR = getSeasonMMR(initiatorUserStats);
@@ -562,7 +646,7 @@ async function fetchMidGameStats(guildId: any, initiatorId: any, opponentId: any
   }
 }
 
-async function fetchHeadToHead(guildId: any, player1Id: any, player2Id: any) {
+async function fetchHeadToHead(guildId: string, player1Id: string, player2Id: string) {
   try {
     const { gamesCollection } = getDeathrollCollections();
     const season = config.DEATHROLL_SEASON;
@@ -587,15 +671,15 @@ async function fetchHeadToHead(guildId: any, player1Id: any, player2Id: any) {
   }
 }
 
-async function buildEndGameData(guildId: any, game: any, winnerId: any, loserId: any) {
+async function buildEndGameData(guildId: string, game: GameState, winnerId: string, loserId: string) {
   try {
     const { statsCollection } = getDeathrollCollections();
     const [winnerHistory, loserHistory, winnerUserStats, loserUserStats] =
       await Promise.all([
         aggregatePlayerStats(guildId, winnerId),
         aggregatePlayerStats(guildId, loserId),
-        statsCollection.findOne({ userId: winnerId, guildId }),
-        statsCollection.findOne({ userId: loserId, guildId }),
+        statsCollection.findOne({ userId: winnerId, guildId }) as unknown as Promise<Partial<UserStats> | null>,
+        statsCollection.findOne({ userId: loserId, guildId }) as unknown as Promise<Partial<UserStats> | null>,
       ]);
 
     const multiplier = game.timeoutMultiplier || 1;
@@ -693,21 +777,21 @@ async function buildEndGameData(guildId: any, game: any, winnerId: any, loserId:
  * MMR uses Glicko-2 inspired system with K-factor scaled by Rating Deviation.
  */
 async function saveGameResult(
-  guildId: any,
-  game: any,
-  winnerId: any,
-  loserId: any,
-  winnerInfo: any,
-  loserInfo: any,
-  endReason: any,
+  guildId: string,
+  game: GameState,
+  winnerId: string,
+  loserId: string,
+  winnerInfo: { username: string; displayName: string },
+  loserInfo: { username: string; displayName: string },
+  endReason: string | null,
 ) {
   const { statsCollection, gamesCollection } = getDeathrollCollections();
   const now = Date.now();
   const multiplier = game.timeoutMultiplier || 1;
 
   const [currentLoserStats, currentWinnerStats] = await Promise.all([
-    statsCollection.findOne({ userId: loserId, guildId }),
-    statsCollection.findOne({ userId: winnerId, guildId }),
+    statsCollection.findOne({ userId: loserId, guildId }) as unknown as Promise<Partial<UserStats> | null>,
+    statsCollection.findOne({ userId: winnerId, guildId }) as unknown as Promise<Partial<UserStats> | null>,
   ]);
 
   // Get season-aware MMR/RD, apply time decay
@@ -793,9 +877,9 @@ async function saveGameResult(
     gameId: `${guildId}_${game.messageId}`,
     guildId,
     channelId: game.channelId,
-    initiatorId: game.initiator,
+    initiatorId: (game.initiator as string),
     initiatorName: game.initiatorName,
-    opponentId: game.opponent,
+    opponentId: (game.opponent as string),
     opponentName: game.opponentName,
     startingNumber: game.startingNumber,
     winnerId,
@@ -816,7 +900,7 @@ async function saveGameResult(
   await gamesCollection.insertOne(gameRecord);
 }
 
-async function fetchTopRivals(guildId: any, userId: any, limit: any = 3) {
+async function fetchTopRivals(guildId: string, userId: string, limit: number = 3) {
   try {
     const { gamesCollection } = getDeathrollCollections();
     const season = config.DEATHROLL_SEASON;
@@ -866,7 +950,7 @@ async function fetchTopRivals(guildId: any, userId: any, limit: any = 3) {
   }
 }
 
-async function fetchLeaderboard(guildId: any, limit: any = 20) {
+async function fetchLeaderboard(guildId: string, limit: number = 20) {
   try {
     const { statsCollection } = getDeathrollCollections();
     const [historyStats, userStatsList] = await Promise.all([
@@ -913,30 +997,30 @@ async function fetchLeaderboard(guildId: any, limit: any = 20) {
 // ─── Message Formatting ───────────────────────────────────────────────
 
 function formatGameMessage(
-  game: any,
-  lastRoll: any,
-  lastRoller: any,
-  lastRollerId: any,
-  isGameOver: any,
-  stats: any,
+  game: GameState,
+  lastRoll: number,
+  lastRoller: string | null | undefined,
+  lastRollerId: string,
+  isGameOver: boolean,
+  stats: { initiator?: PlayerProfile, opponent?: PlayerProfile, winnerRank?: string, loserRank?: string, winnerMmrChange?: string, loserMmrChange?: string, winnerStreak?: number, loserStreak?: number } | null,
 ) {
   const timeoutMinutes = (game.timeoutMultiplier || 1) * BASE_TIMEOUT_MINUTES;
   let content = `🎲 **Deathroll Game**${game.timeoutMultiplier > 1 ? ` 🎰 **${getMultiplierName(game.timeoutMultiplier).toUpperCase()} OR NOTHING (${timeoutMinutes}min timeout)**` : ""}\n`;
 
   if (stats && !isGameOver) {
     const initiatorRecord = stats.initiator
-      ? formatStatsString(stats.initiator)
+      ? formatStatsString(stats.initiator as Partial<PlayerProfile>)
       : "";
     const opponentRecord = stats.opponent
-      ? formatStatsString(stats.opponent)
+      ? formatStatsString(stats.opponent as Partial<PlayerProfile>)
       : "";
-    content += `<@${game.initiator}>${initiatorRecord}\nvs\n<@${game.opponent}>${opponentRecord}\n`;
+    content += `<@${(game.initiator as string)}>${initiatorRecord}\nvs\n<@${(game.opponent as string)}>${opponentRecord}\n`;
   } else {
-    content += `<@${game.initiator}>\nvs\n<@${game.opponent}>\n`;
+    content += `<@${(game.initiator as string)}>\nvs\n<@${(game.opponent as string)}>\n`;
   }
 
   if (game.h2h && (game.h2h.player1Wins > 0 || game.h2h.player2Wins > 0)) {
-    content += `-# H2H: <@${game.initiator}> ${game.h2h.player1Wins} - ${game.h2h.player2Wins} <@${game.opponent}>\n`;
+    content += `-# H2H: <@${(game.initiator as string)}> ${game.h2h.player1Wins} - ${game.h2h.player2Wins} <@${(game.opponent as string)}>\n`;
   }
 
   content += `Starting number: **${game.startingNumber}**\n\n`;
@@ -951,7 +1035,7 @@ function formatGameMessage(
 
   if (isGameOver) {
     const winnerId =
-      lastRollerId === game.initiator ? game.opponent : game.initiator;
+      lastRollerId === (game.initiator as string) ? (game.opponent as string) : (game.initiator as string);
 
     if (stats) {
       content += `📊 **Game Stats**\n`;
@@ -985,7 +1069,7 @@ function formatGameMessage(
 
 // ─── Double or Nothing ────────────────────────────────────────────────
 
-function buildDoubleOrNothingRow(game: any, winnerId: any, loserId: any) {
+function buildDoubleOrNothingRow(game: GameState, winnerId: string, loserId: string) {
   const nextMultiplier = (game.timeoutMultiplier || 1) * 2;
   const nextTimeout = nextMultiplier * BASE_TIMEOUT_MINUTES;
   const multiplierName = getMultiplierName(nextMultiplier);
@@ -998,19 +1082,19 @@ function buildDoubleOrNothingRow(game: any, winnerId: any, loserId: any) {
     .setStyle(ButtonStyle.Danger)
     .setEmoji("🎰");
 
-  const row = new ActionRowBuilder().addComponents(donButton);
+  const row = new ActionRowBuilder<import("discord.js").ButtonBuilder>().addComponents(donButton);
   return [row];
 }
 
 function createDoubleOrNothingCollector(
-  message: any,
-  guild: any,
-  winnerId: any,
-  loserId: any,
-  startingNumber: any,
-  timeoutMultiplier: any,
-  pendingTimeoutData: any,
-  pendingGameData: any,
+  message: import("discord.js").Message,
+  guild: import("discord.js").Guild,
+  winnerId: string,
+  loserId: string,
+  startingNumber: number,
+  timeoutMultiplier: number,
+  pendingTimeoutData: PendingTimeoutData | null,
+  pendingGameData: PendingGameData | null,
 ) {
   const collector = message.createMessageComponentCollector({
     idle: 10 * 1000,
@@ -1051,14 +1135,14 @@ function createDoubleOrNothingCollector(
       if (userId !== winnerId && userId !== loserId) {
         return buttonInteraction.reply({
           content: "🎲 Only the two players can agree to Double or Nothing!",
-          ephemeral: true,
+          
         });
       }
 
       if (agreed.has(userId)) {
         return buttonInteraction.reply({
           content: "🎲 You already agreed! Waiting for the other player.",
-          ephemeral: true,
+          
         });
       }
 
@@ -1090,7 +1174,7 @@ function createDoubleOrNothingCollector(
         await buttonInteraction.update({ components: [] });
         return buttonInteraction.followUp({
           content: "🎲 One of the players can't be timed out anymore!",
-          ephemeral: true,
+          
         });
       }
 
@@ -1136,6 +1220,7 @@ function createDoubleOrNothingCollector(
 
       if (roll === 0) {
         const game = activeGames.get(gameId);
+        if (!game) return;
         const endGameData = await buildEndGameData(
           buttonInteraction.guild.id,
           game,
@@ -1159,6 +1244,7 @@ function createDoubleOrNothingCollector(
       }
 
       const game = activeGames.get(gameId);
+      if (!game) return;
       game.currentNumber = roll;
       game.currentTurn = loserId;
 
@@ -1168,7 +1254,7 @@ function createDoubleOrNothingCollector(
         .setStyle(ButtonStyle.Primary)
         .setEmoji("🎲");
 
-      const row = new ActionRowBuilder().addComponents(rollButton);
+      const row = new ActionRowBuilder<import("discord.js").ButtonBuilder>().addComponents(rollButton);
       const midGameStats = await fetchMidGameStats(guild.id, loserId, winnerId);
 
       const newMessage = await buttonInteraction.followUp({
@@ -1199,7 +1285,7 @@ function createDoubleOrNothingCollector(
           )
           .setStyle(ButtonStyle.Danger)
           .setEmoji("🎰");
-        const row = new ActionRowBuilder().addComponents(donButton);
+        const row = new ActionRowBuilder<import("discord.js").ButtonBuilder>().addComponents(donButton);
         const recoveryMsg = await channel.send({
           content: `⚠️ Something went wrong! <@${winnerId}> / <@${loserId}>, click below to agree to ${recoveryMultiplierName} or Nothing.`,
           components: [row],
@@ -1253,7 +1339,7 @@ function createDoubleOrNothingCollector(
   });
 }
 
-async function applyPendingTimeout(guild: any, pendingTimeoutData: any) {
+async function applyPendingTimeout(guild: import("discord.js").Guild, pendingTimeoutData: PendingTimeoutData) {
   if (!pendingTimeoutData) return;
   const { loserId, timeoutDuration } = pendingTimeoutData;
   try {
@@ -1270,7 +1356,7 @@ async function applyPendingTimeout(guild: any, pendingTimeoutData: any) {
   }
 }
 
-async function removePendingTimeout(guild: any, userId: any) {
+async function removePendingTimeout(guild: import("discord.js").Guild, userId: string) {
   try {
     const member = await guild.members.fetch(userId).catch(() => null);
     if (member && member.communicationDisabledUntil) {
@@ -1286,7 +1372,7 @@ async function removePendingTimeout(guild: any, userId: any) {
 
 // ─── Collectors ───────────────────────────────────────────────────────
 
-function createRollCollector(message: any, gameId: any, guild: any) {
+function createRollCollector(message: import("discord.js").Message, gameId: string, guild: import("discord.js").Guild) {
   const collector = message.createMessageComponentCollector({
     idle: 5 * 60 * 1000,
   });
@@ -1315,7 +1401,7 @@ function createRollCollector(message: any, gameId: any, guild: any) {
             .setLabel(`Roll (0-${game.currentNumber})`)
             .setStyle(ButtonStyle.Primary)
             .setEmoji("🎲");
-          const row = new ActionRowBuilder().addComponents(rollButton);
+          const row = new ActionRowBuilder<import("discord.js").ButtonBuilder>().addComponents(rollButton);
           const newMessage = await channel.send({
             content: `⚠️ Something went wrong! <@${game.currentTurn}>, click below to roll again.`,
             components: [row],
@@ -1325,7 +1411,7 @@ function createRollCollector(message: any, gameId: any, guild: any) {
         } else if (lastRoll.roll === 0) {
           // Roll was 0 (game over) but display failed — recover via channel
           const winnerId =
-            lastRoll.userId === game.initiator ? game.opponent : game.initiator;
+            lastRoll.userId === (game.initiator as string) ? (game.opponent as string) : (game.initiator as string);
           const endGameData = await buildEndGameData(
             buttonInteraction.guild.id,
             game,
@@ -1360,18 +1446,18 @@ function createRollCollector(message: any, gameId: any, guild: any) {
           // Roll was generated but display failed — update state and re-post
           game.currentNumber = lastRoll.roll;
           game.currentTurn =
-            lastRoll.userId === game.initiator ? game.opponent : game.initiator;
+            lastRoll.userId === (game.initiator as string) ? (game.opponent as string) : (game.initiator as string);
 
           const rollButton = new ButtonBuilder()
             .setCustomId(`deathroll_roll_${gameId}`)
             .setLabel(`Roll (0-${lastRoll.roll})`)
             .setStyle(ButtonStyle.Primary)
             .setEmoji("🎲");
-          const row = new ActionRowBuilder().addComponents(rollButton);
+          const row = new ActionRowBuilder<import("discord.js").ButtonBuilder>().addComponents(rollButton);
           const midGameStats = await fetchMidGameStats(
             buttonInteraction.guild.id,
-            game.initiator,
-            game.opponent,
+            (game.initiator as string),
+            (game.opponent as string),
           );
           const newMessage = await channel.send({
             content: formatGameMessage(
@@ -1397,10 +1483,12 @@ function createRollCollector(message: any, gameId: any, guild: any) {
     if (reason !== "manually stopped" && activeGames.has(gameId)) {
       const game = activeGames.get(gameId);
 
-      if (game.opponent && game.currentTurn) {
+      if (!game) return;
+
+      if ((game.opponent as string) && game.currentTurn) {
         const loserId = game.currentTurn;
         const winnerId =
-          loserId === game.initiator ? game.opponent : game.initiator;
+          loserId === (game.initiator as string) ? (game.opponent as string) : (game.initiator as string);
 
         try {
           await handleTimeoutLoss(guild, game, winnerId, loserId);
@@ -1441,12 +1529,12 @@ function createRollCollector(message: any, gameId: any, guild: any) {
 
 // ─── Button Handlers ──────────────────────────────────────────────────
 
-async function handleDeclineButton(buttonInteraction: any, gameId: any) {
+async function handleDeclineButton(buttonInteraction: import("discord.js").ButtonInteraction, gameId: string) {
   const game = activeGames.get(gameId);
   if (!game) {
     return buttonInteraction.reply({
       content: "🎲 This game is no longer active!",
-      ephemeral: true,
+      
     });
   }
 
@@ -1455,14 +1543,14 @@ async function handleDeclineButton(buttonInteraction: any, gameId: any) {
   if (game.targetUserId && userId !== game.targetUserId) {
     return buttonInteraction.reply({
       content: "🎲 This challenge is not for you!",
-      ephemeral: true,
+      
     });
   }
 
-  if (game.opponent) {
+  if ((game.opponent as string)) {
     return buttonInteraction.reply({
       content: "🎲 This game is already in progress!",
-      ephemeral: true,
+      
     });
   }
 
@@ -1472,53 +1560,53 @@ async function handleDeclineButton(buttonInteraction: any, gameId: any) {
   }
 
   await buttonInteraction.update({
-    content: `🎲 <@${game.initiator}>'s deathroll from **${game.startingNumber}** was denied by <@${buttonInteraction.user.id}>!`,
+    content: `🎲 <@${(game.initiator as string)}>'s deathroll from **${game.startingNumber}** was denied by <@${buttonInteraction.user.id}>!`,
     components: [],
   });
 
   activeGames.delete(gameId);
 }
 
-async function handleEngageButton(buttonInteraction: any, gameId: any) {
+async function handleEngageButton(buttonInteraction: import("discord.js").ButtonInteraction, gameId: string) {
   const game = activeGames.get(gameId);
   if (!game) {
     return buttonInteraction.reply({
       content: "🎲 This game is no longer active!",
-      ephemeral: true,
+      
     });
   }
 
   const userId = buttonInteraction.user.id;
 
-  if (userId === game.initiator) {
+  if (userId === (game.initiator as string)) {
     return buttonInteraction.reply({
       content: "🎲 You can't play against yourself!",
-      ephemeral: true,
+      
     });
   }
 
   if (game.targetUserId && userId !== game.targetUserId) {
     return buttonInteraction.reply({
       content: "🎲 This challenge is not for you!",
-      ephemeral: true,
+      
     });
   }
 
-  if (game.opponent) {
+  if ((game.opponent as string)) {
     return buttonInteraction.reply({
       content: "🎲 This game is already in progress!",
-      ephemeral: true,
+      
     });
   }
 
-  const guild = buttonInteraction.guild;
+  const guild = buttonInteraction.guild!;
   const initiatorMember = await guild.members
-    .fetch(game.initiator)
+    .fetch((game.initiator as string))
     .catch(() => null);
 
   if (!initiatorMember) {
     await buttonInteraction.update({
-      content: `🎲 <@${game.initiator}>'s deathroll has ended - they left the server!`,
+      content: `🎲 <@${(game.initiator as string)}>'s deathroll has ended - they left the server!`,
       components: [],
     });
     activeGames.delete(gameId);
@@ -1530,14 +1618,14 @@ async function handleEngageButton(buttonInteraction: any, gameId: any) {
   if (!initiatorMember.moderatable) {
     return buttonInteraction.reply({
       content: `🎲 The game initiator can't be timed out (they have higher permissions)!`,
-      ephemeral: true,
+      
     });
   }
 
   if (!opponentMember.moderatable) {
     return buttonInteraction.reply({
       content: `🎲 You can't deathroll (you have higher permissions)!`,
-      ephemeral: true,
+      
     });
   }
 
@@ -1550,11 +1638,11 @@ async function handleEngageButton(buttonInteraction: any, gameId: any) {
   game.opponentName = buttonInteraction.user.username;
   game.currentTurn = userId;
 
-  const h2h = await fetchHeadToHead(guild.id, game.initiator, userId);
+  const h2h = await fetchHeadToHead(guild.id, (game.initiator as string), userId);
   game.h2h = h2h;
 
   const roll = Math.floor(Math.random() * (game.currentNumber + 1));
-  game.rolls.push({
+  game!.rolls.push({
     userId,
     username: buttonInteraction.user.username,
     roll,
@@ -1565,7 +1653,7 @@ async function handleEngageButton(buttonInteraction: any, gameId: any) {
   await buttonInteraction.message.delete().catch(() => {});
 
   if (roll === 0) {
-    const winnerId = game.initiator;
+    const winnerId = (game.initiator as string);
     const endGameData = await buildEndGameData(
       buttonInteraction.guild.id,
       game,
@@ -1589,7 +1677,7 @@ async function handleEngageButton(buttonInteraction: any, gameId: any) {
   }
 
   game.currentNumber = roll;
-  game.currentTurn = game.initiator;
+  game.currentTurn = (game.initiator as string);
 
   const rollButton = new ButtonBuilder()
     .setCustomId(`deathroll_roll_${gameId}`)
@@ -1597,11 +1685,11 @@ async function handleEngageButton(buttonInteraction: any, gameId: any) {
     .setStyle(ButtonStyle.Primary)
     .setEmoji("🎲");
 
-  const row = new ActionRowBuilder().addComponents(rollButton);
+  const row = new ActionRowBuilder<import("discord.js").ButtonBuilder>().addComponents(rollButton);
   const midGameStats = await fetchMidGameStats(
     buttonInteraction.guild.id,
-    game.initiator,
-    game.opponent,
+    (game.initiator as string),
+    (game.opponent as string),
   );
 
   const newMessage = await buttonInteraction.followUp({
@@ -1620,12 +1708,12 @@ async function handleEngageButton(buttonInteraction: any, gameId: any) {
   createRollCollector(newMessage, gameId, buttonInteraction.guild);
 }
 
-async function handleRollButton(buttonInteraction: any, gameId: any) {
+async function handleRollButton(buttonInteraction: import("discord.js").ButtonInteraction, gameId: string) {
   const game = activeGames.get(gameId);
   if (!game) {
     return buttonInteraction.reply({
       content: "🎲 This game is no longer active!",
-      ephemeral: true,
+      
     });
   }
 
@@ -1634,7 +1722,7 @@ async function handleRollButton(buttonInteraction: any, gameId: any) {
   if (userId !== game.currentTurn) {
     return buttonInteraction.reply({
       content: "🎲 It's not your turn!",
-      ephemeral: true,
+      
     });
   }
 
@@ -1644,7 +1732,7 @@ async function handleRollButton(buttonInteraction: any, gameId: any) {
   }
 
   const roll = Math.floor(Math.random() * (game.currentNumber + 1));
-  game.rolls.push({
+  game!.rolls.push({
     userId,
     username: buttonInteraction.user.username,
     roll,
@@ -1659,7 +1747,7 @@ async function handleRollButton(buttonInteraction: any, gameId: any) {
   }, 500);
 
   if (roll === 0) {
-    const winnerId = userId === game.initiator ? game.opponent : game.initiator;
+    const winnerId = userId === (game.initiator as string) ? (game.opponent as string) : (game.initiator as string);
     const endGameData = await buildEndGameData(
       buttonInteraction.guild.id,
       game,
@@ -1684,7 +1772,7 @@ async function handleRollButton(buttonInteraction: any, gameId: any) {
   }
 
   game.currentNumber = roll;
-  const nextPlayer = userId === game.initiator ? game.opponent : game.initiator;
+  const nextPlayer = userId === (game.initiator as string) ? (game.opponent as string) : (game.initiator as string);
   game.currentTurn = nextPlayer;
 
   const rollButton = new ButtonBuilder()
@@ -1693,11 +1781,11 @@ async function handleRollButton(buttonInteraction: any, gameId: any) {
     .setStyle(ButtonStyle.Primary)
     .setEmoji("🎲");
 
-  const row = new ActionRowBuilder().addComponents(rollButton);
+  const row = new ActionRowBuilder<import("discord.js").ButtonBuilder>().addComponents(rollButton);
   const midGameStats = await fetchMidGameStats(
     buttonInteraction.guild.id,
-    game.initiator,
-    game.opponent,
+    (game.initiator as string),
+    (game.opponent as string),
   );
 
   const newMessage = await buttonInteraction.followUp({
@@ -1719,16 +1807,16 @@ async function handleRollButton(buttonInteraction: any, gameId: any) {
 // ─── Game End Handler ─────────────────────────────────────────────────
 
 async function handleLoss(
-  buttonInteraction: any,
-  game: any,
-  loserId: any,
-  roll: any,
-  gameOverMessage: any,
+  buttonInteraction: import("discord.js").ButtonInteraction,
+  game: GameState,
+  loserId: string,
+  roll: number,
+  gameOverMessage: import("discord.js").Message | null,
 ) {
-  const guild = buttonInteraction.guild;
+  const guild = buttonInteraction.guild!;
   const loser = await guild.members.fetch(loserId);
   const timeoutDuration = BASE_TIMEOUT * (game.timeoutMultiplier || 1);
-  const winnerId = loserId === game.initiator ? game.opponent : game.initiator;
+  const winnerId = loserId === (game.initiator as string) ? (game.opponent as string) : (game.initiator as string);
   const winnerMember = await guild.members.fetch(winnerId);
 
   try {
@@ -1785,7 +1873,7 @@ async function handleLoss(
   }
 }
 
-async function handleTimeoutLoss(guild: any, game: any, winnerId: any, loserId: any) {
+async function handleTimeoutLoss(guild: import("discord.js").Guild, game: GameState, winnerId: string, loserId: string) {
   const loser = await guild.members.fetch(loserId);
   const winnerMember = await guild.members.fetch(winnerId);
   const timeoutDuration = BASE_TIMEOUT * (game.timeoutMultiplier || 1);
@@ -1821,7 +1909,7 @@ async function handleTimeoutLoss(guild: any, game: any, winnerId: any, loserId: 
 /**
  * /deathroll command handler
  */
-export async function executeDeathroll(interaction: any) {
+export async function executeDeathroll(interaction: import("discord.js").ChatInputCommandInteraction) {
   const userId = interaction.user.id;
   const now = Date.now();
   const startingNumber = interaction.options.getInteger("number") || 100;
@@ -1830,7 +1918,7 @@ export async function executeDeathroll(interaction: any) {
   await interaction.deferReply();
 
   if (
-    !interaction.guild.members.me.permissions.has(
+    !interaction.guild!.members.me?.permissions.has(
       PermissionFlagsBits.ModerateMembers,
     )
   ) {
@@ -1851,36 +1939,36 @@ export async function executeDeathroll(interaction: any) {
     if (targetUser.id === userId) {
       return interaction.editReply({
         content: "🎲 You can't challenge yourself!",
-        ephemeral: true,
+        
       });
     }
     if (targetUser.bot) {
       return interaction.editReply({
         content: "🎲 You can't challenge a bot!",
-        ephemeral: true,
+        
       });
     }
 
-    targetMember = await interaction.guild.members
+    targetMember = await interaction.guild!.members
       .fetch(targetUser.id)
       .catch(() => null);
 
     if (!targetMember) {
       return interaction.editReply({
         content: "🎲 That user is not in this server!",
-        ephemeral: true,
+        
       });
     }
     if (!targetMember.moderatable) {
       return interaction.editReply({
         content:
           "🎲 That user can't be timed out (they have higher permissions)!",
-        ephemeral: true,
+        
       });
     }
   }
 
-  const guildId = interaction.guild.id;
+  const guildId = interaction.guild!.id;
   const initiatorStats = await fetchSinglePlayerStats(guildId, userId);
   const targetStats = targetUser
     ? await fetchSinglePlayerStats(guildId, targetUser.id)
@@ -1959,10 +2047,10 @@ export async function executeDeathroll(interaction: any) {
         const lastRoll =
           game.rolls.length > 0 ? game.rolls[game.rolls.length - 1] : null;
 
-        if (game.opponent && lastRoll) {
+        if ((game.opponent as string) && lastRoll) {
           // Engage happened, roll was generated but display failed — recover via channel
           if (lastRoll.roll === 0) {
-            const winnerId = game.initiator;
+            const winnerId = (game.initiator as string);
             const endGameData = await buildEndGameData(
               buttonInteraction.guild.id,
               game,
@@ -1994,18 +2082,18 @@ export async function executeDeathroll(interaction: any) {
             activeGames.delete(gameId);
           } else {
             game.currentNumber = lastRoll.roll;
-            game.currentTurn = game.initiator;
+            game.currentTurn = (game.initiator as string);
 
             const rollButton = new ButtonBuilder()
               .setCustomId(`deathroll_roll_${gameId}`)
               .setLabel(`Roll (0-${lastRoll.roll})`)
               .setStyle(ButtonStyle.Primary)
               .setEmoji("🎲");
-            const row = new ActionRowBuilder().addComponents(rollButton);
+            const row = new ActionRowBuilder<import("discord.js").ButtonBuilder>().addComponents(rollButton);
             const midGameStats = await fetchMidGameStats(
               buttonInteraction.guild.id,
-              game.initiator,
-              game.opponent,
+              (game.initiator as string),
+              (game.opponent as string),
             );
             const newMessage = await channel.send({
               content: formatGameMessage(
@@ -2041,7 +2129,7 @@ export async function executeDeathroll(interaction: any) {
             declineButton,
           );
           const recoveryMsg = await channel.send({
-            content: `⚠️ Something went wrong! Click below to accept or decline the deathroll challenge from <@${game.initiator}>.`,
+            content: `⚠️ Something went wrong! Click below to accept or decline the deathroll challenge from <@${(game.initiator as string)}>.`,
             components: [row],
           });
           game.currentMessageId = recoveryMsg.id;
@@ -2063,6 +2151,7 @@ export async function executeDeathroll(interaction: any) {
           newCollector.on("end", (collected: any, reason: any) => {
             if (reason !== "manually stopped" && activeGames.has(gameId)) {
               const g = activeGames.get(gameId);
+              if (!g) return;
               if (!g.opponent) {
                 recoveryMsg
                   .edit({
@@ -2089,10 +2178,11 @@ export async function executeDeathroll(interaction: any) {
     if (reason !== "manually stopped") {
       if (activeGames.has(gameId)) {
         const game = activeGames.get(gameId);
-        if (!game.opponent) {
+        if (!game) return;
+        if (!(game.opponent as string)) {
           interaction
             .editReply({
-              content: `🎲 <@${game.initiator}>'s deathroll expired - no one engaged!`,
+              content: `🎲 <@${(game.initiator as string)}>'s deathroll expired - no one engaged!`,
               components: [],
             })
             .catch(() => {});
@@ -2107,7 +2197,7 @@ export async function executeDeathroll(interaction: any) {
 /**
  * /deathrollstats command handler
  */
-export async function executeDeathrollStats(interaction: any) {
+export async function executeDeathrollStats(interaction: import("discord.js").ChatInputCommandInteraction) {
   const targetUser = interaction.options.getUser("user") || interaction.user;
   const guildId = interaction.guildId;
 
@@ -2151,8 +2241,8 @@ export async function executeDeathrollStats(interaction: any) {
     description += `**Current Streak:** ${streakStr || "None"}\n`;
     description += `**Best Win Streak:** ${profile.bestStreak > 0 ? `🔥×${profile.bestStreak}` : "None"}\n`;
 
-    if (profile.multiplierGames > 0) {
-      description += `**Double or Nothing:** ${profile.multiplierWins}W / ${profile.multiplierLosses}L\n`;
+    if ((profile.multiplierGames || 0) > 0) {
+      description += `**Double or Nothing:** ${(profile.multiplierWins || 0)}W / ${(profile.multiplierLosses || 0)}L\n`;
     }
 
     if (profile.lastPlayedAt) {
@@ -2185,12 +2275,12 @@ export async function executeDeathrollStats(interaction: any) {
 /**
  * /deathrollleaderboard command handler
  */
-export async function executeDeathrollLeaderboard(interaction: any) {
+export async function executeDeathrollLeaderboard(interaction: import("discord.js").ChatInputCommandInteraction) {
   await interaction.deferReply();
 
   try {
     const { ranked, totalGamesPlayed } = await fetchLeaderboard(
-      interaction.guildId,
+      interaction.guildId!,
       0,
     );
 

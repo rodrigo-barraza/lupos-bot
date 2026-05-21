@@ -11,7 +11,7 @@ const SicknessService = {
   getSicknessLevel() {
     return sicknessStat.getLevel();
   },
-  setSicknessLevel(level: any) {
+  setSicknessLevel(level: number) {
     return sicknessStat.setLevel(level);
   },
   increaseSicknessLevel() {

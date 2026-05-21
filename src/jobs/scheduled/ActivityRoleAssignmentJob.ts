@@ -1,10 +1,36 @@
 import DiscordUtilityService from "#root/services/DiscordUtilityService.js";
 import utilities from "#root/utilities.js";
 import { MONGO_DB_NAME } from "#root/constants.js";
+import type { Client, GuildMember, Role, Message, User } from "discord.js";
+import type { MongoClient } from "mongodb";
+
 const { consoleLog } = utilities;
 
-let previousTopAuthorId: any;
-let previousTopReactorId: any;
+interface ActivityRoleJobConfig {
+  client: Client;
+  mongo: MongoClient;
+  primaryChannelId: string;
+  roleIdYapper: string;
+  roleIdReactor: string;
+  periodMinutes: number;
+  intervalMinutes?: number;
+}
+
+interface AuthorCount {
+  userId: string;
+  userName: string;
+  count: number;
+  earliestTimestamp: number;
+}
+
+interface ReactorCount {
+  userId: string;
+  userName: string;
+  count: number;
+}
+
+let previousTopAuthorId: string | undefined;
+let previousTopReactorId: string | undefined;
 
 async function assignActivityRoles({
   client,
@@ -13,7 +39,7 @@ async function assignActivityRoles({
   roleIdYapper,
   roleIdReactor,
   periodMinutes,
-}: any) {
+}: ActivityRoleJobConfig) {
   const channel = DiscordUtilityService.getChannelById(
     client,
     primaryChannelId,
@@ -24,14 +50,14 @@ async function assignActivityRoles({
     primaryChannelId,
     { limit: 500 },
   );
-  const allMessages: any[] = Array.from(msgs.values());
+  const allMessages: Message[] = Array.from(msgs.values());
 
   if (!allMessages.length) return;
 
   // Filter messages from the last time period
   const periodMinutesAgo = Date.now() - periodMinutes * 60 * 1000;
   const messages = allMessages.filter(
-    (message: any) => message.createdTimestamp > periodMinutesAgo,
+    (message: Message) => message.createdTimestamp > periodMinutesAgo,
   );
 
   // Exit early if no messages in the last time period
@@ -41,19 +67,19 @@ async function assignActivityRoles({
   }
 
   const topAuthorRole = guild.roles.cache.find(
-    (role: any) => role.id === roleIdYapper,
+    (role: Role) => role.id === roleIdYapper,
   );
   const topReactorRole = guild.roles.cache.find(
-    (role: any) => role.id === roleIdReactor,
+    (role: Role) => role.id === roleIdReactor,
   );
 
-  const authorCounts = messages.reduce((accumulator: any, currentMessage: any) => {
+  const authorCounts = messages.reduce((accumulator: AuthorCount[], currentMessage: Message) => {
     if (currentMessage.author.bot) return accumulator; // Skip bot messages
     const userId = currentMessage.author.id;
     const userName = utilities.getCombinedNamesFromUserOrMember({
       user: currentMessage.author,
     });
-    let authorObj = accumulator.find((object: any) => object.userId === userId);
+    let authorObj = accumulator.find((object: AuthorCount) => object.userId === userId);
     if (!authorObj) {
       authorObj = {
         userId: userId,
@@ -73,16 +99,16 @@ async function assignActivityRoles({
   }, []);
 
   const reactionUsers = await Promise.all(
-    messages.map((message: any) =>
+    messages.map((message: Message) =>
       Promise.all(
-        Array.from(message.reactions.cache.values()).map(async (reaction: any) => {
+        Array.from(message.reactions.cache.values()).map(async (reaction) => {
           try {
             return await reaction.users.fetch();
           } catch (error: unknown) {
             // Skip reactions with unknown/deleted emojis
-            if ((error as any).code === 10014) {
+            if ((error as NodeJS.ErrnoException).code === 10014) {
               // consoleLog(`Skipping unknown emoji reaction: ${reaction.emoji.name || reaction.emoji.id}`);
-              return new Map(); // Return empty Map to maintain structure
+              return new Map<string, User>(); // Return empty Map to maintain structure
             }
             throw error; // Re-throw other errors
           }
@@ -92,7 +118,7 @@ async function assignActivityRoles({
   );
 
   const reactorCounts = reactionUsers.reduce(
-    (accumulator: any, reactionMapsForMessage: any) => {
+    (accumulator: ReactorCount[], reactionMapsForMessage) => {
       for (const reactionUserMap of reactionMapsForMessage) {
         for (const user of reactionUserMap.values()) {
           if (user.bot) continue; // Skip bot reactions
@@ -100,7 +126,7 @@ async function assignActivityRoles({
           const userName = utilities.getCombinedNamesFromUserOrMember({
             user: user,
           });
-          let userStats = accumulator.find((object: any) => object.userId === userId);
+          let userStats = accumulator.find((object: ReactorCount) => object.userId === userId);
           if (!userStats) {
             userStats = {
               userId: userId,
@@ -124,12 +150,12 @@ async function assignActivityRoles({
   }
 
   const topAuthorCounts = authorCounts
-    .sort((a: any, b: any) => b.count - a.count)
+    .sort((a: AuthorCount, b: AuthorCount) => b.count - a.count)
     .slice(0, 5);
 
 
   const topReactorCounts = reactorCounts
-    .sort((a: any, b: any) => b.count - a.count)
+    .sort((a: ReactorCount, b: ReactorCount) => b.count - a.count)
     .slice(0, 5);
 
   // Get the top author
@@ -138,14 +164,14 @@ async function assignActivityRoles({
 
   try {
     const topAuthorMember = await guild.members.fetch(topAuthor.userId);
-    const membersWithYapperRole = guild.members.cache.filter((member: any) =>
-      member.roles.cache.some((role: any) => role.id === roleIdYapper),
+    const membersWithYapperRole = guild.members.cache.filter((member: GuildMember) =>
+      member.roles.cache.some((role: Role) => role.id === roleIdYapper),
     );
 
     if (previousTopAuthorId !== topAuthor.userId) {
       // Remove the role from all current holders
       await Promise.all(
-        membersWithYapperRole.map(async (member: any) => {
+        membersWithYapperRole.map(async (member: GuildMember) => {
           consoleLog(
             "=",
             `Removing ${topAuthorRole.name} role from: ${member.user.tag}`,
@@ -180,14 +206,14 @@ async function assignActivityRoles({
       return;
     }
     const topReactorMember = await guild.members.fetch(topReactor.userId);
-    const membersWithOverReactorRole = guild.members.cache.filter((member: any) =>
-      member.roles.cache.some((role: any) => role.id === roleIdReactor),
+    const membersWithOverReactorRole = guild.members.cache.filter((member: GuildMember) =>
+      member.roles.cache.some((role: Role) => role.id === roleIdReactor),
     );
 
     if (previousTopReactorId !== topReactor.userId) {
       // Remove the role from all current holders
       await Promise.all(
-        membersWithOverReactorRole.map(async (member: any) => {
+        membersWithOverReactorRole.map(async (member: GuildMember) => {
           consoleLog(
             "=",
             `Removing ${topReactorRole.name} role from: ${member.user.tag}`,
@@ -226,7 +252,7 @@ const ActivityRoleAssignmentJob = {
     roleIdReactor,
     periodMinutes = 60,
     intervalMinutes = 1,
-  }: any) {
+  }: ActivityRoleJobConfig) {
     await assignActivityRoles({
       client,
       mongo,

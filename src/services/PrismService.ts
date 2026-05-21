@@ -1,4 +1,15 @@
 import config from "#root/config.js";
+import type {
+  PrismRequestOptions,
+  GenerateTextParams,
+  AgentResponseParams,
+  GenerateImageParams,
+  CaptionImageParams,
+  TranscribeAudioParams,
+  MemoryExtractParams,
+  MemorySearchParams,
+  EmbeddingParams,
+} from "#root/types/prism.js";
 
 const API_BASE = config.PRISM_API_URL;
 
@@ -10,7 +21,7 @@ const PROVIDER_MAP = {
   GOOGLE: "google",
 };
 
-function getHeaders(username: any = "lupos") {
+function getHeaders(username: string = "lupos") {
   return {
     "Content-Type": "application/json",
     "x-project": "lupos",
@@ -25,10 +36,10 @@ export default class PrismService {
 
    */
   static async _request(
-    endpoint: any,
-    { method = "POST", body, username = "lupos" }: any = {},
-  ) {
-    let res: any;
+    endpoint: string,
+    { method = "POST", body, username = "lupos" }: PrismRequestOptions = {},
+  ): Promise<Record<string, any>> {
+    let res: Response;
     try {
       res = await fetch(`${API_BASE}${endpoint}`, {
         method,
@@ -68,22 +79,22 @@ export default class PrismService {
     temperature,
     username = "lupos",
     traceId,
-  }: any) {
+  }: GenerateTextParams) {
     const provider = PROVIDER_MAP[type as keyof typeof PROVIDER_MAP];
     if (!provider) {
       throw new Error(`Unknown provider type: ${type}`);
     }
 
-    const body: Record<string, any> = {
+    const body: Record<string, unknown> = {
       provider,
       model,
       messages,
-      options: {},
+      options: {} as Record<string, unknown>,
       skipConversation: true,
     };
 
-    if (maxTokens) body.options.maxTokens = maxTokens;
-    if (temperature !== undefined) body.options.temperature = temperature;
+    if (maxTokens) (body.options as Record<string, unknown>).maxTokens = maxTokens;
+    if (temperature !== undefined) (body.options as Record<string, unknown>).temperature = temperature;
     if (traceId) body.traceId = traceId;
 
 
@@ -127,13 +138,13 @@ export default class PrismService {
     thinkingBudget,
     username = "lupos",
     traceId,
-  }: any) {
+  }: AgentResponseParams) {
     const provider = PROVIDER_MAP[type as keyof typeof PROVIDER_MAP];
     if (!provider) {
       throw new Error(`Unknown provider type: ${type}`);
     }
 
-    const body: Record<string, any> = {
+    const body: Record<string, unknown> = {
       provider,
       model,
       messages,
@@ -177,13 +188,13 @@ export default class PrismService {
     username = "lupos",
     systemPrompt,
     traceId,
-  }: any) {
-    const imageDataUrls = images.map((image: any) => {
+  }: GenerateImageParams) {
+    const imageDataUrls = images.map((image) => {
       if (typeof image === "string") return image;
       return `data:${image.mimeType || "image/png"};base64,${image.imageData}`;
     });
 
-    const body: Record<string, any> = {
+    const body: Record<string, unknown> = {
       provider,
       model,
       messages: [
@@ -230,10 +241,10 @@ export default class PrismService {
     username = "lupos",
     systemPrompt,
     traceId,
-  }: any) {
+  }: CaptionImageParams) {
     const normalizedImages = Array.isArray(images) ? images : [images];
 
-    const body: Record<string, any> = {
+    const body: Record<string, unknown> = {
       provider,
       messages: [{ role: "user", content: prompt, images: normalizedImages }],
       skipConversation: true,
@@ -260,14 +271,14 @@ export default class PrismService {
     language,
     username = "lupos",
     traceId,
-  }: any) {
+  }: TranscribeAudioParams) {
     // Accept Buffer or base64 string
     const base64Audio = Buffer.isBuffer(audio)
       ? audio.toString("base64")
       : audio;
     const dataUrl = `data:${mimeType};base64,${base64Audio}`;
 
-    const body: Record<string, any> = { provider, audio: dataUrl, skipConversation: true };
+    const body: Record<string, unknown> = { provider, audio: dataUrl, skipConversation: true };
     if (model) body.model = model;
     if (language) body.language = language;
     if (traceId) body.traceId = traceId;
@@ -298,8 +309,8 @@ export default class PrismService {
     participants,
     sourceMessageId,
     traceId,
-  }: any) {
-    const body: Record<string, any> = { guildId, channelId, messages, participants };
+  }: MemoryExtractParams) {
+    const body: Record<string, unknown> = { guildId, channelId, messages, participants };
     if (sourceMessageId) body.sourceMessageId = sourceMessageId;
     if (traceId) body.traceId = traceId;
 
@@ -311,9 +322,9 @@ export default class PrismService {
 
 
    */
-  static async searchMemories({ guildId, userIds, queryText, limit = 10, traceId }: any) {
-    const body: Record<string, any> = { guildId, queryText, limit };
-    if (userIds?.length > 0) body.userIds = userIds;
+  static async searchMemories({ guildId, userIds, queryText, limit = 10, traceId }: MemorySearchParams) {
+    const body: Record<string, unknown> = { guildId, queryText, limit };
+    if (userIds?.length && userIds.length > 0) body.userIds = userIds;
     if (traceId) body.traceId = traceId;
 
     return PrismService._request("/memory/search", { body });
@@ -328,8 +339,8 @@ export default class PrismService {
 
 
    */
-  static async generateEmbedding({ text, provider = "openai", model, traceId }: any) {
-    const body: Record<string, any> = { provider, text };
+  static async generateEmbedding({ text, provider = "openai", model, traceId }: EmbeddingParams) {
+    const body: Record<string, unknown> = { provider, text };
     if (model) body.model = model;
     if (traceId) body.traceId = traceId;
 

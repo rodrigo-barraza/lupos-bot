@@ -1,5 +1,7 @@
 import { SlashCommandBuilder, PermissionFlagsBits } from "discord.js";
+import type { ChatInputCommandInteraction, SlashCommandUserOption, GuildMember } from "discord.js";
 import { getMongoDb } from "./commandUtils.ts";
+import type { BeatupVote } from "#root/types/index.js";
 
 // How many votes needed to trigger timeout
 const VOTES_REQUIRED = 3;
@@ -61,16 +63,16 @@ export default {
   data: new SlashCommandBuilder()
     .setName("beatup")
     .setDescription("Vote to time out a user for 1 minute (requires 3 votes)")
-    .addUserOption((option: any) =>
+    .addUserOption((option: SlashCommandUserOption) =>
       option
         .setName("target")
         .setDescription("The user to vote against")
         .setRequired(true),
     ),
 
-  async execute(interaction: any) {
+  async execute(interaction: ChatInputCommandInteraction) {
     const voterId = interaction.user.id;
-    const target = interaction.options.getMember("target");
+    const target = interaction.options.getMember("target") as GuildMember | null;
     const now = Date.now();
     const cooldownAmount = 1 * 60 * 60 * 1000; // 1 hours
 
@@ -78,35 +80,35 @@ export default {
     if (!target) {
       return interaction.reply({
         content: "❌ That user is not in this server!",
-        ephemeral: true,
+        
       });
     }
 
     if (target.user.bot) {
       return interaction.reply({
         content: "❌ You can't beat up a bot!",
-        ephemeral: true,
+        
       });
     }
 
     if (target.user.id === interaction.guild.ownerId) {
       return interaction.reply({
         content: "❌ You can't beat up the server owner!",
-        ephemeral: true,
+        
       });
     }
 
     if (target.user.id === voterId) {
       return interaction.reply({
         content: "❌ You can't beat yourself up! (Well, not like this anyway)",
-        ephemeral: true,
+        
       });
     }
 
     if (!target.moderatable) {
       return interaction.reply({
         content: "❌ I don't have permission to timeout this user!",
-        ephemeral: true,
+        
       });
     }
 
@@ -133,7 +135,7 @@ export default {
         ).toFixed(1);
         return interaction.editReply({
           content: `⏰ You can vote again in **${timeLeft}** hour(s)!`,
-          ephemeral: true,
+          
         });
       }
 
@@ -157,7 +159,7 @@ export default {
         return interaction.editReply({
           // There's no will to fight!
           content: `🛡️ **${target.user.username}** was recently beaten up! They're safe for another **${timeLeft}** hour(s).`,
-          ephemeral: true,
+          
         });
       }
 
@@ -167,19 +169,19 @@ export default {
         guildId: interaction.guildId,
       });
 
-      let currentVotes: any[] = [];
+      let currentVotes: BeatupVote[] = [];
       if (voteDoc) {
         // Filter out expired votes (older than 24 hours)
-        currentVotes = voteDoc.votes.filter(
-          (vote: any) => now - vote.timestamp < cooldownAmount,
+        currentVotes = (voteDoc.votes as BeatupVote[]).filter(
+          (vote: BeatupVote) => now - vote.timestamp < cooldownAmount,
         );
       }
 
       // Check if user already voted
-      if (currentVotes.some((vote: any) => vote.voterId === voterId)) {
+      if (currentVotes.some((vote: BeatupVote) => vote.voterId === voterId)) {
         return interaction.editReply({
           content: `❌ You've already voted to beat up **${target.user.username}**!`,
-          ephemeral: true,
+          
         });
       }
 
@@ -231,7 +233,7 @@ export default {
       if (currentVotes.length >= VOTES_REQUIRED) {
         // Check bot permissions one more time
         if (
-          !interaction.guild.members.me.permissions.has(
+          !interaction.guild!.members.me!.permissions.has(
             PermissionFlagsBits.ModerateMembers,
           )
         ) {
@@ -275,7 +277,7 @@ export default {
         if (currentVotes.length > 1) {
           const previousAttacks = currentVotes
             .slice(0, -1)
-            .map((vote: any) => `<@${vote.voterId}>'s attack!`)
+            .map((vote: BeatupVote) => `<@${vote.voterId}>'s attack!`)
             .join("\n");
           battleMessage += previousAttacks + "\n";
         }
@@ -300,9 +302,9 @@ export default {
 
       let errorMessage = "❌ An error occurred while processing the vote.";
 
-      if ((error as any).code === 50013) {
+      if ((error as { code?: number }).code === 50013) {
         errorMessage = "❌ I don't have permission to timeout this member!";
-      } else if ((error as any).code === 10008) {
+      } else if ((error as { code?: number }).code === 10008) {
         errorMessage = "❌ The selected user could not be found!";
       }
 

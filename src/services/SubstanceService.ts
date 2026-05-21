@@ -10,7 +10,7 @@ const SubstanceService = {
   getSubstanceLevel() {
     return substanceStat.getLevel();
   },
-  setSubstanceLevel(level: any) {
+  setSubstanceLevel(level: number) {
     return substanceStat.setLevel(level);
   },
   increaseSubstanceLevel() {

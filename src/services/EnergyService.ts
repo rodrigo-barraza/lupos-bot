@@ -25,7 +25,7 @@ const EnergyService = {
   getEnergyLevel() {
     return energyStat.getLevel();
   },
-  setEnergyLevel(level: any) {
+  setEnergyLevel(level: number) {
     return energyStat.setLevel(level);
   },
   increaseEnergyLevel() {

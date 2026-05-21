@@ -140,7 +140,7 @@ const AIService = {
   // Base Text-to-Text Generation (Completion)
   async generateText({
     conversation,
-    type = config.LANGUAGE_MODEL_TYPE,
+    type = config.LANGUAGE_MODEL_TYPE || "OPENAI",
     modelPerformance = config.LANGUAGE_MODEL_PERFORMANCE,
     temperature,
     tokens,
@@ -195,7 +195,7 @@ const AIService = {
     try {
       const prismResult = await PrismService.generateText({
         messages: conversation,
-        type,
+        type: type!,
         model: usedModel,
         maxTokens: finalTokens,
         temperature: finalTemperature,
@@ -332,10 +332,10 @@ const AIService = {
         model: model || "gemini-3-flash-preview",
         username: discordUsername,
         ...AIService._getTraceParams(),
-      });
+      }) as { text?: string; model?: string; provider?: string };
 
       return {
-        response: { choices: [{ message: { content: result.text } }] },
+        response: { choices: [{ message: { content: result.text || "" } }] },
         model: result.model || model || "gemini-3-flash-preview",
         provider: result.provider || provider || "google",
         error: null,
@@ -382,7 +382,7 @@ const AIService = {
       provider: "openai",
       username: discordUsername,
       ...AIService._getTraceParams(),
-    });
+    }) as { text?: string };
 
     const transcription = (result.text || "").trim().replace(/\n+/g, " ");
     return transcription;
@@ -489,7 +489,7 @@ const AIService = {
     const transcriptionsMap = new Map<string, unknown>();
     const db = localMongo.db(MONGO_DB_NAME);
     const collection = db.collection("AudioTranscriptions");
-    let existingAudio: any;
+    let existingAudio: import("mongodb").WithId<import("mongodb").Document> | null;
     if (audioUrls?.length) {
       let index = 0;
       for (const audioUrl of audioUrls) {

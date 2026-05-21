@@ -3,7 +3,7 @@ import config from "#root/config.js";
 const { ASSISTANT_MESSAGE } = config;
 
 const MessageService = {
-  assembleAssistantMessage(canGenerateImage: any, guildId: any) {
+  assembleAssistantMessage(canGenerateImage: boolean, guildId: string) {
     let assistantMessage = "";
     if (ASSISTANT_MESSAGE) {
       assistantMessage = ASSISTANT_MESSAGE;
@@ -36,7 +36,7 @@ const MessageService = {
 
         if (allClocks.length) {
           assistantMessage += `\n# List of Clocks`;
-          for (const clock of allClocks as any[]) {
+          for (const clock of allClocks) {
             const url = clock.url;
             const name = clock.name;
             const description = clock.description;

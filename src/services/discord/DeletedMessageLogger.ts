@@ -8,6 +8,8 @@
 // 4. Posting a rich embed in the #deleted-messages audit channel
 // ============================================================
 
+import type { Client, Message, PartialMessage, Attachment, Sticker, TextChannel } from "discord.js";
+import type { MongoClient } from "mongodb";
 import { EmbedBuilder } from "discord.js";
 import config from "#root/config.js";
 import utilities from "#root/utilities.js";
@@ -22,7 +24,7 @@ import { MONGO_DB_NAME } from "#root/constants.js";
  * - Deletes from MongoDB
  * - Posts audit embed in #deleted-messages
  */
-async function handleMessageDelete(client: any, mongo: any, message: any) {
+async function handleMessageDelete(client: Client, mongo: MongoClient, message: Message | PartialMessage) {
   // Fetch partial messages
   if (message.partial) {
     try {
@@ -38,7 +40,7 @@ async function handleMessageDelete(client: any, mongo: any, message: any) {
   // Remove from pending queue
   const removedCount = DiscordState.queuedData.length;
   for (let i = DiscordState.queuedData.length - 1; i >= 0; i--) {
-    if (DiscordState.queuedData[i].message?.id === deletedMessageId) {
+    if ((DiscordState.queuedData[i] as Record<string, unknown> & { message?: { id?: string } }).message?.id === deletedMessageId) {
       DiscordState.queuedData.splice(i, 1);
     }
   }
@@ -78,7 +80,7 @@ async function handleMessageDelete(client: any, mongo: any, message: any) {
   const deletedMessagesChannel = DiscordUtilityService.getChannelById(
     client,
     config.CHANNEL_ID_DELETED_MESSAGES,
-  );
+  ) as TextChannel | undefined;
   if (!deletedMessagesChannel) return;
 
   // Extract message data
@@ -125,10 +127,10 @@ async function handleMessageDelete(client: any, mongo: any, message: any) {
       const referenceChannel = DiscordUtilityService.getChannelById(
         client,
         message.reference.channelId,
-      );
+      ) as TextChannel | undefined;
       if (referenceChannel?.messages) {
         const referenceMessage = await referenceChannel.messages.fetch(
-          message.reference.messageId,
+          message.reference.messageId!,
         );
 
         let replyText = referenceMessage.content || "*No text content*";
@@ -157,10 +159,10 @@ async function handleMessageDelete(client: any, mongo: any, message: any) {
 
   // Handle attachments
   if (message.attachments.size > 0) {
-    const attachmentArray: any[] = Array.from(message.attachments.values());
-    const attachmentInfo: any[] = [];
+    const attachmentArray: Attachment[] = Array.from(message.attachments.values());
+    const attachmentInfo: string[] = [];
 
-    attachmentArray.forEach((attachment: any, index: any) => {
+    attachmentArray.forEach((attachment: Attachment, index: number) => {
       const size = (attachment.size / 1024).toFixed(2);
       const type = attachment.contentType || "unknown";
       attachmentInfo.push(
@@ -175,7 +177,7 @@ async function handleMessageDelete(client: any, mongo: any, message: any) {
     });
 
     // Display images (up to 4 total - 1 main + 3 additional)
-    const imageAttachments = attachmentArray.filter((att: any) =>
+    const imageAttachments = attachmentArray.filter((att: Attachment) =>
       att.contentType?.startsWith("image/"),
     );
 
@@ -195,9 +197,9 @@ async function handleMessageDelete(client: any, mongo: any, message: any) {
 
   // Handle stickers
   if (message.stickers.size > 0) {
-    const stickerArray: any[] = Array.from(message.stickers.values());
+    const stickerArray: Sticker[] = Array.from(message.stickers.values());
     const stickerInfo = stickerArray
-      .map((sticker: any) => `**${sticker.name}** • [View](${sticker.url})`)
+      .map((sticker: Sticker) => `**${sticker.name}** • [View](${sticker.url})`)
       .join("\n");
 
     embed.addFields({

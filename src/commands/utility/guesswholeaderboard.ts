@@ -1,16 +1,34 @@
 import { SlashCommandBuilder, EmbedBuilder } from "discord.js";
+import type { ChatInputCommandInteraction } from "discord.js";
+import type { Document } from "mongodb";
 import { getMongoDb, getMedal } from "./commandUtils.ts";
+
+interface GuessWhoScore {
+  userId: string;
+  username: string;
+  score: number;
+  guildId: string;
+}
+
+interface EnrichedScore extends GuessWhoScore {
+  displayName: string;
+}
 
 export default {
   data: new SlashCommandBuilder()
     .setName("guesswholeaderboard")
     .setDescription("Shows the Guess Who leaderboard — top and bottom players"),
 
-  async execute(interaction: any) {
+  async execute(interaction: ChatInputCommandInteraction) {
     const db = getMongoDb();
     const scoresCollection = db.collection("GuessWhoGameScore");
 
     await interaction.deferReply();
+
+    if (!interaction.guild) {
+      await interaction.editReply("This command can only be used in a server.");
+      return;
+    }
 
     try {
       const allScores = await scoresCollection
@@ -27,26 +45,30 @@ export default {
       }
 
       // Fetch display names for all players
-      const enriched = await Promise.all(
-        allScores.map(async (entry: any) => {
-          let displayName = entry.username;
+      const enriched: EnrichedScore[] = await Promise.all(
+        allScores.map(async (entry: Document): Promise<EnrichedScore> => {
+          const userId = String(entry.userId);
+          const username = String(entry.username);
+          const score = Number(entry.score);
+          const guildId = String(entry.guildId);
+          let displayName = username;
           try {
-            const member = await interaction.guild.members.fetch(entry.userId);
+            const member = await interaction.guild!.members.fetch(userId);
             displayName = member.displayName;
           } catch {
             // User may have left the server
           }
-          return { ...entry, displayName };
+          return { userId, username, score, guildId, displayName };
         }),
       );
 
       const totalPlayers = enriched.length;
-      const totalPoints = enriched.reduce((sum: any, e: any) => sum + (e.score || 0), 0);
+      const totalPoints = enriched.reduce((sum: number, e: EnrichedScore) => sum + (e.score || 0), 0);
 
       // Top 10
       const top10 = enriched.slice(0, 10);
       const topText = top10
-        .map((entry: any, index: any) => {
+        .map((entry: EnrichedScore, index: number) => {
           const medal = getMedal(index);
           return `${medal} **${index + 1}.** ${entry.displayName} — **${entry.score}** pts`;
         })
@@ -58,9 +80,9 @@ export default {
           ? enriched
               .slice(-5)
               .reverse()
-              .map((entry: any) => {
+              .map((entry: EnrichedScore) => {
                 const rank =
-                  enriched.findIndex((e: any) => e.userId === entry.userId) + 1;
+                  enriched.findIndex((e: EnrichedScore) => e.userId === entry.userId) + 1;
                 return `💀 **#${rank}.** ${entry.displayName} — **${entry.score}** pts`;
               })
               .join("\n")

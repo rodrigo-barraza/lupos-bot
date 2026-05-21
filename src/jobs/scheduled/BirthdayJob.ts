@@ -1,8 +1,9 @@
 import DiscordUtilityService from "#root/services/DiscordUtilityService.js";
 import { birthdays } from "#root/arrays.js";
 import config from "#root/config.js";
+import type { Client, GuildMember, Role } from "discord.js";
 
-async function getCurrentMonthBirthdays(client: any) {
+async function getCurrentMonthBirthdays(client: Client) {
   const months = [
     "January",
     "February",
@@ -20,7 +21,7 @@ async function getCurrentMonthBirthdays(client: any) {
   const currentMonth = months[new Date().getMonth()];
 
   const currentMonthData = birthdays.find(
-    (item: any) => item.month === currentMonth,
+    (item: { month: string; users: string[] }) => item.month === currentMonth,
   );
   const users = currentMonthData ? currentMonthData.users : [];
 
@@ -32,16 +33,16 @@ async function getCurrentMonthBirthdays(client: any) {
   const birthdayRoleId = config.ROLE_ID_BIRTHDAY_MONTH;
 
   // First, remove birthday roles from everyone who has it
-  const birthdayRoleMembers = guild.members.cache.filter((member: any) =>
-    member.roles.cache.some((role: any) => role.id === birthdayRoleId),
+  const birthdayRoleMembers = guild.members.cache.filter((member: GuildMember) =>
+    member.roles.cache.some((role: Role) => role.id === birthdayRoleId),
   );
 
   // Use Promise.all to wait for all role removals to complete
   await Promise.all(
-    birthdayRoleMembers.map((member: any) =>
+    birthdayRoleMembers.map((member: GuildMember) =>
       member.roles
         .remove(birthdayRoleId)
-        .catch((error: any) =>
+        .catch((error: Error) =>
           console.error(
             `Error removing role from ${member.user.username}:`,
             error,
@@ -51,16 +52,16 @@ async function getCurrentMonthBirthdays(client: any) {
   );
 
   // Now assign the birthday role to each user in the current month
-  const addRolePromises: any[] = [];
+  const addRolePromises: Promise<GuildMember | void>[] = [];
   for (const user of users) {
     const member = guild.members.cache.find(
-      (member: any) => member.user.username === user,
+      (member: GuildMember) => member.user.username === user,
     );
     if (member) {
       addRolePromises.push(
         member.roles
           .add(birthdayRoleId)
-          .catch((error: any) => console.error(`Error adding role to ${user}:`, error)),
+          .catch((error: Error) => console.error(`Error adding role to ${user}:`, error)),
       );
     }
   }
@@ -71,7 +72,7 @@ async function getCurrentMonthBirthdays(client: any) {
 }
 
 const BirthdayJob = {
-  async startJob(client: any) {
+  async startJob(client: Client) {
     await getCurrentMonthBirthdays(client); // Execute immediately
     setInterval(
       () => {
