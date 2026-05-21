@@ -953,7 +953,7 @@ router.get("/bot/activity", asyncHandler(async (req: Request, res: Response) => 
       { $sort: { _id: 1 } },
     ]).toArray();
 
-    // 4. Image generation activity (Prism requests with imageOut modality for lupos)
+    // 4. Image generation activity + unique IPs per hour (Prism requests for lupos)
     const imageGenActivity = await prismDb.collection("requests").aggregate([
       {
         $match: {
@@ -977,25 +977,57 @@ router.get("/bot/activity", asyncHandler(async (req: Request, res: Response) => 
       { $sort: { _id: 1 } },
     ]).toArray();
 
-    // 5. Total unique users in the past 24 hours (distinct userId across all messages)
+    // 5. Unique users — union of Discord userIds + client IPs (pseudo-users)
+    //    Discord userIds come from MetricsMessageGeneration (already aggregated above).
+    //    Client IPs come from prism requests for the lupos project.
+    //    Prefixing prevents namespace collisions (uid:123 vs ip:1.2.3.4).
+
+    // 5a. Unique client IPs per hour from prism requests (all lupos API interactions)
+    const prismUniqueIps = await prismDb.collection("requests").aggregate([
+      {
+        $match: {
+          project: "lupos",
+          success: true,
+          clientIp: { $ne: null },
+          timestamp: { $gte: twentyFourHoursAgo.toISOString() },
+        },
+      },
+      {
+        $group: {
+          _id: {
+            $dateToString: {
+              format: "%Y-%m-%dT%H:00:00",
+              date: { $dateFromString: { dateString: "$timestamp" } },
+            },
+          },
+          uniqueIps: { $addToSet: "$clientIp" },
+        },
+      },
+      { $sort: { _id: 1 } },
+    ]).toArray();
+    const prismIpMap = new Map<string, string[]>(
+      prismUniqueIps.map((r: any) => [r._id, r.uniqueIps]),
+    );
+
+    // 5b. Total 24h unique users (union of Discord userIds + client IPs)
     const totalUniqueUserIds = await db.collection("MetricsMessageGeneration").distinct(
       "userId",
       { _id: { $gte: cutoffObjectId } },
     );
+    const totalUniqueIps = await prismDb.collection("requests").distinct(
+      "clientIp",
+      {
+        project: "lupos",
+        success: true,
+        clientIp: { $ne: null },
+        timestamp: { $gte: twentyFourHoursAgo.toISOString() },
+      },
+    );
+    // Merge into a single deduplicated set using namespace prefixes
+    const totalUniqueSet = new Set<string>();
+    for (const uid of totalUniqueUserIds) totalUniqueSet.add(`uid:${uid}`);
+    for (const ip of totalUniqueIps) totalUniqueSet.add(`ip:${ip}`);
 
-    // Build a full 24-hour timeline with all hours filled
-    const hours: string[] = [];
-    for (let i = 23; i >= 0; i--) {
-      const hourDate = new Date(now.getTime() - i * 60 * 60 * 1000);
-      hourDate.setMinutes(0, 0, 0);
-      hours.push(hourDate.toISOString().slice(0, 13) + ":00:00");
-    }
-
-    const messageMap = new Map(messageActivity.map((r: any) => [r._id, r.count]));
-    const uniqueUsersMap = new Map(messageActivity.map((r: any) => [r._id, r.uniqueUsers]));
-    const transcriptionMap = new Map(transcriptionActivity.map((r: any) => [r._id, r.count]));
-    const imageCaptionMap = new Map(imageCaptionActivity.map((r: any) => [r._id, r.count]));
-    const imageGenMap = new Map(imageGenActivity.map((r: any) => [r._id, r.count]));
 
     const timeline = hours.map((hour) => ({
       hour,
