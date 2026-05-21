@@ -875,8 +875,8 @@ router.get("/bot/guilds", (req: Request, res: Response) => {
 
 // ─── GET /bot/activity ────────────────────────────────────────────
 // Returns hourly activity metrics for the past 24 hours.
-// Aggregates: messages replied, images generated, transcriptions,
-// and total interactions — bucketed by hour.
+// Aggregates: messages replied, image generations, image captions,
+// transcriptions, unique users, and total interactions — bucketed by hour.
 router.get("/bot/activity", asyncHandler(async (req: Request, res: Response) => {
   try {
     const MongoService = (await import("#root/services/MongoService.js")).default;
@@ -886,6 +886,7 @@ router.get("/bot/activity", asyncHandler(async (req: Request, res: Response) => 
     }
 
     const db = localMongo.db("lupos");
+    const prismDb = localMongo.db("prism");
     const now = new Date();
     const twentyFourHoursAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
 
@@ -894,7 +895,7 @@ router.get("/bot/activity", asyncHandler(async (req: Request, res: Response) => 
     const { ObjectId } = await import("mongodb");
     const cutoffObjectId = ObjectId.createFromTime(Math.floor(twentyFourHoursAgo.getTime() / 1000));
 
-    // 1. Message reply activity (MetricsMessageGeneration)
+    // 1. Message reply activity + unique users per hour (MetricsMessageGeneration)
     const messageActivity = await db.collection("MetricsMessageGeneration").aggregate([
       { $match: { _id: { $gte: cutoffObjectId } } },
       {
@@ -906,6 +907,13 @@ router.get("/bot/activity", asyncHandler(async (req: Request, res: Response) => 
             },
           },
           count: { $sum: 1 },
+          uniqueUserIds: { $addToSet: "$userId" },
+        },
+      },
+      {
+        $project: {
+          count: 1,
+          uniqueUsers: { $size: "$uniqueUserIds" },
         },
       },
       { $sort: { _id: 1 } },
@@ -945,6 +953,36 @@ router.get("/bot/activity", asyncHandler(async (req: Request, res: Response) => 
       { $sort: { _id: 1 } },
     ]).toArray();
 
+    // 4. Image generation activity (Prism requests with imageOut modality for lupos)
+    const imageGenActivity = await prismDb.collection("requests").aggregate([
+      {
+        $match: {
+          project: "lupos",
+          "modalities.imageOut": true,
+          success: true,
+          timestamp: { $gte: twentyFourHoursAgo.toISOString() },
+        },
+      },
+      {
+        $group: {
+          _id: {
+            $dateToString: {
+              format: "%Y-%m-%dT%H:00:00",
+              date: { $dateFromString: { dateString: "$timestamp" } },
+            },
+          },
+          count: { $sum: 1 },
+        },
+      },
+      { $sort: { _id: 1 } },
+    ]).toArray();
+
+    // 5. Total unique users in the past 24 hours (distinct userId across all messages)
+    const totalUniqueUserIds = await db.collection("MetricsMessageGeneration").distinct(
+      "userId",
+      { _id: { $gte: cutoffObjectId } },
+    );
+
     // Build a full 24-hour timeline with all hours filled
     const hours: string[] = [];
     for (let i = 23; i >= 0; i--) {
@@ -954,17 +992,22 @@ router.get("/bot/activity", asyncHandler(async (req: Request, res: Response) => 
     }
 
     const messageMap = new Map(messageActivity.map((r: any) => [r._id, r.count]));
+    const uniqueUsersMap = new Map(messageActivity.map((r: any) => [r._id, r.uniqueUsers]));
     const transcriptionMap = new Map(transcriptionActivity.map((r: any) => [r._id, r.count]));
     const imageCaptionMap = new Map(imageCaptionActivity.map((r: any) => [r._id, r.count]));
+    const imageGenMap = new Map(imageGenActivity.map((r: any) => [r._id, r.count]));
 
     const timeline = hours.map((hour) => ({
       hour,
       messages: messageMap.get(hour) || 0,
       transcriptions: transcriptionMap.get(hour) || 0,
       imageCaptions: imageCaptionMap.get(hour) || 0,
+      imageGenerations: imageGenMap.get(hour) || 0,
+      uniqueUsers: uniqueUsersMap.get(hour) || 0,
       total: (messageMap.get(hour) || 0) +
              (transcriptionMap.get(hour) || 0) +
-             (imageCaptionMap.get(hour) || 0),
+             (imageCaptionMap.get(hour) || 0) +
+             (imageGenMap.get(hour) || 0),
     }));
 
     // Summary totals
@@ -972,6 +1015,8 @@ router.get("/bot/activity", asyncHandler(async (req: Request, res: Response) => 
       messages: timeline.reduce((sum, h) => sum + h.messages, 0),
       transcriptions: timeline.reduce((sum, h) => sum + h.transcriptions, 0),
       imageCaptions: timeline.reduce((sum, h) => sum + h.imageCaptions, 0),
+      imageGenerations: timeline.reduce((sum, h) => sum + h.imageGenerations, 0),
+      uniqueUsers: totalUniqueUserIds.length,
       total: timeline.reduce((sum, h) => sum + h.total, 0),
     };
 
