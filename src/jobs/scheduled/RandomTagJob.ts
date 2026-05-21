@@ -52,7 +52,7 @@ async function randomTag({ client, guildId, channelId }: RandomTagJobConfig) {
       return;
     }
 
-    const channel = DiscordUtilityService.getChannelById(client, channelId);
+    const channel = DiscordUtilityService.getChannelById(client, channelId) as import("discord.js").TextChannel | undefined;
     if (!channel) {
       consoleLog("!", `[RandomTagJob] Channel ${channelId} not found`);
       return;
@@ -120,7 +120,7 @@ async function randomTag({ client, guildId, channelId }: RandomTagJobConfig) {
     // If the last message was from Lupos, skip — don't double-post
     if (recentMessages && recentMessages.size > 0) {
       const lastMsg = recentMessages.first();
-      if (lastMsg.author.id === client.user.id) {
+      if (client.user && lastMsg.author.id === client.user.id) {
         consoleLog(
           "=",
           `[RandomTagJob] ⏭️ Last message was from Lupos, skipping this round`,
@@ -132,7 +132,7 @@ async function randomTag({ client, guildId, channelId }: RandomTagJobConfig) {
     // Build a simplified conversation context from recent messages
     let conversationContext = "";
     if (recentMessages && recentMessages.size > 0) {
-      const messagesArray: Message[] = Array.from(recentMessages.values()).reverse();
+      const messagesArray: Message[] = Array.from(recentMessages.values()).reverse() as Message[];
       for (const message of messagesArray.slice(-15)) {
         const author =
           message.member?.displayName ||

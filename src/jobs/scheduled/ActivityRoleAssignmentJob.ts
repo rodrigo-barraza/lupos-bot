@@ -43,7 +43,8 @@ async function assignActivityRoles({
   const channel = DiscordUtilityService.getChannelById(
     client,
     primaryChannelId,
-  );
+  ) as import("discord.js").TextChannel | undefined;
+  if (!channel) return;
   const guild = channel.guild;
   const msgs = await DiscordUtilityService.fetchMessages(
     client,
@@ -72,6 +73,8 @@ async function assignActivityRoles({
   const topReactorRole = guild.roles.cache.find(
     (role: Role) => role.id === roleIdReactor,
   );
+
+  if (!topAuthorRole || !topReactorRole) return;
 
   const authorCounts = messages.reduce((accumulator: AuthorCount[], currentMessage: Message) => {
     if (currentMessage.author.bot) return accumulator; // Skip bot messages
@@ -106,7 +109,7 @@ async function assignActivityRoles({
             return await reaction.users.fetch();
           } catch (error: unknown) {
             // Skip reactions with unknown/deleted emojis
-            if ((error as NodeJS.ErrnoException).code === 10014) {
+            if ((error as any).code === 10014) {
               // consoleLog(`Skipping unknown emoji reaction: ${reaction.emoji.name || reaction.emoji.id}`);
               return new Map<string, User>(); // Return empty Map to maintain structure
             }

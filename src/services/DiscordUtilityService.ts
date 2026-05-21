@@ -2098,8 +2098,7 @@ const DiscordUtilityService = {
     // @ts-expect-error - Remaining unresolved typing
     return client.user.tag;
   },
-  setUserActivity(client: Client, message: Message) {
-    // @ts-expect-error - Remaining unresolved typing
+  setUserActivity(client: Client, message: any) {
     return client.user?.setActivity(message, { type: ActivityType.Custom });
   },
   // Channel functions

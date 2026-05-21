@@ -131,7 +131,7 @@ async function ensureMentionPopulated(userId: string, {
   message, memberMentionsCollection, userMentionsCollection,
   participantsMembersCollection, participantsUsersCollection,
   logPrefix = "",
-}: Record<string, unknown>) {
+}: Record<string, any>) {
   if (memberMentionsCollection.has(userId)) return;
   const member =
     participantsMembersCollection.get(userId) ||
@@ -145,7 +145,7 @@ async function ensureMentionPopulated(userId: string, {
     try {
       const fetchedMember =
         await DiscordUtilityService.retrieveMemberFromGuildById(
-          (message as Message).guild,
+          (message as Message).guild!,
           userId,
         );
       if (fetchedMember) {
@@ -163,10 +163,10 @@ async function ensureMentionPopulated(userId: string, {
  * Resolve a Discord member/user to their avatar URL with consistent sizing.
  * Returns null if the source doesn't support displayAvatarURL.
  */
-function resolveAvatarUrl(source: Record<string, unknown> | null | undefined) {
+function resolveAvatarUrl(source: any) {
   return source?.displayAvatarURL?.({ format: "png", size: 512 }) || null;
 }
-const typingIntervals: Record<string, unknown> = {};
+const typingIntervals: Record<string, any> = {};
 
 
 function updateLastMessageSentTime() {
@@ -212,7 +212,9 @@ async function extractEmojisFromAllMessage(
 
     for (const emoji of messageEmojis) {
       const parsedEmoji = emoji.replace(/[\n#]/g, "");
-      const emojiId = parsedEmoji.split(":").pop().slice(0, -1);
+      const parts = parsedEmoji.split(":");
+      const lastPart = parts[parts.length - 1] || "";
+      const emojiId = lastPart.slice(0, -1);
       const emojiUrl = `https://cdn.discordapp.com/emojis/${emojiId}.png`;
 
       emojiUrls.push(emojiUrl);
@@ -240,7 +242,7 @@ async function extractEmojisFromAllMessage(
 
 async function generateDescription(
   systemPrompt: string, // should stay the same
-  message: Message, // should stay the same`
+  message: Message, // should stay the same
   participant: User | GuildMember, //is either user or member
   who: "MENTIONED" | "SECONDARY" | string,
   participantIndex: number, // used only for who='MENTIONED' or 'SECONDARY'
@@ -255,10 +257,12 @@ async function generateDescription(
   if (!user) {
     if (member) {
       user = member.user;
-    } else if (participant?.user) {
-      user = participant.user;
-    } else if (participant.id) {
-      user = participant;
+    } else if (participant) {
+      if ("user" in participant) {
+        user = participant.user;
+      } else {
+        user = participant as User;
+      }
     }
   }
 
@@ -274,7 +278,7 @@ async function generateDescription(
     user,
   });
 
-  if (messages?.size) {
+  if (messages?.length) {
     const lastMessageSentByUser = messages.find(
       (message: Message) => message.author.id === user.id,
     );
@@ -315,9 +319,9 @@ async function generateDescription(
 
   const totalMessages = messages.filter(
     (message: Message) => message.author.id === user.id,
-  ).size;
+  ).length;
   if (totalMessages) {
-    systemPrompt += `\n- Total from the last ${messages.size} messages: ${totalMessages} messages`;
+    systemPrompt += `\n- Total from the last ${messages.length} messages: ${totalMessages} messages`;
   }
 
   if (user?.id) {
@@ -333,25 +337,26 @@ async function generateDescription(
     systemPrompt += `\n- Username: ${user.username}`;
   } // Discord username
 
-  if (member?.presence?.status) {
-    systemPrompt += `\n- Status: ${member.presence.status}`; // online, idle, dnd, offline
-    if (member.presence.status === "online") {
-      if (member?.presence?.clientStatus) {
-        const platforms = Object.keys(member.presence.clientStatus);
+  const presence = member?.presence;
+  if (presence?.status) {
+    systemPrompt += `\n- Status: ${presence.status}`; // online, idle, dnd, offline
+    if (presence.status === "online") {
+      if (presence.clientStatus) {
+        const platforms = Object.keys(presence.clientStatus);
         systemPrompt += `\n- Active on: ${platforms.join(", ")}`;
       }
     }
   }
-  if (member?.presence?.activities?.length > 0) {
-    const customStatus = member.presence.activities.find((a: import("discord.js").Activity) => a.type === 4);
+  if (presence?.activities && presence.activities.length > 0) {
+    const customStatus = presence.activities.find((a: any) => a.type === 4);
     if (customStatus?.state) {
       systemPrompt += `\n- Custom status: "${customStatus.state}"`;
     }
 
     // Current activities (playing games, listening to music, etc.)
-    const activities = member.presence.activities
-      .filter((a: import("discord.js").Activity) => a.type !== 4)
-      .map((a: import("discord.js").Activity) => {
+    const activities = presence.activities
+      .filter((a: any) => a.type !== 4)
+      .map((a: any) => {
         const types = [
           "Playing",
           "Streaming",
@@ -396,7 +401,7 @@ async function generateDescription(
     }
   }
   // when they joined the server
-  if (member) {
+  if (member && member.joinedTimestamp) {
     const joinedDateTime = TemporalHelpers.fromMillis(member.joinedTimestamp);
     const serverJoinDateAt = TemporalHelpers.format(joinedDateTime, "LLLL dd, yyyy 'at' hh:mm:ss a");
     const serverJoinDateRelative = TemporalHelpers.toRelative(joinedDateTime);
@@ -420,12 +425,12 @@ async function generateDescription(
     "BanMembers",
     "ManageRoles",
   ];
-  const hasModPerms = modPerms.filter((perm: bigint) => member?.permissions?.has(perm));
+  const hasModPerms = modPerms.filter((perm: any) => member?.permissions?.has(perm));
   if (hasModPerms.length > 0) {
     systemPrompt += `\n- Moderation permissions: ${hasModPerms.join(", ")}`;
   }
   const channelPerms =
-    member && (message as Message).channel ? member.permissionsIn((message as Message).channel) : null;
+    member && (message as Message).channel ? member.permissionsIn((message as Message).channel as any) : null;
   if (channelPerms) {
     if (!channelPerms.has("SendMessages")) {
       systemPrompt += `\n- Cannot send messages in this channel`;
@@ -484,16 +489,17 @@ async function generateDescription(
     if (member.voice.mute || member.voice.selfMute) {
       systemPrompt += `\n- Muted in voice`;
     }
-    if (member.voice.streaming) {
+    const voiceState = member.voice as any;
+    if (voiceState.streaming) {
       systemPrompt += `\n- Streaming in voice`;
     }
-    if (member.voice.cameraOn) {
+    if (voiceState.cameraOn) {
       systemPrompt += `\n- Camera on in voice`;
     }
-    if (member.voice.suppress) {
+    if (voiceState.suppress) {
       systemPrompt += `\n- Suppressed in voice`;
     }
-    if (member.voice.requestedToSpeak) {
+    if (voiceState.requestedToSpeak) {
       systemPrompt += `\n- Requested to speak in voice`;
     }
   }
@@ -524,16 +530,16 @@ async function buildAndGenerateReply({
   queuedDatum,
   userMentionsCollection,
   localMongo,
-}: Record<string, unknown>) {
+}: Record<string, any>) {
   // Build the system prompt
   const { message, recentMessages } = queuedDatum;
   const client = message.client;
   const bot = client.user;
   let systemPrompt = newSystemPrompt;
 
-  let generatedText: string | null = null;
-  const serverContext: string[] = [];
-  let image: string | null = null;
+  let generatedText: string = "";
+  const serverContext: any[] = [];
+  let image: any = null;
   try {
     if (
       (message as Message).guildId === config.GUILD_ID_PRIMARY ||
@@ -543,7 +549,7 @@ async function buildAndGenerateReply({
       const customContextWhitemane = MessageConstant.customContextWhitemane;
       const serverContextSet = new Set();
 
-      const contextWithPatterns = customContextWhitemane.map((context: string) => {
+      const contextWithPatterns = customContextWhitemane.map((context: any) => {
         const keywords = Array.isArray(context.keywords)
           ? context.keywords
           : context.keywords.split(/[,\s]+/);
@@ -582,36 +588,37 @@ async function buildAndGenerateReply({
     systemPrompt += `\n- The current date and time is ${TemporalHelpers.format(TemporalHelpers.now(), "cccc, LLLL dd, yyyy 'at' h:mm a")} PST.`;
     systemPrompt += `\n- To mention, tag or reply to someone, you do it by mentioning their Discord user ID tag. For example, to mention me, you would type <@${bot.id}>.`;
 
-    if ((message as Message).guild) {
-      const bans = await (message as Message).guild.bans.fetch();
+    const guild = (message as Message).guild;
+    if (guild) {
+      const bans = await guild.bans.fetch();
 
       systemPrompt += `\n\n# Discord server information`;
       // GUILD NAME
-      systemPrompt += `\n- You are in the discord server called: ${(message as Message).guild.name}.`;
+      systemPrompt += `\n- You are in the discord server called: ${guild.name}.`;
       // CREATED AT
       const createdDateTime = TemporalHelpers.fromMillis(
-        (message as Message).guild.createdTimestamp,
+        guild.createdTimestamp,
       );
       const createdAtTimestampAt = TemporalHelpers.format(createdDateTime, "LLLL dd, yyyy 'at' hh:mm:ss a");
       const createdAtTimestampRelative = TemporalHelpers.toRelative(createdDateTime);
       systemPrompt += `\n- This server was created on: ${createdAtTimestampAt} (${createdAtTimestampRelative})`;
       // DESCRIPTION
-      if ((message as Message).guild.description) {
-        systemPrompt += `\n- The server description is: ${(message as Message).guild.description}`;
+      if (guild.description) {
+        systemPrompt += `\n- The server description is: ${guild.description}`;
       }
       // SERVER HAS
       systemPrompt += `\n- This server has:`;
-      systemPrompt += `\n  - ${(message as Message).guild.memberCount} members`;
-      systemPrompt += `\n  - ${(message as Message).guild.channels.cache.size} channels`;
-      systemPrompt += `\n  - ${(message as Message).guild.premiumSubscriptionCount} server nitro boosts`;
-      if ((message as Message).guild.mfaLevel === 1) {
+      systemPrompt += `\n  - ${guild.memberCount} members`;
+      systemPrompt += `\n  - ${guild.channels.cache.size} channels`;
+      systemPrompt += `\n  - ${guild.premiumSubscriptionCount} server nitro boosts`;
+      if (guild.mfaLevel === 1) {
         systemPrompt += `\n  - 2FA enabled`;
       }
       // mfaLevel
       // commands
-      if ((message as Message).guild.commands.cache.size) {
-        systemPrompt += `\n  - ${(message as Message).guild.commands.cache.size} commands:`;
-        for (const command of (message as Message).guild.commands.cache.values()) {
+      if (guild.commands.cache.size) {
+        systemPrompt += `\n  - ${guild.commands.cache.size} commands:`;
+        for (const command of guild.commands.cache.values()) {
           systemPrompt += `\n    - ${command.name} (${command.description})`;
         }
       }
@@ -620,44 +627,50 @@ async function buildAndGenerateReply({
         systemPrompt += `\n  - ${bans.size} bans`;
       }
       // emojis
-      if ((message as Message).guild.emojis.cache.size) {
-        systemPrompt += `\n  - ${(message as Message).guild.emojis.cache.size} emojis`;
+      if (guild.emojis.cache.size) {
+        systemPrompt += `\n  - ${guild.emojis.cache.size} emojis`;
       }
       // roles
-      if ((message as Message).guild.roles.cache.size) {
-        systemPrompt += `\n  - ${(message as Message).guild.roles.cache.size} roles`;
+      if (guild.roles.cache.size) {
+        systemPrompt += `\n  - ${guild.roles.cache.size} roles`;
       }
 
 
       // who is in voice chat
-      const voiceChannelMembers = (message as Message).guild.channels.cache.filter(
-        (channel: GuildChannel) => channel.type === "GUILD_VOICE" && channel.members.size > 0,
+      const voiceChannelMembers = guild.channels.cache.filter(
+        (channel: any) => ((channel.type as any) === 2 || (channel.type as any) === "GUILD_VOICE") && channel.members && channel.members.size > 0,
       );
       if (voiceChannelMembers.size) {
         systemPrompt += `\n- The following voice channels have members in them:`;
         for (const channel of voiceChannelMembers.values()) {
-          systemPrompt += `\n  - ${channel.name} (${channel.members.size} members)`;
-          for (const member of channel.members.values()) {
+          const chan = channel as any;
+          systemPrompt += `\n  - ${chan.name} (${chan.members.size} members)`;
+          for (const member of chan.members.values()) {
             systemPrompt += `\n    - ${utilities.getCombinedNamesFromUserOrMember({ member })}`;
           }
         }
       }
     }
     if (message?.channel) {
+      const channel = message.channel as any;
       systemPrompt += `\n\n# Discord channel information`;
-      systemPrompt += `\n- You are in the channel called: ${(message as Message).channel.name}`;
-      if ((message as Message).channel.topic) {
-        systemPrompt += `\n- The channel topic is: ${(message as Message).channel.topic}.`;
+      if (channel.name) {
+        systemPrompt += `\n- You are in the channel called: ${channel.name}`;
       }
-      const channelCreatedDateTime = TemporalHelpers.fromMillis(
-        (message as Message).channel.createdTimestamp,
-      );
-      const channelCreatedAt = TemporalHelpers.format(channelCreatedDateTime, "LLLL dd, yyyy 'at' hh:mm:ss a");
-      const channelCreatedAtRelative = TemporalHelpers.toRelative(channelCreatedDateTime);
-      systemPrompt += `\n- This channel was created on: ${channelCreatedAt} (${channelCreatedAtRelative})`;
-      if ((message as Message).channel.lastMessage) {
+      if (channel.topic) {
+        systemPrompt += `\n- The channel topic is: ${channel.topic}.`;
+      }
+      if (channel.createdTimestamp) {
+        const channelCreatedDateTime = TemporalHelpers.fromMillis(
+          channel.createdTimestamp,
+        );
+        const channelCreatedAt = TemporalHelpers.format(channelCreatedDateTime, "LLLL dd, yyyy 'at' hh:mm:ss a");
+        const channelCreatedAtRelative = TemporalHelpers.toRelative(channelCreatedDateTime);
+        systemPrompt += `\n- This channel was created on: ${channelCreatedAt} (${channelCreatedAtRelative})`;
+      }
+      if (channel.lastMessage) {
         const lastMessageCreatedDateTime = TemporalHelpers.fromMillis(
-          (message as Message).channel.lastMessage.createdTimestamp,
+          channel.lastMessage.createdTimestamp,
         );
         const lastMessageSentAt = TemporalHelpers.format(lastMessageCreatedDateTime, "LLLL dd, yyyy 'at' hh:mm:ss a");
         const lastMessageSentAtRelative =
@@ -668,14 +681,14 @@ async function buildAndGenerateReply({
       }
     }
 
-    let participantMember: GuildMember | undefined;
-    let participantUser: User | undefined;
-    let participantConversation: Record<string, unknown>[] | undefined;
+    let participantMember: any;
+    let participantUser: any;
+    let participantConversation: any;
 
     // ── Batch caption ALL avatar and banner images in parallel ────
     // Collect all URLs, caption them in one Promise.all, then inject
     // descriptions into the system prompt per-participant.
-    const allVisionUrls: string[] = [];
+    const allVisionUrls: any[] = [];
     for (const [userId, url] of participantsAvatarsCollection) {
       allVisionUrls.push({ url, userId });
     }
@@ -717,7 +730,7 @@ async function buildAndGenerateReply({
         message,
         message.author,
         "PRIMARY",
-        null,
+        0,
         recentMessages,
         participantsAvatarsCollection,
         participantsBannersCollection,
@@ -743,7 +756,7 @@ async function buildAndGenerateReply({
 
     // Detect untagged user names in image generation requests
     // e.g. "draw Rodrigo as a samurai" without @Rodrigo
-    const untaggedMatchedUserIds = new Set();
+    const untaggedMatchedUserIds = new Set<string>();
     if (mightBeImageRequest) {
       // Build list of known participants (exclude bot, already-mentioned users, and message author)
       // The author is excluded because "draw your X" shouldn't match the author's name.
@@ -755,7 +768,7 @@ async function buildAndGenerateReply({
         message.author?.id,
       ]);
 
-      const knownParticipants: string[] = [];
+      const knownParticipants: any[] = [];
       const addedIds = new Set();
       for (const [id, member] of participantsMembersCollection.entries()) {
         if (alreadyMentionedIds.has(id)) continue;
@@ -782,13 +795,13 @@ async function buildAndGenerateReply({
       }
       // Also check the guild member cache (covers users from reactions, voice, other channels, etc.)
       // Pre-filter: only include members whose name appears in the message (avoids sending thousands of names to AI)
-      if ((message as Message).guild?.members?.cache) {
+      if (guild?.members?.cache) {
         const messageTextLower = (
           message.cleanContent ||
           (message as Message).content ||
           ""
         ).toLowerCase();
-        for (const [id, member] of (message as Message).guild.members.cache.entries()) {
+        for (const [id, member] of guild.members.cache.entries()) {
           if (
             alreadyMentionedIds.has(id) ||
             addedIds.has(id) ||
@@ -1037,7 +1050,7 @@ Respond with ONLY "yes" or "no". Nothing else.`,
           if (!participantMember) {
             participantMember =
               await DiscordUtilityService.retrieveMemberFromGuildById(
-                (message as Message).guild,
+                guild as any,
                 member.id,
               );
           }
@@ -1072,7 +1085,7 @@ Respond with ONLY "yes" or "no". Nothing else.`,
         if (!participantMember) {
           participantMember =
             await DiscordUtilityService.retrieveMemberFromGuildById(
-              (message as Message).guild,
+              guild as any,
               user.id,
             );
         }
@@ -1098,11 +1111,12 @@ Respond with ONLY "yes" or "no". Nothing else.`,
     // Process secondary participants (size > 1 since it includes Lupos)
     if (participantsCollection?.size > 1) {
       // Skip users already listed in "About me" or "Mentioned members" to avoid duplication
-      const filteredParticipants = participantsCollection.filter((participant: GuildMember | User) => {
-        if (!participant?.user?.id) return false;
-        if (participant.user.id === message.author.id) return false;
-        if (memberMentionsCollection?.has(participant.user.id)) return false;
-        if (userMentionsCollection?.has(participant.user.id)) return false;
+      const filteredParticipants = participantsCollection.filter((participant: any) => {
+        const pId = participant?.user?.id || participant?.id;
+        if (!pId) return false;
+        if (pId === message.author.id) return false;
+        if (memberMentionsCollection?.has(pId)) return false;
+        if (userMentionsCollection?.has(pId)) return false;
         return true;
       });
       if (filteredParticipants.size > 0) {
@@ -1111,13 +1125,10 @@ Respond with ONLY "yes" or "no". Nothing else.`,
       }
       let currentUserCount = 0;
       for (const participant of filteredParticipants.values()) {
-        participantConversation = conversationsCollection.get(
-          participant.user.id,
-        );
-        participantMember = participantsMembersCollection.get(
-          participant.user.id,
-        );
-        participantUser = participantsUsersCollection.get(participant.user.id);
+        const pId = (participant as any).user?.id || (participant as any).id;
+        participantConversation = conversationsCollection.get(pId);
+        participantMember = participantsMembersCollection.get(pId);
+        participantUser = participantsUsersCollection.get(pId);
         currentUserCount++;
         systemPrompt = await generateDescription(
           systemPrompt,
@@ -1150,7 +1161,8 @@ Respond with ONLY "yes" or "no". Nothing else.`,
     // injected via agentContext.serverContext in the agent path below.
 
     // Memory retrieval — search for relevant memories about participants
-    if ((message as Message).guildId) {
+    const guildId = (message as Message).guildId;
+    if (guildId) {
       try {
         // Collect all participant user IDs for the search
         const participantUserIds: string[] = [];
@@ -1164,11 +1176,12 @@ Respond with ONLY "yes" or "no". Nothing else.`,
         // Add secondary participants
         if (participantsCollection?.size) {
           for (const participant of participantsCollection.values()) {
+            const pId = participant?.user?.id || participant?.id;
             if (
-              participant?.user?.id &&
-              !participantUserIds.includes(participant.user.id)
+              pId &&
+              !participantUserIds.includes(pId)
             ) {
-              participantUserIds.push(participant.user.id);
+              participantUserIds.push(pId);
             }
           }
         }
@@ -1177,9 +1190,9 @@ Respond with ONLY "yes" or "no". Nothing else.`,
         // from <message_content> tags, preserving who said what (name: text).
         // This avoids embedding noisy metadata (timestamps, IDs, format headers).
         const recentUserConvo = conversation
-          .filter((m: Record<string, unknown>) => m.role === "user")
+          .filter((m: Record<string, any>) => m.role === "user")
           .slice(-5)
-          .map((m: Record<string, unknown>) => {
+          .map((m: Record<string, any>) => {
             const content = m.content || "";
             // Extract sender name from "From: Name • username • ..." metadata line
             const fromMatch = content.match(/^From:\s*(.+?)(?:\s*•|$)/m);
@@ -1201,11 +1214,11 @@ Respond with ONLY "yes" or "no". Nothing else.`,
         const strippedQuery = queryText.replace(/[\s\p{Emoji_Presentation}\p{Extended_Pictographic}]/gu, "").trim();
         if (strippedQuery.length > 8) {
           const memoryResult = await PrismService.searchMemories({
-            guildId: (message as Message).guildId,
+            guildId,
             userIds: participantUserIds,
             queryText,
             limit: 8,
-            traceId: CurrentService.getTraceId(),
+            traceId: CurrentService.getTraceId() || undefined,
           });
 
           if (memoryResult?.memories?.length > 0) {
@@ -1230,7 +1243,7 @@ Respond with ONLY "yes" or "no". Nothing else.`,
 
     const imageUrls: string[] = [];
     const imageLabels: string[] = []; // Tracks what each image in imageUrls represents
-    const mentionsImageUrls: Record<string, unknown>[] = [];
+    const mentionsImageUrls: Record<string, any>[] = [];
     // This creates a shallow copy, which is no different than what we had before, can be changed back.
     let edittedMessageCleanContent = "";
     let composition = String(message.cleanContent);
@@ -1407,20 +1420,20 @@ Respond with ONLY "yes" or "no". Nothing else.`,
       for (const matchedId of untaggedMatchedUserIds) {
         // Skip if already handled by @mention block above
         if (avatarUserIdsAdded.has(matchedId)) continue;
-        if (mentionsImageUrls.some((m: Record<string, unknown>) => m.userId === matchedId)) continue;
+        if (mentionsImageUrls.some((m: Record<string, any>) => m.userId === matchedId)) continue;
         // Skip bot and replied-to user
         if (matchedId === bot.id || matchedId === repliedUserId) continue;
 
         // Try to get the member from the guild for their avatar
         let matchedMember = participantsMembersCollection.get(matchedId);
-        if (!matchedMember && (message as Message).guild) {
+        if (!matchedMember && guild) {
           // For self-referential requests, (message as Message).member is the most reliable source
           if (matchedId === message.author?.id && (message as Message).member) {
             matchedMember = (message as Message).member;
           } else {
             matchedMember =
               await DiscordUtilityService.retrieveMemberFromGuildById(
-                (message as Message).guild,
+                guild as any,
                 matchedId,
               );
           }
@@ -1437,14 +1450,14 @@ Respond with ONLY "yes" or "no". Nothing else.`,
       // Attach untagged user avatars as base64 references for generate_image
       // (no text injection — avatar URLs are already per-participant in the system prompt)
       const uncaptionedUrls = mentionsImageUrls.filter(
-        (m: Record<string, unknown>) => !avatarUserIdsAdded.has(m.userId) && !imageUrls.includes(m.url),
+        (m: Record<string, any>) => !avatarUserIdsAdded.has(m.userId) && !imageUrls.includes(m.url),
       );
       for (const mentionImg of uncaptionedUrls) {
         if (avatarUserIdsAdded.has(mentionImg.userId)) continue;
         avatarUserIdsAdded.add(mentionImg.userId);
         const userDisplayName = await DiscordUtilityService.getDisplayName(
           message,
-          mentionImg.userId,
+          mentionImg.userId as any,
         );
         imageLabels.push(`${userDisplayName}'s avatar/profile picture`);
         imageUrls.push(mentionImg.url);
@@ -1458,7 +1471,8 @@ Respond with ONLY "yes" or "no". Nothing else.`,
       "SMALL",
     );
     if (emojisInMessage && emojisInMessage.size > 0) {
-      for (const [emoji, emojiObject] of emojisInMessage.entries()) {
+      for (const [emoji, emojiObj] of emojisInMessage.entries()) {
+        const emojiObject = emojiObj as any;
         if (emojiObject && emojiObject.url) {
           const emojiData = await splitEmojiNameAndId(emoji);
           const emojiName = emojiData ? emojiData.name : (emojiObject.name || emoji);
@@ -1621,8 +1635,8 @@ Respond with ONLY "yes" or "no". Nothing else.`,
 
     const agentResponse = await PrismService.generateAgentResponse({
       messages: agentConversation,
-      type: config.LANGUAGE_MODEL_TYPE,
-      model: agentModel,
+      type: config.LANGUAGE_MODEL_TYPE || "",
+      model: agentModel || "",
       agentContext,
       maxTokens: 4096, // Agent needs headroom for tool-call JSON + reasoning + final reply
       temperature: config.LANGUAGE_MODEL_TEMPERATURE ? parseFloat(config.LANGUAGE_MODEL_TEMPERATURE) : undefined,
@@ -1651,7 +1665,7 @@ Respond with ONLY "yes" or "no". Nothing else.`,
     generatedText = utilities.removeMentions(generatedText);
     generatedText = CensorService.removeFlaggedWords(generatedText);
 
-  } catch (error: unknown) {
+  } catch (error: any) {
     generatedText = "...";
     console.error(...LogFormatter.error("buildAndGenerateReply", error));
   }
@@ -1661,7 +1675,7 @@ Respond with ONLY "yes" or "no". Nothing else.`,
   };
 }
 
-async function replyMessage(queuedDatum: Record<string, unknown>, localMongo: import("mongodb").MongoClient) {
+async function replyMessage(queuedDatum: Record<string, any>, localMongo: import("mongodb").MongoClient) {
   // Handles incoming Discord messages and message updates
   // LightsService.cycleColor(config.PRIMARY_LIGHT_ID, DEFAULT_LIGHT_CYCLE);
   const message = queuedDatum.message;
@@ -1705,12 +1719,12 @@ async function replyMessage(queuedDatum: Record<string, unknown>, localMongo: im
 
   if (guild) {
     combinedGuildInformation =
-      utilities.getCombinedGuildInformationFromGuild(guild);
+      utilities.getCombinedGuildInformationFromGuild(guild) || null;
     combinedChannelInformation =
-      utilities.getCombinedChannelInformationFromChannel(channel);
-    console.log(...LogFormatter.receivedGuildMessage(message, actionType));
+      utilities.getCombinedChannelInformationFromChannel(channel as any) || null;
+    console.log(...LogFormatter.receivedGuildMessage(message as any, actionType));
   } else {
-    console.log(...LogFormatter.receivedDirectMessage(message, actionType));
+    console.log(...LogFormatter.receivedDirectMessage(message as any, actionType));
   }
 
   // CHECK IF WE CAN GENERATE AN IMAGE
@@ -1719,7 +1733,7 @@ async function replyMessage(queuedDatum: Record<string, unknown>, localMongo: im
   // Generate custom emoji reaction
   const customEmojiReact =
     await AIService.generateTextCustomEmojiReactFromMessage(
-      message,
+      message as any,
       localMongo,
     );
   if (customEmojiReact) {
@@ -1805,7 +1819,7 @@ async function replyMessage(queuedDatum: Record<string, unknown>, localMongo: im
 ${member ? `Member: ${combinedNames}` : `User: ${combinedNames}`}
 ${combinedGuildInformation ? `Guild: ${combinedGuildInformation}` : "Direct Message"}
 ${combinedChannelInformation ? `Channel: ${combinedChannelInformation}` : ""}
-${combinedGuildInformation && combinedChannelInformation ? `URL: ${utilities.getDiscordMessageUrl(guild.id, channel.id, (message as Message).id)}` : ""}`);
+${combinedGuildInformation && combinedChannelInformation ? `URL: ${utilities.getDiscordMessageUrl(guild?.id || "", channel?.id || "", (message as Message).id)}` : ""}`);
     return;
   }
   // SEND THE REPLY
@@ -1835,7 +1849,7 @@ ${combinedGuildInformation && combinedChannelInformation ? `URL: ${utilities.get
     ${member ? `Member: ${combinedNames}` : `User: ${combinedNames}`}
     ${combinedGuildInformation ? `Guild: ${combinedGuildInformation}` : "Direct Message"}
     ${combinedChannelInformation ? `Channel: ${combinedChannelInformation}` : ""}
-    ${combinedGuildInformation && combinedChannelInformation ? `URL: ${utilities.getDiscordMessageUrl(guild.id, channel.id, (message as Message).id)}` : ""}`);
+    ${combinedGuildInformation && combinedChannelInformation ? `URL: ${utilities.getDiscordMessageUrl(guild?.id || "", channel?.id || "", (message as Message).id)}` : ""}`);
     // LightsService.setState({ color: "red" }, config.PRIMARY_LIGHT_ID);
     return;
   }
@@ -1844,17 +1858,20 @@ ${combinedGuildInformation && combinedChannelInformation ? `URL: ${utilities.get
   CurrentService.setEndTime(Date.now());
 
   // Fire-and-forget memory extraction from the conversation
-  if ((message as Message).guildId && conversation?.length > 0) {
-    const memoryParticipants: GuildMember[] = [];
+  const guildId = (message as Message).guildId;
+  if (guildId && conversation?.length > 0) {
+    const memoryParticipants: any[] = [];
     // Collect participant info for extraction
     if (participantsCollection?.size) {
       for (const participant of participantsCollection.values()) {
-        if (participant?.user) {
+        const pId = participant?.user?.id || participant?.id;
+        const pUser = participant?.user || participant;
+        if (pId) {
           memoryParticipants.push({
-            id: participant.user.id,
-            username: participant.user.username,
+            id: pId,
+            username: pUser?.username || "",
             displayName:
-              participant.user.globalName || participant.user.username,
+              pUser?.globalName || pUser?.username || "",
           });
         }
       }
@@ -1862,11 +1879,11 @@ ${combinedGuildInformation && combinedChannelInformation ? `URL: ${utilities.get
     // Include mentioned users
     if (memberMentionsCollection?.size) {
       for (const member of memberMentionsCollection.values()) {
-        const alreadyAdded = memoryParticipants.some((p: GuildMember) => p.id === member.id);
+        const alreadyAdded = memoryParticipants.some((p: any) => p.id === member.id);
         if (!alreadyAdded) {
           memoryParticipants.push({
             id: member.id,
-            username: member.user?.username || member.username,
+            username: member.user?.username || "",
             displayName:
               member.displayName ||
               member.user?.globalName ||
@@ -1878,18 +1895,18 @@ ${combinedGuildInformation && combinedChannelInformation ? `URL: ${utilities.get
     if (memoryParticipants.length > 0) {
       // Only send the last ~10 user messages for extraction (skip system/assistant)
       const recentUserMessages = conversation
-        .filter((m: Record<string, unknown>) => m.role === "user")
+        .filter((m: Record<string, any>) => m.role === "user")
         .slice(-10);
 
       PrismService.extractMemories({
-        guildId: (message as Message).guildId,
-        channelId: (message as Message).channel?.id,
-        messages: recentUserMessages,
-        participants: memoryParticipants,
+        guildId,
+        channelId: (message as Message).channel?.id || "",
+        messages: recentUserMessages as any,
+        participants: memoryParticipants.map((p: any) => p.displayName || p.username || p.id),
         sourceMessageId: (message as Message).id,
-        traceId: CurrentService.getTraceId(),
+        traceId: CurrentService.getTraceId() || undefined,
       })
-        .then((result: string) => {
+        .then((result: any) => {
           if (result?.count > 0) {
             console.log(
               `🧠 [DiscordService] Extracted ${result.count} memory/memories from conversation.`,
@@ -1911,7 +1928,7 @@ ${combinedGuildInformation && combinedChannelInformation ? `URL: ${utilities.get
     console.log(
       ...LogFormatter.replyGuildMessageSuccess(
         message,
-        generatedTextResponse,
+        generatedTextResponse || "",
         duration,
       ),
     );
@@ -1919,7 +1936,7 @@ ${combinedGuildInformation && combinedChannelInformation ? `URL: ${utilities.get
     console.log(
       ...LogFormatter.replyDirectMessageSuccess(
         message,
-        generatedTextResponse,
+        generatedTextResponse || "",
         duration,
       ),
     );
@@ -1951,7 +1968,7 @@ ${combinedGuildInformation && combinedChannelInformation ? `URL: ${utilities.get
 }
 
 async function generateUserConversationAndHash(
-  queuedDatum: Record<string, unknown>,
+  queuedDatum: Record<string, any>,
   recentMessage: Message,
   localMongo: import("mongodb").MongoClient,
 ) {
@@ -1995,7 +2012,7 @@ async function generateUserConversationAndHash(
 }
 
 async function extractContentFromMessages(
-  queuedDatum: Record<string, unknown>,
+  queuedDatum: Record<string, any>,
   localMongo: import("mongodb").MongoClient,
   _maxSimultaneous: number = 50,
 ) {
@@ -2059,7 +2076,7 @@ async function extractContentFromMessages(
   const client = message.client;
 
   // Initialize collections
-  const participantsCollection = new Collection<string, unknown>();
+  const participantsCollection = new Collection<string, any>();
   const participantsAvatarsCollection = new Collection<string, string | null>();
   const participantsBannersCollection = new Collection<string, string | null>();
   const participantsUsersCollection = new Collection<string, User>();
@@ -2070,20 +2087,20 @@ async function extractContentFromMessages(
   const messagesTranscriptionsCollection = new Collection<string, DiscordCollection<string, { transcription: string }>>();
   const messagesEmojisCollection = new Collection<string, unknown>();
   const conversationsCollection = new Collection<string, unknown>();
-  const conversation: Record<string, unknown>[] = [];
+  const conversation: Record<string, any>[] = [];
   const newSystemPrompt = "";
 
   // Prepare all async operations
   const allPromises = {
-    conversations: [] as Promise<unknown>[],
-    emojis: [] as Promise<unknown>[],
-    audio: [] as Promise<unknown>[],
-    images: [] as Promise<unknown>[],
-    replies: [] as Promise<unknown>[],
+    conversations: [] as any[],
+    emojis: [] as any[],
+    audio: [] as any[],
+    images: [] as any[],
+    replies: [] as any[],
   };
 
   // First pass: collect all async operations
-  const messageProcessingData: Record<string, unknown>[] = [];
+  const messageProcessingData: any[] = [];
 
   if ((message as Message).guild) {
     let index = 0;
@@ -2108,7 +2125,7 @@ async function extractContentFromMessages(
     const messageSequenceInfo = new Map();
     let currentSequenceAuthor = null;
     let _currentSequenceStart = -1;
-    let currentSequenceMessages: Message[] = [];
+    let currentSequenceMessages: number[] = [];
 
     for (let i = 0; i < recentXMessages.length; i++) {
       const message = recentXMessages[i];
@@ -2231,15 +2248,15 @@ async function extractContentFromMessages(
           // instead of pre-captioning every avatar on every message.
           let avatarUrl: string | null = null, bannerUrl: string | null = null;
           if (user) {
-            avatarUrl = utilities.getDiscordAvatarUrl(user.id, user.avatar);
-            bannerUrl = utilities.getDiscordBannerUrl(user.id, user.banner);
+            avatarUrl = utilities.getDiscordAvatarUrl(user.id, user.avatar as any);
+            bannerUrl = utilities.getDiscordBannerUrl(user.id, user.banner as any);
           }
           if (member) {
             if (member.avatar) {
-              avatarUrl = utilities.getDiscordAvatarUrl(member.id, member.avatar);
+              avatarUrl = utilities.getDiscordAvatarUrl(member.id, member.avatar as any);
             }
             if (member.banner) {
-              bannerUrl = utilities.getDiscordBannerUrl(member.id, member.banner);
+              bannerUrl = utilities.getDiscordBannerUrl(member.id, member.banner as any);
             }
           }
 
@@ -2344,11 +2361,11 @@ async function extractContentFromMessages(
     // Rest of your code remains the same...
     // Execute all promises in parallel
     const results = await Promise.allSettled([
-      ...allPromises.conversations.map((item: { promise: Promise<unknown> }) => item.promise),
-      ...allPromises.emojis.map((item: { promise: Promise<unknown> }) => item.promise),
-      ...allPromises.audio.map((item: { promise: Promise<unknown> }) => item.promise),
-      ...allPromises.images.map((item: { promise: Promise<unknown> }) => item.promise),
-      ...allPromises.replies.map((item: { promise: Promise<unknown> }) => item.promise),
+      ...allPromises.conversations.map((item: any) => item.promise),
+      ...allPromises.emojis.map((item: any) => item.promise),
+      ...allPromises.audio.map((item: any) => item.promise),
+      ...allPromises.images.map((item: any) => item.promise),
+      ...allPromises.replies.map((item: any) => item.promise),
     ]);
 
     // Process results
@@ -2358,7 +2375,7 @@ async function extractContentFromMessages(
     for (const item of allPromises.conversations) {
       const result = results[resultIndex++];
       if (result.status === "fulfilled") {
-        conversationsCollection.set(item.userId, result.value);
+        conversationsCollection.set(item.userId, (result as any).value);
       }
     }
 
@@ -2366,8 +2383,8 @@ async function extractContentFromMessages(
     // Process emojis
     for (const _item of allPromises.emojis) {
       const result = results[resultIndex++];
-      if (result.status === "fulfilled" && result.value?.size) {
-        for (const [emoji, emojiObject] of result.value.entries()) {
+      if (result.status === "fulfilled" && (result as any).value?.size) {
+        for (const [emoji, emojiObject] of (result as any).value.entries()) {
           messagesEmojisCollection.set(emoji, emojiObject);
         }
       }
@@ -2377,18 +2394,18 @@ async function extractContentFromMessages(
     for (const item of allPromises.audio) {
       const result = results[resultIndex++];
       if (result.status === "fulfilled") {
-        const { transcriptionsMap } = result.value;
+        const { transcriptionsMap } = (result as any).value;
         messagesTranscriptionsCollection.set(item.messageId, transcriptionsMap);
         for (const [hash, transcriptionObject] of transcriptionsMap.entries()) {
           console.log(
             ...LogFormatter.transcribeSuccess({
               functionName,
               hash,
-              message: { id: item.messageId },
+              message: { id: item.messageId } as any,
               audioUrl: transcriptionObject.url,
               transcription: transcriptionObject.transcription,
               cached: transcriptionObject.cached,
-            }),
+            } as any),
           );
         }
       }
@@ -2398,19 +2415,19 @@ async function extractContentFromMessages(
     for (const item of allPromises.images) {
       const result = results[resultIndex++];
       if (result.status === "fulfilled") {
-        const { imagesMap } = result.value;
+        const { imagesMap } = (result as any).value;
         messagesImagesCollection.set(item.messageId, imagesMap);
         for (const [hash, mapObject] of imagesMap.entries()) {
           console.log(
             ...LogFormatter.captionSuccess({
               functionName,
               hash,
-              message: { id: item.messageId },
+              message: { id: item.messageId } as any,
               imageUrl: mapObject.url,
               caption: mapObject.caption,
               fileType: mapObject.fileType,
               cached: mapObject.cached,
-            }),
+            } as any),
           );
         }
       }
@@ -2443,7 +2460,7 @@ async function extractContentFromMessages(
         // Bot has attached an image to this message
         if (recentMessage?.attachments?.size > 0) {
           const imageAttached = recentMessage.attachments.find((attachment: import("discord.js").Attachment) =>
-            attachment.contentType.includes("image"),
+            attachment.contentType && attachment.contentType.includes("image"),
           );
           if (imageAttached) {
             if (imageAttached.description) {
@@ -2667,9 +2684,12 @@ async function extractContentFromMessages(
 async function generateRolesEmbedMessage(client: Client) {
   // get the original message and edit it to show the new role count on the button
   // re-render the buttons with the new role count
-  const roles = client.guilds.cache
-    .get(config.GUILD_ID_PRIMARY)
-    .roles.cache.sort((a: import("discord.js").Role, b: import("discord.js").Role) => a.rawPosition - b.rawPosition)
+  const guildId = config.GUILD_ID_PRIMARY;
+  if (!guildId) return;
+  const guild = client.guilds.cache.get(guildId);
+  if (!guild) return;
+  const roles = guild.roles.cache
+    .sort((a: import("discord.js").Role, b: import("discord.js").Role) => a.rawPosition - b.rawPosition)
     .reverse();
 
   /**
@@ -2692,9 +2712,9 @@ async function generateRolesEmbedMessage(client: Client) {
     }
     const rolesArray = filtered.map((role: import("discord.js").Role) => role);
 
-    const rows: import("discord.js").ActionRowBuilder<import("discord.js").StringSelectMenuBuilder>[] = [];
+    const rows: import("discord.js").ActionRowBuilder<any>[] = [];
     for (let i = 0; i < rolesArray.length; i += maxButtonsPerRow) {
-      const row = new ActionRowBuilder<import("discord.js").StringSelectMenuBuilder>();
+      const row = new ActionRowBuilder<any>();
       const currentRoles = rolesArray.slice(i, i + maxButtonsPerRow);
       for (const role of currentRoles) {
         const emoji = sourceArray.find((src: { id: string }) => src.id === role.id)?.emojiId || null;
@@ -2715,10 +2735,12 @@ async function generateRolesEmbedMessage(client: Client) {
   const videogames = buildRolePickerSection("Pick Your Videogames", "Which videogames do you play?", rolesVideogames, { sort: true });
 
   // if the channel is empty, create a new message
+  const channelId = config.CHANNEL_ID_SELF_ROLES;
+  if (!channelId) return;
   const channel = DiscordUtilityService.getChannelById(
     client,
-    config.CHANNEL_ID_SELF_ROLES,
-  );
+    channelId,
+  ) as any;
   if (!channel) {
     return;
   }
@@ -2767,18 +2789,22 @@ async function luposOnReady(client: Client, { mongo }: { mongo: import("mongodb"
   // gateway connect can stall on DNS/TLS in Docker (Synology bridge network).
   // Issuing a lightweight call here primes the pool so sendTyping() doesn't hang.
   try {
-    await client.application.fetch();
-    console.log('🔌 [DiscordService] REST connection pool warmed up');
+    if (client.application) {
+      await client.application.fetch();
+      console.log('🔌 [DiscordService] REST connection pool warmed up');
+    }
   } catch (error: unknown) {
     console.warn(`⚠️ [DiscordService] REST warmup failed: ${(error as Error).message}`);
   }
 
   // ─── Maintenance Gate ──────────────────────────────────────────
   if (config.UNDER_MAINTENANCE) {
-    client.user.setPresence({
-      activities: [{ name: '🚧 Under maintenance 🚧', type: 4 }],
-      status: 'idle',
-    });
+    if (client.user) {
+      client.user.setPresence({
+        activities: [{ name: '🚧 Under maintenance 🚧', type: 4 }],
+        status: 'idle',
+      });
+    }
     console.log('🚧 Lupos is under maintenance — skipping normal initialization.');
     return;
   }
@@ -3085,7 +3111,7 @@ async function sendMaintenanceCountdown(message: Message) {
 
 async function processMessage(
   client: Client,
-  { _mongo, localMongo }: Record<string, unknown>,
+  { _mongo, localMongo }: Record<string, any>,
   message: Message,
   actionType: string,
 ) {
@@ -3137,7 +3163,7 @@ Message: ${message.cleanContent}`;
 Guild: ${(message as Message).guild?.name}
 Channel: #${((message as Message).channel as TextChannel)?.name}
 Author: ${utilities.getCombinedNamesFromUserOrMember({ member: (message as Message).member, user: message.author })}
-URL: ${utilities.getDiscordMessageUrl((message as Message).guild?.id, (message as Message).channel.id, (message as Message).id)}`;
+URL: ${utilities.getDiscordMessageUrl((message as Message).guild?.id || "", (message as Message).channel.id, (message as Message).id)}`;
 
       console.log(logMessage);
     }
@@ -3188,9 +3214,10 @@ URL: ${utilities.getDiscordMessageUrl((message as Message).guild?.id, (message a
   }
 
   // IGNORE MESSAGES FROM USERS WITH SPECIFIC ROLES
+  const memberObj = (message as Message).member;
   if (
-    (message as Message).member &&
-    (message as Message).member.roles.cache.some((role: import("discord.js").Role) =>
+    memberObj &&
+    memberObj.roles.cache.some((role: import("discord.js").Role) =>
       config.ROLES_IDS_IGNORE.includes(role.id),
     )
   ) {
@@ -3254,7 +3281,7 @@ URL: ${utilities.getDiscordMessageUrl((message as Message).guild?.id, (message a
     isProcessingQueue = true;
     try {
       while (queuedData.length > 0) {
-        const queuedDatum = queuedData.shift() as Record<string, unknown>;
+        const queuedDatum = queuedData.shift() as Record<string, any>;
         const currentChannelId = (queuedDatum.message as Message).channel.id;
         try {
           await replyMessage(queuedDatum, localMongo);
@@ -3273,7 +3300,7 @@ URL: ${utilities.getDiscordMessageUrl((message as Message).guild?.id, (message a
         }
         // No more queued messages for this channel — clear typing indicator
         if (
-          !queuedData.some((q: Record<string, unknown>) => q.message?.channel?.id === currentChannelId)
+          !queuedData.some((q: Record<string, any>) => q.message?.channel?.id === currentChannelId)
         ) {
           // Clear typing for this specific channel only
           if (typingIntervals[currentChannelId]) {
@@ -3297,7 +3324,7 @@ async function luposOnMessageCreate(client: Client, { mongo, localMongo }: { mon
 
 async function luposOnMessageCreateCloneMessage(
   client: Client,
-  { _mongo, localMongo }: Record<string, unknown>,
+  { _mongo, localMongo }: Record<string, any>,
   message: Message,
 ) {
   await DiscordUtilityService.saveMessageToMongo(message, localMongo);
@@ -3305,11 +3332,11 @@ async function luposOnMessageCreateCloneMessage(
 
 async function luposOnMessageUpdateCloneMessage(
   client: Client,
-  { _mongo, localMongo }: Record<string, unknown>,
+  { _mongo, localMongo }: Record<string, any>,
   oldMessage: Message | PartialMessage,
   newMessage: Message | PartialMessage,
 ) {
-  await DiscordUtilityService.updateMessageInMongo(newMessage, localMongo);
+  await DiscordUtilityService.updateMessageInMongo(newMessage as Message, localMongo);
 }
 
 async function luposOnMessageUpdate(
@@ -3335,7 +3362,7 @@ async function luposOnMessageUpdate(
         message.reference?.messageId === newMessage.id,
     );
     if (futureMessages.length) return;
-    await processMessage(client, { mongo, localMongo }, newMessage, "UPDATE");
+    await processMessage(client, { mongo, localMongo }, newMessage as Message, "UPDATE");
   } else {
     return;
   }
@@ -3367,7 +3394,7 @@ async function luposOnGuildMemberAdd(client: Client, mongo: import("mongodb").Mo
   if (wasKicked) return;
 
   // Assign politics mute role if user is in the muted list
-  if (config.USER_IDS_POLITICS_MUTED?.includes(member.id)) {
+  if (config.USER_IDS_POLITICS_MUTED?.includes(member.id) && config.ROLE_ID_POLITICS_MUTE) {
     await DiscordUtilityService.addRoleToMember(
       member,
       config.ROLE_ID_POLITICS_MUTE,
@@ -3413,8 +3440,8 @@ async function luposOnGuildMemberUpdate(client: Client, mongo: import("mongodb")
   await kickIfForbiddenCombo(newMember, functionName);
 
   // Whenever a user completes onboarding
-  const hasOldMemberCompletedOnboarding = oldMember.flags & (1 << 1);
-  const hasNewMemberCompletedOnboarding = newMember.flags & (1 << 1);
+  const hasOldMemberCompletedOnboarding = (oldMember.flags as any) & (1 << 1);
+  const hasNewMemberCompletedOnboarding = (newMember.flags as any) & (1 << 1);
   if (!hasOldMemberCompletedOnboarding && hasNewMemberCompletedOnboarding) {
     // LightsService.cycleColor(config.PRIMARY_LIGHT_ID);
     console.log(
@@ -3435,10 +3462,10 @@ async function luposOnInteractionCreate(client: Client, mongo: import("mongodb")
   const functionName = "luposOnInteractionCreate";
   if (interaction.isButton()) {
     if (interaction.customId.startsWith("pick-role-")) {
+      if (!interaction.guild || !interaction.member) return;
       const roleId = interaction.customId.split("pick-role-")[1];
       const role = interaction.guild.roles.cache.get(roleId);
       const member = interaction.member as GuildMember;
-      if (!member || !interaction.guild) return;
       if (!role) {
         console.error(...LogFormatter.roleNotFound(functionName, interaction, roleId));
         return;
@@ -3589,10 +3616,12 @@ async function luposOnVoiceStateUpdate(client: Client, mongo: import("mongodb").
     console.log(...LogFormatter.memberJoinedVoiceChannel(newState));
     if (newState.member.guild.id === (config.GUILD_ID_PRIMARY as string)) {
       const voiceChatterRoleId = config.ROLE_ID_VOICE_CHATTER;
-      await DiscordUtilityService.addRoleToMember(
-        newState.member,
-        voiceChatterRoleId,
-      );
+      if (voiceChatterRoleId) {
+        await DiscordUtilityService.addRoleToMember(
+          newState.member,
+          voiceChatterRoleId,
+        );
+      }
     }
   } else {
     console.log(...LogFormatter.memberLeftVoiceChannel(oldState));
@@ -3646,8 +3675,8 @@ async function generateAttachmentsResponse(
   if (!(message as Message).content) {
     if ((transcriptionsCollection?.size ?? 0) > 0) {
       // iterate through the first one only
-      const audioTranscriptions = transcriptionsCollection!.values().next()
-        .value.transcription;
+      const audioTranscriptions = (transcriptionsCollection as any).values().next()
+        .value?.transcription || "";
       modifiedContent += `\nType: Voice Message`;
       modifiedContent += `\nAudio Content:`;
       modifiedContent += `\n<audio_transcription>`;
@@ -3666,8 +3695,8 @@ async function generateAttachmentsResponse(
     }
   } else {
     if ((transcriptionsCollection?.size ?? 0)) {
-      const audioTranscriptions = transcriptionsCollection!.values().next()
-        .value.transcription;
+      const audioTranscriptions = (transcriptionsCollection as any).values().next()
+        .value?.transcription || "";
       modifiedContent += `\nAudio Transcription: ${audioTranscriptions}`;
     }
     if (imagesCollection?.size) {
@@ -3835,8 +3864,8 @@ const DiscordService = {
     );
     // Register clone handlers so live messages aren't dropped when
     // Discord load-balances gateway events across the two sessions.
-    DiscordUtilityService.onEventMessageCreate(luposClient, { mongo: localMongo, localMongo }, luposOnMessageCreateCloneMessage);
-    DiscordUtilityService.onEventMessageUpdate(luposClient, { mongo: localMongo, localMongo }, luposOnMessageUpdateCloneMessage);
+    DiscordUtilityService.onEventMessageCreate(luposClient, { mongo: localMongo, localMongo }, luposOnMessageCreateCloneMessage as (...args: any[]) => void);
+    DiscordUtilityService.onEventMessageUpdate(luposClient, { mongo: localMongo, localMongo }, luposOnMessageUpdateCloneMessage as (...args: any[]) => void);
     DiscordUtilityService.onEventMessageDelete(luposClient, localMongo, luposOnMessageDelete as (...args: unknown[]) => void);
   },
   async deleteDuplicateMessages() {

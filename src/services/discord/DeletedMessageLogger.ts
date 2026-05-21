@@ -79,7 +79,7 @@ async function handleMessageDelete(client: Client, mongo: MongoClient, message: 
 
   const deletedMessagesChannel = DiscordUtilityService.getChannelById(
     client,
-    config.CHANNEL_ID_DELETED_MESSAGES,
+    config.CHANNEL_ID_DELETED_MESSAGES || "",
   ) as TextChannel | undefined;
   if (!deletedMessagesChannel) return;
 
@@ -90,7 +90,7 @@ async function handleMessageDelete(client: Client, mongo: MongoClient, message: 
   });
   if (!name) return;
 
-  const avatarUrl = utilities.getDiscordAvatarUrl(message.author?.id, message.author?.avatar);
+  const avatarUrl = utilities.getDiscordAvatarUrl(message.author?.id || "", message.author?.avatar || "");
   const channelName = DiscordUtilityService.getChannelName(
     client,
     message.channelId,

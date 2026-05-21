@@ -37,9 +37,10 @@ const MessageService = {
         if (allClocks.length) {
           assistantMessage += `\n# List of Clocks`;
           for (const clock of allClocks) {
-            const url = clock.url;
-            const name = clock.name;
-            const description = clock.description;
+            const c = clock as any;
+            const url = c.url;
+            const name = c.name;
+            const description = c.description;
             assistantMessage += `\n- ${name}`;
             if (url) {
               // assistantMessage += `\n  - Newgrounds Sub-domain path: ${url}`;

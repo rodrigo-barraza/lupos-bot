@@ -93,12 +93,12 @@ export default {
             },
             { $sort: { count: -1 } },
           ])
-          .toArray(),
+          .toArray() as unknown as Promise<LeaderboardUser[]>,
       ]);
 
       const sortedUsers = allUsers.slice(0, 10);
       const totalUsers = allUsers.length;
-      const totalUserMessages = allUsers.reduce((s: number, u: LeaderboardUser) => s + (u as LeaderboardUser).count, 0);
+      const totalUserMessages = allUsers.reduce((s: number, u: LeaderboardUser) => s + u.count, 0);
       const avgMessages = totalUsers > 0 ? totalUserMessages / totalUsers : 0;
 
       const description = `**Time Period:** ${formatTimePeriod(years, months, days, "Last 7 days (default)")}\n**Channel:** ${channel ? channel.toString() : "All Channels"}\n**Total Messages:** ${totalMessages}\n\n`;

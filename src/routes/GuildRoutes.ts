@@ -107,7 +107,7 @@ function buildAvatarUrl(user: User, member: GuildMember) {
 
 router.get("/guild/channels", (req: Request, res: Response) => {
   try {
-    const guildId = (req.query.guildId as string) || config.GUILD_ID_CLOCK_CREW;
+    const guildId = (req.query.guildId as string) || config.GUILD_ID_CLOCK_CREW || "";
     const client = DiscordWrapper.getClient("lupos");
     const guild = client.guilds.cache.get(guildId);
 
@@ -143,71 +143,55 @@ router.get("/guild/channels", (req: Request, res: Response) => {
 
 // ─── GET /guild/members ─────────────────────────────────────────
 // Returns online/idle/dnd members for a guild, grouped by role.
+// Optimizations:
+// 1. Employs a Stale-While-Revalidate (SWR) pattern via an in-memory cache to return cached state immediately (0ms response).
+// 2. Performs background cache refresh asynchronously so the HTTP request-response cycle is never blocked.
+// 3. Avoids expensive guild.members.fetch gateway calls if the Discord.js internal cache is already populated.
 // Query: ?guildId=...
 
-router.get("/guild/members", asyncHandler(async (req: Request, res: Response) => {
-  try {
-    const guildId = (req.query.guildId as string) || config.GUILD_ID_CLOCK_CREW;
-    const client = DiscordWrapper.getClient("lupos");
-    const guild = client.guilds.cache.get(guildId);
+interface CachedMembers {
+  data: any;
+  timestamp: number;
+}
 
-    if (!guild) {
-      return res.status(404).json({ error: "Guild not found" });
-    }
+const _membersCache = new Map<string, CachedMembers>();
+const MEMBERS_CACHE_TTL_MS = 60 * 1000; // Cache duration: 1 minute
 
-    // Fetch all members to populate presences (cache may be incomplete).
-    // Gracefully fall back to cache if the fetch fails (rate-limit, timeout, etc.)
+/**
+ * Transforms, groups, and formats raw guild members data into hoist roles & flat sections.
+ * Optimized to be a pure, high-performance CPU-bound operation.
+ */
+function formatMembersData(guild: any): any {
+  // ── Helper: pick a display-worthy activity from presence ─────
+  function pickActivity(presence: Presence | null | undefined): string | null {
+    if (!presence?.activities?.length) return null;
+    const realActivity = presence.activities.find((a: Activity) => a.type !== 4);
+    if (realActivity) return realActivity.name;
+    const customStatus = presence.activities.find((a: Activity) => a.type === 4);
+    return customStatus?.state || null;
+  }
+
+  // Collect online members (online, idle, dnd — not offline).
+  const onlineMembers = guild.members.cache.filter(
+    (m: GuildMember) =>
+      m.presence &&
+      m.presence.status &&
+      m.presence.status !== "offline",
+  );
+
+  // Bots without presence are treated as online sidebar elements per Discord behavior
+  const offlineBots = guild.members.cache.filter(
+    (m: GuildMember) => m.user.bot && (!m.presence || m.presence.status === "offline"),
+  );
+
+  const roleMap = new Map<string, RoleGroup>();
+  const ungrouped: MemberData[] = [];
+  const ungroupedBots: MemberData[] = [];
+
+  const allVisible = new Map<string, GuildMember>([...onlineMembers, ...offlineBots]);
+
+  for (const [, member] of allVisible) {
     try {
-      await guild.members.fetch({ withPresences: true });
-    } catch (fetchErr: unknown) {
-      console.warn(
-        `[guild/members] guild.members.fetch failed, falling back to cache: ${(fetchErr as Error).message}`,
-      );
-    }
-
-    // ── Helper: pick a display-worthy activity from presence ─────
-    // Discord ActivityType.Custom (4) has name="Custom Status" but the
-    // real user text lives in .state. We prefer game/streaming/listening
-    // activities, falling back to the custom status text if nothing else.
-    function pickActivity(presence: Presence | null | undefined): string | null {
-      if (!presence?.activities?.length) return null;
-      // Prefer non-custom-status activities (games, streaming, Spotify, etc.)
-      const realActivity = presence.activities.find((a: Activity) => a.type !== 4);
-      if (realActivity) return realActivity.name;
-      // Fall back to custom status .state (the user-entered text)
-      const customStatus = presence.activities.find((a: Activity) => a.type === 4);
-      return customStatus?.state || null;
-    }
-
-    // Collect online members (online, idle, dnd — not offline).
-    // Bots are included here so those with hoisted roles appear under
-    // their role group (e.g. "Good Boy") — matching Discord's behavior.
-    const onlineMembers = guild.members.cache.filter(
-      (m: GuildMember) =>
-        m.presence &&
-        m.presence.status &&
-        m.presence.status !== "offline",
-    );
-
-    // Bots without presence are still "online" — Discord doesn't track
-    // their presence reliably, so we treat any cached bot as online.
-    const offlineBots = guild.members.cache.filter(
-      (m: GuildMember) => m.user.bot && (!m.presence || m.presence.status === "offline"),
-    );
-
-    // Build role hierarchy for grouping.
-    // Only hoisted roles (role.hoist === true) appear as sidebar
-    // category headers — mirrors Discord's own member list behavior.
-    const roleMap = new Map<string, RoleGroup>();
-    const ungrouped: MemberData[] = [];
-    const ungroupedBots: MemberData[] = []; // bots with no hoisted role
-
-    // Process both online members and offline bots together
-    const allVisible = new Map<string, GuildMember>([...onlineMembers, ...offlineBots]);
-
-    for (const [, member] of allVisible) {
-      try {
-      // Get all non-@everyone roles sorted highest first
       let sortedRoles: Role[] = [];
       try {
         sortedRoles = [...member.roles.cache
@@ -216,10 +200,8 @@ router.get("/guild/members", asyncHandler(async (req: Request, res: Response) =>
           .values()];
       } catch { /* roles cache unavailable */ }
 
-      // Find the highest hoisted role for sidebar grouping
       const hoistedRole = sortedRoles.find((r: Role) => r.hoist);
 
-      // ── Build role colors (gradient/holographic support) ───────
       let roleColors: { primary: string; secondary: string | null; tertiary: string | null } | null = null;
       try {
         const colorRole = member.roles.color;
@@ -239,7 +221,6 @@ router.get("/guild/members", asyncHandler(async (req: Request, res: Response) =>
         }
       } catch { /* role colors unavailable */ }
 
-      // ── Extract profile badges from user flags bitfield ────────
       const badges: string[] = [];
       try {
         const userFlags = member.user.flags?.bitfield;
@@ -265,7 +246,6 @@ router.get("/guild/members", asyncHandler(async (req: Request, res: Response) =>
         }
       } catch { /* user flags unavailable */ }
 
-      // ── Top role tags (colored pill badges next to username) ───
       let roleTags: { name: string; color: string | null; iconUrl: string | null }[] = [];
       try {
         roleTags = sortedRoles.slice(0, 3).map((r: Role) => ({
@@ -284,11 +264,8 @@ router.get("/guild/members", asyncHandler(async (req: Request, res: Response) =>
         activity: pickActivity(member.presence),
         isBot: member.user.bot,
         roleColor: member.displayHexColor !== "#000000" ? member.displayHexColor : null,
-        // Enhanced Role Styles — gradient (secondary) / holographic (tertiary)
         ...(roleColors?.secondary && { roleColors }),
-        // Profile badges (HypeSquad, Nitro Early Supporter, Active Developer, etc.)
         ...(badges.length > 0 && { badges }),
-        // Top role tags as colored pills next to the username
         ...(roleTags.length > 0 && { roleTags }),
       };
 
@@ -308,55 +285,105 @@ router.get("/guild/members", asyncHandler(async (req: Request, res: Response) =>
       } else {
         ungrouped.push(memberData);
       }
-      } catch (memberErr: unknown) {
-        console.warn(`[guild/members] Skipping member ${member?.id} (${member?.user?.username}): ${(memberErr as Error).message} | Stack: ${(memberErr as Error).stack?.split('\n')[1]?.trim()}`);
-      }
+    } catch (memberErr: unknown) {
+      console.warn(`[guild/members] Skipping member ${member?.id}: ${(memberErr as Error).message}`);
     }
+  }
 
-    // Sort roles by position (highest first), members alphabetically
-    const roles: RoleGroup[] = Array.from(roleMap.values())
-      .sort((a, b) => b.position - a.position)
-      .map((role) => ({
-        ...role,
-        members: role.members.sort((a, b) =>
-          a.displayName.localeCompare(b.displayName),
-        ),
-      }));
+  const roles: RoleGroup[] = Array.from(roleMap.values())
+    .sort((a, b) => b.position - a.position)
+    .map((role) => ({
+      ...role,
+      members: role.members.sort((a, b) =>
+        a.displayName.localeCompare(b.displayName),
+      ),
+    }));
 
-    if (ungrouped.length > 0) {
-      roles.push({
-        id: "online",
-        name: "Online",
-        color: null,
-        position: -1,
-        members: ungrouped.sort((a, b) =>
-          a.displayName.localeCompare(b.displayName),
-        ),
-      });
-    }
-
-    // Bots without a hoisted role go into the flat "Bots" section
-    const bots = ungroupedBots.sort((a, b) =>
-      a.displayName.localeCompare(b.displayName),
-    );
-
-    const totalProcessed = roles.reduce((n: number, r: RoleGroup) => n + r.members.length, 0)
-      + ungrouped.length + bots.length;
-    const totalVisible = allVisible.size;
-    if (totalProcessed < totalVisible) {
-      console.warn(
-        `[guild/members] Processed ${totalProcessed}/${totalVisible} members — ${totalVisible - totalProcessed} skipped due to errors`,
-      );
-    }
-
-    res.json({
-      guildId,
-      guildName: guild.name,
-      totalOnline: onlineMembers.size + offlineBots.size,
-      totalMembers: guild.memberCount,
-      roles,
-      bots,
+  if (ungrouped.length > 0) {
+    roles.push({
+      id: "online",
+      name: "Online",
+      color: null,
+      position: -1,
+      members: ungrouped.sort((a, b) =>
+        a.displayName.localeCompare(b.displayName),
+      ),
     });
+  }
+
+  const bots = ungroupedBots.sort((a, b) =>
+    a.displayName.localeCompare(b.displayName),
+  );
+
+  return {
+    guildId: guild.id,
+    guildName: guild.name,
+    totalOnline: onlineMembers.size + offlineBots.size,
+    totalMembers: guild.memberCount,
+    roles,
+    bots,
+  };
+}
+
+/**
+ * Re-scrapes/fetches members from Discord gateway only if cache is sparse or unpopulated,
+ * compiles the formatted result, and updates the in-memory SWR cache.
+ */
+async function refreshMembersCache(guildId: string): Promise<any> {
+  const client = DiscordWrapper.getClient("lupos");
+  const guild = client.guilds.cache.get(guildId);
+  if (!guild) return null;
+
+  try {
+    // Only invoke heavy fetch call if local cache is dry or extremely small to avoid gateway overload
+    if (guild.members.cache.size < 100) {
+      console.log(`[members-cache] Cache is small (${guild.members.cache.size}). Syncing from Discord API...`);
+      await guild.members.fetch({ withPresences: true });
+    }
+  } catch (fetchErr: unknown) {
+    console.warn(
+      `[members-cache] guild.members.fetch failed: ${(fetchErr as Error).message}`,
+    );
+  }
+
+  const data = formatMembersData(guild);
+  _membersCache.set(guildId, {
+    data,
+    timestamp: Date.now(),
+  });
+  return data;
+}
+
+router.get("/guild/members", asyncHandler(async (req: Request, res: Response) => {
+  try {
+    const guildId = (req.query.guildId as string) || config.GUILD_ID_CLOCK_CREW || "";
+    const client = DiscordWrapper.getClient("lupos");
+    const guild = client.guilds.cache.get(guildId);
+
+    if (!guild) {
+      return res.status(404).json({ error: "Guild not found" });
+    }
+
+    const now = Date.now();
+    const cached = _membersCache.get(guildId);
+
+    // Return immediately if cache is fresh (under 1 min)
+    if (cached && now - cached.timestamp < MEMBERS_CACHE_TTL_MS) {
+      return res.json(cached.data);
+    }
+
+    // If cache is stale, trigger asynchronous background refresh (SWR) and return stale immediately (0ms latency)
+    if (cached) {
+      refreshMembersCache(guildId).catch((err) =>
+        console.error(`[guild/members] Background cache refresh failed: ${err.message}`)
+      );
+      return res.json(cached.data);
+    }
+
+    // No cache exists yet (cold start). Fetch and generate synchronously to seed cache
+    console.log(`[guild/members] Cold start for ${guildId}. Seeding cache synchronously...`);
+    const data = await refreshMembersCache(guildId);
+    return res.json(data);
   } catch (error: unknown) {
     console.error("[guild/members] Error:", (error as Error).message, (error as Error).stack);
     res.status(500).json({ error: "Failed to fetch members", detail: (error as Error).message });
@@ -412,7 +439,7 @@ function failJob(id: string, error: string) {
 
 router.post("/guild/rescrape", asyncHandler(async (req: Request, res: Response) => {
   try {
-    const guildId = req.body.guildId || config.GUILD_ID_CLOCK_CREW;
+    const guildId = req.body.guildId || config.GUILD_ID_CLOCK_CREW || "";
     const { channelIds, dateLimit = "2025-01-01", forceUpdate = false } = req.body;
 
     if (!channelIds || !Array.isArray(channelIds) || channelIds.length === 0) {
@@ -423,6 +450,9 @@ router.post("/guild/rescrape", asyncHandler(async (req: Request, res: Response) 
     const MongoService = (await import("#root/services/MongoService.js")).default;
     const DiscordUtilityService = (await import("#root/services/DiscordUtilityService.js")).default;
     const localMongo = MongoService.getClient("local");
+    if (!localMongo) {
+      return res.status(500).json({ error: "Database not initialized" });
+    }
 
     const job = createJob("rescrape", { guildId, channelIds, dateLimit, forceUpdate });
 
@@ -473,13 +503,16 @@ router.get("/guild/rescrape/status", (req: Request, res: Response) => {
 
 router.post("/guild/backfill-media", asyncHandler(async (req: Request, res: Response) => {
   try {
-    const guildId = req.body.guildId || config.GUILD_ID_PRIMARY;
+    const guildId = req.body.guildId || config.GUILD_ID_PRIMARY || "";
     const { channelId, forceRetry = false } = req.body;
 
     const client = DiscordWrapper.getClient("lupos");
     const MongoService = (await import("#root/services/MongoService.js")).default;
     const DiscordUtilityService = (await import("#root/services/DiscordUtilityService.js")).default;
     const localMongo = MongoService.getClient("local");
+    if (!localMongo) {
+      return res.status(500).json({ error: "Database not initialized" });
+    }
 
     const job = createJob("backfill-media", {
       guildId,
@@ -531,7 +564,7 @@ router.get("/guild/backfill-media/status", (req: Request, res: Response) => {
 
 router.get("/guild/emojis", (req: Request, res: Response) => {
   try {
-    const guildId = (req.query.guildId as string) || config.GUILD_ID_CLOCK_CREW;
+    const guildId = (req.query.guildId as string) || config.GUILD_ID_CLOCK_CREW || "";
     const client = DiscordWrapper.getClient("lupos");
     const guild = client.guilds.cache.get(guildId);
 
@@ -720,15 +753,19 @@ router.get("/bot/stats", asyncHandler(async (req: Request, res: Response) => {
 
     if (db) {
       try {
+        const primaryGuildId = config.GUILD_ID_CLOCK_CREW || config.GUILD_ID_PRIMARY || "";
+        const primaryGuild = client?.guilds?.cache?.get(primaryGuildId);
+        const memberCount = primaryGuild ? primaryGuild.memberCount : 0;
+
         const [msgCount, transcriberCount, mediaCount] = await Promise.all([
-          db.collection("Messages").countDocuments().catch(() => 0),
-          db.collection("AudioTranscriptions").countDocuments().catch(() => 0),
-          db.collection("MediaMetadata").countDocuments().catch(() => 0),
+          db.collection("Messages").estimatedDocumentCount().catch(() => 0),
+          db.collection("AudioTranscriptions").estimatedDocumentCount().catch(() => 0),
+          db.collection("MediaMetadata").estimatedDocumentCount().catch(() => 0),
         ]);
 
         database = {
           totalMessages: msgCount,
-          totalUniqueUsers: 0,
+          totalUniqueUsers: memberCount,
           totalTranscriptions: transcriberCount,
           totalArchivedMedia: mediaCount,
         };

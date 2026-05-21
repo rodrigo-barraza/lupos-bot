@@ -248,7 +248,7 @@ const MediaArchivalService = {
       const archiveRef: ArchiveRef = {
         hash,
         minioKey,
-        publicUrl,
+        publicUrl: publicUrl || "",
         contentType,
         size: buffer.length,
       };

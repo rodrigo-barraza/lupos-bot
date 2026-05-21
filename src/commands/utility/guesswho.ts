@@ -357,7 +357,7 @@ export default {
         guesses.set(i.user.id, {
           guessedUserId: userId,
           isCorrect,
-          guessedName: userDisplayNames.get(userId),
+          guessedName: userDisplayNames.get(userId) ?? "Unknown",
           pointsChange,
         });
 

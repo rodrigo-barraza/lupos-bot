@@ -31,7 +31,8 @@ async function handlePresenceUpdate(client: Client, _oldPresence: Presence | nul
 
   const mongo = MongoService.getClient("local");
   if (!mongo) return;
-  if (newPresence.guild!.id !== config.GUILD_ID_PRIMARY) return;
+  if (!newPresence.guild || !newPresence.member) return;
+  if (newPresence.guild.id !== config.GUILD_ID_PRIMARY) return;
 
   try {
     let activityName = "";
@@ -65,10 +66,12 @@ async function handlePresenceUpdate(client: Client, _oldPresence: Presence | nul
             const roleId = rolesVideogames.find(
               (role: { name: string; id: string; emojiId: string }) => role.name.toLowerCase() === mapping.roleName,
             )?.id;
-            await DiscordUtilityService.addRoleToMember(
-              newPresence.member,
-              roleId,
-            );
+            if (roleId) {
+              await DiscordUtilityService.addRoleToMember(
+                newPresence.member,
+                roleId,
+              );
+            }
           }
         }
       }
@@ -80,7 +83,7 @@ async function handlePresenceUpdate(client: Client, _oldPresence: Presence | nul
       // listening
       if (activity.type === 2) {
         activityName = activity.name;
-        await DiscordUtilityService.addRoleToMember(newPresence.member, config.ROLE_ID_SPOTIFY_LISTENER);
+        await DiscordUtilityService.addRoleToMember(newPresence.member, config.ROLE_ID_SPOTIFY_LISTENER || "");
       }
       // watching
       if (activity.type === 3) {
@@ -131,12 +134,12 @@ async function handlePresenceUpdate(client: Client, _oldPresence: Presence | nul
           // Assign streamer role to user
           await DiscordUtilityService.addRoleToMember(
             newPresence.member,
-            config.ROLE_ID_STREAMER,
+            config.ROLE_ID_STREAMER || "",
           );
           // Get the streaming channel
           const streamingChannel = await DiscordUtilityService.getChannelById(
             client,
-            config.CHANNEL_ID_STREAMERS,
+            config.CHANNEL_ID_STREAMERS || "",
           ) as TextChannel | undefined;
 
           if (streamingChannel) {
@@ -188,12 +191,12 @@ async function handlePresenceUpdate(client: Client, _oldPresence: Presence | nul
             );
           }
         } catch (notificationError: unknown) {
-          console.error(...LogFormatter.error(functionName, notificationError));
+          console.error(...LogFormatter.error(functionName, notificationError as Error));
         }
       }
     }
   } catch (error: unknown) {
-    console.error(...LogFormatter.error(functionName, error));
+    console.error(...LogFormatter.error(functionName, error as Error));
   }
 }
 

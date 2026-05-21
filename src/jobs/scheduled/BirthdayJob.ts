@@ -28,9 +28,10 @@ async function getCurrentMonthBirthdays(client: Client) {
   // get the guild
   const guild = DiscordUtilityService.getGuildById(
     client,
-    config.GUILD_ID_PRIMARY,
+    config.GUILD_ID_PRIMARY || "",
   );
   const birthdayRoleId = config.ROLE_ID_BIRTHDAY_MONTH;
+  if (!guild || !birthdayRoleId) return [];
 
   // First, remove birthday roles from everyone who has it
   const birthdayRoleMembers = guild.members.cache.filter((member: GuildMember) =>

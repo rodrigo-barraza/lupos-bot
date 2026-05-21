@@ -10,8 +10,10 @@ async function timeOutUsers(client: Client) {
   const functionName = "timeOutUsers";
   const guild = DiscordUtilityService.getGuildById(
     client,
-    config.GUILD_ID_PRIMARY,
+    config.GUILD_ID_PRIMARY || "",
   );
+  if (!guild) return;
+
   for (const userId of config.USER_IDS_TIMED_OUT) {
     let member: GuildMember | undefined;
     try {
@@ -26,7 +28,7 @@ async function timeOutUsers(client: Client) {
       }
     } catch (error: unknown) {
       console.log(
-        ...LogFormatter.memberTimeOutError(functionName, member, guild, error),
+        ...LogFormatter.memberTimeOutError(functionName, member as GuildMember, guild, error as Error),
       );
     }
     if (!member) {

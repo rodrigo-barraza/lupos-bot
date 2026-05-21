@@ -59,7 +59,7 @@ export default class PrismService {
       throw new Error(`Prism API error: ${res.status} ${errorText}`);
     }
 
-    return res.json();
+    return await res.json() as Record<string, any>;
   }
 
   // ---------------------------------------------------------------------------
