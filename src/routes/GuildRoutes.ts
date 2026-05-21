@@ -1029,7 +1029,41 @@ router.get("/bot/activity", asyncHandler(async (req: Request, res: Response) => 
     for (const ip of totalUniqueIps) totalUniqueSet.add(`ip:${ip}`);
 
 
-    const timeline = hours.map((hour) => ({
+    // ── Build 24-hour timeline buckets ──────────────────────────
+    const hours: string[] = [];
+    for (let i = 23; i >= 0; i--) {
+      const d = new Date(now.getTime() - i * 60 * 60 * 1000);
+      d.setMinutes(0, 0, 0);
+      hours.push(d.toISOString().slice(0, 13) + ":00:00");
+    }
+
+    // ── Transform aggregation results into fast lookup Maps ─────
+    const messageMap = new Map<string, number>(
+      messageActivity.map((r: any) => [r._id, r.count]),
+    );
+    const transcriptionMap = new Map<string, number>(
+      transcriptionActivity.map((r: any) => [r._id, r.count]),
+    );
+    const imageCaptionMap = new Map<string, number>(
+      imageCaptionActivity.map((r: any) => [r._id, r.count]),
+    );
+    const imageGenMap = new Map<string, number>(
+      imageGenActivity.map((r: any) => [r._id, r.count]),
+    );
+
+    // ── Per-hour unique users: merge Discord userIds + Prism IPs ─
+    const msgUserMap = new Map<string, string[]>(
+      messageActivity.map((r: any) => [r._id, (r.uniqueUserIds || []).map((id: string) => `uid:${id}`)]),
+    );
+    const uniqueUsersMap = new Map<string, number>();
+    for (const hour of hours) {
+      const merged = new Set<string>();
+      for (const uid of msgUserMap.get(hour) || []) merged.add(uid);
+      for (const ip of prismIpMap.get(hour) || []) merged.add(`ip:${ip}`);
+      uniqueUsersMap.set(hour, merged.size);
+    }
+
+    const timeline = hours.map((hour: string) => ({
       hour,
       messages: messageMap.get(hour) || 0,
       transcriptions: transcriptionMap.get(hour) || 0,
