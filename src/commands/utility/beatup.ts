@@ -91,7 +91,7 @@ export default {
       });
     }
 
-    if (target.user.id === interaction.guild.ownerId) {
+    if (target.user.id === interaction.guild!.ownerId) {
       return interaction.reply({
         content: "❌ You can't beat up the server owner!",
         

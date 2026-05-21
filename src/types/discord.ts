@@ -27,5 +27,6 @@ export type MoodTemperatureThreshold = [number, number, "decrease" | "increase",
 /** Vote entry for the beatup command. */
 export interface BeatupVote {
   voterId: string;
+  voterUsername?: string;
   timestamp: number;
 }

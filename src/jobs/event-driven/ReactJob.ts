@@ -26,7 +26,7 @@ async function generateReactors(client: Client, mongo: MongoClient, reaction: Me
   if (emojiId === config.EMOJI_ID_FLAG) {
     const guild = DiscordUtilityService.getGuildById(
       client,
-      config.GUILD_ID_PRIMARY,
+      config.GUILD_ID_PRIMARY || "",
     ) as Guild | undefined;
     if (!guild) return;
     const role = guild.roles.cache.find(
@@ -54,7 +54,7 @@ async function clearReactors(client: Client, _mongo: MongoClient) {
   const oneMinuteAgo = new Date(Date.now() - 30 * 60 * 1000);
   const guild = DiscordUtilityService.getGuildById(
     client,
-    config.GUILD_ID_PRIMARY,
+    config.GUILD_ID_PRIMARY || "",
   ) as Guild | undefined;
   if (!guild) return;
   const role = guild.roles.cache.find(

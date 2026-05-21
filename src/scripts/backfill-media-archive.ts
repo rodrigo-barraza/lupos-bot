@@ -181,7 +181,7 @@ async function archiveUrl(url: string, mediaHashesCol: MongoCollection): Promise
     }
 
     // New file — upload to MinIO
-    const publicUrl = MinioWrapper.getPublicUrl(minioKey);
+    const publicUrl = MinioWrapper.getPublicUrl(minioKey) || "";
     const archiveRef: ArchiveRef = { hash, minioKey, publicUrl, contentType, size: buffer.length };
 
     if (!DRY_RUN) {

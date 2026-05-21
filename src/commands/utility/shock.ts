@@ -45,7 +45,9 @@ function calculateTimeoutDuration(power: number | string, isCritical: boolean = 
     return isCritical ? 7500 : 5000; // 7.5 or 5 seconds for variable power moves
   }
 
-  if (power === 0) {
+  const numericPower = typeof power === "number" ? power : Number(power) || 0;
+
+  if (numericPower === 0) {
     return isCritical ? 1500 : 1000; // 1.5 or 1 second for status moves
   }
 
@@ -57,7 +59,7 @@ function calculateTimeoutDuration(power: number | string, isCritical: boolean = 
 
   const scaledTimeout =
     minTimeout +
-    ((power - minPower) / (maxPower - minPower)) * (maxTimeout - minTimeout);
+    ((numericPower - minPower) / (maxPower - minPower)) * (maxTimeout - minTimeout);
   const timeoutSeconds = Math.min(
     maxTimeout,
     Math.max(minTimeout, Math.round(scaledTimeout)),
@@ -86,6 +88,14 @@ export default {
     .setDescription("Paralyzes a random person from the recent conversation"),
 
   async execute(interaction: ChatInputCommandInteraction) {
+    const guild = interaction.guild;
+    if (!guild) {
+      return interaction.reply({
+        content: "⚡ This command can only be used in a server!",
+        ephemeral: true,
+      });
+    }
+
     // Check cooldown
     const userId = interaction.user.id;
     const now = Date.now();
@@ -108,12 +118,18 @@ export default {
     try {
       // Check if bot has permission to timeout members
       if (
-        !interaction.guild!.members.me!.permissions.has(
+        !guild.members.me!.permissions.has(
           PermissionFlagsBits.ModerateMembers,
         )
       ) {
         return interaction.editReply({
           content: "⚡ I don't have permission to timeout members!",
+        });
+      }
+
+      if (!interaction.channel) {
+        return interaction.editReply({
+          content: "⚡ This command can only be used in a text channel!",
         });
       }
 
@@ -134,7 +150,7 @@ export default {
         if (
           !member ||
           message.author.bot ||
-          message.author.id === interaction.guild.ownerId
+          message.author.id === guild.ownerId
         ) {
           continue;
         }
@@ -142,7 +158,7 @@ export default {
         // Skip if user is already timed out
         if (
           member.communicationDisabledUntil &&
-          member.communicationDisabledUntil > now
+          member.communicationDisabledUntil.getTime() > now
         ) {
           continue;
         }

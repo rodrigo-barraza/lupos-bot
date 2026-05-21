@@ -12,7 +12,7 @@ const hungerStat = StatService.create("hunger", {
 let hasMessageBeenSent = false;
 
 async function instantiate(client: Client) {
-  const channel = client.channels.cache.get(config.CHANNEL_ID_BOT_STATUS);
+  const channel = client.channels.cache.get(config.CHANNEL_ID_BOT_STATUS || "");
   if (hungerStat.getLevel() >= 0) {
     hungerStat.increase();
   }

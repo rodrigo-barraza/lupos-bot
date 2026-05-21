@@ -345,7 +345,7 @@ function getDeathrollCollections() {
   // Ensure indexes once on first access (lazy init)
   if (!deathrollIndexesEnsured) {
     deathrollIndexesEnsured = true;
-    ensureDeathrollIndexes(collections).catch(() =>
+    ensureDeathrollIndexes(collections).catch((err: any) =>
       console.error("Failed to ensure deathroll indexes:", err.message),
     );
   }
@@ -1322,7 +1322,9 @@ function createDoubleOrNothingCollector(
           components: [],
         })
         .catch(() => {});
-      await applyPendingTimeout(guild, pendingTimeoutData);
+      if (pendingTimeoutData) {
+        await applyPendingTimeout(guild, pendingTimeoutData);
+      }
       // DoN not agreed — save the final game result now
       if (pendingGameData) {
         await saveGameResult(
@@ -1613,7 +1615,9 @@ async function handleEngageButton(buttonInteraction: import("discord.js").Button
     return;
   }
 
-  const opponentMember = buttonInteraction.member;
+  const opponentMember = buttonInteraction.member as import("discord.js").GuildMember;
+
+  if (!opponentMember) return;
 
   if (!initiatorMember.moderatable) {
     return buttonInteraction.reply({
@@ -1655,7 +1659,7 @@ async function handleEngageButton(buttonInteraction: import("discord.js").Button
   if (roll === 0) {
     const winnerId = (game.initiator as string);
     const endGameData = await buildEndGameData(
-      buttonInteraction.guild.id,
+      guild.id,
       game,
       winnerId,
       userId,
@@ -1687,7 +1691,7 @@ async function handleEngageButton(buttonInteraction: import("discord.js").Button
 
   const row = new ActionRowBuilder<import("discord.js").ButtonBuilder>().addComponents(rollButton);
   const midGameStats = await fetchMidGameStats(
-    buttonInteraction.guild.id,
+    guild.id,
     (game.initiator as string),
     (game.opponent as string),
   );
@@ -1705,7 +1709,7 @@ async function handleEngageButton(buttonInteraction: import("discord.js").Button
   });
 
   game.currentMessageId = newMessage.id;
-  createRollCollector(newMessage, gameId, buttonInteraction.guild);
+  createRollCollector(newMessage, gameId, guild);
 }
 
 async function handleRollButton(buttonInteraction: import("discord.js").ButtonInteraction, gameId: string) {
@@ -1717,6 +1721,7 @@ async function handleRollButton(buttonInteraction: import("discord.js").ButtonIn
     });
   }
 
+  const guild = buttonInteraction.guild!;
   const userId = buttonInteraction.user.id;
 
   if (userId !== game.currentTurn) {
@@ -1749,7 +1754,7 @@ async function handleRollButton(buttonInteraction: import("discord.js").ButtonIn
   if (roll === 0) {
     const winnerId = userId === (game.initiator as string) ? (game.opponent as string) : (game.initiator as string);
     const endGameData = await buildEndGameData(
-      buttonInteraction.guild.id,
+      guild.id,
       game,
       winnerId,
       userId,
@@ -1783,7 +1788,7 @@ async function handleRollButton(buttonInteraction: import("discord.js").ButtonIn
 
   const row = new ActionRowBuilder<import("discord.js").ButtonBuilder>().addComponents(rollButton);
   const midGameStats = await fetchMidGameStats(
-    buttonInteraction.guild.id,
+    guild.id,
     (game.initiator as string),
     (game.opponent as string),
   );
@@ -1801,7 +1806,7 @@ async function handleRollButton(buttonInteraction: import("discord.js").ButtonIn
   });
 
   game.currentMessageId = newMessage.id;
-  createRollCollector(newMessage, gameId, buttonInteraction.guild);
+  createRollCollector(newMessage, gameId, guild);
 }
 
 // ─── Game End Handler ─────────────────────────────────────────────────
@@ -1927,7 +1932,8 @@ export async function executeDeathroll(interaction: import("discord.js").ChatInp
     });
   }
 
-  if (!interaction.member.moderatable) {
+  const member = interaction.member as import("discord.js").GuildMember;
+  if (!member || !member.moderatable) {
     return interaction.editReply({
       content:
         "🎲 You can't be timed out (you have higher permissions), so you can't play deathroll!",
@@ -1991,13 +1997,13 @@ export async function executeDeathroll(interaction: import("discord.js").ChatInp
     .setStyle(ButtonStyle.Secondary)
     .setEmoji("❌");
 
-  const row = new ActionRowBuilder().addComponents(engageButton, declineButton);
+  const row = new ActionRowBuilder<import("discord.js").ButtonBuilder>().addComponents(engageButton, declineButton);
 
-  const initiatorRecord = formatStatsString(initiatorStats);
+  const initiatorRecord = formatStatsString(initiatorStats || {});
   let content = `🎲 <@${interaction.user.id}>${initiatorRecord} has started a deathroll from **${startingNumber}**!\n\n`;
 
   if (targetUser) {
-    const targetRecord = formatStatsString(targetStats);
+    const targetRecord = formatStatsString(targetStats || {});
     content +=
       `<@${targetUser.id}>${targetRecord}, you have been challenged!\n` +
       `Click the button below to accept or decline! The loser gets timed out for ${BASE_TIMEOUT_MINUTES} minutes.`;
@@ -2202,6 +2208,12 @@ export async function executeDeathrollStats(interaction: import("discord.js").Ch
   const guildId = interaction.guildId;
 
   await interaction.deferReply();
+
+  if (!guildId) {
+    return interaction.editReply({
+      content: "🎲 This command can only be used in a server!",
+    });
+  }
 
   try {
     const profile = await fetchSinglePlayerStats(guildId, targetUser.id);

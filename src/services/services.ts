@@ -19,7 +19,7 @@ const routes = () => {
         });
       }
 
-      const audioUrl = decodeURIComponent(req.params.audioUrl);
+      const audioUrl = decodeURIComponent(req.params.audioUrl as string);
 
       const transcription = await AIService.transcribeSpeech(audioUrl, "", 0);
 

@@ -33,7 +33,9 @@ const moodStat = StatService.create("mood", {
 const MoodService = {
   instantiate() {
     const client = DiscordWrapper.getClient("lupos");
-    client.user.setActivity("Don't tag me...", { type: ActivityType.Custom });
+    if (client?.user) {
+      client.user.setActivity("Don't tag me...", { type: ActivityType.Custom });
+    }
   },
   getMoodLevel() {
     return moodStat.getLevel();
@@ -57,7 +59,7 @@ const MoodService = {
 
     // Apply mood change based on temperature thresholds
     for (const [min, max, direction, multiplier] of MOOD_TEMPERATURE_THRESHOLDS) {
-      if (moodTemperature >= min && moodTemperature <= max) {
+      if (moodTemperature >= Number(min) && moodTemperature <= Number(max)) {
         if (direction === "decrease") {
           MoodService.decreaseMoodLevel(Number(multiplier));
         } else {
