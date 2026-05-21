@@ -13,9 +13,9 @@
 /**
  * Parse a comma-separated env var into an array of strings.
  */
-function parseCommaSeparated(envKey: any) {
+function parseCommaSeparated(envKey: string) {
   const raw = process.env[envKey];
-  return raw ? raw.split(",").map((s: any) => s.trim()).filter(Boolean) : [];
+  return raw ? raw.split(",").map((s) => s.trim()).filter(Boolean) : [];
 }
 
 

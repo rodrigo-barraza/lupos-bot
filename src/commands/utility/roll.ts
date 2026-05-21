@@ -1,24 +1,25 @@
 import { SlashCommandBuilder } from "discord.js";
+import type { ChatInputCommandInteraction, SlashCommandIntegerOption } from "discord.js";
 
 export default {
   data: new SlashCommandBuilder()
     .setName("roll")
     .setDescription("Rolls a die from 0 to 100 (or custom range)")
-    .addIntegerOption((option: any) =>
+    .addIntegerOption((option: SlashCommandIntegerOption) =>
       option
         .setName("min")
         .setDescription("The minimum value (default: 0)")
         .setRequired(false)
         .setMinValue(0),
     )
-    .addIntegerOption((option: any) =>
+    .addIntegerOption((option: SlashCommandIntegerOption) =>
       option
         .setName("max")
         .setDescription("The maximum value (default: 100)")
         .setRequired(false)
         .setMinValue(1),
     ),
-  async execute(interaction: any) {
+  async execute(interaction: ChatInputCommandInteraction) {
     const min = interaction.options.getInteger("min") ?? 0;
     const max = interaction.options.getInteger("max") ?? 100;
 

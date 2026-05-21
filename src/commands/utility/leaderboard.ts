@@ -1,11 +1,18 @@
 import { SlashCommandBuilder, EmbedBuilder } from "discord.js";
+import type { ChatInputCommandInteraction, SlashCommandIntegerOption, SlashCommandChannelOption } from "discord.js";
 import { getMongoDb, formatTimePeriod, getMedal } from "./commandUtils.ts";
+
+interface LeaderboardUser {
+  _id: string;
+  username: string;
+  count: number;
+}
 
 export default {
   data: new SlashCommandBuilder()
     .setName("leaderboard")
     .setDescription("Shows message leaderboard for a specified time period")
-    .addIntegerOption((option: any) =>
+    .addIntegerOption((option: SlashCommandIntegerOption) =>
       option
         .setName("years")
         .setDescription("Number of years to look back")
@@ -13,7 +20,7 @@ export default {
         .setMinValue(0)
         .setMaxValue(7),
     )
-    .addIntegerOption((option: any) =>
+    .addIntegerOption((option: SlashCommandIntegerOption) =>
       option
         .setName("months")
         .setDescription("Number of months to look back")
@@ -21,7 +28,7 @@ export default {
         .setMinValue(0)
         .setMaxValue(12),
     )
-    .addIntegerOption((option: any) =>
+    .addIntegerOption((option: SlashCommandIntegerOption) =>
       option
         .setName("days")
         .setDescription("Number of days to look back")
@@ -29,14 +36,14 @@ export default {
         .setMinValue(0)
         .setMaxValue(31),
     )
-    .addChannelOption((option: any) =>
+    .addChannelOption((option: SlashCommandChannelOption) =>
       option
         .setName("channel")
         .setDescription("Channel to check (default: current channel)")
         .setRequired(false),
     ),
 
-  async execute(interaction: any) {
+  async execute(interaction: ChatInputCommandInteraction) {
     const db = getMongoDb();
     const messagesCollection = db.collection("Messages");
 
@@ -60,7 +67,7 @@ export default {
     startDate.setDate(startDate.getDate() - days);
     const unixStartDate = Math.floor(startDate.getTime());
 
-    const match: Record<string, any> = {
+    const match: Record<string, unknown> = {
       createdTimestamp: { $gte: unixStartDate },
       guildId: interaction.guildId,
     };
@@ -91,7 +98,7 @@ export default {
 
       const sortedUsers = allUsers.slice(0, 10);
       const totalUsers = allUsers.length;
-      const totalUserMessages = allUsers.reduce((s: any, u: any) => s + u.count, 0);
+      const totalUserMessages = allUsers.reduce((s: number, u: LeaderboardUser) => s + (u as LeaderboardUser).count, 0);
       const avgMessages = totalUsers > 0 ? totalUserMessages / totalUsers : 0;
 
       const description = `**Time Period:** ${formatTimePeriod(years, months, days, "Last 7 days (default)")}\n**Channel:** ${channel ? channel.toString() : "All Channels"}\n**Total Messages:** ${totalMessages}\n\n`;
@@ -114,7 +121,7 @@ export default {
         });
       } else {
         const leaderboardText = sortedUsers
-          .map((user: any, index: any) => {
+          .map((user: LeaderboardUser, index: number) => {
             const medal = getMedal(index);
             return `${medal} **${index + 1}.** ${user.username} - **${user.count}** messages`;
           })

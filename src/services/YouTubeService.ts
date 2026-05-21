@@ -5,8 +5,17 @@ import {
   AudioPlayerStatus,
   StreamType,
 } from "@discordjs/voice";
+import type {
+  VoiceConnection,
+  AudioPlayer,
+  AudioPlayerError,
+  VoiceConnectionState,
+  VoiceReceiver,
+} from "@discordjs/voice";
 import play from "play-dl";
+import type { YouTubeVideo } from "play-dl";
 import ytdl from "@distube/ytdl-core";
+import type ytdlTypes from "@distube/ytdl-core";
 import DiscordUtilityService from "#root/services/DiscordUtilityService.js";
 import utilities from "#root/utilities.js";
 import {
@@ -16,38 +25,58 @@ import {
   EmbedBuilder,
   AttachmentBuilder,
 } from "discord.js";
+import type { Client, Message, GuildMember } from "discord.js";
 
 // new
 import prism from "prism-media";
 import fs from "fs";
 import path from "path";
+import type { Transform } from "stream";
 
-let connection: any;
-let player: any;
-let queue: any[] = [];
+interface QueueItem {
+  video: YouTubeVideo;
+  message: Message;
+}
+
+interface RecordingStreamEntry {
+  opusStream: any;
+  decoder: Transform;
+  outputStream: fs.WriteStream;
+  pcmPath: string;
+  mp3Path: string;
+}
+
+interface AudioMixerSource {
+  stream: Transform;
+  buffer: Buffer;
+}
+
+let connection: VoiceConnection | null;
+let player: AudioPlayer | null;
+let queue: QueueItem[] = [];
 let isQueueProcessing = false;
-let currentVideo: any = null; // Track the currently playing video
-let nowPlayingMessage: any = null; // Add this to track the now playing message
-let updateInterval: any = null; // Add this to track the update interval
+let currentVideo: YouTubeVideo | null = null; // Track the currently playing video
+let nowPlayingMessage: Message | null = null; // Add this to track the now playing message
+let updateInterval: ReturnType<typeof setInterval> | null = null; // Add this to track the update interval
 let volumeLevel = 5;
 const statusStymbol = "▶";
-let currentMessage: any = null; // Track the current message being processed
+let currentMessage: Message | null = null; // Track the current message being processed
 
 
 // Add these variables at the top with your other variables
-const recordingStreams = new Map();
+const recordingStreams = new Map<string, RecordingStreamEntry>();
 let isRecording = false;
-let combinedStream: any = null;
-let audioMixer: any = null;
+let combinedStream: fs.WriteStream | null = null;
+let audioMixer: AudioMixer | null = null;
 
 // Simple audio mixer class
 class AudioMixer {
-  outputStream: any;
-  sources: Map<any, any>;
-  mixInterval: any;
+  outputStream: fs.WriteStream;
+  sources: Map<string, AudioMixerSource>;
+  mixInterval: ReturnType<typeof setInterval> | null;
   bufferSize: number;
 
-  constructor(outputStream: any) {
+  constructor(outputStream: fs.WriteStream) {
     this.outputStream = outputStream;
     this.sources = new Map();
     this.mixInterval = null;
@@ -55,13 +84,13 @@ class AudioMixer {
     this.startMixing();
   }
 
-  addSource(id: any, stream: any) {
+  addSource(id: string, stream: Transform) {
     this.sources.set(id, {
       stream,
       buffer: Buffer.alloc(0),
     });
 
-    stream.on("data", (chunk: any) => {
+    stream.on("data", (chunk: Buffer) => {
       const source = this.sources.get(id);
       if (source) {
         source.buffer = Buffer.concat([source.buffer, chunk]);
@@ -123,25 +152,25 @@ class AudioMixer {
   }
 }
 
-function createEmbed(video: any, queueMessage: any) {
+function createEmbed(video: YouTubeVideo, queueMessage: Message) {
   const videoUrl = video.url;
   const videoTitle = video.title;
   const _videoDescription = video.description;
   const videoDuration = video.durationRaw;
   const _videoViews = video.views;
-  const _channelName = video.channel.name;
+  const _channelName = video.channel?.name;
   const videoThumbnail = video.thumbnails[1]
     ? video.thumbnails[1].url
     : video.thumbnails[0].url;
 
   // message.reply(`Now playing: **${video.title}** (${video.durationRaw}), requested by ${video.author}`);
 
-  const _username = DiscordUtilityService.getNameFromItem(queueMessage);
+  const _username = DiscordUtilityService.getNameFromItem(queueMessage as any);
   const _userProfilePicture = queueMessage.author.displayAvatarURL();
 
   let formatted = "0:00";
-  if (player.state?.resource?.playbackDuration) {
-    formatted = utilities.formatPlaybackTime(player.state.resource.playbackDuration);
+  if ((player?.state as any)?.resource?.playbackDuration) {
+    formatted = utilities.formatPlaybackTime((player!.state as any).resource.playbackDuration);
   }
 
   // formatted message with embed
@@ -176,7 +205,7 @@ function createEmbed(video: any, queueMessage: any) {
   if (queue.length > 0) {
     const nextSongs = queue
       .map(
-        (item: any, index: any) =>
+        (item: QueueItem, index: number) =>
           `${index + 1}. ${item.video.title} (${item.video.durationRaw})`,
       )
       .join("\n");
@@ -196,21 +225,21 @@ function createEmbed(video: any, queueMessage: any) {
 }
 
 class YouTubeService {
-  static async processQueue(client: any, message: any) {
+  static async processQueue(client: Client, message: Message) {
     if (queue.length === 0) {
       isQueueProcessing = false;
       return;
     }
-    const { video, message: queueMessage } = queue.shift();
+    const { video, message: queueMessage } = queue.shift()!;
     currentVideo = video;
     currentMessage = queueMessage;
     try {
       // Join voice channel if not already connected
       if (!connection || connection.state.status === "disconnected") {
         connection = joinVoiceChannel({
-          channelId: message.member.voice.channel.id,
-          guildId: message.guild.id,
-          adapterCreator: message.guild.voiceAdapterCreator,
+          channelId: message.member!.voice.channel!.id,
+          guildId: message.guild!.id,
+          adapterCreator: message.guild!.voiceAdapterCreator,
         });
       }
 
@@ -224,17 +253,17 @@ class YouTubeService {
 
       // if info.formats hasAudio
       // pick highest audioBitrate in info.formats
-      if (!info.formats.some((format: any) => format.hasAudio)) {
+      if (!info.formats.some((format: ytdlTypes.videoFormat) => format.hasAudio)) {
         return await message.reply("No audio format found for this video!");
       } else {
         console.log("Audio format found!");
       }
-      const audioFormats = info.formats.filter((format: any) => format.hasAudio);
+      const audioFormats = info.formats.filter((format: ytdlTypes.videoFormat) => format.hasAudio);
       const highestAudioBitrate = Math.max(
-        ...audioFormats.map((format: any) => format.audioBitrate),
+        ...audioFormats.map((format: ytdlTypes.videoFormat) => format.audioBitrate ?? 0),
       );
       const selectedFormat = audioFormats.find(
-        (format: any) => format.audioBitrate === highestAudioBitrate,
+        (format: ytdlTypes.videoFormat) => format.audioBitrate === highestAudioBitrate,
       );
 
       const stream = ytdl(video.url, {
@@ -253,7 +282,7 @@ class YouTubeService {
             "Accept-Language": "en-US,en;q=0.9",
           },
           family: 4, // Force IPv4, or 6 for IPv6
-        } as any,
+        } as Record<string, unknown>,
       });
 
       const resource = createAudioResource(stream, {
@@ -268,9 +297,9 @@ class YouTubeService {
       player.removeAllListeners();
 
       // Add error handler
-      player.on("error", async (error: any) => {
+      player.on("error", async (error: AudioPlayerError) => {
         console.error("Player error:", error);
-        await message.channel.send(
+        await (message.channel as any).send(
           "An error occurred while streaming the song, now skipping to the next song...",
         );
         YouTubeService.stopUpdateInterval();
@@ -286,24 +315,24 @@ class YouTubeService {
 
       const embed = createEmbed(video, queueMessage);
 
-      nowPlayingMessage = await message.channel.send({ embeds: [embed] });
+      nowPlayingMessage = await (message.channel as any).send({ embeds: [embed] });
       YouTubeService.startUpdateInterval();
     } catch (error: unknown) {
       console.error("Error processing queue:", error);
       message.reply("An error occurred while processing the queue!");
       isQueueProcessing = false;
-      connection.destroy();
+      connection!.destroy();
       connection = null;
     }
   }
 
-  static async searchAndPlay(client: any, message: any) {
+  static async searchAndPlay(client: Client, message: Message) {
     if (!message.content.startsWith("!play ")) return;
     try {
-      const permissions = message.member.voice.channel.permissionsFor(
-        client.user,
+      const permissions = message.member!.voice.channel!.permissionsFor(
+        client.user!,
       );
-      if (!permissions.has(["CONNECT", "SPEAK"])) {
+      if (!permissions!.has(["Connect", "Speak"])) {
         return message.reply(
           "I need permissions to join and speak in your voice channel!",
         );
@@ -311,7 +340,7 @@ class YouTubeService {
 
       message.content = message.content.slice(6).trim(); // Remove '!play ' prefix
 
-      let video: any;
+      let video: YouTubeVideo;
 
       if (
         message.content.includes("youtube.com/watch") ||
@@ -325,7 +354,7 @@ class YouTubeService {
         video = basicInfo.video_details;
       } else {
         const query = message.content;
-        if (!message.member.voice.channel) {
+        if (!message.member!.voice.channel) {
           return message.reply("You need to be in a voice channel!");
         }
         const searchResults = await play.search(query, { limit: 1 });
@@ -336,7 +365,7 @@ class YouTubeService {
         video = searchResults[0];
       }
 
-      const queueObject = {
+      const queueObject: QueueItem = {
         video,
         message,
       };
@@ -344,10 +373,10 @@ class YouTubeService {
 
       // Add message when song is added to queue
       if (isQueueProcessing) {
-        const _formatted = utilities.formatPlaybackTime(player.state.resource.playbackDuration);
+        const _formatted = utilities.formatPlaybackTime((player!.state as any).resource.playbackDuration);
 
         // grab existing message embed and resend it with updated fields
-        const existingEmbed = nowPlayingMessage.embeds[0];
+        const existingEmbed = nowPlayingMessage!.embeds[0];
         const updatedEmbed = {
           color: existingEmbed.color,
           title: existingEmbed.title,
@@ -367,7 +396,7 @@ class YouTubeService {
         if (queue.length > 0) {
           const nextSongs = queue
             .map(
-              (item: any, index: any) =>
+              (item: QueueItem, index: number) =>
                 `${index + 1}. ${item.video.title} (${item.video.durationRaw})`,
             )
             .join("\n");
@@ -381,7 +410,7 @@ class YouTubeService {
         message.reply(
           `Added to queue: **${video.title}** (${video.durationRaw}) - Position #${queue.length}`,
         );
-        nowPlayingMessage = await message.channel.send({
+        nowPlayingMessage = await (message.channel as any).send({
           embeds: [updatedEmbed],
         });
 
@@ -405,27 +434,27 @@ class YouTubeService {
     }
   }
 
-  static async recordVoiceInVoiceChannel(client: any, message: any) {
+  static async recordVoiceInVoiceChannel(client: Client, message: Message) {
     if (!message.content.startsWith("!record")) return;
-    if (!message.member.voice.channel) {
+    if (!message.member!.voice.channel) {
       return message.reply("You need to be in a voice channel!");
     }
 
     if (!connection || connection.state.status === "disconnected") {
       connection = joinVoiceChannel({
-        channelId: message.member.voice.channel.id,
-        guildId: message.guild.id,
-        adapterCreator: message.guild.voiceAdapterCreator,
+        channelId: message.member!.voice.channel.id,
+        guildId: message.guild!.id,
+        adapterCreator: message.guild!.voiceAdapterCreator,
         selfDeaf: false, // Important: bot needs to hear
       });
     }
 
     // Wait for connection to be ready
-    await new Promise((resolve: any) => {
-      if (connection.state.status === "ready") {
+    await new Promise<void>((resolve: () => void) => {
+      if (connection!.state.status === "ready") {
         resolve();
       } else {
-        connection.on("stateChange", (oldState: any, newState: any) => {
+        connection!.on("stateChange", (oldState: VoiceConnectionState, newState: VoiceConnectionState) => {
           if (newState.status === "ready") {
             resolve();
           }
@@ -433,7 +462,7 @@ class YouTubeService {
       }
     });
 
-    const receiver = connection.receiver;
+    const receiver = connection!.receiver;
 
     // Create recordings directory if it doesn't exist
     const recordingsDir = path.join(import.meta.dirname, "../recordings");
@@ -449,7 +478,7 @@ class YouTubeService {
     audioMixer = new AudioMixer(combinedStream);
 
     // Listen for when user starts speaking
-    receiver.speaking.on("start", (userId: any) => {
+    receiver.speaking.on("start", (userId: string) => {
       if (isRecording) {
         YouTubeService.createRecordingStream(receiver, userId, recordingsDir);
       }
@@ -458,8 +487,8 @@ class YouTubeService {
     isRecording = true;
 
     // Start recording for all users currently in the voice channel
-    const voiceChannel = message.member.voice.channel;
-    voiceChannel.members.forEach((member: any) => {
+    const voiceChannel = message.member!.voice.channel;
+    voiceChannel.members.forEach((member: GuildMember) => {
       if (!member.user.bot) {
         // Don't record bots
         YouTubeService.createRecordingStream(
@@ -509,9 +538,9 @@ class YouTubeService {
                 );
 
                 let userTags = voiceChannel.members
-                  .map((member: any) => `<@${member.user.id}>`)
+                  .map((member: GuildMember) => `<@${member.user.id}>`)
                   .join(", ")
-                  .replace(`<@${client.user.id}>`, "");
+                  .replace(`<@${client.user!.id}>`, "");
                 // if there is only two users, remove the comma
                 if (userTags.endsWith(", ")) {
                   userTags = userTags.slice(0, -2);
@@ -548,13 +577,13 @@ class YouTubeService {
     }, 5000); // 30 seconds
   }
 
-  static createRecordingStream(receiver: any, userId: any, recordingsDir: any) {
+  static createRecordingStream(receiver: VoiceReceiver, userId: string, recordingsDir: string) {
     if (recordingStreams.has(userId) || !isRecording) return;
 
     try {
       const opusStream = receiver.subscribe(userId, {
         end: {
-          behavior: "afterSilence",
+          behavior: "afterSilence" as any,
           duration: 100,
         },
       });
@@ -592,7 +621,7 @@ class YouTubeService {
       });
 
       // Pipe to individual file
-      opusStream
+      (opusStream as any)
         .pipe(decoder)
         .pipe(outputStream)
         .on("finish", async () => {
@@ -618,29 +647,29 @@ class YouTubeService {
       if (audioMixer) {
         const mixerStream = receiver.subscribe(userId, {
           end: {
-            behavior: "afterSilence",
+            behavior: "afterSilence" as any,
             duration: 100,
           },
         });
 
         if (mixerStream) {
-          mixerStream.pipe(mixerDecoder);
+          (mixerStream as any).pipe(mixerDecoder);
           audioMixer.addSource(userId, mixerDecoder);
         }
       }
 
       // Add error handling
-      opusStream.on("error", (error: any) => {
+      opusStream.on("error", (error: Error) => {
         console.error(`OpusStream error for user ${userId}:`, error);
         recordingStreams.delete(userId);
       });
 
-      decoder.on("error", (error: any) => {
+      decoder.on("error", (error: Error) => {
         console.error(`Decoder error for user ${userId}:`, error);
         recordingStreams.delete(userId);
       });
 
-      outputStream.on("error", (error: any) => {
+      outputStream.on("error", (error: Error) => {
         console.error(`Output stream error for user ${userId}:`, error);
         recordingStreams.delete(userId);
       });
@@ -652,12 +681,12 @@ class YouTubeService {
     }
   }
 
-  static async convertToMp3(pcmPath: any, mp3Path: any) {
+  static async convertToMp3(pcmPath: string, mp3Path: string) {
     const { default: ffmpeg } = await import("fluent-ffmpeg");
 
     console.log(`Converting PCM to MP3: ${pcmPath} -> ${mp3Path}`);
 
-    return new Promise((resolve: any, reject: any) => {
+    return new Promise<string>((resolve: (value: string) => void, reject: (reason: Error) => void) => {
       ffmpeg()
         .input(pcmPath)
         .inputOptions(["-f", "s16le", "-ar", "48000", "-ac", "2"])
@@ -669,7 +698,7 @@ class YouTubeService {
           fs.unlinkSync(pcmPath);
           resolve(mp3Path);
         })
-        .on("error", (error: any) => {
+        .on("error", (error: Error) => {
           console.error("FFmpeg error:", error);
           reject(error);
         })
@@ -693,18 +722,18 @@ class YouTubeService {
       let volumeBar = "░░░░░░░░░░░░";
 
       const progress =
-        player.state.resource.playbackDuration /
-        (currentVideo.durationInSec * 1000);
+        (player!.state as any).resource.playbackDuration /
+        (currentVideo!.durationInSec * 1000);
       const filledLength = Math.floor(progress * progressBar.length);
       progressBar =
         progressBar.substring(0, filledLength).replace(/░/g, "█") +
         progressBar.substring(filledLength);
 
-      const formatted = utilities.formatPlaybackTime(player.state.resource.playbackDuration);
+      const formatted = utilities.formatPlaybackTime((player!.state as any).resource.playbackDuration);
 
       dividingLine = dividingLine
         .slice(formatted.length)
-        .slice(currentVideo.durationRaw.length);
+        .slice(currentVideo!.durationRaw.length);
 
       // replace volumeBar ░ with █ based on volumeLevel
       const volumeFilledLength = Math.floor(
@@ -716,7 +745,7 @@ class YouTubeService {
 
       const dox = `\`\`\`
 ${progressBar}
-${formatted} ${dividingLine} ${currentVideo.durationRaw}
+${formatted} ${dividingLine} ${currentVideo!.durationRaw}
 \`\`\``;
 
       const _vol = `\`\`\`
@@ -724,7 +753,7 @@ ${formatted} ${dividingLine} ${currentVideo.durationRaw}
 \`\`\``;
 
       // Create a completely new embed object
-      const existingEmbed = nowPlayingMessage.embeds[0];
+      const existingEmbed = nowPlayingMessage!.embeds[0];
       const updatedEmbed = {
         color: existingEmbed.color,
         title: existingEmbed.title,
@@ -738,7 +767,7 @@ ${formatted} ${dividingLine} ${currentVideo.durationRaw}
           },
           {
             name: "",
-            value: `\`🔊 ${volumeLevel}% | Queue: ${queue.length} | Requested by @${DiscordUtilityService.getNameFromItem(currentMessage)}\``,
+            value: `\`🔊 ${volumeLevel}% | Queue: ${queue.length} | Requested by @${DiscordUtilityService.getNameFromItem(currentMessage as any)}\``,
             inline: true,
           },
         ],
@@ -749,8 +778,8 @@ ${formatted} ${dividingLine} ${currentVideo.durationRaw}
       if (queue.length > 0) {
         const nextSongs = queue
           .map(
-            (item: any, index: any) =>
-              `\`${index + 1}. ${item.video.title} (${item.video.durationRaw}) @${DiscordUtilityService.getNameFromItem(item.message)}\``,
+            (item: QueueItem, index: number) =>
+              `\`${index + 1}. ${item.video.title} (${item.video.durationRaw}) @${DiscordUtilityService.getNameFromItem(item.message as any)}\``,
           )
           .join("\n");
         updatedEmbed.fields.push({
@@ -786,8 +815,8 @@ ${formatted} ${dividingLine} ${currentVideo.durationRaw}
           .setDisabled(true),
       );
       if (
-        player.state.status === AudioPlayerStatus.Playing ||
-        player.state.status === AudioPlayerStatus.Buffering
+        player!.state.status === AudioPlayerStatus.Playing ||
+        player!.state.status === AudioPlayerStatus.Buffering
       ) {
         actionRow.addComponents(
           new ButtonBuilder()
@@ -844,9 +873,9 @@ ${formatted} ${dividingLine} ${currentVideo.durationRaw}
           .setDisabled(true),
       );
 
-      nowPlayingMessage
-        .edit({ embeds: [updatedEmbed], components: [actionRow, volumeRow] })
-        .catch((error: any) => {
+      nowPlayingMessage!
+        .edit({ embeds: [updatedEmbed as any], components: [actionRow as any, volumeRow as any] })
+        .catch((error: Error) => {
           console.error("Failed to update embed:", error);
           YouTubeService.stopUpdateInterval();
         });
@@ -861,7 +890,7 @@ ${formatted} ${dividingLine} ${currentVideo.durationRaw}
     nowPlayingMessage = null;
   }
 
-  static async stop(client: any, message: any) {
+  static async stop(client: Client, message: Message) {
     if (!message.content.startsWith("!stop")) return;
 
     if (player) {
@@ -879,7 +908,7 @@ ${formatted} ${dividingLine} ${currentVideo.durationRaw}
     await message.reply("Stopped playing!");
   }
 
-  static async next(client: any, message: any) {
+  static async next(client: Client, message: Message) {
     if (
       !message.content.startsWith("!skip") &&
       !message.content.startsWith("!next")
@@ -896,7 +925,7 @@ ${formatted} ${dividingLine} ${currentVideo.durationRaw}
     player.stop();
   }
 
-  static async pause(client: any, message: any) {
+  static async pause(client: Client, message: Message) {
     if (!message.content.startsWith("!pause")) return;
     if (!player) return message.reply("No song is currently playing!");
 
@@ -904,7 +933,7 @@ ${formatted} ${dividingLine} ${currentVideo.durationRaw}
     await message.reply("Paused!");
   }
 
-  static async resume(client: any, message: any) {
+  static async resume(client: Client, message: Message) {
     if (!message.content.startsWith("!resume")) return;
     if (!player) return message.reply("No song is currently playing!");
 
@@ -912,12 +941,12 @@ ${formatted} ${dividingLine} ${currentVideo.durationRaw}
     message.reply("Resumed!");
   }
 
-  static async setVolume(client: any, message: any) {
+  static async setVolume(client: Client, message: Message) {
     if (!message.content.startsWith("!volume ")) return;
     if (!player) return message.reply("No song is currently playing!");
 
     const args = message.content.split(" ");
-    if (args.length !== 2 || isNaN(args[1]) || args[1] < 0 || args[1] > 100) {
+    if (args.length !== 2 || isNaN(Number(args[1])) || Number(args[1]) < 0 || Number(args[1]) > 100) {
       return message.reply("Please provide a valid volume between 0 and 100.");
     }
 
@@ -932,7 +961,7 @@ ${formatted} ${dividingLine} ${currentVideo.durationRaw}
       message.reply(`Volume set to ${volumeLevel}%`);
 
       // Create a completely new embed object
-      const existingEmbed = nowPlayingMessage.embeds[0];
+      const existingEmbed = nowPlayingMessage!.embeds[0];
       const updatedEmbed = {
         color: existingEmbed.color,
         title: existingEmbed.title,
@@ -956,7 +985,7 @@ ${formatted} ${dividingLine} ${currentVideo.durationRaw}
       if (queue.length > 0) {
         const nextSongs = queue
           .map(
-            (item: any, index: any) =>
+            (item: QueueItem, index: number) =>
               `${index + 1}. ${item.video.title} (${item.video.durationRaw})`,
           )
           .join("\n");
@@ -973,7 +1002,7 @@ ${formatted} ${dividingLine} ${currentVideo.durationRaw}
         });
       }
 
-      nowPlayingMessage = await message.channel.send({
+      nowPlayingMessage = await (message.channel as any).send({
         embeds: [updatedEmbed],
       });
 
@@ -990,10 +1019,12 @@ ${formatted} ${dividingLine} ${currentVideo.durationRaw}
     }
   }
 
-  static async setVolumeByAmount(amount: any) {
+  static async setVolumeByAmount(amount: number) {
     if (!player) return;
-    volumeLevel = Math.min(volumeLevel + amount, 100);
-    player.state.resource.volume.setVolume(volumeLevel / 100);
+    volumeLevel = Math.max(0, Math.min(volumeLevel + amount, 100));
+    if (player.state.status === AudioPlayerStatus.Playing) {
+      player.state.resource.volume?.setVolume(volumeLevel / 100);
+    }
     return volumeLevel;
   }
 
@@ -1042,12 +1073,12 @@ ${formatted} ${dividingLine} ${currentVideo.durationRaw}
     player.stop();
   }
 
-  static async getCurrentTimePlayed(client: any, message: any) {
+  static async getCurrentTimePlayed(client: Client, message: Message) {
     if (!message.content.startsWith("!time")) return;
     if (!player) return message.reply("No song is currently playing!");
 
-    const currentTime = player.state.resource.playbackDuration;
-    const totalDuration = player.state.resource.metadata.duration;
+    const currentTime = (player!.state as any).resource.playbackDuration;
+    const totalDuration = (player!.state as any).resource.metadata.duration;
 
     message.reply(
       `Current time: ${utilities.formatPlaybackTime(currentTime)} / ${utilities.formatPlaybackTime(totalDuration)}`,

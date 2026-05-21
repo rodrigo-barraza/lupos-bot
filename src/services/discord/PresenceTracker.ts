@@ -7,6 +7,7 @@
 // 3. Post streaming notifications for Twitch in #streamers
 // ============================================================
 
+import type { Client, Presence, TextChannel } from "discord.js";
 import {
   EmbedBuilder,
   ActionRowBuilder,
@@ -25,17 +26,17 @@ import LogFormatter from "#root/formatters/LogFormatter.js";
  * Handle a presence update event — track activity, assign roles,
  * and post streaming notifications.
  */
-async function handlePresenceUpdate(client: any, oldPresence: any, newPresence: any) {
+async function handlePresenceUpdate(client: Client, _oldPresence: Presence | null, newPresence: Presence) {
   const functionName = "luposOnPresenceUpdate";
 
   const mongo = MongoService.getClient("local");
   if (!mongo) return;
-  if (newPresence.guild.id !== config.GUILD_ID_PRIMARY) return;
+  if (newPresence.guild!.id !== config.GUILD_ID_PRIMARY) return;
 
   try {
     let activityName = "";
     let isStreaming = false;
-    const userName = newPresence.user.username;
+    const userName = newPresence.user!.username;
     let streamingUrl = "";
     const _userStatus = newPresence.status;
 
@@ -62,7 +63,7 @@ async function handlePresenceUpdate(client: any, oldPresence: any, newPresence: 
         for (const mapping of GAME_ROLE_MAPPINGS) {
           if (activity.name.toLowerCase().includes(mapping.activityName)) {
             const roleId = rolesVideogames.find(
-              (role: any) => role.name.toLowerCase() === mapping.roleName,
+              (role: { name: string; id: string; emojiId: string }) => role.name.toLowerCase() === mapping.roleName,
             )?.id;
             await DiscordUtilityService.addRoleToMember(
               newPresence.member,
@@ -74,7 +75,7 @@ async function handlePresenceUpdate(client: any, oldPresence: any, newPresence: 
       // streaming
       if (activity.type === 1) {
         isStreaming = true;
-        streamingUrl = activity.url;
+        streamingUrl = activity.url ?? "";
       }
       // listening
       if (activity.type === 2) {
@@ -102,10 +103,10 @@ async function handlePresenceUpdate(client: any, oldPresence: any, newPresence: 
 
       // Find and update or insert
       const result = await streamersCollection.findOneAndUpdate(
-        { userId: newPresence.user.id },
+        { userId: newPresence.user!.id },
         {
           $set: {
-            userId: newPresence.user.id,
+            userId: newPresence.user!.id,
             userName: userName,
             streamingUrl: streamingUrl,
             activityName: activityName,
@@ -121,7 +122,7 @@ async function handlePresenceUpdate(client: any, oldPresence: any, newPresence: 
 
       // Check if we should notify (no previous record or last notification was more than 3 hours ago)
       const shouldNotify =
-        !result || new Date(result.timestamp) < threeHoursAgo;
+        !result || new Date(result.timestamp as string | number | Date) < threeHoursAgo;
 
       if (shouldNotify) {
         try {
@@ -136,16 +137,16 @@ async function handlePresenceUpdate(client: any, oldPresence: any, newPresence: 
           const streamingChannel = await DiscordUtilityService.getChannelById(
             client,
             config.CHANNEL_ID_STREAMERS,
-          );
+          ) as TextChannel | undefined;
 
           if (streamingChannel) {
-            const userTag = `<@${newPresence.user.id}>`;
+            const userTag = `<@${newPresence.user!.id}>`;
 
             // Create embed
             const embed = new EmbedBuilder()
               .setAuthor({
                 name: `${userName} is now live on Twitch!`,
-                iconURL: newPresence.user.displayAvatarURL(),
+                iconURL: newPresence.user!.displayAvatarURL(),
               })
               .setURL(streamingUrl)
               .setDescription(`${userTag} is streaming **${activityName}**`)
@@ -172,7 +173,7 @@ async function handlePresenceUpdate(client: any, oldPresence: any, newPresence: 
               .setStyle(ButtonStyle.Link)
               .setURL(streamingUrl);
 
-            const rowButtons = new ActionRowBuilder().addComponents(
+            const rowButtons = new ActionRowBuilder<ButtonBuilder>().addComponents(
               buttonWatchStream,
             );
 

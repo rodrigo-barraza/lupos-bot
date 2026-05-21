@@ -1,3 +1,4 @@
+import type { Request, Response } from "express";
 import express from "express";
 const router = express.Router();
 
@@ -9,7 +10,7 @@ const routes = () => {
   // ── Guild data routes (channels, members) ───────────────────────
   router.use("/", guildRoutes);
 
-  router.get("/transcribe/:audioUrl", async (req: any, res: any) => {
+  router.get("/transcribe/:audioUrl", async (req: Request, res: Response) => {
     try {
       console.log("hit");
       if (!req.params.audioUrl) {

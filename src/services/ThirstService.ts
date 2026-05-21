@@ -25,7 +25,7 @@ const ThirstService = {
   getThirstLevel() {
     return thirstStat.getLevel();
   },
-  setThirstLevel(level: any) {
+  setThirstLevel(level: number) {
     return thirstStat.setLevel(level);
   },
   increaseThirstLevel() {

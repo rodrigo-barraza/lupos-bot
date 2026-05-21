@@ -15,6 +15,7 @@
 // ============================================================
 
 import { MongoClient } from "mongodb";
+import type { Collection as MongoCollection, Document, WithId } from "mongodb";
 import crypto from "crypto";
 import { createVaultClient } from "@rodrigo-barraza/utilities-library/vault";
 
@@ -67,7 +68,20 @@ const MIME_TO_EXT = {
   "application/pdf": "pdf",
 };
 
-function inferExtension(contentType: any, url: any) {
+interface ArchiveRef {
+  hash: string;
+  minioKey: string;
+  publicUrl: string;
+  contentType: string;
+  size: number;
+}
+
+interface ExpiredResult {
+  status: "expired";
+  statusCode: number;
+}
+
+function inferExtension(contentType: string | null, url: string) {
   if (contentType) {
     const mimeBase = contentType.split(";")[0].trim().toLowerCase();
     if (MIME_TO_EXT[mimeBase as keyof typeof MIME_TO_EXT]) return MIME_TO_EXT[mimeBase as keyof typeof MIME_TO_EXT];
@@ -93,17 +107,17 @@ const stats = {
 };
 
 // ─── In-memory hash cache ───────────────────────────────────────
-const hashCache = new Map();
+const hashCache = new Map<string, ArchiveRef>();
 
 // ─── Archive a single URL ───────────────────────────────────────
-async function archiveUrl(url: any, mediaHashesCol: any) {
+async function archiveUrl(url: string, mediaHashesCol: MongoCollection): Promise<ArchiveRef | ExpiredResult | null> {
   stats.urlsProcessed++;
 
   try {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
 
-    let response: any;
+    let response: Response;
     try {
       response = await fetch(url, { signal: controller.signal });
     } finally {
@@ -143,18 +157,18 @@ async function archiveUrl(url: any, mediaHashesCol: any) {
           { $addToSet: { originalUrls: url } },
         );
       }
-      return hashCache.get(hash);
+      return hashCache.get(hash)!;
     }
 
     const existing = await mediaHashesCol.findOne({ hash });
     if (existing) {
       stats.urlsDeduplicated++;
-      const ref = {
-        hash: existing.hash,
-        minioKey: existing.minioKey,
-        publicUrl: existing.publicUrl,
-        contentType: existing.contentType,
-        size: existing.size,
+      const ref: ArchiveRef = {
+        hash: existing.hash as string,
+        minioKey: existing.minioKey as string,
+        publicUrl: existing.publicUrl as string,
+        contentType: existing.contentType as string,
+        size: existing.size as number,
       };
       hashCache.set(hash, ref);
       if (!DRY_RUN) {
@@ -168,7 +182,7 @@ async function archiveUrl(url: any, mediaHashesCol: any) {
 
     // New file — upload to MinIO
     const publicUrl = MinioWrapper.getPublicUrl(minioKey);
-    const archiveRef = { hash, minioKey, publicUrl, contentType, size: buffer.length };
+    const archiveRef: ArchiveRef = { hash, minioKey, publicUrl, contentType, size: buffer.length };
 
     if (!DRY_RUN) {
       await MinioWrapper.upload(minioKey, buffer, contentType);
@@ -198,8 +212,8 @@ async function archiveUrl(url: any, mediaHashesCol: any) {
 }
 
 // ─── Collect archivable URLs from a stored message doc ──────────
-function collectUrlsFromDoc(document: any) {
-  const urls = new Set();
+function collectUrlsFromDoc(document: WithId<Document>): string[] {
+  const urls = new Set<string>();
 
   // Attachments
   if (document.attachments?.length) {
@@ -230,7 +244,7 @@ function collectUrlsFromDoc(document: any) {
   // Tenor GIFs in content (these are just URLs, we can't re-scrape easily in backfill)
   // They'll be handled on new messages going forward
 
-  return [...urls].filter(Boolean);
+  return [...urls].filter(Boolean) as string[];
 }
 
 // ─── Main ───────────────────────────────────────────────────────
@@ -278,7 +292,7 @@ async function main() {
   }
 
   // ── Query: messages with media but no archive ───────────────
-  const query: Record<string, any> = {
+  const query: Record<string, unknown> = {
     mediaArchive: { $exists: false },
     $or: [
       { "attachments.0": { $exists: true } },
@@ -302,7 +316,7 @@ async function main() {
   const cursor = messagesCol.find(query).sort({ createdTimestamp: -1 });
   if (LIMIT) cursor.limit(LIMIT);
 
-  let batch: any[] = [];
+  let batch: WithId<Document>[] = [];
   let batchNumber = 0;
 
   for await (const document of cursor) {
@@ -340,7 +354,7 @@ async function main() {
   process.exit(0);
 }
 
-async function processBatch(batch: any, batchNumber: any, messagesCol: any, mediaHashesCol: any) {
+async function processBatch(batch: WithId<Document>[], batchNumber: number, messagesCol: MongoCollection, mediaHashesCol: MongoCollection) {
   const batchStart = Date.now();
   console.log(`  [Batch ${batchNumber}] Processing ${batch.length} messages...`);
 
@@ -351,22 +365,22 @@ async function processBatch(batch: any, batchNumber: any, messagesCol: any, medi
       continue;
     }
 
-    const mediaArchive: Record<string, any> = {};
+    const mediaArchive: Record<string, ArchiveRef | { status: string; statusCode: number }> = {};
 
 
     // Process URLs with concurrency limit
     for (let i = 0; i < urls.length; i += CONCURRENCY) {
       const chunk = urls.slice(i, i + CONCURRENCY);
       const results = await Promise.allSettled(
-        chunk.map(async (url: any) => {
+        chunk.map(async (url: string) => {
           const result = await archiveUrl(url, mediaHashesCol);
           if (result) {
-            if (result.status === "expired") {
+            if ("status" in result && result.status === "expired") {
               if (!SKIP_EXPIRED) {
                 mediaArchive[url] = { status: "expired", statusCode: result.statusCode };
               }
             } else {
-              mediaArchive[url] = result;
+              mediaArchive[url] = result as ArchiveRef;
 
             }
           }
@@ -405,7 +419,7 @@ async function processBatch(batch: any, batchNumber: any, messagesCol: any, medi
   console.log(`  [Batch ${batchNumber}] Done in ${elapsed}s`);
 }
 
-main().catch((error: any) => {
+main().catch((error: Error) => {
   console.error("Fatal error:", error);
   process.exit(1);
 });

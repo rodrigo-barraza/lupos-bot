@@ -1,4 +1,16 @@
 import utilities from "#root/utilities.js";
+import type {
+  Client,
+  Guild,
+  GuildMember,
+  Message,
+  MessageReaction,
+  Role,
+  User,
+  VoiceState,
+  Interaction,
+  Collection,
+} from "discord.js";
 
 const { slowBlink, bold } = utilities.ansiEscapeCodes(true);
 
@@ -13,6 +25,50 @@ const styles = {
   yellowBackground: "\x1b[43m",
   reset: "\x1b[0m",
 };
+
+/** The mega-params object for globalFormatter. */
+interface GlobalFormatterParams {
+  // Required
+  functionName?: string;
+  logEmoji?: string;
+  logName?: string;
+  // Discord Info
+  client?: Client;
+  user?: User;
+  member?: GuildMember;
+  guild?: Guild;
+  channel?: { name: string; id: string } | null;
+  message?: Message;
+  role?: Role;
+  reaction?: MessageReaction;
+  state?: VoiceState;
+  interaction?: Interaction;
+  guilds?: Collection<string, Guild>;
+  // Generative Text Info
+  duration?: number;
+  generatedTextResponse?: string;
+  prompt?: string;
+  totalTime?: number;
+  // Specific
+  roleId?: string;
+  userId?: string;
+  // Error
+  error?: Error | unknown;
+  // Generative Info
+  modelType?: string;
+  modelName?: string;
+  // Scrape Info
+  url?: string;
+  result?: unknown;
+  // Transcribe Info
+  audioUrl?: string;
+  transcription?: string;
+  cached?: boolean;
+  // Caption Info
+  hash?: string;
+  imageUrl?: string;
+  caption?: string;
+}
 
 const LogFormatter = {
   globalFormatter({
@@ -57,44 +113,44 @@ const LogFormatter = {
     // message,
     imageUrl,
     caption,
-  }: any) {
-    let theClient: any;
-    let theUser: any;
-    let theMember: any;
-    let theGuild: any;
-    let theChannel: any;
-    let theMessage: any;
-    let theGuilds: any;
-    let _theInteractionCustom: any;
+  }: GlobalFormatterParams) {
+    let theClient: Client | undefined;
+    let theUser: User | undefined;
+    let theMember: GuildMember | undefined;
+    let theGuild: Guild | undefined;
+    let theChannel: { name: string; id: string } | null | undefined;
+    let theMessage: Message | undefined;
+    let theGuilds: Collection<string, Guild> | undefined;
+    let _theInteractionCustom: string | undefined;
 
     if (reaction) {
-      theUser = reaction.message.author;
-      theMember = reaction.message.member;
-      theGuild = reaction.message.guild;
-      theChannel = reaction.message.channel;
-      theMessage = reaction.message;
+      theUser = reaction.message.author ?? undefined;
+      theMember = reaction.message.member ?? undefined;
+      theGuild = reaction.message.guild ?? undefined;
+      theChannel = reaction.message.channel as { name: string; id: string };
+      theMessage = reaction.message as Message;
       theClient = reaction.message.client;
     }
     if (state) {
-      theUser = state.member.user;
-      theMember = state.member;
+      theUser = state.member?.user;
+      theMember = state.member ?? undefined;
       theGuild = state.guild;
-      theChannel = state.channel;
+      theChannel = state.channel as { name: string; id: string } | null;
       theClient = state.client;
     }
     if (interaction) {
       theUser = interaction.user;
-      theMember = interaction.member;
-      theGuild = interaction.guild;
-      theChannel = interaction.channel;
-      _theInteractionCustom = interaction.customId;
+      theMember = interaction.member as GuildMember | undefined;
+      theGuild = interaction.guild ?? undefined;
+      theChannel = interaction.channel as { name: string; id: string } | null;
+      _theInteractionCustom = "customId" in interaction ? (interaction.customId as string) : undefined;
       theClient = interaction.client;
     }
     if (message) {
       theUser = message.author;
-      theMember = message.member;
-      theGuild = message.guild;
-      theChannel = message.channel;
+      theMember = message.member ?? undefined;
+      theGuild = message.guild ?? undefined;
+      theChannel = message.channel as { name: string; id: string };
       theClient = message.client;
     }
 
@@ -136,13 +192,13 @@ const LogFormatter = {
       true,
     );
     const combinedGuildInformation =
-      utilities.getCombinedGuildInformationFromGuild(theGuild, true);
+      utilities.getCombinedGuildInformationFromGuild(theGuild ?? null, true);
     const combinedChannelInformation =
-      utilities.getCombinedChannelInformationFromChannel(theChannel, true);
+      utilities.getCombinedChannelInformationFromChannel(theChannel ?? null, true);
     const combinedEmojiInformation =
-      utilities.getCombinedEmojiInformationFromReaction(reaction, true);
+      utilities.getCombinedEmojiInformationFromReaction(reaction ?? null, true);
     const combinedRoleInformation =
-      utilities.getCombinedRoleInformationFromRole(role, true);
+      utilities.getCombinedRoleInformationFromRole(role ?? null, true);
     const combinedTimeInformation =
       utilities.getCombinedDateInformationFromDate(undefined, true);
 
@@ -165,73 +221,69 @@ const LogFormatter = {
       log += `\n    Client: ${utilities.getCombinedNamesFromUserOrMember({ user: theClient.user }, true)}`;
     }
     if (theGuilds) {
-      for (const guild of theGuilds.values()) {
-        log += `\n    - ${utilities.getCombinedGuildInformationFromGuild(guild, true)}`;
+      for (const g of theGuilds.values()) {
+        log += `\n    - ${utilities.getCombinedGuildInformationFromGuild(g, true)}`;
         // get member count if available
-        if (guild.memberCount) {
-          log += `\n      - (Members: ${guild.memberCount})`;
+        if (g.memberCount) {
+          log += `\n      - (Members: ${g.memberCount})`;
           // boosts
-          if (guild.premiumSubscriptionCount) {
-            log += `\n      - (Boosts: ${guild.premiumSubscriptionCount})`;
+          if (g.premiumSubscriptionCount) {
+            log += `\n      - (Boosts: ${g.premiumSubscriptionCount})`;
           }
           // channels
-          if (guild.channels.cache.size) {
-            log += `\n      - (Channels: ${guild.channels.cache.size})`;
+          if (g.channels.cache.size) {
+            log += `\n      - (Channels: ${g.channels.cache.size})`;
           }
           // roles
-          if (guild.roles.cache.size) {
-            log += `\n      - (Roles: ${guild.roles.cache.size})`;
+          if (g.roles.cache.size) {
+            log += `\n      - (Roles: ${g.roles.cache.size})`;
           }
           // emojis
-          if (guild.emojis.cache.size) {
-            log += `\n      - (Emojis: ${guild.emojis.cache.size})`;
+          if (g.emojis.cache.size) {
+            log += `\n      - (Emojis: ${g.emojis.cache.size})`;
           }
           // stickers
-          if (guild.stickers.cache.size) {
-            log += `\n      - (Stickers: ${guild.stickers.cache.size})`;
+          if (g.stickers.cache.size) {
+            log += `\n      - (Stickers: ${g.stickers.cache.size})`;
           }
           // commands
-          if (guild.commands.cache.size) {
-            log += `\n      - (Commands: ${guild.commands.cache.size})`;
+          if (g.commands.cache.size) {
+            log += `\n      - (Commands: ${g.commands.cache.size})`;
           }
           // bans
-          if (guild.bans.cache.size) {
-            log += `\n      - (Bans: ${guild.bans.cache.size})`;
+          if (g.bans.cache.size) {
+            log += `\n      - (Bans: ${g.bans.cache.size})`;
           }
           // online members
-          const onlineMembers = guild.members.cache.filter(
-            (member: any) =>
-              member.presence &&
-              member.presence.status &&
-              (member.presence.status === "online" ||
-                member.presence.status === "dnd" ||
-                member.presence.status === "idle"),
+          const onlineMembers = g.members.cache.filter(
+            (m) =>
+              m.presence &&
+              m.presence.status &&
+              (m.presence.status === "online" ||
+                m.presence.status === "dnd" ||
+                m.presence.status === "idle"),
           );
           if (onlineMembers.size) {
             log += `\n      - (Online Members: ${onlineMembers.size})`;
           }
           // bots
-          const botMembers = guild.members.cache.filter(
-            (member: any) => member.user.bot,
+          const botMembers = g.members.cache.filter(
+            (m) => m.user.bot,
           );
           if (botMembers.size) {
             log += `\n      - (Bots: ${botMembers.size})`;
           }
           // verification level
-          if (guild.verificationLevel) {
-            log += `\n      - (Verification Level: ${guild.verificationLevel})`;
-          }
-          // region
-          if (guild.region) {
-            log += `\n      - (Region: ${guild.region})`;
+          if (g.verificationLevel) {
+            log += `\n      - (Verification Level: ${g.verificationLevel})`;
           }
           // locale
-          if (guild.preferredLocale) {
-            log += `\n      - (Locale: ${guild.preferredLocale})`;
+          if (g.preferredLocale) {
+            log += `\n      - (Locale: ${g.preferredLocale})`;
           }
           // created at
-          if (guild.createdAt) {
-            log += `\n      - (Created At: ${guild.createdAt})`;
+          if (g.createdAt) {
+            log += `\n      - (Created At: ${g.createdAt})`;
           }
         }
       }
@@ -263,7 +315,7 @@ const LogFormatter = {
       log += `\n    Channel: ${combinedChannelInformation}`;
     }
 
-    const logParts: any[] = [];
+    const logParts: (string | unknown)[] = [];
 
     logParts.push(log);
 
@@ -330,15 +382,14 @@ const LogFormatter = {
     return logParts;
   },
   // GENERATE INFO
-  generateImageStart({ prompt }: any) {
+  generateImageStart({ prompt: _prompt }: { prompt: string }) {
     return LogFormatter.globalFormatter({
       logEmoji: "🖼️",
       logName: `${styles.yellowBackground}GENERATE IMAGE START${styles.reset}`,
-      prompt,
     });
   },
   // SCRAPE INFO
-  scrapeSuccess({ functionName, url, result }: any) {
+  scrapeSuccess({ functionName, url, result }: { functionName: string; url: string; result: unknown }) {
     return LogFormatter.globalFormatter({
       functionName,
       logEmoji: "🌐",
@@ -347,7 +398,7 @@ const LogFormatter = {
       result,
     });
   },
-  scrapeError(functionName: any, url: any, error: any) {
+  scrapeError(functionName: string, url: string, error: Error) {
     return LogFormatter.globalFormatter({
       functionName,
       logEmoji: "❌",
@@ -363,7 +414,7 @@ const LogFormatter = {
     audioUrl,
     transcription,
     cached,
-  }: any) {
+  }: { functionName: string; message: Message; audioUrl: string; transcription: string; cached: boolean }) {
     return LogFormatter.globalFormatter({
       functionName,
       logEmoji: "🎤",
@@ -374,7 +425,7 @@ const LogFormatter = {
       cached,
     });
   },
-  transcribeError(functionName: any, message: any, audioUrl: any, error: any) {
+  transcribeError(functionName: string, message: Message, audioUrl: string, error: Error) {
     return LogFormatter.globalFormatter({
       functionName,
       logEmoji: "❌",
@@ -385,7 +436,7 @@ const LogFormatter = {
     });
   },
   // CAPTION INFO
-  captionSuccess({ functionName, hash, message, imageUrl, caption, cached }: any) {
+  captionSuccess({ functionName, hash, message, imageUrl, caption, cached }: { functionName: string; hash: string; message: Message; imageUrl: string; caption: string; cached: boolean }) {
     return LogFormatter.globalFormatter({
       functionName,
       logEmoji: "🖼️",
@@ -397,7 +448,7 @@ const LogFormatter = {
       cached,
     });
   },
-  captionError(functionName: any, hash: any, message: any, imageUrl: any, error: any) {
+  captionError(functionName: string, hash: string, message: Message, imageUrl: string, error: Error) {
     return LogFormatter.globalFormatter({
       functionName,
       logEmoji: "❌",
@@ -409,7 +460,7 @@ const LogFormatter = {
     });
   },
   // ERROR
-  error(functionName: any, error: any) {
+  error(functionName: string, error: Error) {
     return LogFormatter.globalFormatter({
       functionName,
       logEmoji: "❌",
@@ -418,7 +469,7 @@ const LogFormatter = {
     });
   },
   // CLIENT
-  botReady(client: any) {
+  botReady(client: Client) {
     return LogFormatter.globalFormatter({
       logEmoji: "💡",
       logName: `${styles.yellowBackground}BOT READY${styles.reset}`,
@@ -426,7 +477,7 @@ const LogFormatter = {
     });
   },
   // USERS
-  memberNotFound(functionName: any, user: any, guild: any) {
+  memberNotFound(functionName: string, user: User, guild: Guild) {
     return LogFormatter.globalFormatter({
       functionName,
       logEmoji: "❌",
@@ -435,7 +486,7 @@ const LogFormatter = {
       guild,
     });
   },
-  userNotFound(functionName: any, userId: any) {
+  userNotFound(functionName: string, userId: string) {
     return LogFormatter.globalFormatter({
       functionName,
       logEmoji: "❌",
@@ -444,7 +495,7 @@ const LogFormatter = {
     });
   },
   // MEMBERS
-  memberJoinedGuild(functionName: any, member: any) {
+  memberJoinedGuild(functionName: string, member: GuildMember) {
     return LogFormatter.globalFormatter({
       functionName,
       logEmoji: "➡️🏰",
@@ -452,14 +503,14 @@ const LogFormatter = {
       member,
     });
   },
-  memberLeftGuild(member: any) {
+  memberLeftGuild(member: GuildMember) {
     return LogFormatter.globalFormatter({
       logEmoji: "⬅️👤🏰",
       logName: `${styles.yellowBackground}MEMBER LEFT GUILD${styles.reset}`,
       member,
     });
   },
-  memberUpdateOnboardingComplete(functionName: any, member: any) {
+  memberUpdateOnboardingComplete(functionName: string, member: GuildMember) {
     return LogFormatter.globalFormatter({
       functionName,
       logEmoji: "👤🎉🚀",
@@ -467,7 +518,7 @@ const LogFormatter = {
       member,
     });
   },
-  memberTimedOut(functionName: any, member: any, guild: any, duration: any) {
+  memberTimedOut(functionName: string, member: GuildMember, guild: Guild, duration: number) {
     return LogFormatter.globalFormatter({
       functionName,
       logEmoji: "⏰",
@@ -477,7 +528,7 @@ const LogFormatter = {
       totalTime: duration,
     });
   },
-  memberTimeOutError(functionName: any, member: any, guild: any, error: any) {
+  memberTimeOutError(functionName: string, member: GuildMember, guild: Guild, error: Error) {
     return LogFormatter.globalFormatter({
       functionName,
       logEmoji: "❌",
@@ -488,14 +539,14 @@ const LogFormatter = {
     });
   },
   // MESSAGES
-  receivedGuildMessage(message: any, actionType: any) {
+  receivedGuildMessage(message: Message, actionType: string) {
     return LogFormatter.globalFormatter({
       logEmoji: "👥💬",
       logName: `${styles.greenBackground}GUILD MESSAGE ${actionType}D${styles.reset}`,
       message,
     });
   },
-  receivedDirectMessage(message: any, actionType: any) {
+  receivedDirectMessage(message: Message, actionType: string) {
     return LogFormatter.globalFormatter({
       logEmoji: "👤💬",
       logName: `${styles.greenBackground}DIRECT MESSAGE ${actionType}D${styles.reset}`,
@@ -503,7 +554,7 @@ const LogFormatter = {
     });
   },
   // ROLES
-  roleFailedToAdd(member: any, role: any, error: any) {
+  roleFailedToAdd(member: GuildMember, role: Role, error: Error) {
     return LogFormatter.globalFormatter({
       logEmoji: "❌",
       logName: `${styles.redBackground}ROLE FAILED TO ADD, MEMBER NOT FOUND${styles.reset}`,
@@ -512,7 +563,7 @@ const LogFormatter = {
       error,
     });
   },
-  roleFailedToRemove(userId: any, role: any, error: any) {
+  roleFailedToRemove(userId: string, role: Role, error: Error) {
     return LogFormatter.globalFormatter({
       logEmoji: "❌",
       logName: `${styles.redBackground}ROLE FAILED TO REMOVE${styles.reset}`,
@@ -521,7 +572,7 @@ const LogFormatter = {
       error,
     });
   },
-  roleAdded(member: any, role: any) {
+  roleAdded(member: GuildMember, role: Role) {
     return LogFormatter.globalFormatter({
       logEmoji: "➕ 🏷️",
       logName: `${styles.yellowBackground}ROLE ADDED${styles.reset}`,
@@ -529,7 +580,7 @@ const LogFormatter = {
       role,
     });
   },
-  roleRemoved(member: any, role: any) {
+  roleRemoved(member: GuildMember, role: Role) {
     return LogFormatter.globalFormatter({
       logEmoji: "➖ 🏷️",
       logName: `${styles.yellowBackground}ROLE REMOVED${styles.reset}`,
@@ -538,7 +589,7 @@ const LogFormatter = {
     });
   },
   // USER
-  reactionAdded(functionName: any, user: any, reaction: any) {
+  reactionAdded(functionName: string, user: User, reaction: MessageReaction) {
     return LogFormatter.globalFormatter({
       functionName,
       logEmoji: "➕👍",
@@ -548,7 +599,7 @@ const LogFormatter = {
     });
   },
   // INTERACTIONS
-  roleSelfAdded(functionName: any, interaction: any, role: any) {
+  roleSelfAdded(functionName: string, interaction: Interaction, role: Role) {
     return LogFormatter.globalFormatter({
       functionName,
       logEmoji: "➕🏷️",
@@ -557,7 +608,7 @@ const LogFormatter = {
       role,
     });
   },
-  roleSelfRemoved(functionName: any, interaction: any, role: any) {
+  roleSelfRemoved(functionName: string, interaction: Interaction, role: Role) {
     return LogFormatter.globalFormatter({
       functionName,
       logEmoji: "➖🏷️",
@@ -566,7 +617,7 @@ const LogFormatter = {
       role,
     });
   },
-  interactionCreate(functionName: any, interaction: any) {
+  interactionCreate(functionName: string, interaction: Interaction) {
     return LogFormatter.globalFormatter({
       functionName,
       logEmoji: "⭐",
@@ -574,7 +625,7 @@ const LogFormatter = {
       interaction,
     });
   },
-  interactionCreateButton(functionName: any, interaction: any) {
+  interactionCreateButton(functionName: string, interaction: Interaction) {
     return LogFormatter.globalFormatter({
       functionName,
       logEmoji: "🕹️",
@@ -582,7 +633,7 @@ const LogFormatter = {
       interaction,
     });
   },
-  interactionCreateCommand(functionName: any, interaction: any) {
+  interactionCreateCommand(functionName: string, interaction: Interaction) {
     return LogFormatter.globalFormatter({
       functionName,
       logEmoji: "⭐",
@@ -590,7 +641,7 @@ const LogFormatter = {
       interaction,
     });
   },
-  commandNotFound(functionName: any, interaction: any) {
+  commandNotFound(functionName: string, interaction: Interaction) {
     return LogFormatter.globalFormatter({
       functionName,
       logEmoji: "❌",
@@ -598,7 +649,7 @@ const LogFormatter = {
       interaction,
     });
   },
-  commandError(functionName: any, interaction: any, error: any) {
+  commandError(functionName: string, interaction: Interaction, error: Error) {
     return LogFormatter.globalFormatter({
       functionName,
       logEmoji: "❌",
@@ -607,7 +658,7 @@ const LogFormatter = {
       error,
     });
   },
-  roleNotFound(functionName: any, interaction: any, roleId: any) {
+  roleNotFound(functionName: string, interaction: Interaction, roleId: string) {
     return LogFormatter.globalFormatter({
       functionName,
       logEmoji: "❌",
@@ -616,7 +667,7 @@ const LogFormatter = {
       roleId,
     });
   },
-  interactionMemberNotFound(functionName: any, interaction: any, roleId: any) {
+  interactionMemberNotFound(functionName: string, interaction: Interaction, roleId: string) {
     return LogFormatter.globalFormatter({
       logEmoji: "❌",
       functionName,
@@ -626,7 +677,7 @@ const LogFormatter = {
     });
   },
   // LLM
-  replyGuildMessageSuccess(message: any, generatedTextResponse: any, duration: any) {
+  replyGuildMessageSuccess(message: Message, generatedTextResponse: string, duration: number) {
     return LogFormatter.globalFormatter({
       logEmoji: "➕📡💬",
       logName: `${styles.blueBackground}GUILD MESSAGE SENT${styles.reset}`,
@@ -635,7 +686,7 @@ const LogFormatter = {
       duration,
     });
   },
-  replyDirectMessageSuccess(message: any, generatedTextResponse: any, duration: any) {
+  replyDirectMessageSuccess(message: Message, generatedTextResponse: string, duration: number) {
     return LogFormatter.globalFormatter({
       logEmoji: "➕💬",
       logName: `${styles.blueBackground}DIRECT MESSAGE SENT${styles.reset}`,
@@ -645,14 +696,14 @@ const LogFormatter = {
     });
   },
   // VOICE CHANNEL
-  memberJoinedVoiceChannel(newState: any) {
+  memberJoinedVoiceChannel(newState: VoiceState) {
     return LogFormatter.globalFormatter({
       logEmoji: "👤➡️🎤",
       logName: `${styles.greenBackground}MEMBER JOINED VOICE CHANNEL${styles.reset}`,
       state: newState,
     });
   },
-  memberLeftVoiceChannel(oldState: any) {
+  memberLeftVoiceChannel(oldState: VoiceState) {
     return LogFormatter.globalFormatter({
       logEmoji: "⬅️👤🎤",
       logName: `${styles.greenBackground}MEMBER LEFT VOICE CHANNEL${styles.reset}`,
@@ -677,46 +728,46 @@ const LogFormatter = {
       logName: "... ready to process message updates",
     });
   },
-  commandLoaded(commandName: any) {
+  commandLoaded(commandName: string) {
     return LogFormatter.globalFormatter({
       logEmoji: "✅",
       logName: `... the command /${commandName} has loaded`,
     });
   },
-  commandFailedToLoad(commandName: any) {
+  commandFailedToLoad(commandName: string) {
     return LogFormatter.globalFormatter({
       logEmoji: "⚠️",
       logName: `... the command /${commandName} has failed to load`,
     });
   },
-  errorInitialization(error: any) {
+  errorInitialization(error: unknown) {
     return LogFormatter.globalFormatter({
       logEmoji: "❌",
       logName: `${styles.redBackground}INITIALIZATION ERROR${styles.reset}`,
       error,
     });
   },
-  displayAllGuilds(guilds: any) {
+  displayAllGuilds(guilds: Collection<string, Guild>) {
     return LogFormatter.globalFormatter({
       logEmoji: "🌎",
       logName: `Connected Discord Servers: ${guilds.size}`,
       guilds,
     });
   },
-  mongoConnectionSuccess(mongoName: any) {
+  mongoConnectionSuccess(mongoName: string) {
     return LogFormatter.globalFormatter({
       logEmoji: "🛢️",
       logName: `MongoDB Connection Success: ${mongoName}`,
     });
   },
-  mongoConnectionError(mongoName: any, error: any) {
+  mongoConnectionError(mongoName: string, error: Error) {
     return LogFormatter.globalFormatter({
       logEmoji: "❌",
       logName: `MongoDB Connection Error: ${mongoName}`,
       error,
     });
   },
-  isMessageAskingToGenerateImage(message: any, isMessageAskingToGenerateImage: any) {
+  isMessageAskingToGenerateImage(message: Message, isMessageAskingToGenerateImage: boolean) {
     return LogFormatter.globalFormatter({
       logEmoji: isMessageAskingToGenerateImage ? "🖼️" : "🖼️",
       logName: isMessageAskingToGenerateImage

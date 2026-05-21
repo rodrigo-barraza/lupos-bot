@@ -7,12 +7,12 @@
 // Drop-in replacement for plain objects `{}` used as maps.
 // ============================================================
 
-class BoundedMap {
-  _map: Map<any, { value: any; timestamp: number }>;
+class BoundedMap<K, V> {
+  _map: Map<K, { value: V; timestamp: number }>;
   _maxSize: number;
   _ttlMs: number;
 
-  constructor(maxSize: any = 5000, ttlMs: any = 2 * 60 * 60 * 1000) {
+  constructor(maxSize: number = 5000, ttlMs: number = 2 * 60 * 60 * 1000) {
     this._map = new Map();       // key → { value, timestamp }
     this._maxSize = maxSize;
     this._ttlMs = ttlMs;
@@ -21,7 +21,7 @@ class BoundedMap {
   /**
    * Get a value, returning undefined if expired or missing.
    */
-  get(key: any) {
+  get(key: K): V | undefined {
     const entry = this._map.get(key);
     if (!entry) return undefined;
     if (Date.now() - entry.timestamp > this._ttlMs) {
@@ -34,14 +34,14 @@ class BoundedMap {
   /**
    * Check if a key exists and is not expired.
    */
-  has(key: any) {
+  has(key: K): boolean {
     return this.get(key) !== undefined;
   }
 
   /**
    * Set a key-value pair. Evicts oldest entries if over capacity.
    */
-  set(key: any, value: any) {
+  set(key: K, value: V): this {
     // Delete first so re-inserts move to end (Map insertion order)
     this._map.delete(key);
     this._map.set(key, { value, timestamp: Date.now() });
@@ -52,7 +52,7 @@ class BoundedMap {
   /**
    * Delete a key.
    */
-  delete(key: any) {
+  delete(key: K): boolean {
     return this._map.delete(key);
   }
 
@@ -60,7 +60,7 @@ class BoundedMap {
    * Number of entries (including potentially expired ones).
    * Use sparingly — does not trigger cleanup.
    */
-  get size() {
+  get size(): number {
     return this._map.size;
   }
 
@@ -68,7 +68,7 @@ class BoundedMap {
    * Get an existing value or insert a default if the key is missing/expired.
    * Mirrors the native Map.prototype.getOrInsert() from V8 14.6.
    */
-  getOrInsert(key: any, defaultValue: any) {
+  getOrInsert(key: K, defaultValue: V): V {
     const existing = this.get(key);
     if (existing !== undefined) return existing;
     this.set(key, defaultValue);
@@ -80,7 +80,7 @@ class BoundedMap {
    * Mirrors the native Map.prototype.getOrInsertComputed() from V8 14.6.
    * The factory only runs on a cache miss, avoiding unnecessary allocations.
    */
-  getOrInsertComputed(key: any, callback: (key: any) => any) {
+  getOrInsertComputed(key: K, callback: (key: K) => V): V {
     const existing = this.get(key);
     if (existing !== undefined) return existing;
     const value = callback(key);
@@ -91,7 +91,7 @@ class BoundedMap {
   /**
    * Clear all entries.
    */
-  clear() {
+  clear(): void {
     this._map.clear();
   }
 
@@ -99,11 +99,13 @@ class BoundedMap {
    * Evict oldest entries when over max size.
    * @private
    */
-  _evictIfNeeded() {
+  _evictIfNeeded(): void {
     while (this._map.size > this._maxSize) {
       // Map iteration order is insertion order — first key is oldest
       const oldestKey = this._map.keys().next().value;
-      this._map.delete(oldestKey);
+      if (oldestKey !== undefined) {
+        this._map.delete(oldestKey);
+      }
     }
   }
 
@@ -111,7 +113,7 @@ class BoundedMap {
    * Run a periodic sweep of expired entries.
    * Call this on a setInterval if you want proactive cleanup.
    */
-  sweep() {
+  sweep(): void {
     const now = Date.now();
     for (const [key, entry] of this._map) {
       if (now - entry.timestamp > this._ttlMs) {

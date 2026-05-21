@@ -145,7 +145,7 @@ const CHAR_SUBSTITUTIONS = {
 /**
  * Get the full word containing a match
  */
-function getFullWord(text: any, matchIndex: any, matchLength: any) {
+function getFullWord(text: string, matchIndex: number, matchLength: number) {
   let wordStart = matchIndex;
   let wordEnd = matchIndex + matchLength;
 
@@ -165,7 +165,7 @@ function getFullWord(text: any, matchIndex: any, matchLength: any) {
 /**
  * Creates a regex pattern that catches common evasion techniques
  */
-function createEvasionPattern(word: any) {
+function createEvasionPattern(word: string) {
   let pattern = "";
   const chars = word.toLowerCase().split("");
 
@@ -187,7 +187,7 @@ function createEvasionPattern(word: any) {
  * Removes/censors flagged words from a string
  * NOW: Catches slurs embedded in non-whitelisted words
  */
-function removeFlaggedWords(string: any) {
+function removeFlaggedWords(string: string) {
   let result = string;
 
   for (const word of FLAGGED_WORDS) {
@@ -196,8 +196,8 @@ function removeFlaggedWords(string: any) {
     const regex = new RegExp(pattern, "gi");
 
     // Find all matches first
-    const matches: any[] = [];
-    let match: any;
+    const matches: { index: number; text: string }[] = [];
+    let match: RegExpExecArray | null;
 
     while ((match = regex.exec(result)) !== null) {
       matches.push({
@@ -227,12 +227,12 @@ function removeFlaggedWords(string: any) {
 /**
  * Check if string contains any flagged words
  */
-function containsFlaggedWords(string: any) {
+function containsFlaggedWords(string: string) {
   for (const word of FLAGGED_WORDS) {
     const pattern = createEvasionPattern(word);
     const regex = new RegExp(pattern, "gi");
 
-    let match: any;
+    let match: RegExpExecArray | null;
     while ((match = regex.exec(string)) !== null) {
       const fullWord = getFullWord(string, match.index, match[0].length);
       if (!WHITELISTED_WORDS.includes(fullWord)) {

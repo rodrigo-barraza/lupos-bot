@@ -9,11 +9,33 @@
 // `mediaArchive` map: { originalUrl → archiveRef }.
 // ============================================================
 
+import type { Message } from "discord.js";
 import crypto from "crypto";
 import MinioWrapper from "#root/wrappers/MinioWrapper.js";
 import ScraperService from "#root/services/ScraperService.js";
 import utilities from "#root/utilities.js";
 import MongoService from "#root/services/MongoService.js";
+
+// ─── Types ──────────────────────────────────────────────────────
+
+interface ArchiveRef {
+  hash: string;
+  minioKey: string;
+  publicUrl: string;
+  contentType: string;
+  size: number;
+}
+
+interface ArchiveDocument {
+  attachments?: { url?: string; proxyURL?: string }[];
+  stickers?: { url?: string }[];
+  embeds?: {
+    image?: { url?: string; proxyURL?: string };
+    thumbnail?: { url?: string; proxyURL?: string };
+    video?: { proxyURL?: string };
+  }[];
+  [key: string]: unknown;
+}
 
 // ─── Constants ──────────────────────────────────────────────────
 const COLLECTION_NAME = "MediaHashes";
@@ -47,7 +69,7 @@ const MIME_TO_EXT = {
 
 
  */
-function inferExtension(contentType: any, url: any) {
+function inferExtension(contentType: string | null, url: string) {
   if (contentType) {
     // Strip parameters (e.g. "image/png; charset=utf-8" → "image/png")
     const mimeBase = contentType.split(";")[0].trim().toLowerCase();
@@ -65,7 +87,7 @@ function inferExtension(contentType: any, url: any) {
 // ─── In-memory hash cache ───────────────────────────────────────
 // Prevents redundant MongoDB lookups within the same process lifetime.
 // Maps hash → archiveRef. Safe because hashes are immutable (CAS).
-const hashCache = new Map();
+const hashCache = new Map<string, ArchiveRef>();
 
 const MediaArchivalService = {
   /**
@@ -110,9 +132,9 @@ const MediaArchivalService = {
 
 
    */
-  async _findByHash(hash: any) {
+  async _findByHash(hash: string): Promise<ArchiveRef | null> {
     // In-memory cache hit
-    if (hashCache.has(hash)) return hashCache.get(hash);
+    if (hashCache.has(hash)) return hashCache.get(hash)!;
 
     // MongoDB lookup
     const col = this._getCollection();
@@ -120,12 +142,12 @@ const MediaArchivalService = {
 
     const document = await col.findOne({ hash });
     if (document) {
-      const ref = {
-        hash: document.hash,
-        minioKey: document.minioKey,
-        publicUrl: document.publicUrl,
-        contentType: document.contentType,
-        size: document.size,
+      const ref: ArchiveRef = {
+        hash: document.hash as string,
+        minioKey: document.minioKey as string,
+        publicUrl: document.publicUrl as string,
+        contentType: document.contentType as string,
+        size: document.size as number,
       };
       hashCache.set(hash, ref);
       return ref;
@@ -138,7 +160,7 @@ const MediaArchivalService = {
 
 
    */
-  async _registerHash(archiveRef: any, originalUrl: any) {
+  async _registerHash(archiveRef: ArchiveRef, originalUrl: string) {
     const col = this._getCollection();
     if (!col) return;
 
@@ -161,7 +183,7 @@ const MediaArchivalService = {
       hashCache.set(archiveRef.hash, archiveRef);
     } catch (error: unknown) {
       // Duplicate key is fine — another concurrent write won
-      if ((error as any).code !== 11000) {
+      if ((error as Error & { code?: number }).code !== 11000) {
         console.error(`📦 MediaArchivalService: register error: ${(error as Error).message}`);
       }
     }
@@ -171,7 +193,7 @@ const MediaArchivalService = {
    * Download a URL, hash it, and store in MinIO if unique.
    * Returns the archive reference object (same shape for new or existing).
    */
-  async archiveFromUrl(url: any) {
+  async archiveFromUrl(url: string): Promise<ArchiveRef | null> {
     if (!MinioWrapper.isAvailable() || !url) return null;
 
     try {
@@ -179,7 +201,7 @@ const MediaArchivalService = {
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
 
-      let response: any;
+      let response: Response;
       try {
         response = await fetch(url, { signal: controller.signal });
       } finally {
@@ -223,7 +245,7 @@ const MediaArchivalService = {
       await MinioWrapper.upload(minioKey, buffer, contentType);
       const publicUrl = MinioWrapper.getPublicUrl(minioKey);
 
-      const archiveRef = {
+      const archiveRef: ArchiveRef = {
         hash,
         minioKey,
         publicUrl,
@@ -246,11 +268,11 @@ const MediaArchivalService = {
    * Archive all media from a Discord.js message object.
    * Processes: attachments, stickers, embed images/thumbnails/videos, Tenor GIFs.
    */
-  async archiveMessageMedia(message: any) {
+  async archiveMessageMedia(message: Message): Promise<Record<string, ArchiveRef>> {
     if (!MinioWrapper.isAvailable()) return {};
 
     // ── Collect all archivable URLs ────────────────────────────────
-    const urlsToArchive = new Set();
+    const urlsToArchive = new Set<string>();
 
     // Attachments (images, GIFs, audio, files)
     if (message.attachments?.size) {
@@ -310,14 +332,14 @@ const MediaArchivalService = {
     if (urlsToArchive.size === 0) return {};
 
     // ── Archive with concurrency limiter ───────────────────────────
-    const results: Record<string, any> = {};
+    const results: Record<string, ArchiveRef> = {};
     const urls = [...urlsToArchive];
 
     // Process in chunks of CONCURRENCY_LIMIT
     for (let i = 0; i < urls.length; i += CONCURRENCY_LIMIT) {
       const chunk = urls.slice(i, i + CONCURRENCY_LIMIT);
       const chunkResults = await Promise.allSettled(
-        chunk.map(async (url: any) => {
+        chunk.map(async (url: string) => {
           const ref = await this.archiveFromUrl(url);
           if (ref) results[url] = ref;
         }),
@@ -341,10 +363,10 @@ const MediaArchivalService = {
    * Mutates the document in-place. Only rewrites URLs that were
    * successfully archived (present in archiveMap).
    */
-  rewriteDocumentUrls(document: any, archiveMap: any) {
+  rewriteDocumentUrls(document: ArchiveDocument, archiveMap: Record<string, ArchiveRef>) {
     if (!archiveMap || Object.keys(archiveMap).length === 0) return;
 
-    const rewrite = (url: any) => archiveMap[url]?.publicUrl || url;
+    const rewrite = (url: string) => archiveMap[url]?.publicUrl || url;
 
     // Attachments
     if (document.attachments?.length) {

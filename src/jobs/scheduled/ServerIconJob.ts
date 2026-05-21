@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import utilities from "#root/utilities.js";
+import type { Client } from "discord.js";
 
 const { consoleLog } = utilities;
 
@@ -12,13 +13,18 @@ const IMAGES_DIR = path.resolve(
   "../../images/april-fools",
 );
 
-let lastUsedImage: any = null;
+interface ServerIconJobConfig {
+  client: Client;
+  guildId: string;
+}
+
+let lastUsedImage: string | null = null;
 
 function getRandomInterval() {
   return utilities.getRandomInterval(INTERVAL_MIN_MS, INTERVAL_MAX_MS);
 }
 
-async function rotateIcon({ client, guildId }: any) {
+async function rotateIcon({ client, guildId }: ServerIconJobConfig) {
   try {
     const guild = client.guilds.cache.get(guildId);
     if (!guild) {
@@ -29,7 +35,7 @@ async function rotateIcon({ client, guildId }: any) {
     // Read all image files from the directory
     const files = fs
       .readdirSync(IMAGES_DIR)
-      .filter((f: any) => /\.(png|jpg|jpeg|gif|webp)$/i.test(f));
+      .filter((f: string) => /\.(png|jpg|jpeg|gif|webp)$/i.test(f));
 
     if (files.length === 0) {
       consoleLog("!", `[ServerIconJob] No images found in ${IMAGES_DIR}`);
@@ -37,7 +43,7 @@ async function rotateIcon({ client, guildId }: any) {
     }
 
     // Pick a random image, avoiding the same one twice in a row
-    let chosen: any;
+    let chosen: string;
     if (files.length === 1) {
       chosen = files[0];
     } else {
@@ -63,7 +69,7 @@ async function rotateIcon({ client, guildId }: any) {
 }
 
 const ServerIconJob = {
-  startJob({ client, guildId }: any) {
+  startJob({ client, guildId }: ServerIconJobConfig) {
     const scheduleNext = () => {
       const delay = getRandomInterval();
       const delayMinutes = (delay / 60_000).toFixed(1);

@@ -1,8 +1,9 @@
 import { SlashCommandBuilder, PermissionFlagsBits } from "discord.js";
+import type { ChatInputCommandInteraction, GuildMember } from "discord.js";
 import { getMongoDb } from "./commandUtils.ts";
 
 // Store cooldowns in memory (userId -> timestamp)
-const cooldowns = new Map();
+const cooldowns = new Map<string, number>();
 
 const newParalysisMoves = {
   "BODY SLAM": { emoji: "💥", power: 85, accuracy: 100 },
@@ -39,7 +40,7 @@ const newParalysisMoves = {
 };
 
 // Calculate timeout duration based on move power (1-10 seconds)
-function calculateTimeoutDuration(power: any, isCritical: any = false) {
+function calculateTimeoutDuration(power: number | string, isCritical: boolean = false) {
   if (power === "Varies") {
     return isCritical ? 7500 : 5000; // 7.5 or 5 seconds for variable power moves
   }
@@ -69,7 +70,7 @@ function calculateTimeoutDuration(power: any, isCritical: any = false) {
 }
 
 // Check if move hits based on accuracy
-function doesMoveHit(accuracy: any) {
+function doesMoveHit(accuracy: number) {
   const roll = Math.floor(Math.random() * 100) + 1; // Roll 1-100
   return roll <= accuracy;
 }
@@ -84,14 +85,14 @@ export default {
     .setName("shock")
     .setDescription("Paralyzes a random person from the recent conversation"),
 
-  async execute(interaction: any) {
+  async execute(interaction: ChatInputCommandInteraction) {
     // Check cooldown
     const userId = interaction.user.id;
     const now = Date.now();
     const cooldownAmount = 5 * 60 * 1000; // 5 minutes in milliseconds
 
     if (cooldowns.has(userId)) {
-      const expirationTime = cooldowns.get(userId) + cooldownAmount;
+      const expirationTime = (cooldowns.get(userId) as number) + cooldownAmount;
 
       if (now < expirationTime) {
         const timeLeft = ((expirationTime - now) / 1000).toFixed(1);
@@ -107,7 +108,7 @@ export default {
     try {
       // Check if bot has permission to timeout members
       if (
-        !interaction.guild.members.me.permissions.has(
+        !interaction.guild!.members.me!.permissions.has(
           PermissionFlagsBits.ModerateMembers,
         )
       ) {
@@ -120,7 +121,7 @@ export default {
       const messages = await interaction.channel.messages.fetch({ limit: 25 });
 
       // Get unique users from messages (exclude bots)
-      const uniqueUsers = new Map();
+      const uniqueUsers = new Map<string, GuildMember>();
 
       for (const message of messages.values()) {
         const member = message.member;
@@ -224,7 +225,7 @@ export default {
             lastShockedAt: now,
             lastShockedBy: userId,
             lastShockedByUsername: interaction.user.username,
-            lastShockedByDisplayName: interaction.member.displayName,
+            lastShockedByDisplayName: (interaction.member as any).displayName,
             lastMove: randomMoveName,
             lastMovePower: moveData.power,
             lastTimeoutDuration: timeoutSeconds,
@@ -241,7 +242,7 @@ export default {
       );
 
       // Format message differently for self-shock (like confusion self-damage)
-      let battleMessage: any;
+      let battleMessage: string;
 
       if (isSelfShock) {
         battleMessage =
@@ -267,9 +268,9 @@ export default {
 
       let errorMessage = "⚡ An error occurred while trying to shock someone.";
 
-      if ((error as any).code === 50013) {
+      if ((error as { code?: number }).code === 50013) {
         errorMessage = "⚡ I don't have permission to timeout this member!";
-      } else if ((error as any).code === 10008) {
+      } else if ((error as { code?: number }).code === 10008) {
         errorMessage = "⚡ The selected user could not be found!";
       }
 

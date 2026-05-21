@@ -7,8 +7,20 @@
 // ============================================================
 
 import { Router } from "express";
+import type { Request, Response, NextFunction } from "express";
 import { asyncHandler } from "@rodrigo-barraza/utilities-library/express";
 import { ChannelType } from "discord.js";
+import type {
+  GuildMember,
+  GuildChannel,
+  TextChannel,
+  Role,
+  User,
+  Presence,
+  Activity,
+  MessageReaction,
+  } from "discord.js";
+import type { WithId, Document } from "mongodb";
 import DiscordWrapper from "#root/wrappers/DiscordWrapper.js";
 import config from "#root/config.js";
 import MoodService from "#root/services/MoodService.js";
@@ -20,14 +32,51 @@ import AlcoholService from "#root/services/AlcoholService.js";
 import BathroomService from "#root/services/BathroomService.js";
 import SubstanceService from "#root/services/SubstanceService.js";
 import { MOODS } from "#root/constants.js";
+import type { MoodEntry } from "#root/types/index.js";
 
 const router = Router();
+
+/** Job status tracking interface. */
+interface JobStatus {
+  id: string;
+  type: string;
+  status: "running" | "completed" | "failed";
+  startedAt: string;
+  completedAt?: string;
+  result: unknown;
+  error: string | null;
+  [key: string]: unknown;
+}
+
+/** Member data for the /guild/members endpoint. */
+interface MemberData {
+  id: string;
+  displayName: string;
+  username: string;
+  avatarUrl: string | null;
+  status: string;
+  activity: string | null;
+  isBot: boolean;
+  roleColor: string | null;
+  roleColors?: { primary: string; secondary: string | null; tertiary: string | null };
+  badges?: string[];
+  roleTags?: { name: string; color: string | null; iconUrl: string | null }[];
+}
+
+/** Role group for the /guild/members endpoint. */
+interface RoleGroup {
+  id: string;
+  name: string;
+  color: string | null;
+  position: number;
+  members: MemberData[];
+}
 
 /**
  * Middleware: reject requests if the Discord client isn't ready yet.
  * Prevents 500s from empty guild cache during the login→ready window.
  */
-router.use((req: any, res: any, next: any) => {
+router.use((req: Request, res: Response, next: NextFunction) => {
   const client = DiscordWrapper.getClient("lupos");
   if (!client?.isReady()) {
     res.set("Retry-After", "5");
@@ -39,7 +88,7 @@ router.use((req: any, res: any, next: any) => {
 /**
  * Build a Discord CDN avatar URL from a User or GuildMember.
  */
-function buildAvatarUrl(user: any, member: any) {
+function buildAvatarUrl(user: User, member: GuildMember) {
   // Guild-specific avatar takes precedence
   if (member?.avatar && user?.id) {
     const ext = member.avatar.startsWith("a_") ? "gif" : "png";
@@ -56,9 +105,9 @@ function buildAvatarUrl(user: any, member: any) {
 // Returns text channels for a guild, sorted by position.
 // Query: ?guildId=...
 
-router.get("/guild/channels", (req: any, res: any) => {
+router.get("/guild/channels", (req: Request, res: Response) => {
   try {
-    const guildId = req.query.guildId || config.GUILD_ID_CLOCK_CREW;
+    const guildId = (req.query.guildId as string) || config.GUILD_ID_CLOCK_CREW;
     const client = DiscordWrapper.getClient("lupos");
     const guild = client.guilds.cache.get(guildId);
 
@@ -67,15 +116,15 @@ router.get("/guild/channels", (req: any, res: any) => {
     }
 
     const channels = guild.channels.cache
-      .filter((ch: any) => ch.type === ChannelType.GuildText)
-      .sort((a: any, b: any) => a.position - b.position)
-      .map((ch: any) => ({
+      .filter((ch) => ch.type === ChannelType.GuildText)
+      .sort((a, b) => (a as GuildChannel).position - (b as GuildChannel).position)
+      .map((ch) => ({
         id: ch.id,
         name: ch.name,
-        topic: ch.topic || null,
+        topic: "topic" in ch ? (ch as TextChannel).topic || null : null,
         parentId: ch.parentId || null,
         parentName: ch.parent?.name || null,
-        position: ch.position,
+        position: (ch as GuildChannel).position,
       }));
 
     res.json({
@@ -96,9 +145,9 @@ router.get("/guild/channels", (req: any, res: any) => {
 // Returns online/idle/dnd members for a guild, grouped by role.
 // Query: ?guildId=...
 
-router.get("/guild/members", asyncHandler(async (req: any, res: any) => {
+router.get("/guild/members", asyncHandler(async (req: Request, res: Response) => {
   try {
-    const guildId = req.query.guildId || config.GUILD_ID_CLOCK_CREW;
+    const guildId = (req.query.guildId as string) || config.GUILD_ID_CLOCK_CREW;
     const client = DiscordWrapper.getClient("lupos");
     const guild = client.guilds.cache.get(guildId);
 
@@ -120,13 +169,13 @@ router.get("/guild/members", asyncHandler(async (req: any, res: any) => {
     // Discord ActivityType.Custom (4) has name="Custom Status" but the
     // real user text lives in .state. We prefer game/streaming/listening
     // activities, falling back to the custom status text if nothing else.
-    function pickActivity(presence: any) {
+    function pickActivity(presence: Presence | null | undefined): string | null {
       if (!presence?.activities?.length) return null;
       // Prefer non-custom-status activities (games, streaming, Spotify, etc.)
-      const realActivity = presence.activities.find((a: any) => a.type !== 4);
+      const realActivity = presence.activities.find((a: Activity) => a.type !== 4);
       if (realActivity) return realActivity.name;
       // Fall back to custom status .state (the user-entered text)
-      const customStatus = presence.activities.find((a: any) => a.type === 4);
+      const customStatus = presence.activities.find((a: Activity) => a.type === 4);
       return customStatus?.state || null;
     }
 
@@ -134,7 +183,7 @@ router.get("/guild/members", asyncHandler(async (req: any, res: any) => {
     // Bots are included here so those with hoisted roles appear under
     // their role group (e.g. "Good Boy") — matching Discord's behavior.
     const onlineMembers = guild.members.cache.filter(
-      (m: any) =>
+      (m: GuildMember) =>
         m.presence &&
         m.presence.status &&
         m.presence.status !== "offline",
@@ -143,34 +192,35 @@ router.get("/guild/members", asyncHandler(async (req: any, res: any) => {
     // Bots without presence are still "online" — Discord doesn't track
     // their presence reliably, so we treat any cached bot as online.
     const offlineBots = guild.members.cache.filter(
-      (m: any) => m.user.bot && (!m.presence || m.presence.status === "offline"),
+      (m: GuildMember) => m.user.bot && (!m.presence || m.presence.status === "offline"),
     );
 
     // Build role hierarchy for grouping.
     // Only hoisted roles (role.hoist === true) appear as sidebar
     // category headers — mirrors Discord's own member list behavior.
-    const roleMap = new Map();
-    const ungrouped: any[] = [];
-    const ungroupedBots: any[] = []; // bots with no hoisted role
+    const roleMap = new Map<string, RoleGroup>();
+    const ungrouped: MemberData[] = [];
+    const ungroupedBots: MemberData[] = []; // bots with no hoisted role
 
     // Process both online members and offline bots together
-    const allVisible: Map<string, any> = new Map([...onlineMembers, ...offlineBots]);
+    const allVisible = new Map<string, GuildMember>([...onlineMembers, ...offlineBots]);
 
     for (const [, member] of allVisible) {
       try {
       // Get all non-@everyone roles sorted highest first
-      let sortedRoles: any[] = [];
+      let sortedRoles: Role[] = [];
       try {
-        sortedRoles = member.roles.cache
-          .filter((r: any) => r.id !== guild.id) // Exclude @everyone
-          .sort((a: any, b: any) => b.position - a.position);
+        sortedRoles = [...member.roles.cache
+          .filter((r: Role) => r.id !== guild.id) // Exclude @everyone
+          .sort((a: Role, b: Role) => b.position - a.position)
+          .values()];
       } catch { /* roles cache unavailable */ }
 
       // Find the highest hoisted role for sidebar grouping
-      const hoistedRole = sortedRoles.find((r: any) => r.hoist);
+      const hoistedRole = sortedRoles.find((r: Role) => r.hoist);
 
       // ── Build role colors (gradient/holographic support) ───────
-      let roleColors = null;
+      let roleColors: { primary: string; secondary: string | null; tertiary: string | null } | null = null;
       try {
         const colorRole = member.roles.color;
         if (colorRole?.colors) {
@@ -190,11 +240,11 @@ router.get("/guild/members", asyncHandler(async (req: any, res: any) => {
       } catch { /* role colors unavailable */ }
 
       // ── Extract profile badges from user flags bitfield ────────
-      const badges: any[] = [];
+      const badges: string[] = [];
       try {
         const userFlags = member.user.flags?.bitfield;
         if (userFlags) {
-          const BADGE_MAP = [
+          const BADGE_MAP: [number, string][] = [
             [1,       "staff"],
             [2,       "partner"],
             [4,       "hypesquad"],
@@ -210,22 +260,22 @@ router.get("/guild/members", asyncHandler(async (req: any, res: any) => {
             [4194304, "active_developer"],
           ];
           for (const [bit, id] of BADGE_MAP) {
-            if ((userFlags & (bit as number)) === bit) badges.push(id);
+            if ((userFlags & bit) === bit) badges.push(id);
           }
         }
       } catch { /* user flags unavailable */ }
 
       // ── Top role tags (colored pill badges next to username) ───
-      let roleTags: any[] = [];
+      let roleTags: { name: string; color: string | null; iconUrl: string | null }[] = [];
       try {
-        roleTags = sortedRoles.slice(0, 3).map((r: any) => ({
+        roleTags = sortedRoles.slice(0, 3).map((r: Role) => ({
           name: r.name,
           color: r.hexColor && r.hexColor !== "#000000" ? r.hexColor : null,
           iconUrl: r.iconURL?.() || null,
         }));
       } catch { /* role tags unavailable */ }
 
-      const memberData = {
+      const memberData: MemberData = {
         id: member.id,
         displayName: member.displayName,
         username: member.user.username,
@@ -252,23 +302,23 @@ router.get("/guild/members", asyncHandler(async (req: any, res: any) => {
             members: [],
           });
         }
-        roleMap.get(hoistedRole.id).members.push(memberData);
+        roleMap.get(hoistedRole.id)!.members.push(memberData);
       } else if (member.user.bot) {
         ungroupedBots.push(memberData);
       } else {
         ungrouped.push(memberData);
       }
       } catch (memberErr: unknown) {
-        console.warn(`[guild/members] Skipping member ${member?.id} (${member?.user?.username}): ${(memberErr as Error).message} | Stack: ${(memberErr as any).stack?.split('\n')[1]?.trim()}`);
+        console.warn(`[guild/members] Skipping member ${member?.id} (${member?.user?.username}): ${(memberErr as Error).message} | Stack: ${(memberErr as Error).stack?.split('\n')[1]?.trim()}`);
       }
     }
 
     // Sort roles by position (highest first), members alphabetically
-    const roles = Array.from(roleMap.values())
-      .sort((a: any, b: any) => b.position - a.position)
-      .map((role: any) => ({
+    const roles: RoleGroup[] = Array.from(roleMap.values())
+      .sort((a, b) => b.position - a.position)
+      .map((role) => ({
         ...role,
-        members: role.members.sort((a: any, b: any) =>
+        members: role.members.sort((a, b) =>
           a.displayName.localeCompare(b.displayName),
         ),
       }));
@@ -279,18 +329,18 @@ router.get("/guild/members", asyncHandler(async (req: any, res: any) => {
         name: "Online",
         color: null,
         position: -1,
-        members: ungrouped.sort((a: any, b: any) =>
+        members: ungrouped.sort((a, b) =>
           a.displayName.localeCompare(b.displayName),
         ),
       });
     }
 
     // Bots without a hoisted role go into the flat "Bots" section
-    const bots = ungroupedBots.sort((a: any, b: any) =>
+    const bots = ungroupedBots.sort((a, b) =>
       a.displayName.localeCompare(b.displayName),
     );
 
-    const totalProcessed = roles.reduce((n: any, r: any) => n + r.members.length, 0)
+    const totalProcessed = roles.reduce((n: number, r: RoleGroup) => n + r.members.length, 0)
       + ungrouped.length + bots.length;
     const totalVisible = allVisible.size;
     if (totalProcessed < totalVisible) {
@@ -308,7 +358,7 @@ router.get("/guild/members", asyncHandler(async (req: any, res: any) => {
       bots,
     });
   } catch (error: unknown) {
-    console.error("[guild/members] Error:", (error as Error).message, (error as any).stack);
+    console.error("[guild/members] Error:", (error as Error).message, (error as Error).stack);
     res.status(500).json({ error: "Failed to fetch members", detail: (error as Error).message });
   }
 }));
@@ -316,13 +366,13 @@ router.get("/guild/members", asyncHandler(async (req: any, res: any) => {
 // ─── Background Job Status Tracker ──────────────────────────────
 // Lightweight in-memory map for tracking async job progress.
 // Jobs auto-expire after 1 hour to prevent memory leaks.
-const _jobStatus = new Map();
+const _jobStatus = new Map<string, JobStatus>();
 let _jobIdCounter = 0;
 const JOB_TTL_MS = 60 * 60 * 1000; // 1 hour
 
-function createJob(type: any, meta: any = {}) {
+function createJob(type: string, meta: Record<string, unknown> = {}): JobStatus {
   const id = `${type}-${++_jobIdCounter}`;
-  const job = {
+  const job: JobStatus = {
     id,
     type,
     status: "running",
@@ -337,7 +387,7 @@ function createJob(type: any, meta: any = {}) {
   return job;
 }
 
-function completeJob(id: any, result: any) {
+function completeJob(id: string, result: unknown) {
   const job = _jobStatus.get(id);
   if (job) {
     job.status = "completed";
@@ -346,7 +396,7 @@ function completeJob(id: any, result: any) {
   }
 }
 
-function failJob(id: any, error: any) {
+function failJob(id: string, error: string) {
   const job = _jobStatus.get(id);
   if (job) {
     job.status = "failed";
@@ -358,9 +408,9 @@ function failJob(id: any, error: any) {
 // ─── POST /guild/rescrape ───────────────────────────────────────
 // Triggers a targeted rescrape of specific channels to refresh
 // embed data and other message fields in MongoDB.
-// Body: { guildId?, channelIds: [\"...\"], dateLimit?, forceUpdate? }
+// Body: { guildId?, channelIds: ["..."], dateLimit?, forceUpdate? }
 
-router.post("/guild/rescrape", asyncHandler(async (req: any, res: any) => {
+router.post("/guild/rescrape", asyncHandler(async (req: Request, res: Response) => {
   try {
     const guildId = req.body.guildId || config.GUILD_ID_CLOCK_CREW;
     const { channelIds, dateLimit = "2025-01-01", forceUpdate = false } = req.body;
@@ -389,28 +439,28 @@ router.post("/guild/rescrape", asyncHandler(async (req: any, res: any) => {
       localMongo,
       guildId,
       { channelIds, dateLimit, autoResume: false, forceUpdate },
-    ).then((result: any) => {
+    ).then((result: unknown) => {
       completeJob(job.id, result);
       console.log(`[guild/rescrape] Completed rescrape of ${channelIds.length} channel(s)`);
-    }).catch((error: any) => {
+    }).catch((error: Error) => {
       failJob(job.id, error.message);
       console.error("[guild/rescrape] Error:", error.message);
     });
   } catch (error: unknown) {
-    console.error("[guild/rescrape] Error:", (error as Error).message, (error as any).stack);
+    console.error("[guild/rescrape] Error:", (error as Error).message, (error as Error).stack);
     res.status(500).json({ error: "Failed to start rescrape", detail: (error as Error).message });
   }
 }));
 
 // ─── GET /guild/rescrape/status ─────────────────────────────────
-router.get("/guild/rescrape/status", (req: any, res: any) => {
+router.get("/guild/rescrape/status", (req: Request, res: Response) => {
   const { jobId } = req.query;
   if (!jobId) {
     // Return all rescrape jobs
-    const jobs = [..._jobStatus.values()].filter((j: any) => j.type === "rescrape");
+    const jobs = [..._jobStatus.values()].filter((j: JobStatus) => j.type === "rescrape");
     return res.json({ jobs });
   }
-  const job = _jobStatus.get(jobId);
+  const job = _jobStatus.get(jobId as string);
   if (!job) return res.status(404).json({ error: "Job not found (may have expired)" });
   res.json(job);
 });
@@ -421,7 +471,7 @@ router.get("/guild/rescrape/status", (req: any, res: any) => {
 // in MinIO, then updates MongoDB documents with the MinIO URLs.
 // Body: { guildId?, channelId?, forceRetry? }
 
-router.post("/guild/backfill-media", asyncHandler(async (req: any, res: any) => {
+router.post("/guild/backfill-media", asyncHandler(async (req: Request, res: Response) => {
   try {
     const guildId = req.body.guildId || config.GUILD_ID_PRIMARY;
     const { channelId, forceRetry = false } = req.body;
@@ -449,28 +499,28 @@ router.post("/guild/backfill-media", asyncHandler(async (req: any, res: any) => 
       guildId,
       channelId: channelId || undefined,
       forceRetry,
-    }).then((result: any) => {
+    }).then((result: { processed: number; archived: number; errors: number }) => {
       completeJob(job.id, result);
       console.log(`[guild/backfill-media] Completed — processed: ${result.processed}, archived: ${result.archived}, errors: ${result.errors}`);
-    }).catch((error: any) => {
+    }).catch((error: Error) => {
       failJob(job.id, error.message);
       console.error("[guild/backfill-media] Error:", error.message);
     });
   } catch (error: unknown) {
-    console.error("[guild/backfill-media] Error:", (error as Error).message, (error as any).stack);
+    console.error("[guild/backfill-media] Error:", (error as Error).message, (error as Error).stack);
     res.status(500).json({ error: "Failed to start media backfill", detail: (error as Error).message });
   }
 }));
 
 // ─── GET /guild/backfill-media/status ───────────────────────────
-router.get("/guild/backfill-media/status", (req: any, res: any) => {
+router.get("/guild/backfill-media/status", (req: Request, res: Response) => {
   const { jobId } = req.query;
   if (!jobId) {
     // Return all backfill-media jobs
-    const jobs = [..._jobStatus.values()].filter((j: any) => j.type === "backfill-media");
+    const jobs = [..._jobStatus.values()].filter((j: JobStatus) => j.type === "backfill-media");
     return res.json({ jobs });
   }
-  const job = _jobStatus.get(jobId);
+  const job = _jobStatus.get(jobId as string);
   if (!job) return res.status(404).json({ error: "Job not found (may have expired)" });
   res.json(job);
 });
@@ -479,9 +529,9 @@ router.get("/guild/backfill-media/status", (req: any, res: any) => {
 // Returns all custom emojis for a guild (for the emoji picker).
 // Query: ?guildId=...
 
-router.get("/guild/emojis", (req: any, res: any) => {
+router.get("/guild/emojis", (req: Request, res: Response) => {
   try {
-    const guildId = req.query.guildId || config.GUILD_ID_CLOCK_CREW;
+    const guildId = (req.query.guildId as string) || config.GUILD_ID_CLOCK_CREW;
     const client = DiscordWrapper.getClient("lupos");
     const guild = client.guilds.cache.get(guildId);
 
@@ -489,7 +539,7 @@ router.get("/guild/emojis", (req: any, res: any) => {
       return res.status(404).json({ error: "Guild not found" });
     }
 
-    const emojis: any[] = [];
+    const emojis: { id: string; name: string | null; animated: boolean; url: string }[] = [];
     for (const [, emoji] of guild.emojis.cache) {
       if (!emoji.id) continue;
       try {
@@ -510,7 +560,7 @@ router.get("/guild/emojis", (req: any, res: any) => {
       emojis,
     });
   } catch (error: unknown) {
-    console.error("[guild/emojis] Error:", (error as Error).message, (error as any).stack);
+    console.error("[guild/emojis] Error:", (error as Error).message, (error as Error).stack);
     res.status(500).json({ error: "Failed to fetch emojis", detail: (error as Error).message });
   }
 });
@@ -525,9 +575,9 @@ router.get("/guild/emojis", (req: any, res: any) => {
 //   409 { alreadyReacted: true }
 //   429 { error: "Rate limited" }
 
-const _reactCooldowns = new Map(); // guildId → last timestamp
+const _reactCooldowns = new Map<string, number>(); // guildId → last timestamp
 
-router.post("/guild/react", asyncHandler(async (req: any, res: any) => {
+router.post("/guild/react", asyncHandler(async (req: Request, res: Response) => {
   try {
     const guildId = req.body.guildId || config.GUILD_ID_CLOCK_CREW;
     const { channelId, messageId, emoji } = req.body;
@@ -550,13 +600,13 @@ router.post("/guild/react", asyncHandler(async (req: any, res: any) => {
       return res.status(404).json({ error: "Guild not found" });
     }
 
-    const channel = guild.channels.cache.get(channelId);
+    const channel = guild.channels.cache.get(channelId) as TextChannel | undefined;
     if (!channel) {
       return res.status(404).json({ error: "Channel not found" });
     }
 
     // Fetch the message
-    let message: any;
+    let message;
     try {
       message = await channel.messages.fetch(messageId);
     } catch {
@@ -570,8 +620,8 @@ router.post("/guild/react", asyncHandler(async (req: any, res: any) => {
     const reactionIdentifier = isCustom ? emoji : emoji;
 
     // ── Check if bot already reacted with this emoji ────────────
-    const botId = client.user.id;
-    const existingReaction = message.reactions.cache.find((r: any) => {
+    const botId = client.user!.id;
+    const existingReaction = message.reactions.cache.find((r: MessageReaction) => {
       if (isCustom) {
         return r.emoji.id === emoji.split(":")[1];
       }
@@ -600,7 +650,7 @@ router.post("/guild/react", asyncHandler(async (req: any, res: any) => {
       const db = localMongo.db("lupos");
       const col = db.collection("Messages");
 
-      const transformedReactions = freshMessage.reactions.cache.map((r: any) => ({
+      const transformedReactions = freshMessage.reactions.cache.map((r: MessageReaction) => ({
         count: r.count,
         countDetails: {
           burst: r.countDetails?.burst || 0,
@@ -624,14 +674,14 @@ router.post("/guild/react", asyncHandler(async (req: any, res: any) => {
 
     res.json({ success: true });
   } catch (error: unknown) {
-    console.error("[guild/react] Error:", (error as Error).message, (error as any).stack);
+    console.error("[guild/react] Error:", (error as Error).message, (error as Error).stack);
     res.status(500).json({ error: "Failed to react", detail: (error as Error).message });
   }
 }));
 
 // ─── GET /bot/stats ─────────────────────────────────────────────
 // Returns live bot somatic status, database counts, and active server stats
-router.get("/bot/stats", asyncHandler(async (req: any, res: any) => {
+router.get("/bot/stats", asyncHandler(async (req: Request, res: Response) => {
   try {
     const client = DiscordWrapper.getClient("lupos");
     const MongoService = (await import("#root/services/MongoService.js")).default;
@@ -640,7 +690,7 @@ router.get("/bot/stats", asyncHandler(async (req: any, res: any) => {
 
     // 1. Somatic Status
     const moodLevel = MoodService.getMoodLevel();
-    const currentMood = MOODS.find((m: any) => m.level === moodLevel) || {
+    const currentMood = MOODS.find((m: MoodEntry) => m.level === moodLevel) || {
       name: "Unknown",
       emoji: "😐",
     };
@@ -670,16 +720,15 @@ router.get("/bot/stats", asyncHandler(async (req: any, res: any) => {
 
     if (db) {
       try {
-        const [msgCount, transcriberCount, mediaCount, distinctAuthors] = await Promise.all([
+        const [msgCount, transcriberCount, mediaCount] = await Promise.all([
           db.collection("Messages").countDocuments().catch(() => 0),
           db.collection("AudioTranscriptions").countDocuments().catch(() => 0),
           db.collection("MediaMetadata").countDocuments().catch(() => 0),
-          db.collection("Messages").distinct("author.id").catch(() => []),
         ]);
 
         database = {
           totalMessages: msgCount,
-          totalUniqueUsers: Array.isArray(distinctAuthors) ? distinctAuthors.length : 0,
+          totalUniqueUsers: 0,
           totalTranscriptions: transcriberCount,
           totalArchivedMedia: mediaCount,
         };
@@ -689,7 +738,7 @@ router.get("/bot/stats", asyncHandler(async (req: any, res: any) => {
     }
 
     // 3. Game Activity
-    let topGames: any[] = [];
+    let topGames: WithId<Document>[] = [];
     if (db) {
       try {
         topGames = await db
@@ -704,7 +753,7 @@ router.get("/bot/stats", asyncHandler(async (req: any, res: any) => {
     }
 
     // 4. Active Streamers
-    let activeStreamers: any[] = [];
+    let activeStreamers: WithId<Document>[] = [];
     if (db) {
       try {
         activeStreamers = await db
@@ -733,7 +782,7 @@ router.get("/bot/stats", asyncHandler(async (req: any, res: any) => {
       discordInfo,
     });
   } catch (error: unknown) {
-    console.error("[bot/stats] Error:", (error as Error).message, (error as any).stack);
+    console.error("[bot/stats] Error:", (error as Error).message, (error as Error).stack);
     res.status(500).json({ error: "Failed to fetch bot stats", detail: (error as Error).message });
   }
 }));

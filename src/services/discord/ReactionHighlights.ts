@@ -7,7 +7,9 @@
 // tracking reaction data for every message ever reacted to.
 // ============================================================
 
-import { EmbedBuilder } from "discord.js";
+import type { Client, MessageReaction, PartialMessageReaction, User, PartialUser, TextChannel, Message } from "discord.js";
+import type { MongoClient } from "mongodb";
+import { EmbedBuilder, DiscordAPIError } from "discord.js";
 import config from "#root/config.js";
 import utilities from "#root/utilities.js";
 import DiscordUtilityService from "#root/services/DiscordUtilityService.js";
@@ -17,11 +19,16 @@ import EventReactJob from "#root/jobs/event-driven/ReactJob.js";
 import LogFormatter from "#root/formatters/LogFormatter.js";
 import MongoService from "#root/services/MongoService.js";
 
+interface QueuedReaction {
+  reaction: MessageReaction | PartialMessageReaction;
+  user: User | PartialUser;
+}
+
 /**
  * Process a single reaction event — check unique reactor count,
  * build/update highlight embed if threshold is met.
  */
-async function processCreateReaction(client: any, queuedReaction: any) {
+async function processCreateReaction(client: Client, queuedReaction: QueuedReaction) {
   const functionName = "processCreateReaction";
   const { reaction, user } = queuedReaction;
 
@@ -48,8 +55,8 @@ async function processCreateReaction(client: any, queuedReaction: any) {
 
   const messageId = reaction.message.id;
   const channelId = reaction.message.channelId;
-  const channelName = reaction.message.channel.name;
-  const guildId = reaction.message.guild.id;
+  const channelName = (reaction.message.channel as TextChannel).name;
+  const guildId = reaction.message.guild!.id;
   const userId = user.id;
   const content = reaction.message.content;
 
@@ -60,34 +67,34 @@ async function processCreateReaction(client: any, queuedReaction: any) {
   )
     return;
 
-  DiscordState.allUniqueUsers.getOrInsert(messageId, new Set()).add(userId);
+  (DiscordState.allUniqueUsers as any).getOrInsert(messageId, new Set<string>()).add(userId);
 
   let users;
   try {
     users = await reaction.users.fetch();
   } catch (fetchErr: unknown) {
     // Message was deleted between the reaction event and this fetch — non-critical
-    if ((fetchErr as any).code === 10008 || (fetchErr as any).code === 10003) {
-      console.warn(`[ReactionHighlights] Skipping deleted message ${messageId} (code ${(fetchErr as any).code})`);
+    if (fetchErr instanceof DiscordAPIError && (fetchErr.code === 10008 || fetchErr.code === 10003)) {
+      console.warn(`[ReactionHighlights] Skipping deleted message ${messageId} (code ${fetchErr.code})`);
       return;
     }
     throw fetchErr;
   }
-  users.map((user: any) => DiscordState.allUniqueUsers.get(messageId).add(user.id));
-  console.log(...LogFormatter.reactionAdded(functionName, user, reaction));
-  if ([...DiscordState.allUniqueUsers.get(messageId)].length >= uniqueUserLengthTrigger) {
+  users.map((reactUser: User) => (DiscordState.allUniqueUsers as any).get(messageId).add(reactUser.id));
+  console.log(...LogFormatter.reactionAdded(functionName, user as User, reaction as MessageReaction));
+  if ([...(DiscordState.allUniqueUsers as any).get(messageId)].length >= uniqueUserLengthTrigger) {
     const attachments = reaction.message.attachments;
     const stickers = reaction.message.stickers;
     const name = DiscordUtilityService.getDisplayNameFromUserOrMember({
-      member: reaction.message.member,
-      user: reaction.message.author,
+      member: reaction.message.member as any,
+      user: reaction.message.author as any,
     });
-    const avatarUrl = utilities.getDiscordAvatarUrl(reaction.message.author?.id, reaction.message.author?.avatar) || "";
+    const avatarUrl = utilities.getDiscordAvatarUrl(reaction.message.author?.id ?? "", reaction.message.author?.avatar ?? "") || "";
 
-    const emojiId = reaction._emoji.id;
-    const emojiName = reaction._emoji.name;
-    const isEmojiAnimated = reaction._emoji.animated;
-    let emojiUrl: any;
+    const emojiId = reaction.emoji.id;
+    const emojiName = reaction.emoji.name;
+    const isEmojiAnimated = reaction.emoji.animated;
+    let emojiUrl: string | undefined;
 
     const doesContentContainTenorText = content?.includes(
       "https://tenor.com/view/",
@@ -106,22 +113,24 @@ async function processCreateReaction(client: any, queuedReaction: any) {
     const referenceChannelId = reference?.channelId;
     const _referenceGuildId = reference?.guildId;
     const referenceMessageId = reference?.messageId;
-    let referenceMessage: any;
+    let referenceMessage: Message | undefined;
 
-    const currentReferenceChannel = DiscordUtilityService.getChannelById(
-      client,
-      referenceChannelId,
-    );
+    if (referenceChannelId) {
+      const currentReferenceChannel = DiscordUtilityService.getChannelById(
+        client,
+        referenceChannelId,
+      ) as TextChannel | undefined;
 
-    if (currentReferenceChannel?.messages) {
-      referenceMessage =
-        await currentReferenceChannel.messages.fetch(referenceMessageId);
+      if (currentReferenceChannel?.messages) {
+        referenceMessage =
+          await currentReferenceChannel.messages.fetch(referenceMessageId!);
+      }
     }
 
     const targetChannel = DiscordUtilityService.getChannelById(
       client,
-      highlightsChannel,
-    );
+      highlightsChannel!,
+    ) as TextChannel;
 
     const messageURL = utilities.getDiscordMessageUrl(guildId, channelId, messageId);
 
@@ -151,9 +160,9 @@ async function processCreateReaction(client: any, queuedReaction: any) {
     }
 
     const totalReactions =
-      [...DiscordState.allUniqueUsers.get(messageId)].length >
+      [...(DiscordState.allUniqueUsers as any).get(messageId)].length >
       reaction.message.reactions.cache.size
-        ? [...DiscordState.allUniqueUsers.get(messageId)].length
+        ? [...(DiscordState.allUniqueUsers as any).get(messageId)].length
         : reaction.message.reactions.cache.size;
 
     embed.addFields({
@@ -177,10 +186,10 @@ async function processCreateReaction(client: any, queuedReaction: any) {
 
     if (doesContentContainTenorText) {
       const regex = /(https:\/\/tenor\.com\/view\/\S*)/;
-      const match = content.match(regex);
+      const match = content!.match(regex);
       const url = match ? match[0] : "";
       const tenorImage = await ScraperService.scrapeTenor(url);
-      embed.setImage(tenorImage.image);
+      embed.setImage(tenorImage.image ?? null);
     }
 
     if (attachments) {
@@ -207,7 +216,7 @@ async function processCreateReaction(client: any, queuedReaction: any) {
       DiscordState.reactionMessages.set(messageId, message.id);
     } else {
       const message = await targetChannel.messages.fetch(
-        DiscordState.reactionMessages.get(messageId),
+        (DiscordState.reactionMessages as any).get(messageId),
       );
       await message.edit({ embeds: [embed] });
     }
@@ -218,10 +227,10 @@ async function processCreateReaction(client: any, queuedReaction: any) {
  * Queue a reaction event for sequential processing.
  * Runs EventReactJob first, then queues for highlight processing.
  */
-async function handleReactionCreate(client: any, mongo: any, reaction: any, user: any) {
-  if (reaction.message.guild.id !== config.GUILD_ID_PRIMARY) return;
+async function handleReactionCreate(client: Client, mongo: MongoClient, reaction: MessageReaction | PartialMessageReaction, user: User | PartialUser) {
+  if (reaction.message.guild!.id !== config.GUILD_ID_PRIMARY) return;
 
-  await EventReactJob.processJob(client, mongo, reaction, user);
+  await EventReactJob.processJob(client, mongo, reaction as MessageReaction, user as User);
   const isHighlightChannel =
     reaction.message.channelId === config.CHANNEL_ID_HIGHLIGHTS;
   const isNSFWChannel =
@@ -233,8 +242,8 @@ async function handleReactionCreate(client: any, mongo: any, reaction: any, user
   try {
     if (reaction.partial) await reaction.fetch();
     if (reaction.message.partial) await reaction.message.fetch();
-    const localMongo = MongoService.getClient("local");
-    await DiscordUtilityService.syncReactionsToMongo(reaction.message, localMongo);
+    const localMongo = MongoService.getClient("local")!;
+    await DiscordUtilityService.syncReactionsToMongo(reaction.message as Message<boolean>, localMongo);
   } catch (syncErr: unknown) {
     console.warn(`[ReactionHighlights] MongoDB reaction sync failed: ${(syncErr as Error).message}`);
   }
@@ -247,11 +256,12 @@ async function handleReactionCreate(client: any, mongo: any, reaction: any, user
   if (!DiscordState.isProcessingOnReactionQueue) {
     DiscordState.isProcessingOnReactionQueue = true;
     while (DiscordState.reactionQueue.length > 0) {
-      const queuedReaction = DiscordState.reactionQueue.shift();
+      const queuedReaction = DiscordState.reactionQueue.shift() as QueuedReaction;
       try {
         await processCreateReaction(client, queuedReaction);
       } catch (err: unknown) {
-        console.error(`[ReactionHighlights] Queue item failed (code ${(err as any).code ?? "N/A"}): ${(err as Error).message}`);
+        const code = err instanceof DiscordAPIError ? err.code : "N/A";
+        console.error(`[ReactionHighlights] Queue item failed (code ${code}): ${(err as Error).message}`);
       }
     }
     DiscordState.isProcessingOnReactionQueue = false;
@@ -262,17 +272,17 @@ async function handleReactionCreate(client: any, mongo: any, reaction: any, user
 /**
  * Handle a reaction removal — sync updated reactions to MongoDB.
  */
-async function handleReactionRemove(client: any, mongo: any, reaction: any, _user: any) {
+async function handleReactionRemove(client: Client, _mongo: MongoClient, reaction: MessageReaction | PartialMessageReaction, _user: User | PartialUser) {
   if (reaction.message.guild?.id !== config.GUILD_ID_PRIMARY) return;
 
   try {
     if (reaction.partial) await reaction.fetch();
     if (reaction.message.partial) await reaction.message.fetch();
-    const localMongo = MongoService.getClient("local");
-    await DiscordUtilityService.syncReactionsToMongo(reaction.message, localMongo);
+    const localMongo = MongoService.getClient("local")!;
+    await DiscordUtilityService.syncReactionsToMongo(reaction.message as Message<boolean>, localMongo);
   } catch (syncErr: unknown) {
     // Partial fetch can fail if the message was deleted — non-critical
-    if ((syncErr as any).code !== 10008) {
+    if (!(syncErr instanceof DiscordAPIError) || syncErr.code !== 10008) {
       console.warn(`[ReactionHighlights] MongoDB reaction remove sync failed: ${(syncErr as Error).message}`);
     }
   }
