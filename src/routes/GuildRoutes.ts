@@ -811,16 +811,174 @@ router.get("/bot/stats", asyncHandler(async (req: Request, res: Response) => {
       uptime: client?.uptime || 0,
     };
 
+    // 6. Guild details — lightweight server list
+    const guilds = client?.guilds?.cache?.map((guild: any) => ({
+      id: guild.id,
+      name: guild.name,
+      icon: guild.iconURL({ extension: "png", size: 128 }),
+      memberCount: guild.memberCount,
+      channelCount: guild.channels?.cache?.size || 0,
+      emojiCount: guild.emojis?.cache?.size || 0,
+      boostCount: guild.premiumSubscriptionCount || 0,
+      boostTier: guild.premiumTier || 0,
+    })) || [];
+
     res.json({
       somatic,
       database,
       topGames,
       activeStreamers,
       discordInfo,
+      guilds,
     });
   } catch (error: unknown) {
     console.error("[bot/stats] Error:", (error as Error).message, (error as Error).stack);
     res.status(500).json({ error: "Failed to fetch bot stats", detail: (error as Error).message });
+  }
+}));
+
+// ─── GET /bot/guilds ──────────────────────────────────────────────
+// Returns detailed information about every Discord server the bot is in.
+router.get("/bot/guilds", (req: Request, res: Response) => {
+  try {
+    const client = DiscordWrapper.getClient("lupos");
+
+    const guilds = client.guilds.cache.map((guild: any) => ({
+      id: guild.id,
+      name: guild.name,
+      icon: guild.iconURL({ extension: "png", size: 128 }),
+      banner: guild.bannerURL({ extension: "png", size: 480 }),
+      splash: guild.splashURL({ extension: "png", size: 480 }),
+      memberCount: guild.memberCount,
+      channelCount: guild.channels?.cache?.size || 0,
+      emojiCount: guild.emojis?.cache?.size || 0,
+      roleCount: guild.roles?.cache?.size || 0,
+      boostCount: guild.premiumSubscriptionCount || 0,
+      boostTier: guild.premiumTier || 0,
+      ownerId: guild.ownerId,
+      createdAt: guild.createdAt?.toISOString() || null,
+      description: guild.description || null,
+      vanityURLCode: guild.vanityURLCode || null,
+      verified: guild.verified || false,
+      partnered: guild.partnered || false,
+    }));
+
+    res.json({
+      count: guilds.length,
+      guilds,
+    });
+  } catch (error: unknown) {
+    console.error("[bot/guilds] Error:", (error as Error).message);
+    res.status(500).json({ error: "Failed to fetch guilds" });
+  }
+});
+
+// ─── GET /bot/activity ────────────────────────────────────────────
+// Returns hourly activity metrics for the past 24 hours.
+// Aggregates: messages replied, images generated, transcriptions,
+// and total interactions — bucketed by hour.
+router.get("/bot/activity", asyncHandler(async (req: Request, res: Response) => {
+  try {
+    const MongoService = (await import("#root/services/MongoService.js")).default;
+    const localMongo = MongoService.getClient("local");
+    if (!localMongo) {
+      return res.status(500).json({ error: "Database not initialized" });
+    }
+
+    const db = localMongo.db("lupos");
+    const now = new Date();
+    const twentyFourHoursAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+
+    // MetricsMessageGeneration uses MongoDB ObjectId for timestamps
+    // (no explicit createdAt field), so we filter by _id >= ObjectId(24h ago)
+    const { ObjectId } = await import("mongodb");
+    const cutoffObjectId = ObjectId.createFromTime(Math.floor(twentyFourHoursAgo.getTime() / 1000));
+
+    // 1. Message reply activity (MetricsMessageGeneration)
+    const messageActivity = await db.collection("MetricsMessageGeneration").aggregate([
+      { $match: { _id: { $gte: cutoffObjectId } } },
+      {
+        $group: {
+          _id: {
+            $dateToString: {
+              format: "%Y-%m-%dT%H:00:00",
+              date: { $toDate: "$_id" },
+            },
+          },
+          count: { $sum: 1 },
+        },
+      },
+      { $sort: { _id: 1 } },
+    ]).toArray();
+
+    // 2. Audio transcription activity
+    const transcriptionActivity = await db.collection("AudioTranscriptions").aggregate([
+      { $match: { createdAt: { $gte: twentyFourHoursAgo } } },
+      {
+        $group: {
+          _id: {
+            $dateToString: {
+              format: "%Y-%m-%dT%H:00:00",
+              date: "$createdAt",
+            },
+          },
+          count: { $sum: 1 },
+        },
+      },
+      { $sort: { _id: 1 } },
+    ]).toArray();
+
+    // 3. Image caption activity (ImageCaptions collection)
+    const imageCaptionActivity = await db.collection("ImageCaptions").aggregate([
+      { $match: { createdAt: { $gte: twentyFourHoursAgo } } },
+      {
+        $group: {
+          _id: {
+            $dateToString: {
+              format: "%Y-%m-%dT%H:00:00",
+              date: "$createdAt",
+            },
+          },
+          count: { $sum: 1 },
+        },
+      },
+      { $sort: { _id: 1 } },
+    ]).toArray();
+
+    // Build a full 24-hour timeline with all hours filled
+    const hours: string[] = [];
+    for (let i = 23; i >= 0; i--) {
+      const hourDate = new Date(now.getTime() - i * 60 * 60 * 1000);
+      hourDate.setMinutes(0, 0, 0);
+      hours.push(hourDate.toISOString().slice(0, 13) + ":00:00");
+    }
+
+    const messageMap = new Map(messageActivity.map((r: any) => [r._id, r.count]));
+    const transcriptionMap = new Map(transcriptionActivity.map((r: any) => [r._id, r.count]));
+    const imageCaptionMap = new Map(imageCaptionActivity.map((r: any) => [r._id, r.count]));
+
+    const timeline = hours.map((hour) => ({
+      hour,
+      messages: messageMap.get(hour) || 0,
+      transcriptions: transcriptionMap.get(hour) || 0,
+      imageCaptions: imageCaptionMap.get(hour) || 0,
+      total: (messageMap.get(hour) || 0) +
+             (transcriptionMap.get(hour) || 0) +
+             (imageCaptionMap.get(hour) || 0),
+    }));
+
+    // Summary totals
+    const totals = {
+      messages: timeline.reduce((sum, h) => sum + h.messages, 0),
+      transcriptions: timeline.reduce((sum, h) => sum + h.transcriptions, 0),
+      imageCaptions: timeline.reduce((sum, h) => sum + h.imageCaptions, 0),
+      total: timeline.reduce((sum, h) => sum + h.total, 0),
+    };
+
+    res.json({ timeline, totals });
+  } catch (error: unknown) {
+    console.error("[bot/activity] Error:", (error as Error).message, (error as Error).stack);
+    res.status(500).json({ error: "Failed to fetch activity metrics", detail: (error as Error).message });
   }
 }));
 
