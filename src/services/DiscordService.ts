@@ -131,7 +131,14 @@ async function ensureMentionPopulated(userId: string, {
   message, memberMentionsCollection, userMentionsCollection,
   participantsMembersCollection, participantsUsersCollection,
   logPrefix = "",
-}: Record<string, any>) {
+}: {
+  message: import("discord.js").Message;
+  memberMentionsCollection: import("discord.js").Collection<string, import("discord.js").GuildMember>;
+  userMentionsCollection: import("discord.js").Collection<string, import("discord.js").User>;
+  participantsMembersCollection: import("discord.js").Collection<string, import("discord.js").GuildMember>;
+  participantsUsersCollection: import("discord.js").Collection<string, import("discord.js").User>;
+  logPrefix?: string;
+}) {
   if (memberMentionsCollection.has(userId)) return;
   const member =
     participantsMembersCollection.get(userId) ||
@@ -163,10 +170,10 @@ async function ensureMentionPopulated(userId: string, {
  * Resolve a Discord member/user to their avatar URL with consistent sizing.
  * Returns null if the source doesn't support displayAvatarURL.
  */
-function resolveAvatarUrl(source: any) {
-  return source?.displayAvatarURL?.({ format: "png", size: 512 }) || null;
+function resolveAvatarUrl(source: User | GuildMember) {
+  return source?.displayAvatarURL?.({ extension: "png", size: 512 }) || null;
 }
-const typingIntervals: Record<string, any> = {};
+const typingIntervals: Record<string, NodeJS.Timeout> = {};
 
 
 function updateLastMessageSentTime() {
@@ -249,9 +256,9 @@ async function generateDescription(
   messages: Message[], // should stay the same
   participantsAvatarsCollection: DiscordCollection<string, string | null>, // should stay the same
   participantsBannersCollection: DiscordCollection<string, string | null>, // should stay the same
-  conversation: Record<string, unknown>[],
-  member: GuildMember,
-  user: User,
+  conversation: Record<string, unknown>[] | undefined,
+  member: GuildMember | undefined,
+  user: User | undefined,
   captionsMap: Map<string, string>, // pre-computed Map<url, caption> from batch captioning
 ) {
   if (!user) {
@@ -348,15 +355,15 @@ async function generateDescription(
     }
   }
   if (presence?.activities && presence.activities.length > 0) {
-    const customStatus = presence.activities.find((a: any) => a.type === 4);
+    const customStatus = presence.activities.find((a: import("discord.js").Activity) => a.type === 4);
     if (customStatus?.state) {
       systemPrompt += `\n- Custom status: "${customStatus.state}"`;
     }
 
     // Current activities (playing games, listening to music, etc.)
     const activities = presence.activities
-      .filter((a: any) => a.type !== 4)
-      .map((a: any) => {
+      .filter((a: import("discord.js").Activity) => a.type !== 4)
+      .map((a: import("discord.js").Activity) => {
         const types = [
           "Playing",
           "Streaming",
@@ -425,12 +432,12 @@ async function generateDescription(
     "BanMembers",
     "ManageRoles",
   ];
-  const hasModPerms = modPerms.filter((perm: any) => member?.permissions?.has(perm));
+  const hasModPerms = modPerms.filter((perm: string) => member?.permissions?.has(perm as import("discord.js").PermissionResolvable));
   if (hasModPerms.length > 0) {
     systemPrompt += `\n- Moderation permissions: ${hasModPerms.join(", ")}`;
   }
   const channelPerms =
-    member && (message as Message).channel ? member.permissionsIn((message as Message).channel as any) : null;
+    member && (message as Message).channel ? member.permissionsIn((message as Message).channel as TextChannel) : null;
   if (channelPerms) {
     if (!channelPerms.has("SendMessages")) {
       systemPrompt += `\n- Cannot send messages in this channel`;
@@ -489,7 +496,7 @@ async function generateDescription(
     if (member.voice.mute || member.voice.selfMute) {
       systemPrompt += `\n- Muted in voice`;
     }
-    const voiceState = member.voice as any;
+    const voiceState = member.voice as VoiceState & { cameraOn?: boolean; streaming?: boolean };
     if (voiceState.streaming) {
       systemPrompt += `\n- Streaming in voice`;
     }
@@ -499,7 +506,7 @@ async function generateDescription(
     if (voiceState.suppress) {
       systemPrompt += `\n- Suppressed in voice`;
     }
-    if (voiceState.requestedToSpeak) {
+    if (voiceState.requestToSpeakTimestamp) {
       systemPrompt += `\n- Requested to speak in voice`;
     }
   }
@@ -530,7 +537,22 @@ async function buildAndGenerateReply({
   queuedDatum,
   userMentionsCollection,
   localMongo,
-}: Record<string, any>) {
+}: {
+  conversation: Record<string, unknown>[];
+  conversationsCollection: import("discord.js").Collection<string, Record<string, unknown>[]>;
+  memberMentionsCollection: import("discord.js").Collection<string, import("discord.js").GuildMember>;
+  messagesEmojisCollection: import("discord.js").Collection<string, unknown>;
+  messagesImagesCollection: import("discord.js").Collection<string, unknown>;
+  newSystemPrompt: string;
+  participantsAvatarsCollection: import("discord.js").Collection<string, string>;
+  participantsBannersCollection: import("discord.js").Collection<string, string>;
+  participantsCollection: import("discord.js").Collection<string, import("discord.js").GuildMember | import("discord.js").User | { id: string }>;
+  participantsMembersCollection: import("discord.js").Collection<string, import("discord.js").GuildMember>;
+  participantsUsersCollection: import("discord.js").Collection<string, import("discord.js").User>;
+  queuedDatum: { message: import("discord.js").Message; recentMessages: import("discord.js").Collection<string, import("discord.js").Message>; actionType?: string };
+  userMentionsCollection: import("discord.js").Collection<string, import("discord.js").User>;
+  localMongo: import("mongodb").MongoClient;
+}) {
   // Build the system prompt
   const { message, recentMessages } = queuedDatum;
   const client = message.client;
@@ -538,8 +560,8 @@ async function buildAndGenerateReply({
   let systemPrompt = newSystemPrompt;
 
   let generatedText: string = "";
-  const serverContext: any[] = [];
-  let image: any = null;
+  const serverContext: { title?: string; keywords?: string | string[]; description?: string }[] = [];
+  let image: unknown = null;
   try {
     if (
       (message as Message).guildId === config.GUILD_ID_PRIMARY ||
@@ -549,7 +571,7 @@ async function buildAndGenerateReply({
       const customContextWhitemane = MessageConstant.customContextWhitemane;
       const serverContextSet = new Set();
 
-      const contextWithPatterns = customContextWhitemane.map((context: any) => {
+      const contextWithPatterns = customContextWhitemane.map((context: { keywords: string | string[] }) => {
         const keywords = Array.isArray(context.keywords)
           ? context.keywords
           : context.keywords.split(/[,\s]+/);
@@ -579,7 +601,7 @@ async function buildAndGenerateReply({
           }
         }
       }
-      serverContext.push(...serverContextSet);
+      serverContext.push(...(serverContextSet as unknown as any[]));
     }
 
     systemPrompt = `# Discord client information`;
@@ -638,12 +660,12 @@ async function buildAndGenerateReply({
 
       // who is in voice chat
       const voiceChannelMembers = guild.channels.cache.filter(
-        (channel: any) => ((channel.type as any) === 2 || (channel.type as any) === "GUILD_VOICE") && channel.members && channel.members.size > 0,
+        (channel: import("discord.js").GuildBasedChannel) => ((channel.type as unknown as number) === 2 || (channel.type as unknown as string) === "GUILD_VOICE") && (channel as import("discord.js").VoiceChannel).members && (channel as import("discord.js").VoiceChannel).members.size > 0,
       );
       if (voiceChannelMembers.size) {
         systemPrompt += `\n- The following voice channels have members in them:`;
         for (const channel of voiceChannelMembers.values()) {
-          const chan = channel as any;
+          const chan = channel as import("discord.js").VoiceChannel | import("discord.js").StageChannel;
           systemPrompt += `\n  - ${chan.name} (${chan.members.size} members)`;
           for (const member of chan.members.values()) {
             systemPrompt += `\n    - ${utilities.getCombinedNamesFromUserOrMember({ member })}`;
@@ -652,13 +674,13 @@ async function buildAndGenerateReply({
       }
     }
     if (message?.channel) {
-      const channel = message.channel as any;
+      const channel = message.channel as import("discord.js").TextChannel | import("discord.js").ThreadChannel;
       systemPrompt += `\n\n# Discord channel information`;
       if (channel.name) {
         systemPrompt += `\n- You are in the channel called: ${channel.name}`;
       }
-      if (channel.topic) {
-        systemPrompt += `\n- The channel topic is: ${channel.topic}.`;
+      if ((channel as import("discord.js").TextChannel).topic) {
+        systemPrompt += `\n- The channel topic is: ${(channel as import("discord.js").TextChannel).topic}.`;
       }
       if (channel.createdTimestamp) {
         const channelCreatedDateTime = TemporalHelpers.fromMillis(
@@ -681,14 +703,14 @@ async function buildAndGenerateReply({
       }
     }
 
-    let participantMember: any;
-    let participantUser: any;
-    let participantConversation: any;
+    let participantMember: GuildMember | undefined;
+    let participantUser: User | undefined;
+    let participantConversation: Record<string, unknown>[] | undefined;
 
     // ── Batch caption ALL avatar and banner images in parallel ────
     // Collect all URLs, caption them in one Promise.all, then inject
     // descriptions into the system prompt per-participant.
-    const allVisionUrls: any[] = [];
+    const allVisionUrls: { url: string; userId: string }[] = [];
     for (const [userId, url] of participantsAvatarsCollection) {
       allVisionUrls.push({ url, userId });
     }
@@ -716,7 +738,7 @@ async function buildAndGenerateReply({
     // Process primary participant (message author)
     if (participantsCollection?.size) {
       const primaryParticipant = participantsCollection.get(message.author?.id);
-      if (primaryParticipant && primaryParticipant.user) {
+      if (primaryParticipant && (primaryParticipant as { user?: User }).user) {
         participantMember = participantsMembersCollection.get(
           message.author?.id,
         );
@@ -731,7 +753,7 @@ async function buildAndGenerateReply({
         message.author,
         "PRIMARY",
         0,
-        recentMessages,
+        Array.from(recentMessages.values()),
         participantsAvatarsCollection,
         participantsBannersCollection,
         participantConversation,
@@ -768,14 +790,14 @@ async function buildAndGenerateReply({
         message.author?.id,
       ]);
 
-      const knownParticipants: any[] = [];
+      const knownParticipants: { id: string; username: string; displayName: string }[] = [];
       const addedIds = new Set();
       for (const [id, member] of participantsMembersCollection.entries()) {
         if (alreadyMentionedIds.has(id)) continue;
         addedIds.add(id);
         knownParticipants.push({
           id,
-          username: member.user?.username || member.username || "",
+          username: member.user?.username || "",
           displayName:
             member.displayName ||
             member.user?.globalName ||
@@ -1049,10 +1071,10 @@ Respond with ONLY "yes" or "no". Nothing else.`,
           // Member may not have sent messages — not in cache, so fetch from guild
           if (!participantMember) {
             participantMember =
-              await DiscordUtilityService.retrieveMemberFromGuildById(
-                guild as any,
+              (await DiscordUtilityService.retrieveMemberFromGuildById(
+                guild as Guild,
                 member.id,
-              );
+              )) || undefined;
           }
           participantUser = participantsUsersCollection.get(member.id);
           participantConversation = conversationsCollection.get(member.id);
@@ -1063,7 +1085,7 @@ Respond with ONLY "yes" or "no". Nothing else.`,
             member,
             "MENTIONED",
             currentUserCount,
-            recentMessages,
+            Array.from(recentMessages.values()),
             participantsAvatarsCollection,
             participantsBannersCollection,
             participantConversation,
@@ -1084,10 +1106,10 @@ Respond with ONLY "yes" or "no". Nothing else.`,
         // Member may not have sent messages — not in cache, so fetch from guild
         if (!participantMember) {
           participantMember =
-            await DiscordUtilityService.retrieveMemberFromGuildById(
-              guild as any,
+            (await DiscordUtilityService.retrieveMemberFromGuildById(
+              guild as Guild,
               user.id,
-            );
+            )) || undefined;
         }
         participantUser = participantsUsersCollection.get(user.id);
         participantConversation = conversationsCollection.get(user.id);
@@ -1098,7 +1120,7 @@ Respond with ONLY "yes" or "no". Nothing else.`,
           user,
           "MENTIONED",
           currentUserCount,
-          recentMessages,
+          Array.from(recentMessages.values()),
           participantsAvatarsCollection,
           participantsBannersCollection,
           participantConversation,
@@ -1111,8 +1133,8 @@ Respond with ONLY "yes" or "no". Nothing else.`,
     // Process secondary participants (size > 1 since it includes Lupos)
     if (participantsCollection?.size > 1) {
       // Skip users already listed in "About me" or "Mentioned members" to avoid duplication
-      const filteredParticipants = participantsCollection.filter((participant: any) => {
-        const pId = participant?.user?.id || participant?.id;
+      const filteredParticipants = participantsCollection.filter((participant: GuildMember | User | Record<string, unknown>) => {
+        const pId = (participant as { user?: { id: string }, id?: string }).user?.id || (participant as { user?: { id: string }, id?: string }).id;
         if (!pId) return false;
         if (pId === message.author.id) return false;
         if (memberMentionsCollection?.has(pId)) return false;
@@ -1125,7 +1147,7 @@ Respond with ONLY "yes" or "no". Nothing else.`,
       }
       let currentUserCount = 0;
       for (const participant of filteredParticipants.values()) {
-        const pId = (participant as any).user?.id || (participant as any).id;
+        const pId = (participant as { user?: { id: string }, id: string }).user?.id || (participant as { id: string }).id;
         participantConversation = conversationsCollection.get(pId);
         participantMember = participantsMembersCollection.get(pId);
         participantUser = participantsUsersCollection.get(pId);
@@ -1133,10 +1155,10 @@ Respond with ONLY "yes" or "no". Nothing else.`,
         systemPrompt = await generateDescription(
           systemPrompt,
           message,
-          participant,
+          participant as import("discord.js").User | import("discord.js").GuildMember,
           "SECONDARY",
           currentUserCount,
-          recentMessages,
+          Array.from(recentMessages.values()),
           participantsAvatarsCollection,
           participantsBannersCollection,
           participantConversation,
@@ -1151,7 +1173,8 @@ Respond with ONLY "yes" or "no". Nothing else.`,
       systemPrompt += `\n\n# A list of custom emoji names and their descriptions in this conversation (${messagesEmojisCollection.size})`;
       systemPrompt += `\nTo use these emojis, simply type the name of the emoji. Good examples: <a:emoji_name:1065508812565528596>, <emoji_name:1065508812565528596>. Bad example: :emoji_name:`;
 
-      for (const [emoji, emojiObject] of messagesEmojisCollection.entries()) {
+      for (const [emoji, emojiObj] of messagesEmojisCollection.entries()) {
+        const emojiObject = emojiObj as { caption?: string };
         // systemPrompt += `\n- ${emoji}: ${emojiObject.caption}`;
         systemPrompt += `\n- ${emoji}: ${emojiObject.caption}`;
       }
@@ -1176,7 +1199,7 @@ Respond with ONLY "yes" or "no". Nothing else.`,
         // Add secondary participants
         if (participantsCollection?.size) {
           for (const participant of participantsCollection.values()) {
-            const pId = participant?.user?.id || participant?.id;
+            const pId = (participant as { user?: { id: string }, id?: string }).user?.id || (participant as { user?: { id: string }, id?: string }).id;
             if (
               pId &&
               !participantUserIds.includes(pId)
@@ -1190,10 +1213,10 @@ Respond with ONLY "yes" or "no". Nothing else.`,
         // from <message_content> tags, preserving who said what (name: text).
         // This avoids embedding noisy metadata (timestamps, IDs, format headers).
         const recentUserConvo = conversation
-          .filter((m: Record<string, any>) => m.role === "user")
+          .filter((m: Record<string, unknown>) => m.role === "user")
           .slice(-5)
-          .map((m: Record<string, any>) => {
-            const content = m.content || "";
+          .map((m: Record<string, unknown>) => {
+            const content = (m.content as string) || "";
             // Extract sender name from "From: Name • username • ..." metadata line
             const fromMatch = content.match(/^From:\s*(.+?)(?:\s*•|$)/m);
             const sender = fromMatch ? fromMatch[1].trim() : "";
@@ -1243,7 +1266,7 @@ Respond with ONLY "yes" or "no". Nothing else.`,
 
     const imageUrls: string[] = [];
     const imageLabels: string[] = []; // Tracks what each image in imageUrls represents
-    const mentionsImageUrls: Record<string, any>[] = [];
+    const mentionsImageUrls: Record<string, unknown>[] = [];
     // This creates a shallow copy, which is no different than what we had before, can be changed back.
     let edittedMessageCleanContent = "";
     let composition = String(message.cleanContent);
@@ -1259,11 +1282,11 @@ Respond with ONLY "yes" or "no". Nothing else.`,
 
     // if has image attachment, check if messagesImagesCollection has any images using the message id as the key
     if (message.attachments && message.attachments.size > 0) {
-      const attachmentImages = messagesImagesCollection.filter((value: string, key: string) => {
+      const attachmentImages = messagesImagesCollection.filter((value: unknown, key: string) => {
         return key.startsWith((message as Message).id);
-      });
+      }) as import("discord.js").Collection<string, Map<string, { url: string }>>;
       if (attachmentImages.size > 0) {
-        for (const imageObject of attachmentImages.first().values()) {
+        for (const imageObject of attachmentImages.first()!.values()) {
           const imageUrl = imageObject.url;
           imageLabels.push("Attached image from message");
           imageUrls.push(imageUrl);
@@ -1278,19 +1301,21 @@ Respond with ONLY "yes" or "no". Nothing else.`,
       : null;
 
     // If it's replying to a message with an image
-    if (message.reference && message.reference.messageId as string) {
+    if (message.reference && message.reference.messageId) {
       const referencedMessageImages = messagesImagesCollection.filter(
-        (value: string, key: string) => {
-          return key.startsWith(message.reference.messageId as string);
+        (value: unknown, key: string) => {
+          return key.startsWith(message.reference!.messageId as string);
         },
-      );
+      ) as import("discord.js").Collection<string, Map<string, { url: string }>>;
       // If the referenced message has an image in the collection, use that
       // (Only user messages are stored, not bot messages)
-      if (referencedMessageImages.size > 0) {
-        const imageUrl = referencedMessageImages.first().values().next()
-          .value.url;
-        imageLabels.push("Replied-to message image");
-        imageUrls.push(imageUrl);
+      if (referencedMessageImages && referencedMessageImages.size > 0) {
+        const firstImages = referencedMessageImages.first();
+        const imageUrl = firstImages ? firstImages.values().next().value?.url : undefined;
+        if (imageUrl) {
+          imageLabels.push("Replied-to message image");
+          imageUrls.push(imageUrl);
+        }
       } else {
         // If the referenced message is not in the collection, because we process a random amount of messages (5-100) ...
         // ... then we need to fetch the message and check if it has an attachment that is an image ...
@@ -1370,7 +1395,7 @@ Respond with ONLY "yes" or "no". Nothing else.`,
     ) {
       const repliedUserId = cachedMessageReference?.author?.id;
 
-      let mentionedMembersOrUsersWithAvatars = message.mentions.members.filter(
+      let mentionedMembersOrUsersWithAvatars: import("discord.js").Collection<string, GuildMember> | import("discord.js").Collection<string, User> = (message.mentions.members || new Collection<string, GuildMember>()).filter(
         (member: GuildMember) => {
           // Exclude bot and the replied-to user (if this is a reply)
           return (
@@ -1406,10 +1431,10 @@ Respond with ONLY "yes" or "no". Nothing else.`,
           avatarUserIdsAdded.add(mentionImg.userId);
           const userDisplayName = await DiscordUtilityService.getDisplayName(
             message,
-            mentionImg.userId,
+            mentionImg.userId as string,
           );
           imageLabels.push(`${userDisplayName}'s avatar/profile picture`);
-          imageUrls.push(mentionImg.url);
+          imageUrls.push(mentionImg.url as string);
         }
       }
     }
@@ -1420,7 +1445,7 @@ Respond with ONLY "yes" or "no". Nothing else.`,
       for (const matchedId of untaggedMatchedUserIds) {
         // Skip if already handled by @mention block above
         if (avatarUserIdsAdded.has(matchedId)) continue;
-        if (mentionsImageUrls.some((m: Record<string, any>) => m.userId === matchedId)) continue;
+        if (mentionsImageUrls.some((m: Record<string, unknown>) => m.userId === matchedId)) continue;
         // Skip bot and replied-to user
         if (matchedId === bot.id || matchedId === repliedUserId) continue;
 
@@ -1429,20 +1454,20 @@ Respond with ONLY "yes" or "no". Nothing else.`,
         if (!matchedMember && guild) {
           // For self-referential requests, (message as Message).member is the most reliable source
           if (matchedId === message.author?.id && (message as Message).member) {
-            matchedMember = (message as Message).member;
+            matchedMember = (message as Message).member || undefined;
           } else {
             matchedMember =
-              await DiscordUtilityService.retrieveMemberFromGuildById(
-                guild as any,
+              (await DiscordUtilityService.retrieveMemberFromGuildById(
+                guild as Guild,
                 matchedId,
-              );
+              )) || undefined;
           }
         }
         const matchedUser = participantsUsersCollection.get(matchedId) ||
           (matchedId === message.author?.id ? message.author : null);
         const avatarSource = matchedMember || matchedUser;
 
-        const avatarUrl = resolveAvatarUrl(avatarSource);
+        const avatarUrl = resolveAvatarUrl(avatarSource as import("discord.js").User | import("discord.js").GuildMember);
         if (avatarUrl) {
           mentionsImageUrls.push({ userId: matchedId, url: avatarUrl });
         }
@@ -1450,17 +1475,17 @@ Respond with ONLY "yes" or "no". Nothing else.`,
       // Attach untagged user avatars as base64 references for generate_image
       // (no text injection — avatar URLs are already per-participant in the system prompt)
       const uncaptionedUrls = mentionsImageUrls.filter(
-        (m: Record<string, any>) => !avatarUserIdsAdded.has(m.userId) && !imageUrls.includes(m.url),
+        (m: Record<string, unknown>) => !avatarUserIdsAdded.has(m.userId as string) && !imageUrls.includes(m.url as string),
       );
       for (const mentionImg of uncaptionedUrls) {
         if (avatarUserIdsAdded.has(mentionImg.userId)) continue;
         avatarUserIdsAdded.add(mentionImg.userId);
         const userDisplayName = await DiscordUtilityService.getDisplayName(
           message,
-          mentionImg.userId as any,
+          mentionImg.userId as string,
         );
         imageLabels.push(`${userDisplayName}'s avatar/profile picture`);
-        imageUrls.push(mentionImg.url);
+        imageUrls.push(mentionImg.url as string);
       }
     }
 
@@ -1472,7 +1497,7 @@ Respond with ONLY "yes" or "no". Nothing else.`,
     );
     if (emojisInMessage && emojisInMessage.size > 0) {
       for (const [emoji, emojiObj] of emojisInMessage.entries()) {
-        const emojiObject = emojiObj as any;
+        const emojiObject = emojiObj as { url: string; caption?: string; name?: string };
         if (emojiObject && emojiObject.url) {
           const emojiData = await splitEmojiNameAndId(emoji);
           const emojiName = emojiData ? emojiData.name : (emojiObject.name || emoji);
@@ -1583,14 +1608,14 @@ Respond with ONLY "yes" or "no". Nothing else.`,
     // ── Build agent conversation ─────────────────────────────────
     // No system prompt injected here — Prism's SystemPromptAssembler
     // builds the complete prompt (persona + agentContext blocks).
-    const agentConversation = [...conversation];
+    const agentConversation = [...(conversation || [])] as Record<string, any>[];
 
     // Attach collected image data URLs to the last user message
     // so the agent (and the generate_image tool) can access them
     if (imageUrls.length > 0) {
       const lastUserMsg = [...agentConversation]
         .reverse()
-        .find((m: Record<string, unknown>) => m.role === "user");
+        .find((m: Record<string, any>) => m.role === "user");
       if (lastUserMsg) {
         if (!lastUserMsg.images) lastUserMsg.images = [];
         lastUserMsg.images.push(...imageUrls);
@@ -1634,7 +1659,7 @@ Respond with ONLY "yes" or "no". Nothing else.`,
             : config.ANTHROPIC_LANGUAGE_MODEL_FAST;
 
     const agentResponse = await PrismService.generateAgentResponse({
-      messages: agentConversation,
+      messages: agentConversation as any[],
       type: config.LANGUAGE_MODEL_TYPE || "",
       model: agentModel || "",
       agentContext,
@@ -1665,9 +1690,9 @@ Respond with ONLY "yes" or "no". Nothing else.`,
     generatedText = utilities.removeMentions(generatedText);
     generatedText = CensorService.removeFlaggedWords(generatedText);
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     generatedText = "...";
-    console.error(...LogFormatter.error("buildAndGenerateReply", error));
+    console.error(...LogFormatter.error("buildAndGenerateReply", error as Error));
   }
   return {
     generatedText,
@@ -1675,7 +1700,7 @@ Respond with ONLY "yes" or "no". Nothing else.`,
   };
 }
 
-async function replyMessage(queuedDatum: Record<string, any>, localMongo: import("mongodb").MongoClient) {
+async function replyMessage(queuedDatum: { message: import("discord.js").Message; recentMessages: import("discord.js").Collection<string, import("discord.js").Message>; actionType?: string }, localMongo: import("mongodb").MongoClient) {
   // Handles incoming Discord messages and message updates
   // LightsService.cycleColor(config.PRIMARY_LIGHT_ID, DEFAULT_LIGHT_CYCLE);
   const message = queuedDatum.message;
@@ -1721,10 +1746,10 @@ async function replyMessage(queuedDatum: Record<string, any>, localMongo: import
     combinedGuildInformation =
       utilities.getCombinedGuildInformationFromGuild(guild) || null;
     combinedChannelInformation =
-      utilities.getCombinedChannelInformationFromChannel(channel as any) || null;
-    console.log(...LogFormatter.receivedGuildMessage(message as any, actionType));
+      utilities.getCombinedChannelInformationFromChannel(channel as import("discord.js").TextChannel) || null;
+    console.log(...LogFormatter.receivedGuildMessage(message as Message, actionType || ""));
   } else {
-    console.log(...LogFormatter.receivedDirectMessage(message as any, actionType));
+    console.log(...LogFormatter.receivedDirectMessage(message as Message, actionType || ""));
   }
 
   // CHECK IF WE CAN GENERATE AN IMAGE
@@ -1733,7 +1758,7 @@ async function replyMessage(queuedDatum: Record<string, any>, localMongo: import
   // Generate custom emoji reaction
   const customEmojiReact =
     await AIService.generateTextCustomEmojiReactFromMessage(
-      message as any,
+      message as Message,
       localMongo,
     );
   if (customEmojiReact) {
@@ -1784,13 +1809,13 @@ async function replyMessage(queuedDatum: Record<string, any>, localMongo: import
   const { generatedText, image } =
     await buildAndGenerateReply({
       conversation,
-      conversationsCollection,
+      conversationsCollection: conversationsCollection as import("discord.js").Collection<string, Record<string, unknown>[]>,
       memberMentionsCollection,
       messagesEmojisCollection,
       messagesImagesCollection,
       newSystemPrompt,
-      participantsAvatarsCollection,
-      participantsBannersCollection,
+      participantsAvatarsCollection: participantsAvatarsCollection as import("discord.js").Collection<string, string>,
+      participantsBannersCollection: participantsBannersCollection as import("discord.js").Collection<string, string>,
       participantsCollection,
       participantsMembersCollection,
       participantsUsersCollection,
@@ -1838,7 +1863,7 @@ ${combinedGuildInformation && combinedChannelInformation ? `URL: ${utilities.get
       "reply",
       message,
       generatedTextResponse,
-      generatedImage,
+      generatedImage as string | Buffer | null,
       null,
     );
     repliedMessagesCollection.set((message as Message).id, messageSent.id);
@@ -1860,7 +1885,7 @@ ${combinedGuildInformation && combinedChannelInformation ? `URL: ${utilities.get
   // Fire-and-forget memory extraction from the conversation
   const guildId = (message as Message).guildId;
   if (guildId && conversation?.length > 0) {
-    const memoryParticipants: any[] = [];
+    const memoryParticipants: { id: string; displayName?: string; username?: string }[] = [];
     // Collect participant info for extraction
     if (participantsCollection?.size) {
       for (const participant of participantsCollection.values()) {
@@ -1879,7 +1904,7 @@ ${combinedGuildInformation && combinedChannelInformation ? `URL: ${utilities.get
     // Include mentioned users
     if (memberMentionsCollection?.size) {
       for (const member of memberMentionsCollection.values()) {
-        const alreadyAdded = memoryParticipants.some((p: any) => p.id === member.id);
+        const alreadyAdded = memoryParticipants.some((p: { id: string }) => p.id === member.id);
         if (!alreadyAdded) {
           memoryParticipants.push({
             id: member.id,
@@ -1895,19 +1920,19 @@ ${combinedGuildInformation && combinedChannelInformation ? `URL: ${utilities.get
     if (memoryParticipants.length > 0) {
       // Only send the last ~10 user messages for extraction (skip system/assistant)
       const recentUserMessages = conversation
-        .filter((m: Record<string, any>) => m.role === "user")
+        .filter((m: Record<string, unknown>) => m.role === "user")
         .slice(-10);
 
       PrismService.extractMemories({
         guildId,
         channelId: (message as Message).channel?.id || "",
-        messages: recentUserMessages as any,
-        participants: memoryParticipants.map((p: any) => p.displayName || p.username || p.id),
+        messages: recentUserMessages as unknown as any[],
+        participants: memoryParticipants.map((p: { id: string; displayName?: string; username?: string }) => p.displayName || p.username || p.id),
         sourceMessageId: (message as Message).id,
         traceId: CurrentService.getTraceId() || undefined,
       })
-        .then((result: any) => {
-          if (result?.count > 0) {
+        .then((result: { response?: string; error?: string; count?: number }) => {
+          if (result?.count && result.count > 0) {
             console.log(
               `🧠 [DiscordService] Extracted ${result.count} memory/memories from conversation.`,
             );
@@ -1968,7 +1993,7 @@ ${combinedGuildInformation && combinedChannelInformation ? `URL: ${utilities.get
 }
 
 async function generateUserConversationAndHash(
-  queuedDatum: Record<string, any>,
+  queuedDatum: { message: import("discord.js").Message; recentMessages: import("discord.js").Collection<string, import("discord.js").Message>; actionType?: string },
   recentMessage: Message,
   localMongo: import("mongodb").MongoClient,
 ) {
@@ -2012,7 +2037,7 @@ async function generateUserConversationAndHash(
 }
 
 async function extractContentFromMessages(
-  queuedDatum: Record<string, any>,
+  queuedDatum: { message: import("discord.js").Message; recentMessages: import("discord.js").Collection<string, import("discord.js").Message>; actionType?: string },
   localMongo: import("mongodb").MongoClient,
   _maxSimultaneous: number = 50,
 ) {
@@ -2039,7 +2064,7 @@ async function extractContentFromMessages(
     }
 
     // Include the newest message
-    if (recentMessage.id === newestMessage.id) {
+    if (newestMessage && recentMessage.id === newestMessage.id) {
       return true;
     }
 
@@ -2314,12 +2339,12 @@ async function extractContentFromMessages(
           if (!repliedMessage) {
             allPromises.replies.push({
               messageId: recentMessage.id,
-              referenceId: recentMessage.reference.messageId,
+              referenceId: recentMessage.reference!.messageId,
               promise: channel?.messages
-                .fetch(recentMessage.reference.messageId)
+                .fetch(recentMessage.reference!.messageId as string)
                 .catch((error: Error) => {
                   console.log(
-                    `Could not fetch replied message ${recentMessage.reference.messageId}:`,
+                    `Could not fetch replied message ${recentMessage.reference?.messageId}:`,
                     error.message,
                   );
                   return null;
@@ -3281,7 +3306,7 @@ URL: ${utilities.getDiscordMessageUrl((message as Message).guild?.id || "", (mes
     isProcessingQueue = true;
     try {
       while (queuedData.length > 0) {
-        const queuedDatum = queuedData.shift() as Record<string, any>;
+        const queuedDatum = queuedData.shift() as { message: import("discord.js").Message; recentMessages: import("discord.js").Collection<string, import("discord.js").Message>; actionType?: string };
         const currentChannelId = (queuedDatum.message as Message).channel.id;
         try {
           await replyMessage(queuedDatum, localMongo);
