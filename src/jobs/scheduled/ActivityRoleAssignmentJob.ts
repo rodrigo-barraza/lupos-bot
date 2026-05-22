@@ -51,6 +51,7 @@ async function assignActivityRoles({
     primaryChannelId,
     { limit: 500 },
   );
+  if (!msgs) return;
   const allMessages: Message[] = Array.from(msgs.values());
 
   if (!allMessages.length) return;

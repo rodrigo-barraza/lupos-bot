@@ -85,8 +85,8 @@ async function handleMessageDelete(client: Client, mongo: MongoClient, message: 
 
   // Extract message data
   const name = DiscordUtilityService.getDisplayNameFromUserOrMember({
-    member: message.member,
-    user: message.author,
+    member: message.member ?? undefined,
+    user: message.author ?? undefined,
   });
   if (!name) return;
 

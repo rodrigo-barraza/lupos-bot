@@ -2017,7 +2017,7 @@ async function generateUserConversationAndHash(
     return existingConversation.conversation;
   }
   // If not, generate a new conversation
-  const userName = DiscordUtilityService.getNameFromItem(recentMessage);
+  const userName = DiscordUtilityService.getNameFromItem(recentMessage) || "Unknown";
   const cleanUserName = DiscordUtilityService.getCleanUsernameFromUser(
     message.author,
   );
@@ -3376,17 +3376,17 @@ async function luposOnMessageUpdate(
     !oldMessage.mentions.has(client.user!)
   ) {
     // Skip if the bot already replied to this message
-    const futureMessages = (
-      await DiscordUtilityService.fetchMessages(client, newMessage.channel.id, {
-        limit: 100,
-        after: newMessage.id,
-      })
-    ).filter(
+    const fetchedMessages = await DiscordUtilityService.fetchMessages(client, newMessage.channel.id, {
+      limit: 100,
+      after: newMessage.id,
+    });
+    if (!fetchedMessages) return;
+    const futureMessages = fetchedMessages.filter(
       (message: Message) =>
         message.author.id === client.user!.id &&
         message.reference?.messageId === newMessage.id,
     );
-    if (futureMessages.length) return;
+    if (futureMessages.size) return;
     await processMessage(client, { mongo, localMongo }, newMessage as Message, "UPDATE");
   } else {
     return;
