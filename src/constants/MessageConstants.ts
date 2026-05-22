@@ -74,7 +74,7 @@ const MessagesConstants = {
     {
       title: "Meeks",
       keywords: "meeks, meeps, mecks",
-      description: `Meeks, also known as Meeps or Mecks, she' a very cool and smart lady. She always plays an undead priest in world of warcraft and loves to drink soy milk whenever she gets the chance.`,
+      description: `Meeks, also known as Meeps or Mecks, she' a very cool and smart lady. She always plays an undead priest in world of warcraft and loves to eat oysters whenever she gets the chance. Always yaps how she's off the soy milk, but who fucking knows if they really are. They're sus about it, since that's all they talk about.`,
     },
     {
       title: "Ash",
