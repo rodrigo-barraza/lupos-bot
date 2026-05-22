@@ -120,7 +120,7 @@ async function randomTag({ client, guildId, channelId }: RandomTagJobConfig) {
     // If the last message was from Lupos, skip — don't double-post
     if (recentMessages && recentMessages.size > 0) {
       const lastMsg = recentMessages.first();
-      if (client.user && lastMsg.author.id === client.user.id) {
+      if (client.user && lastMsg?.author.id === client.user.id) {
         consoleLog(
           "=",
           `[RandomTagJob] ⏭️ Last message was from Lupos, skipping this round`,
