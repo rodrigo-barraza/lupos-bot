@@ -67,20 +67,20 @@ describe("DiscordUtilityService - Pure Functions", () => {
       ).toBe("MemberDisplay");
     });
 
-    test("should return undefined if neither has displayName", () => {
+    test("should return null if neither has displayName", () => {
       const mockData = {
         user: { username: "TestUser" },
         member: { nickname: "NickName" },
       };
       expect(
         DiscordUtilityService.getDisplayNameFromUserOrMember(mockData),
-      ).toBeUndefined();
+      ).toBeNull();
     });
 
-    test("should return undefined if input object is empty", () => {
+    test("should return null if input object is empty", () => {
       expect(
         DiscordUtilityService.getDisplayNameFromUserOrMember({}),
-      ).toBeUndefined();
+      ).toBeNull();
     });
   });
 });
