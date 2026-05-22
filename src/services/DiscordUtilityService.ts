@@ -7,40 +7,470 @@ import { MS_PER_DAY, MONGO_DB_NAME } from "#root/constants.js";
 import ScraperService from "#root/services/ScraperService.js";
 import LogFormatter from "#root/formatters/LogFormatter.js";
 import MediaArchivalService from "#root/services/MediaArchivalService.js";
-import { Message, Guild, User, Client, TextChannel, GuildEmoji, MessageReaction, PartialMessageReaction, Presence, VoiceState, Interaction, GuildMember, PartialGuildMember, PartialMessage, Role, Attachment, PresenceStatusData } from "discord.js";
+import {
+  Message, Guild, User, Client, TextChannel, GuildEmoji, MessageReaction,
+  PartialMessageReaction, Presence, VoiceState, Interaction, GuildMember,
+  PartialGuildMember, PartialMessage, Role, Attachment, PresenceStatusData,
+  Embed, Poll, PollAnswer, Activity, Sticker, MessageMentions, UserPrimaryGuild,
+  type Channel, type GuildBasedChannel, type AnyThreadChannel,
+} from "discord.js";
+import type { MongoError } from "mongodb";
+
+// ─── Utility ────────────────────────────────────────────────────
+
+/** Extract a human-readable message from an unknown thrown value. */
+const errorMessage = (err: unknown): string =>
+  err instanceof Error ? err.message : String(err);
+
+/** Extract a stack trace from an unknown thrown value. */
+const errorStack = (err: unknown): string | undefined =>
+  err instanceof Error ? err.stack : undefined;
+
+// ─── Transformed-shape interfaces ───────────────────────────────
+
+interface TransformedUserPrimaryGuild {
+  badge: string | null | undefined;
+  identityEnabled: boolean | null | undefined;
+  identityGuildId: string | null | undefined;
+  tag: string | null | undefined;
+}
+
+interface TransformedUserConcise {
+  displayName: string;
+  globalName: string | null;
+  id: string;
+  tag: string;
+  username: string;
+}
+
+interface TransformedUserFull extends TransformedUserConcise {
+  accentColor: number | null | undefined;
+  avatar: string | null;
+  avatarDecorationData: import("discord.js").AvatarDecorationData | null;
+  banner: string | null | undefined;
+  bot: boolean;
+  createdAt: Date;
+  createdTimestamp: number;
+  defaultAvatarURL: string;
+  discriminator: string;
+  dmChannel: import("discord.js").DMChannel | null;
+  flags: import("discord.js").UserFlagsBitField | null;
+  hexAccentColor: string | null | undefined;
+  partial: false;
+  primaryGuild: TransformedUserPrimaryGuild;
+  system: boolean;
+}
+
+type TransformedUser = TransformedUserFull | TransformedUserConcise;
+
+interface TransformedRole {
+  color: number;
+  colors?: {
+    primaryColor: number;
+    secondaryColor: number | null;
+    tertiaryColor: number | null;
+  };
+  createdAt: Date;
+  createdTimestamp: number;
+  deletable: boolean | undefined;
+  guildId: string | undefined;
+  hoist: boolean;
+  id: string;
+  managed: boolean;
+  name: string;
+  position: number;
+  flags: import("discord.js").RoleFlagsBitField;
+  permissions: import("discord.js").PermissionsBitField;
+  mentionable: boolean;
+  mention: string | undefined;
+  hexColor: string;
+  iconURL: string | null;
+  url: string | undefined;
+}
+
+interface TransformedAttachment {
+  contentType: string | null;
+  description: string | null;
+  duration: number | null;
+  ephemeral: boolean;
+  flags: import("discord.js").AttachmentFlagsBitField;
+  height: number | null;
+  id: string;
+  name: string;
+  proxyURL: string;
+  size: number;
+  spoiler: boolean;
+  title: string | null;
+  url: string;
+  waveform: string | null;
+  width: number | null;
+}
+
+interface TransformedGuild {
+  id: string;
+  name: string;
+  icon?: string;
+  banner?: string;
+  splash?: string;
+}
+
+interface TransformedActivity {
+  name: string;
+  state: string | null;
+  type: import("discord.js").ActivityType;
+  url: string | null;
+}
+
+interface TransformedPresence {
+  activities: (TransformedActivity | undefined)[];
+  clientStatus: import("discord.js").ClientPresenceStatusData | null;
+  guild: TransformedGuild | undefined;
+  member: TransformedMember | undefined;
+  status: import("discord.js").PresenceStatus;
+  user: TransformedUser | undefined;
+  userId: string;
+}
+
+interface TransformedVoice {
+  channel: TransformedTextChannel | null;
+  channelId: string | null;
+  deaf: boolean | null;
+  guild: TransformedGuild | undefined;
+  mute: boolean | null;
+  requestToSpeakTimestamp: number | null;
+  selfDeaf: boolean | null;
+  selfMute: boolean | null;
+  selfVideo: boolean | null;
+  serverDeaf: boolean | null;
+  serverMute: boolean | null;
+  sessionId: string | null;
+  streaming: boolean | null;
+  suppress: boolean | null;
+}
+
+interface TransformedMemberConcise {
+  id: string;
+  displayName: string;
+  displayHexColor: string;
+  nickname: string | null;
+  joinedAt: Date | null;
+  joinedTimestamp: number | null;
+  avatar: string | null;
+  roleColors?: {
+    primary: string;
+    secondary: string | null;
+    tertiary: string | null;
+  };
+}
+
+interface TransformedMemberFull extends TransformedMemberConcise {
+  avatarDecorationData: import("discord.js").AvatarDecorationData | null;
+  bannable: boolean;
+  banner: string | null;
+  communicationDisabledUntil: Date | null;
+  communicationDisabledUntilTimestamp: number | null;
+  displayColor: number;
+  flags: import("discord.js").GuildMemberFlagsBitField;
+  guild: TransformedGuild | undefined;
+  kickable: boolean;
+  manageable: boolean;
+  moderatable: boolean;
+  partial: boolean;
+  pending: boolean;
+  permissions: import("discord.js").PermissionsString[];
+  premiumSince: Date | null;
+  premiumSinceTimestamp: number | null;
+  presence: TransformedPresence | undefined;
+  roles: TransformedRole[];
+  user: TransformedUser | undefined;
+  voice: TransformedVoice | undefined;
+}
+
+type TransformedMember = TransformedMemberFull | TransformedMemberConcise;
+
+interface TransformedEmbed {
+  author: import("discord.js").EmbedAuthorData | null;
+  color: number | null;
+  data: import("discord.js").APIEmbed;
+  description: string | null;
+  fields: import("discord.js").APIEmbedField[];
+  footer: import("discord.js").EmbedFooterData | null;
+  hexColor: string | null;
+  image: import("discord.js").EmbedAssetData | null;
+  length: number;
+  provider: import("discord.js").APIEmbedProvider | null;
+  thumbnail: import("discord.js").EmbedAssetData | null;
+  timestamp: string | null;
+  title: string | null;
+  url: string | null;
+  video: import("discord.js").EmbedAssetData | null;
+}
+
+interface TransformedEmoji {
+  animated: boolean | null;
+  createdAt: Date | null;
+  createdTimestamp: number | null;
+  id: string | null;
+  identifier: string;
+  name: string | null;
+  imageUrl: string | null;
+}
+
+interface TransformedReaction {
+  count: number | null;
+  countDetails: { burst: number; normal: number };
+  emoji: TransformedEmoji | undefined;
+  users: (TransformedUser | undefined)[];
+}
+
+interface TransformedSticker {
+  available: boolean | null;
+  createdAt: Date;
+  createdTimestamp: number;
+  description: string | null;
+  guild: TransformedGuild | undefined;
+  guildId: string | null;
+  id: string;
+  name: string;
+  packId: string | null;
+  partial: boolean;
+  sortValue: number | null;
+  tags: string | null;
+  type: import("discord.js").StickerType | null;
+  url: string;
+  user: TransformedUser | undefined;
+}
+
+interface TransformedPoll {
+  allowMultiselect: boolean;
+  answers: {
+    emoji: TransformedEmoji | null;
+    id: number;
+    partial: boolean;
+    text: string | null;
+    voteCount: number;
+  }[];
+  expiresAt: Date | null;
+  expiresTimestamp: number | null;
+  layoutType: import("discord.js").PollLayoutType;
+  question: import("discord.js").PollQuestionMedia;
+  resultsFinalized: boolean;
+}
+
+interface TransformedTextChannel {
+  createdAt: Date | null;
+  createdTimestamp: number | null;
+  defaultAutoArchiveDuration: import("discord.js").ThreadAutoArchiveDuration | null | undefined;
+  defaultThreadRateLimitPerUser: number | null;
+  deletable: boolean;
+  flags: Readonly<import("discord.js").ChannelFlagsBitField>;
+  guild: TransformedGuild | undefined;
+  guildId: string;
+  id: string;
+  lastMessageId: string | null;
+  lastPinAt: Date | null;
+  lastPinTimestamp: number | null;
+  manageable: boolean;
+  name: string;
+  nsfw: boolean;
+  parentId: string | null;
+  parentName: string | null;
+  partial: false;
+  permissionsLocked: boolean | null;
+  position: number;
+  rateLimitPerUser: number;
+  rawPosition: number;
+  topic: string | null;
+  type: import("discord.js").ChannelType;
+  url: string;
+  viewable: boolean;
+}
+
+interface TransformedMessageMentions {
+  channels: (TransformedTextChannel | undefined)[];
+  everyone: boolean;
+  guild: TransformedGuild | null | undefined;
+  members: (TransformedMember | undefined)[];
+  parsedUsers: (TransformedUser | undefined)[];
+  roles: TransformedRole[];
+  users: (TransformedUser | undefined)[];
+}
+
+interface TransformedMessageSnapshot {
+  id: string | null;
+  channelId: string | null;
+  author: TransformedUser | undefined;
+  content: string | null;
+  createdAt: Date | null;
+  editedAt: Date | null;
+  flags: Readonly<import("discord.js").MessageFlagsBitField>;
+  mentions: TransformedMessageMentions | undefined;
+}
+
+interface TransformedMessage {
+  activity: import("discord.js").MessageActivity | null;
+  applicationId: string | null;
+  attachments: (TransformedAttachment | undefined)[];
+  author: TransformedUser | undefined;
+  bulkDeletable: boolean;
+  call: import("discord.js").MessageCall | null;
+  channel: TransformedTextChannel | undefined;
+  channelId: string;
+  cleanContent: string;
+  components: import("discord.js").TopLevelComponent[];
+  content: string;
+  createdAt: Date;
+  createdTimestamp: number;
+  crosspostable: boolean;
+  deletable: boolean;
+  editable: boolean;
+  editedAt: Date | null;
+  editedTimestamp: number | null;
+  embeds: TransformedEmbed[];
+  flags: Readonly<import("discord.js").MessageFlagsBitField>;
+  guild: TransformedGuild | undefined;
+  guildId: string | null;
+  hasThread: boolean;
+  id: string;
+  interaction: import("discord.js").MessageInteraction | null;
+  interactionMetadata: import("discord.js").MessageInteractionMetadata | null;
+  member: TransformedMember | undefined;
+  mentions: TransformedMessageMentions | undefined;
+  messageSnapshots: (TransformedMessageSnapshot | undefined)[] | undefined;
+  nonce: number | string | null;
+  partial: false;
+  pinnable: boolean;
+  pinned: boolean;
+  poll: TransformedPoll | undefined;
+  position: number | null;
+  reactions: (TransformedReaction | undefined)[];
+  reference: import("discord.js").MessageReference | null;
+  roleSubscriptionData: { id: unknown } | null;
+  stickers: (TransformedSticker | undefined)[] | undefined;
+  system: boolean;
+  tts: boolean;
+  type: import("discord.js").MessageType;
+  url: string;
+  webhookId: string | null;
+  mediaArchive?: Record<string, unknown>;
+  [key: string]: unknown;
+}
+
+/** Represents a channel stat entry from the activity analysis. */
+interface ChannelStat {
+  channel: TextChannel;
+  messageCount: number;
+  uniqueUsers: number;
+  topUsers: { username: string; count: number }[];
+  averageMessagesPerDay: number;
+  lastMessageDate: Temporal.ZonedDateTime | null;
+  categoryName: string;
+}
+
+/** Per-user global stats across all channels. */
+interface UserStat {
+  username: string;
+  totalMessages: number;
+  channels: Set<string>;
+}
+
+/** Options for MongoDB-backed operations. */
+interface MongoConnections {
+  mongo: import("mongodb").MongoClient;
+  localMongo?: import("mongodb").MongoClient;
+}
+
+/** Resume point for message scraping. */
+interface ResumePoint {
+  channelId: string;
+  lastMessageId: string;
+}
+
+/** Options for fetchAndSaveAllServerMessages */
+interface FetchAndSaveOptions {
+  collectionName?: string;
+  concurrencyLimit?: number;
+  resumePoints?: ResumePoint[] | null;
+  batchSize?: number;
+  dateLimit?: string;
+  categoryIds?: string[] | null;
+  channelIds?: string[] | null;
+  forceUpdate?: boolean;
+  autoResume?: boolean;
+}
+
+/** Options for purgeDeletedMessagesForUsers */
+interface PurgeOptions {
+  collectionName?: string;
+  concurrencyLimit?: number;
+}
+
+/** Options for backfillMediaArchive */
+interface BackfillOptions {
+  collectionName?: string;
+  authorIds?: string[] | null;
+  guildId?: string | null;
+  channelId?: string | null;
+  forceRetry?: boolean;
+  batchSize?: number;
+}
+
+/** Options for fetchMessages */
+interface FetchMessagesOptions {
+  limit?: number;
+  before?: string;
+  after?: string;
+  around?: string;
+  cache?: boolean;
+}
+
+/** Result of a bulk save operation */
+interface BulkSaveResult {
+  saved: number;
+  duplicates: number;
+  errors: number;
+  _lastDate?: string;
+}
+
+/** Result of channel processing */
+interface ChannelProcessResult {
+  saved: number;
+  duplicates: number;
+  errors: number;
+}
+
+/** Result of displayAllChannelActivity's processChannel */
+interface ActivityChannelResult {
+  channelStat: ChannelStat;
+  localUserStats: Record<string, UserStat>;
+}
 
 async function fetchMessagesWithOptionalLastId(
   client: Client,
   channelId: string,
-  maxMessages: unknown = 10,
-  lastId: unknown = null,
+  maxMessages: number = 10,
+  lastId?: string,
 ) {
   const channel = client.channels.cache.find(
-    // @ts-expect-error - Remaining unresolved typing
-    (channel: TextChannel) => channel.id == channelId,
-  );
+    (ch) => ch.id === channelId,
+  ) as TextChannel | undefined;
 
   if (channel) {
-    let allMessages = new Collection();
+    let allMessages = new Collection<string, Message>();
 
     // Initial fetch
-    // @ts-expect-error - Remaining unresolved typing
     let messages = await channel.messages.fetch({
-    // @ts-expect-error - Remaining unresolved typing
       limit: Math.min(100, maxMessages),
       before: lastId,
     });
     allMessages = allMessages.concat(messages);
 
     // Continue fetching if we need more messages
-    // @ts-expect-error - Remaining unresolved typing
     while (allMessages.size < maxMessages && messages.size !== 0) {
       lastId = messages.last()?.id;
       if (!lastId) break;
 
-    // @ts-expect-error - Remaining unresolved typing
       const additionalMessagesNeeded = maxMessages - allMessages.size;
-    // @ts-expect-error - Remaining unresolved typing
       messages = await channel.messages.fetch({
         limit: Math.min(100, additionalMessagesNeeded),
         before: lastId,
@@ -49,12 +479,10 @@ async function fetchMessagesWithOptionalLastId(
       allMessages = allMessages.concat(messages);
     }
     // If we fetched more than needed, trim the collection
-    // @ts-expect-error - Remaining unresolved typing
     if (allMessages.size > maxMessages) {
-      const trimmedCollection = new Collection();
+      const trimmedCollection = new Collection<string, Message>();
       let count = 0;
       for (const [id, message] of allMessages) {
-    // @ts-expect-error - Remaining unresolved typing
         if (count >= maxMessages) break;
         trimmedCollection.set(id, message);
         count++;
@@ -66,385 +494,286 @@ async function fetchMessagesWithOptionalLastId(
   }
 }
 
-const transformUserPrimaryGuild = (userPrimaryGuild: unknown) => ({
-    // @ts-expect-error - Remaining unresolved typing
+const transformUserPrimaryGuild = (userPrimaryGuild: UserPrimaryGuild | null): TransformedUserPrimaryGuild => ({
   badge: userPrimaryGuild?.badge,
-    // @ts-expect-error - Remaining unresolved typing
   identityEnabled: userPrimaryGuild?.identityEnabled,
-    // @ts-expect-error - Remaining unresolved typing
   identityGuildId: userPrimaryGuild?.identityGuildId,
-    // @ts-expect-error - Remaining unresolved typing
   tag: userPrimaryGuild?.tag,
 });
 
-const transformUser = (user: User, concise: unknown = false) => {
+const transformUser = (user: User, concise: boolean = false): TransformedUser | undefined => {
   if (user) {
-    const userObject = {
-      accentColor: user.accentColor,             // number | null | undefined
-      avatar: user.avatar,                       // string | null
-      avatarDecorationData: user.avatarDecorationData, // AvatarDecorationData | null
-      banner: user.banner,                       // string | null | undefined
-      bot: user.bot,                             // boolean
-      createdAt: user.createdAt,                 // Date
-      createdTimestamp: user.createdTimestamp,    // number
-      defaultAvatarURL: user.defaultAvatarURL,   // string
-      discriminator: user.discriminator,         // string
-      displayName: user.displayName,             // string
-      dmChannel: user.dmChannel,                 // DMChannel | null
-      flags: user.flags,                         // UserFlagsBitField
-      globalName: user.globalName,               // string | null
-      hexAccentColor: user.hexAccentColor,       // HexColorString | null | undefined
-      id: user.id,                               // Snowflake
-      partial: user.partial,                     // false
-      primaryGuild: transformUserPrimaryGuild(user.primaryGuild), // UserPrimaryGuild | null
-      system: user.system,                       // boolean
-      tag: user.tag,                             // string
-      username: user.username,                   // string
-    };
     if (concise) {
       return {
-        displayName: userObject.displayName,
-        globalName: userObject.globalName,
-        id: userObject.id,
-        tag: userObject.tag,
-        username: userObject.username,
+        displayName: user.displayName,
+        globalName: user.globalName,
+        id: user.id,
+        tag: user.tag,
+        username: user.username,
       };
-    } else {
-      return userObject;
     }
+    return {
+      accentColor: user.accentColor,
+      avatar: user.avatar,
+      avatarDecorationData: user.avatarDecorationData,
+      banner: user.banner,
+      bot: user.bot,
+      createdAt: user.createdAt,
+      createdTimestamp: user.createdTimestamp,
+      defaultAvatarURL: user.defaultAvatarURL,
+      discriminator: user.discriminator,
+      displayName: user.displayName,
+      dmChannel: user.dmChannel,
+      flags: user.flags,
+      globalName: user.globalName,
+      hexAccentColor: user.hexAccentColor,
+      id: user.id,
+      partial: user.partial,
+      primaryGuild: transformUserPrimaryGuild(user.primaryGuild),
+      system: user.system,
+      tag: user.tag,
+      username: user.username,
+    };
   }
 };
 
-const transformRole = (role: Role) => ({
-  color: role.color,                             // ColorResolvable
+const transformRole = (role: Role): TransformedRole => {
+  const base: TransformedRole = {
+    color: role.color,
+    createdAt: role.createdAt,
+    createdTimestamp: role.createdTimestamp,
+    deletable: "deletable" in role ? (role as Role & { deletable?: boolean }).deletable : undefined,
+    guildId: "guildId" in role ? (role as Role & { guildId?: string }).guildId : undefined,
+    hoist: role.hoist,
+    id: role.id,
+    managed: role.managed,
+    name: role.name,
+    position: role.position,
+    flags: role.flags,
+    permissions: role.permissions,
+    mentionable: role.mentionable,
+    mention: "mention" in role ? (role as Role & { mention?: string }).mention : undefined,
+    hexColor: role.hexColor,
+    iconURL: role.iconURL(),
+    url: "url" in role ? (role as Role & { url?: string }).url : undefined,
+  };
   // Enhanced Role Styles (gradient/holographic) — Discord ENHANCED_ROLE_COLORS feature
-  ...(role.colors && {
-    colors: {
+  if (role.colors) {
+    base.colors = {
       primaryColor: role.colors.primaryColor,
       secondaryColor: role.colors.secondaryColor ?? null,
       tertiaryColor: role.colors.tertiaryColor ?? null,
-    },
-  }),
-  createdAt: role.createdAt,                     // Date
-  createdTimestamp: role.createdTimestamp,        // number
-    // @ts-expect-error - Remaining unresolved typing
-  deletable: role.deletable,                     // boolean
-  // guild: role.guild,                          // Guild
-    // @ts-expect-error - Remaining unresolved typing
-  guildId: role.guildId,                         // Snowflake
-  hoist: role.hoist,                             // boolean
-  id: role.id,                                   // Snowflake
-  managed: role.managed,                         // boolean
-  name: role.name,                               // string
-  position: role.position,                       // number
-  flags: role.flags,                             // RoleFlagsBitField
-  permissions: role.permissions,                 // PermissionsBitField
-  mentionable: role.mentionable,                 // boolean
-    // @ts-expect-error - Remaining unresolved typing
-  mention: role.mention,                         // string
-  hexColor: role.hexColor,                       // string
-  iconURL: role.iconURL(),                       // string
-    // @ts-expect-error - Remaining unresolved typing
-  url: role.url,                                 // string
-});
+    };
+  }
+  return base;
+};
 
-const transformAttachment = (attachment: Attachment) => {
+const transformAttachment = (attachment: Attachment): TransformedAttachment | undefined => {
   if (attachment) {
     return {
-      contentType: attachment.contentType,       // string | null
-      description: attachment.description,       // string | null
-      duration: attachment.duration,             // number | null
-      ephemeral: attachment.ephemeral,           // boolean
-      flags: attachment.flags,                   // AttachmentFlagsBitField
-      height: attachment.height,                 // number | null
-      id: attachment.id,                         // Snowflake
-      name: attachment.name,                     // string
-      proxyURL: attachment.proxyURL,             // string
-      size: attachment.size,                     // number
-      spoiler: attachment.spoiler,               // boolean
-      title: attachment.title,                   // string | null
-      url: attachment.url,                       // string
-      waveform: attachment.waveform,             // string | null (base64)
-      width: attachment.width,                   // number | null
+      contentType: attachment.contentType,
+      description: attachment.description,
+      duration: attachment.duration,
+      ephemeral: attachment.ephemeral,
+      flags: attachment.flags,
+      height: attachment.height,
+      id: attachment.id,
+      name: attachment.name,
+      proxyURL: attachment.proxyURL,
+      size: attachment.size,
+      spoiler: attachment.spoiler,
+      title: attachment.title,
+      url: attachment.url,
+      waveform: attachment.waveform,
+      width: attachment.width,
     };
   }
 };
 
-const transformTextChannel = (channel: TextChannel, _concise: unknown = false) => {
+const transformTextChannel = (channel: TextChannel, _concise: boolean = false): TransformedTextChannel | undefined => {
   if (channel) {
-    const textChannel = {
-      // client: channel.client,                  // Client<true>
-      createdAt: channel.createdAt,               // Date
-      createdTimestamp: channel.createdTimestamp,  // number
-      defaultAutoArchiveDuration: channel.defaultAutoArchiveDuration, // ThreadAutoArchiveDuration?
-      defaultThreadRateLimitPerUser: channel.defaultThreadRateLimitPerUser, // number | null
-      deletable: channel.deletable,               // boolean
-      flags: channel.flags,                       // ChannelFlagsBitField
-      guild: transformGuild(channel.guild, true), // Guild
-      guildId: channel.guildId,                   // Snowflake
-      id: channel.id,                             // Snowflake
-      // lastMessage: channel.lastMessage,        // Message?
-      lastMessageId: channel.lastMessageId,       // Snowflake?
-      lastPinAt: channel.lastPinAt,               // Date?
-      lastPinTimestamp: channel.lastPinTimestamp,  // number?
-      manageable: channel.manageable,             // boolean
-      // members: channel.members,                // Collection<Snowflake, GuildMember>
-      // messages: channel.messages,              // GuildMessageManager
-      name: channel.name,                         // string
-      nsfw: channel.nsfw,                         // boolean
-      // parent: channel.parent,                  // CategoryChannel | null
-      parentId: channel.parentId,                 // Snowflake | null
-      parentName: channel.parent?.name || null,   // Category name (resolved)
-      partial: channel.partial,                   // false
-      // permissionOverwrites: channel.permissionOverwrites, // PermissionOverwriteManager
-      permissionsLocked: channel.permissionsLocked, // boolean | null
-      position: channel.position,                 // number
-      rateLimitPerUser: channel.rateLimitPerUser,  // number
-      rawPosition: channel.rawPosition,           // number
-      // threads: channel.threads,                // GuildTextThreadManager
-      topic: channel.topic,                       // string | null
-      type: channel.type,                         // boolean
-      url: channel.url,                           // string
-      viewable: channel.viewable,                 // boolean
+    return {
+      createdAt: channel.createdAt,
+      createdTimestamp: channel.createdTimestamp,
+      defaultAutoArchiveDuration: channel.defaultAutoArchiveDuration,
+      defaultThreadRateLimitPerUser: channel.defaultThreadRateLimitPerUser,
+      deletable: channel.deletable,
+      flags: channel.flags,
+      guild: transformGuild(channel.guild, true),
+      guildId: channel.guildId,
+      id: channel.id,
+      lastMessageId: channel.lastMessageId,
+      lastPinAt: channel.lastPinAt,
+      lastPinTimestamp: channel.lastPinTimestamp,
+      manageable: channel.manageable,
+      name: channel.name,
+      nsfw: channel.nsfw,
+      parentId: channel.parentId,
+      parentName: channel.parent?.name || null,
+      partial: channel.partial,
+      permissionsLocked: channel.permissionsLocked,
+      position: channel.position,
+      rateLimitPerUser: channel.rateLimitPerUser,
+      rawPosition: channel.rawPosition,
+      topic: channel.topic,
+      type: channel.type,
+      url: channel.url,
+      viewable: channel.viewable,
     };
-    return textChannel;
   }
 };
 
-const transformEmbeds = (embeds: unknown) => {
-    // @ts-expect-error - Remaining unresolved typing
-  return embeds.map((embed: unknown) => ({
-    // @ts-expect-error - Remaining unresolved typing
-    author: transformUser(embed.author, true),
-    // @ts-expect-error - Remaining unresolved typing
+const transformEmbeds = (embeds: Embed[]): TransformedEmbed[] => {
+  return embeds.map((embed: Embed) => ({
+    author: embed.author,
     color: embed.color,
-    // @ts-expect-error - Remaining unresolved typing
     data: embed.data,
-    // @ts-expect-error - Remaining unresolved typing
     description: embed.description,
-    // @ts-expect-error - Remaining unresolved typing
     fields: embed.fields,
-    // @ts-expect-error - Remaining unresolved typing
     footer: embed.footer,
-    // @ts-expect-error - Remaining unresolved typing
     hexColor: embed.hexColor,
-    // @ts-expect-error - Remaining unresolved typing
     image: embed.image,
-    // @ts-expect-error - Remaining unresolved typing
     length: embed.length,
-    // @ts-expect-error - Remaining unresolved typing
     provider: embed.provider,
-    // @ts-expect-error - Remaining unresolved typing
     thumbnail: embed.thumbnail,
-    // @ts-expect-error - Remaining unresolved typing
     timestamp: embed.timestamp,
-    // @ts-expect-error - Remaining unresolved typing
     title: embed.title,
-    // @ts-expect-error - Remaining unresolved typing
     url: embed.url,
-    // @ts-expect-error - Remaining unresolved typing
     video: embed.video,
   }));
 };
 
-const transformGuild = (guild: Guild, _concise: unknown = false) => {
+const transformGuild = (guild: Guild, _concise: boolean = false): TransformedGuild | undefined => {
   if (guild) {
-    return {
+    const result: TransformedGuild = {
       id: guild.id,
       name: guild.name,
-      // Persist icon/banner/splash hashes so downstream consumers can
-      // reconstruct CDN URLs without the live Discord.js client.
-      ...(guild.icon && { icon: guild.icon }),
-      ...(guild.banner && { banner: guild.banner }),
-      ...(guild.splash && { splash: guild.splash }),
     };
+    // Persist icon/banner/splash hashes so downstream consumers can
+    // reconstruct CDN URLs without the live Discord.js client.
+    if (guild.icon) result.icon = guild.icon;
+    if (guild.banner) result.banner = guild.banner;
+    if (guild.splash) result.splash = guild.splash;
+    return result;
   }
 };
 
 
-const transformPoll = (poll: unknown) => {
+const transformPoll = (poll: Poll | null): TransformedPoll | undefined => {
   if (poll) {
     return {
-    // @ts-expect-error - Remaining unresolved typing
-      allowMultiselect: poll.allowMultiselect,    // boolean
-    // @ts-expect-error - Remaining unresolved typing
-      answers: poll.answers.map((answer: unknown) => ({    // Collection<number, PollAnswer>
-        // client: answer.client,
-    // @ts-expect-error - Remaining unresolved typing
-        emoji: transformEmoji(answer.emoji, true),
-    // @ts-expect-error - Remaining unresolved typing
-        id: answer.id,                            // number
-    // @ts-expect-error - Remaining unresolved typing
-        partial: answer.partial,                  // false
-        // poll: answer.poll,                     // Poll (parent)
-    // @ts-expect-error - Remaining unresolved typing
-        text: answer.text,                        // string | null
-    // @ts-expect-error - Remaining unresolved typing
-        voteCount: answer.voteCount,              // number
-        // fetchVoters: await answer.fetchVoters(),
+      allowMultiselect: poll.allowMultiselect,
+      answers: poll.answers.map((answer) => ({
+        emoji: answer.emoji ? transformEmoji(answer.emoji as GuildEmoji, true) ?? null : null,
+        id: answer.id,
+        partial: answer.partial,
+        text: answer.text,
+        voteCount: answer.voteCount,
       })),
-      // channel: poll.channel,
-      // channelId: poll.channelId,
-      // client: poll.client,
-    // @ts-expect-error - Remaining unresolved typing
       expiresAt: poll.expiresAt,
-    // @ts-expect-error - Remaining unresolved typing
       expiresTimestamp: poll.expiresTimestamp,
-    // @ts-expect-error - Remaining unresolved typing
       layoutType: poll.layoutType,
-      // message: poll.message,
-      // messageId: poll.messageId,
-      // partial: poll.partial,
-    // @ts-expect-error - Remaining unresolved typing
       question: poll.question,
-    // @ts-expect-error - Remaining unresolved typing
       resultsFinalized: poll.resultsFinalized,
     };
   }
 };
 
-const transformMessageMentions = (mentions: unknown) => {
+const transformMessageMentions = (mentions: MessageMentions): TransformedMessageMentions | undefined => {
   if (mentions) {
-    // MessageMentions<InGuild>
     return {
-    // @ts-expect-error - Remaining unresolved typing
       channels: mentions.channels.size
-    // @ts-expect-error - Remaining unresolved typing
-        ? mentions.channels.map((channel: TextChannel) =>
-            transformTextChannel(channel, true),
+        ? mentions.channels.map((channel) =>
+            transformTextChannel(channel as TextChannel, true),
           )
         : [],
-      // client: transformClient(mentions.client),
-    // @ts-expect-error - Remaining unresolved typing
-      everyone: mentions.everyone,                // boolean
-    // @ts-expect-error - Remaining unresolved typing
-      guild: transformGuild(mentions.guild, true),
-    // @ts-expect-error - Remaining unresolved typing
+      everyone: mentions.everyone,
+      guild: mentions.guild ? transformGuild(mentions.guild, true) ?? null : null,
       members: mentions.members?.size
-    // @ts-expect-error - Remaining unresolved typing
         ? mentions.members.map((member: GuildMember) => transformMember(member, true))
         : [],
-    // @ts-expect-error - Remaining unresolved typing
       parsedUsers: mentions.parsedUsers.size
-    // @ts-expect-error - Remaining unresolved typing
         ? mentions.parsedUsers.map((user: User) => transformUser(user, true))
         : [],
-    // @ts-expect-error - Remaining unresolved typing
       roles: mentions.roles.size
-    // @ts-expect-error - Remaining unresolved typing
         ? mentions.roles.map((role: Role) => transformRole(role))
         : [],
-    // @ts-expect-error - Remaining unresolved typing
       users: mentions.users.size
-    // @ts-expect-error - Remaining unresolved typing
         ? mentions.users.map((user: User) => transformUser(user, true))
         : [],
     };
   }
 };
 
-const transformMessageSnapshot = (messageSnapshot: unknown) => {
+const transformMessageSnapshot = (messageSnapshot: import("discord.js").MessageSnapshot): TransformedMessageSnapshot | undefined => {
   if (messageSnapshot) {
     return {
-    // @ts-expect-error - Remaining unresolved typing
       id: messageSnapshot.id,
-    // @ts-expect-error - Remaining unresolved typing
       channelId: messageSnapshot.channelId,
-    // @ts-expect-error - Remaining unresolved typing
-      author: transformUser(messageSnapshot.author, true),
-    // @ts-expect-error - Remaining unresolved typing
+      author: messageSnapshot.author ? transformUser(messageSnapshot.author, true) : undefined,
       content: messageSnapshot.content,
-    // @ts-expect-error - Remaining unresolved typing
       createdAt: messageSnapshot.createdAt,
-    // @ts-expect-error - Remaining unresolved typing
       editedAt: messageSnapshot.editedAt,
-    // @ts-expect-error - Remaining unresolved typing
       flags: messageSnapshot.flags,
-    // @ts-expect-error - Remaining unresolved typing
       mentions: transformMessageMentions(messageSnapshot.mentions),
     };
   }
 };
 
-const transformActivity = (activity: unknown) => {
+const transformActivity = (activity: Activity): TransformedActivity | undefined => {
   if (activity) {
     return {
-    // @ts-expect-error - Remaining unresolved typing
       name: activity.name,
-    // @ts-expect-error - Remaining unresolved typing
       state: activity.state,
-    // @ts-expect-error - Remaining unresolved typing
       type: activity.type,
-    // @ts-expect-error - Remaining unresolved typing
       url: activity.url,
     };
   }
 };
 
-const transformPresence = (presence: unknown): Record<string, any> | undefined => {
+const transformPresence = (presence: Presence | null): TransformedPresence | undefined => {
   if (presence) {
     return {
-    // @ts-expect-error - Remaining unresolved typing
-      activities: presence.activities.map((activity: unknown) =>
+      activities: presence.activities.map((activity: Activity) =>
         transformActivity(activity),
       ),
-    // @ts-expect-error - Remaining unresolved typing
       clientStatus: presence.clientStatus,
-    // @ts-expect-error - Remaining unresolved typing
-      guild: transformGuild(presence.guild, true),
-    // @ts-expect-error - Remaining unresolved typing
-      member: transformMember(presence.member, true),
-    // @ts-expect-error - Remaining unresolved typing
+      guild: presence.guild ? transformGuild(presence.guild, true) : undefined,
+      member: presence.member ? transformMember(presence.member, true) : undefined,
       status: presence.status,
-    // @ts-expect-error - Remaining unresolved typing
-      user: transformUser(presence.user, true),
-    // @ts-expect-error - Remaining unresolved typing
+      user: presence.user ? transformUser(presence.user, true) : undefined,
       userId: presence.userId,
     };
   }
 };
 
-const transformVoice = (voice: unknown) => {
+const transformVoice = (voice: VoiceState): TransformedVoice | undefined => {
   if (voice) {
     return {
-    // @ts-expect-error - Remaining unresolved typing
-      channel: transformTextChannel(voice.channel, true),
-    // @ts-expect-error - Remaining unresolved typing
+      channel: voice.channel ? transformTextChannel(voice.channel as unknown as TextChannel, true) ?? null : null,
       channelId: voice.channelId,
-    // @ts-expect-error - Remaining unresolved typing
       deaf: voice.deaf,
-    // @ts-expect-error - Remaining unresolved typing
       guild: transformGuild(voice.guild, true),
-    // @ts-expect-error - Remaining unresolved typing
       mute: voice.mute,
-    // @ts-expect-error - Remaining unresolved typing
       requestToSpeakTimestamp: voice.requestToSpeakTimestamp,
-    // @ts-expect-error - Remaining unresolved typing
       selfDeaf: voice.selfDeaf,
-    // @ts-expect-error - Remaining unresolved typing
       selfMute: voice.selfMute,
-    // @ts-expect-error - Remaining unresolved typing
       selfVideo: voice.selfVideo,
-    // @ts-expect-error - Remaining unresolved typing
       serverDeaf: voice.serverDeaf,
-    // @ts-expect-error - Remaining unresolved typing
       serverMute: voice.serverMute,
-    // @ts-expect-error - Remaining unresolved typing
       sessionId: voice.sessionId,
-    // @ts-expect-error - Remaining unresolved typing
       streaming: voice.streaming,
-    // @ts-expect-error - Remaining unresolved typing
       suppress: voice.suppress,
     };
   }
 };
 
-const transformMember = (member: GuildMember, concise: unknown = false): Record<string, any> | undefined => {
+const transformMember = (member: GuildMember, concise: boolean = false): TransformedMember | undefined => {
   if (member) {
     // Build Enhanced Role Colors for gradient/holographic support.
     // member.roles.color is the highest role with a non-zero color.
     const colorRole = member.roles?.color;
-    let roleColorsData = null;
+    let roleColorsData: { primary: string; secondary: string | null; tertiary: string | null } | null = null;
     if (colorRole?.colors?.primaryColor) {
       const { primaryColor, secondaryColor, tertiaryColor } = colorRole.colors;
       // Only include the object when there's actually a gradient/holographic style
@@ -462,7 +791,7 @@ const transformMember = (member: GuildMember, concise: unknown = false): Record<
     }
 
     if (concise) {
-      return {
+      const conciseResult: TransformedMemberConcise = {
         id: member.id,
         displayName: member.displayName,
         displayHexColor: member.displayHexColor,
@@ -470,9 +799,10 @@ const transformMember = (member: GuildMember, concise: unknown = false): Record<
         joinedAt: member.joinedAt,
         joinedTimestamp: member.joinedTimestamp,
         avatar: member.avatar || null,
-        // Enhanced Role Styles — gradient (secondary) / holographic (tertiary)
-        ...(roleColorsData && { roleColors: roleColorsData }),
       };
+      // Enhanced Role Styles — gradient (secondary) / holographic (tertiary)
+      if (roleColorsData) conciseResult.roleColors = roleColorsData;
+      return conciseResult;
     }
     return {
       avatar: member.avatar,
@@ -503,11 +833,11 @@ const transformMember = (member: GuildMember, concise: unknown = false): Record<
       roles: member.roles.cache.map((role: Role) => transformRole(role)),
       user: transformUser(member.user, true),
       voice: transformVoice(member.voice),
-    };
+    } satisfies TransformedMemberFull;
   }
 };
 
-const transformEmoji = (emoji: GuildEmoji, _concise: unknown = false) => {
+const transformEmoji = (emoji: GuildEmoji, _concise: boolean = false): TransformedEmoji | undefined => {
   if (emoji) {
     return {
       animated: emoji.animated,
@@ -516,71 +846,46 @@ const transformEmoji = (emoji: GuildEmoji, _concise: unknown = false) => {
       id: emoji.id,
       identifier: emoji.identifier,
       name: emoji.name,
-      // reaction: emoji.reaction // circular reference
-    // @ts-expect-error - Remaining unresolved typing
-      imageUrl: emoji.imageUrl ? emoji.imageUrl() : null,
+      imageUrl: typeof (emoji as GuildEmoji & { imageUrl?: () => string }).imageUrl === "function"
+        ? (emoji as GuildEmoji & { imageUrl: () => string }).imageUrl()
+        : null,
     };
   }
 };
 
-const transformReaction = (reaction: MessageReaction | PartialMessageReaction) => {
+const transformReaction = (reaction: MessageReaction | PartialMessageReaction): TransformedReaction | undefined => {
   if (reaction) {
     return {
-      // burstColors: reaction.burstColors,
-      // clientId: reaction.clientId,
       count: reaction.count,
       countDetails: {
         burst: reaction.countDetails.burst,
         normal: reaction.countDetails.normal,
       },
-    // @ts-expect-error - Remaining unresolved typing
-      emoji: transformEmoji(reaction.emoji, true),
-      // me: reaction.me,
-      // meBurst: reaction.meBurst,
-      // message: reaction.message // circular reference
-      // partial: reaction.partial,
+      emoji: transformEmoji(reaction.emoji as GuildEmoji, true),
       users: reaction.users.cache.map((user: User) => transformUser(user, true)),
     };
   }
 };
 
-const transformSticker = (sticker: unknown) => ({
-    // @ts-expect-error - Remaining unresolved typing
+const transformSticker = (sticker: Sticker): TransformedSticker => ({
   available: sticker.available,
-    // @ts-expect-error - Remaining unresolved typing
   createdAt: sticker.createdAt,
-  // client: sticker.client,
-    // @ts-expect-error - Remaining unresolved typing
   createdTimestamp: sticker.createdTimestamp,
-    // @ts-expect-error - Remaining unresolved typing
   description: sticker.description,
-    // @ts-expect-error - Remaining unresolved typing
-  format: sticker.format,
-    // @ts-expect-error - Remaining unresolved typing
-  guild: transformGuild(sticker.guild, true),
-    // @ts-expect-error - Remaining unresolved typing
+  guild: sticker.guild ? transformGuild(sticker.guild, true) : undefined,
   guildId: sticker.guildId,
-    // @ts-expect-error - Remaining unresolved typing
   id: sticker.id,
-    // @ts-expect-error - Remaining unresolved typing
   name: sticker.name,
-    // @ts-expect-error - Remaining unresolved typing
   packId: sticker.packId,
-    // @ts-expect-error - Remaining unresolved typing
   partial: sticker.partial,
-    // @ts-expect-error - Remaining unresolved typing
   sortValue: sticker.sortValue,
-    // @ts-expect-error - Remaining unresolved typing
   tags: sticker.tags,
-    // @ts-expect-error - Remaining unresolved typing
   type: sticker.type,
-    // @ts-expect-error - Remaining unresolved typing
   url: sticker.url,
-    // @ts-expect-error - Remaining unresolved typing
-  user: transformUser(sticker.user, true),
+  user: sticker.user ? transformUser(sticker.user, true) : undefined,
 });
 
-const transformMessageRoot = (message: Message): Record<string, any> => {
+const transformMessageRoot = (message: Message): Record<string, unknown> => {
   return {
     // MessageActivity | null
     activity: message.activity,
@@ -594,8 +899,7 @@ const transformMessageRoot = (message: Message): Record<string, any> => {
     bulkDeletable: message.bulkDeletable,
     // MessageCall | null
     call: message.call,
-    // @ts-expect-error - Remaining unresolved typing
-    channel: transformTextChannel(message.channel, true),
+    channel: transformTextChannel(message.channel as TextChannel, true),
     // Snowflake
     channelId: message.channelId,
     // string
@@ -623,8 +927,7 @@ const transformMessageRoot = (message: Message): Record<string, any> => {
     flags: message.flags,
     // ClientApplication | null
     // groupActivityApplication: message.groupActivityApplication, // circular reference
-    // @ts-expect-error - Remaining unresolved typing
-    guild: transformGuild(message.guild, true),
+    guild: message.guild ? transformGuild(message.guild, true) : null,
     // If<InGuild, Snowflake>
     guildId: message.guildId,
     // boolean
@@ -635,11 +938,10 @@ const transformMessageRoot = (message: Message): Record<string, any> => {
     interaction: message.interaction,
     // MessageInteractionMetadata | null
     interactionMetadata: message.interactionMetadata,
-    // @ts-expect-error - Remaining unresolved typing
-    member: transformMember(message.member, true),
+    member: message.member ? transformMember(message.member, true) : null,
     mentions: transformMessageMentions(message.mentions),
     // Collection<Snowflake, MessageSnapshot>
-    messageSnapshots: message.messageSnapshots?.map((snapshot: unknown) =>
+    messageSnapshots: message.messageSnapshots?.map((snapshot) =>
       transformMessageSnapshot(snapshot),
     ),
     // number | string | null
@@ -664,11 +966,10 @@ const transformMessageRoot = (message: Message): Record<string, any> => {
     // resolved: message.resolved, // circular reference
     roleSubscriptionData: message.roleSubscriptionData
       ? {
-    // @ts-expect-error - Remaining unresolved typing
-          id: message.roleSubscriptionData.id,
+          id: (message.roleSubscriptionData as unknown as Record<string, unknown>).id,
         }
       : null,
-    stickers: message.stickers?.map((sticker: unknown) => transformSticker(sticker)),
+    stickers: message.stickers?.map((sticker) => transformSticker(sticker as Sticker)),
     system: message.system,
     // thread: message.thread, // circular reference
     tts: message.tts,
@@ -682,17 +983,17 @@ const DiscordUtilityService = {
   // Fetches and saves all messages from a Discord server to MongoDB.
   // Supports category filtering, date limits, auto-resume via checkpoints,
   // and concurrent channel processing with bulk upserts.
-  async fetchAndSaveAllServerMessages(client: Client, mongo: import("mongodb").MongoClient, guildId: string, options: Record<string, any> = {}) {
+  async fetchAndSaveAllServerMessages(client: Client, mongo: import("mongodb").MongoClient, guildId: string, options: FetchAndSaveOptions = {}) {
     const {
       collectionName = "Messages",
       concurrencyLimit = 10,
-      resumePoints = null, // Array of { channelId, lastMessageId } — explicit overrides
-      batchSize = 100, // Messages per Discord API call (max 100)
-      dateLimit = "2025-11-01", // Stop when messages are older than this date
-      categoryIds = null, // Array of category (parent) IDs to limit which channels are processed
-      channelIds = null, // Array of specific channel IDs to process (takes precedence over categoryIds)
-      forceUpdate = false, // When true, overwrite existing documents entirely (for rescraping)
-      autoResume = true, // Persist per-channel checkpoints for crash recovery
+      resumePoints = null,
+      batchSize = 100,
+      dateLimit = "2025-11-01",
+      categoryIds = null,
+      channelIds = null,
+      forceUpdate = false,
+      autoResume = true,
     } = options;
 
     const startTime = Date.now();
@@ -723,9 +1024,9 @@ const DiscordUtilityService = {
       await collection.createIndex({ id: 1 }, { unique: true, background: true });
       console.log(`[INDEX] Ensured unique index on "${collectionName}.id"`);
     } catch (indexError: unknown) {
-      if ((indexError as any).code === 11000) {
+      if (indexError instanceof Error && "code" in indexError && (indexError as Error & { code: number }).code === 11000) {
         console.log(`[INDEX] Duplicate keys found — deduplicating before indexing...`);
-        await DiscordUtilityService.deleteDuplicateMessagesByID(mongo, collectionName);
+        await DiscordUtilityService.deleteDuplicateMessagesByID(mongo, collectionName as string);
         await collection.createIndex({ id: 1 }, { unique: true, background: true });
         console.log(`[INDEX] Unique index created after deduplication`);
       } else {
@@ -734,15 +1035,13 @@ const DiscordUtilityService = {
     }
 
     // ── Resume logic ────────────────────────────────────────────────
-    const resumeMap = new Map();
-    const completedChannelIds = new Set();
+    const resumeMap = new Map<string, string>();
+    const completedChannelIds = new Set<string>();
 
     if (resumePoints && Array.isArray(resumePoints)) {
       // Explicit resume points take priority
-      resumePoints.forEach((point: unknown) => {
-    // @ts-expect-error - Remaining unresolved typing
+      resumePoints.forEach((point: ResumePoint) => {
         if (point.channelId && point.lastMessageId) {
-    // @ts-expect-error - Remaining unresolved typing
           resumeMap.set(point.channelId, point.lastMessageId);
         }
       });
@@ -773,15 +1072,13 @@ const DiscordUtilityService = {
 
     // ── Channel filtering ───────────────────────────────────────────
     let textChannels = guild.channels.cache.filter(
-    // @ts-expect-error - Remaining unresolved typing
-      (channel: TextChannel) => channel.type === ChannelType.GuildText,
+      (channel) => channel.type === ChannelType.GuildText,
     );
 
     // Filter by specific channel IDs if provided (takes precedence)
     if (channelIds && Array.isArray(channelIds) && channelIds.length > 0) {
       textChannels = textChannels.filter(
-    // @ts-expect-error - Remaining unresolved typing
-        (channel: TextChannel) => channelIds.includes(channel.id),
+        (channel) => channelIds.includes(channel.id),
       );
       console.log(
         `[CHANNELS] Filtering to ${channelIds.length} specific channel(s) — ${textChannels.size} matched`,
@@ -790,8 +1087,7 @@ const DiscordUtilityService = {
     // Otherwise filter by category IDs if provided
     else if (categoryIds && Array.isArray(categoryIds) && categoryIds.length > 0) {
       textChannels = textChannels.filter(
-    // @ts-expect-error - Remaining unresolved typing
-        (channel: TextChannel) => channel.parentId && categoryIds.includes(channel.parentId),
+        (channel) => channel.parentId && categoryIds.includes(channel.parentId),
       );
       console.log(
         `[CATEGORIES] Filtering to ${categoryIds.length} category/ies — ${textChannels.size} channel(s) matched`,
@@ -800,8 +1096,7 @@ const DiscordUtilityService = {
 
     // If explicit resumePoints provided, only process those channels
     if (resumePoints && resumeMap.size > 0) {
-    // @ts-expect-error - Remaining unresolved typing
-      textChannels = textChannels.filter((channel: TextChannel) =>
+      textChannels = textChannels.filter((channel) =>
         resumeMap.has(channel.id),
       );
       console.log(
@@ -812,8 +1107,7 @@ const DiscordUtilityService = {
     // Skip channels completed in a previous run
     if (completedChannelIds.size > 0) {
       textChannels = textChannels.filter(
-    // @ts-expect-error - Remaining unresolved typing
-        (channel: TextChannel) => !completedChannelIds.has(channel.id),
+        (channel) => !completedChannelIds.has(channel.id),
       );
     }
 
@@ -828,16 +1122,14 @@ const DiscordUtilityService = {
     let channelsProcessed = 0;
 
     // ── Bulk save helper (no pre-check — let bulkWrite + index handle dedup) ──
-    const bulkSaveNewMessages = async (messages: unknown) => {
-    // @ts-expect-error - Remaining unresolved typing
+    const bulkSaveNewMessages = async (messages: Message[]): Promise<BulkSaveResult> => {
       if (!messages || messages.length === 0) {
-        return { saved: 0, duplicates: 0, errors: 0 } as Record<string, any>;
+        return { saved: 0, duplicates: 0, errors: 0, _lastDate: '' };
       }
 
-      const documents: unknown[] = [];
+      const documents: Record<string, unknown>[] = [];
       let transformErrorCount = 0;
 
-    // @ts-expect-error - Remaining unresolved typing
       for (const message of messages) {
         try {
           const document = transformMessageRoot(message);
@@ -851,14 +1143,14 @@ const DiscordUtilityService = {
                 MediaArchivalService.rewriteDocumentUrls(document, archiveMap);
               }
             } catch (archiveErr: unknown) {
-              console.warn(`  [ARCHIVE] Media archival failed for ${message.id}: ${(archiveErr as Error).message}`);
+              console.warn(`  [ARCHIVE] Media archival failed for ${message.id}: ${errorMessage(archiveErr)}`);
             }
           }
 
           documents.push(document);
         } catch (transformError: unknown) {
           console.error(
-            `  [ERROR] Failed to transform message ${message.id}: ${(transformError as Error).message}`,
+            `  [ERROR] Failed to transform message ${message.id}: ${errorMessage(transformError)}`,
           );
           transformErrorCount++;
         }
@@ -869,8 +1161,7 @@ const DiscordUtilityService = {
       }
 
       try {
-    // @ts-expect-error - Remaining unresolved typing
-        const bulkOps = documents.map((document: import('mongodb').Document) => {
+        const bulkOps = documents.map((document) => {
           // Force update mode: overwrite entire document (for rescraping)
           if (forceUpdate) {
             return {
@@ -894,12 +1185,12 @@ const DiscordUtilityService = {
             editedAt: document.editedAt,
             editedTimestamp: document.editedTimestamp,
             pinned: document.pinned,
-            "member.displayHexColor": document.member?.displayHexColor || null,
-            "member.displayName": document.member?.displayName || null,
-            "member.avatar": document.member?.avatar || null,
+            "member.displayHexColor": (document.member as Record<string, unknown> | undefined)?.displayHexColor || null,
+            "member.displayName": (document.member as Record<string, unknown> | undefined)?.displayName || null,
+            "member.avatar": (document.member as Record<string, unknown> | undefined)?.avatar || null,
             // Enhanced Role Styles (gradient/holographic) — always update to latest
-            ...(document.member?.roleColors
-              ? { "member.roleColors": document.member.roleColors }
+            ...((document.member as Record<string, unknown> | undefined)?.roleColors
+              ? { "member.roleColors": (document.member as Record<string, unknown>).roleColors }
               : { "member.roleColors": null }),
           };
 
@@ -914,7 +1205,8 @@ const DiscordUtilityService = {
           delete insertDoc.editedTimestamp;
           delete insertDoc.pinned;
           if (insertDoc.member) {
-            const { displayHexColor: _dhc, displayName: _dn, avatar: _av, roleColors: _rc, ...restMember } = insertDoc.member;
+            const memberObj = insertDoc.member as Record<string, unknown>;
+            const { displayHexColor: _dhc, displayName: _dn, avatar: _av, roleColors: _rc, ...restMember } = memberObj;
             insertDoc.member = restMember;
           }
 
@@ -943,38 +1235,35 @@ const DiscordUtilityService = {
           errors: transformErrorCount,
         };
       } catch (error: unknown) {
-        if ((error as any).writeErrors) {
-          const savedCount = (error as any).result?.nUpserted || 0;
+        if (error instanceof Error && "writeErrors" in error) {
+          const bulkError = error as Error & { writeErrors: unknown[]; result?: { nUpserted?: number } };
+          const savedCount = bulkError.result?.nUpserted || 0;
           console.error(
-            `  [ERROR] Bulk write partial failure: ${savedCount} saved, ${(error as any).writeErrors.length} errors`,
+            `  [ERROR] Bulk write partial failure: ${savedCount} saved, ${bulkError.writeErrors.length} errors`,
           );
           return {
             saved: savedCount,
             duplicates: 0,
-            errors: (error as any).writeErrors.length + transformErrorCount,
+            errors: bulkError.writeErrors.length + transformErrorCount,
           };
         }
 
-        console.error(`  [ERROR] Bulk save failed: ${(error as Error).message}`);
-    // @ts-expect-error - Remaining unresolved typing
+        console.error(`  [ERROR] Bulk save failed: ${errorMessage(error)}`);
         return { saved: 0, duplicates: 0, errors: messages.length };
       }
     };
 
     // ── Concurrency limiter ─────────────────────────────────────────
-    const createConcurrencyLimiter = (limit: unknown) => {
+    const createConcurrencyLimiter = (limit: number) => {
       let activeCount = 0;
       const queue: (() => void)[] = [];
 
-      const run = async (fn: unknown) => {
-    // @ts-expect-error - Remaining unresolved typing
+      const run = async <T>(fn: () => Promise<T>): Promise<T> => {
         while (activeCount >= limit) {
-    // @ts-expect-error - Remaining unresolved typing
-          await new Promise((resolve: unknown) => queue.push(resolve));
+          await new Promise<void>((resolve) => queue.push(resolve));
         }
         activeCount++;
         try {
-    // @ts-expect-error - Remaining unresolved typing
           return await fn();
         } finally {
           activeCount--;
@@ -1002,7 +1291,7 @@ const DiscordUtilityService = {
       let channelErrors = 0;
 
       // Track message IDs from the target users found on Discord
-      const discordUserMessageIds = new Set();
+      const discordUserMessageIds = new Set<string>();
 
       // Use checkpoint (auto or explicit) if available
       let lastId = resumeMap.get(channel.id) || null;
@@ -1024,7 +1313,7 @@ const DiscordUtilityService = {
       while (hasMoreMessages) {
         try {
           // Direct Discord.js fetch — simpler than the general-purpose wrapper
-          const fetchOptions: Record<string, any> = { limit: batchSize, cache: false };
+          const fetchOptions: FetchMessagesOptions = { limit: batchSize, cache: false };
           if (lastId) fetchOptions.before = lastId;
 
           const messages = await channel.messages.fetch(fetchOptions);
@@ -1116,7 +1405,7 @@ const DiscordUtilityService = {
           // discord.js handles rate limiting internally — no artificial delay needed
         } catch (fetchError: unknown) {
           console.error(
-            `  [ERROR] Failed to fetch messages from #${channel.name}: ${(fetchError as Error).message}`,
+            `  [ERROR] Failed to fetch messages from #${channel.name}: ${errorMessage(fetchError)}`,
           );
           channelErrors++;
           totalErrors++;
@@ -1141,7 +1430,7 @@ const DiscordUtilityService = {
           }
         } catch (writeError: unknown) {
           console.error(
-            `  [ERROR] Final batch write failed for #${channel.name}: ${(writeError as Error).message}`,
+            `  [ERROR] Final batch write failed for #${channel.name}: ${errorMessage(writeError)}`,
           );
           channelErrors++;
           totalErrors++;
@@ -1174,7 +1463,7 @@ const DiscordUtilityService = {
           }
         } catch (cleanupErr: unknown) {
           console.warn(
-            `  [CLEANUP] #${channel.name}: cleanup failed: ${(cleanupErr as Error).message}`,
+            `  [CLEANUP] #${channel.name}: cleanup failed: ${errorMessage(cleanupErr)}`,
           );
         }
       }
@@ -1208,10 +1497,9 @@ const DiscordUtilityService = {
     };
 
     // ── Dispatch all channels ───────────────────────────────────────
-    const channelPromises: Promise<unknown>[] = [];
+    const channelPromises: Promise<ChannelProcessResult | undefined>[] = [];
     for (const channel of textChannels.values()) {
-    // @ts-expect-error - Remaining unresolved typing
-      channelPromises.push(limiter.run(() => processChannel(channel)));
+      channelPromises.push(limiter.run(() => processChannel(channel as TextChannel)));
     }
 
     await Promise.all(channelPromises);
@@ -1242,7 +1530,7 @@ const DiscordUtilityService = {
    * each one against Discord. Messages that no longer exist (404/10008)
    * are deleted from MongoDB.
    */
-  async purgeDeletedMessagesForUsers(client: Client, mongo: import("mongodb").MongoClient, guildId: string, userIds: string[], options: Record<string, any> = {}) {
+  async purgeDeletedMessagesForUsers(client: Client, mongo: import("mongodb").MongoClient, guildId: string, userIds: string[], options: PurgeOptions = {}) {
     const {
       collectionName = "Messages",
       concurrencyLimit = 5,
@@ -1250,7 +1538,7 @@ const DiscordUtilityService = {
 
     const startTime = Date.now();
     const db = mongo.db(MONGO_DB_NAME);
-    const collection = db.collection(collectionName);
+    const collection = db.collection(collectionName as string);
     const guild = client.guilds.cache.get(guildId);
 
     if (!guild) {
@@ -1270,12 +1558,13 @@ const DiscordUtilityService = {
     if (mongoMessages.length === 0) return { verified: 0, deleted: 0, errors: 0 };
 
     // Group by channel for efficient processing
-    const byChannel = new Map();
+    const byChannel = new Map<string, string[]>();
     for (const document of mongoMessages) {
-      if (!byChannel.has(document.channelId)) {
-        byChannel.set(document.channelId, []);
+      const chId = document.channelId as string;
+      if (!byChannel.has(chId)) {
+        byChannel.set(chId, []);
       }
-      byChannel.get(document.channelId).push(document.id);
+      byChannel.get(chId)!.push(document.id as string);
     }
 
     let totalVerified = 0;
@@ -1298,12 +1587,11 @@ const DiscordUtilityService = {
         const results = await Promise.allSettled(
           chunk.map(async (msgId: string) => {
             try {
-    // @ts-expect-error - Remaining unresolved typing
-              await channel.messages.fetch(msgId);
+              await (channel as TextChannel).messages.fetch(msgId);
               return { exists: true, id: msgId };
             } catch (error: unknown) {
-              // 10008 = Unknown Message (deleted)
-              if ((error as any).code === 10008) {
+              const discordError = error as Error & { code?: number };
+              if (discordError.code === 10008) {
                 return { exists: false, id: msgId };
               }
               // Other errors (permissions, rate limit) — don't assume deleted
@@ -1350,7 +1638,7 @@ const DiscordUtilityService = {
    * Finds messages missing `mediaArchive` that have attachments, downloads
    * the media to MinIO, and updates the document with permanent URLs.
    */
-  async backfillMediaArchive(client: Client, mongo: import("mongodb").MongoClient, options: Record<string, any> = {}) {
+  async backfillMediaArchive(client: Client, mongo: import("mongodb").MongoClient, options: BackfillOptions = {}) {
     const {
       collectionName = "Messages",
       authorIds = null,
@@ -1367,10 +1655,10 @@ const DiscordUtilityService = {
 
     const startTime = Date.now();
     const db = mongo.db(MONGO_DB_NAME);
-    const collection = db.collection(collectionName);
+    const collection = db.collection(collectionName as string);
 
     // Build query: messages with media but no/empty mediaArchive
-    const archiveConditions: Record<string, any>[] = [
+    const archiveConditions: import("mongodb").Filter<import("mongodb").Document>[] = [
       { mediaArchive: { $exists: false } },
     ];
     // forceRetry: also re-process messages that were previously marked
@@ -1379,7 +1667,7 @@ const DiscordUtilityService = {
       archiveConditions.push({ mediaArchive: { $eq: {} } });
     }
 
-    const query: Record<string, any> = {
+    const query: import("mongodb").Filter<import("mongodb").Document> = {
       $and: [
         { $or: archiveConditions },
         {
@@ -1401,15 +1689,16 @@ const DiscordUtilityService = {
 
     // Load all docs, group by channel
     const docs = await collection.find(query).batchSize(batchSize).toArray();
-    const byChannel = new Map();
+    const byChannel = new Map<string, import("mongodb").Document[]>();
     for (const document of docs) {
-      if (!byChannel.has(document.channelId)) {
-        byChannel.set(document.channelId, []);
+      const chId = document.channelId as string;
+      if (!byChannel.has(chId)) {
+        byChannel.set(chId, []);
       }
-      byChannel.get(document.channelId).push(document);
+      byChannel.get(chId)!.push(document);
     }
 
-    const guild = guildId ? client.guilds.cache.get(guildId) : null;
+    const guild = guildId ? client.guilds.cache.get(guildId as string) : null;
     let processed = 0;
     let archived = 0;
     let errors = 0;
@@ -1437,10 +1726,10 @@ const DiscordUtilityService = {
           // Fetch the live message from Discord to get fresh CDN URLs
           let liveMessage: Message | null;
           try {
-    // @ts-expect-error - Remaining unresolved typing
-            liveMessage = await channel.messages.fetch(document.id);
+            liveMessage = await (channel as TextChannel).messages.fetch(document.id);
           } catch (fetchErr: unknown) {
-            if ((fetchErr as any).code === 10008) {
+            const discordError = fetchErr as Error & { code?: number };
+            if (discordError.code === 10008) {
               // Message was deleted — mark and skip
               console.log(`  [BACKFILL] Message ${document.id} deleted from Discord — marking empty`);
               await collection.updateOne({ _id: document._id }, { $set: { mediaArchive: {} } });
@@ -1450,13 +1739,11 @@ const DiscordUtilityService = {
           }
 
           // Use the standard archival pipeline on the live message
-    // @ts-expect-error - Remaining unresolved typing
-          const archiveMap = await MediaArchivalService.archiveMessageMedia(liveMessage);
+          const archiveMap = await MediaArchivalService.archiveMessageMedia(liveMessage!);
 
           if (Object.keys(archiveMap).length > 0) {
             // Transform fresh doc and rewrite URLs
-    // @ts-expect-error - Remaining unresolved typing
-            const freshDoc = transformMessageRoot(liveMessage);
+            const freshDoc = transformMessageRoot(liveMessage!);
             MediaArchivalService.rewriteDocumentUrls(freshDoc, archiveMap);
 
             await collection.updateOne(
@@ -1481,7 +1768,7 @@ const DiscordUtilityService = {
           }
         } catch (error: unknown) {
           errors++;
-          console.error(`  [BACKFILL] Error processing message ${document.id}: ${(error as Error).message}`);
+          console.error(`  [BACKFILL] Error processing message ${document.id}: ${errorMessage(error)}`);
           // Mark failed so we don't retry on next run (can be cleared manually)
           await collection.updateOne({ _id: document._id }, { $set: { mediaArchive: {} } });
         }
@@ -1559,9 +1846,8 @@ const DiscordUtilityService = {
     const name =
       message?.author?.displayName ||
       message?.author?.username ||
-    // @ts-expect-error - Remaining unresolved typing
-      message?.user?.username;
-    return DiscordUtilityService._sanitizeUsername(name);
+      (message as Message & { user?: User })?.user?.username;
+    return DiscordUtilityService._sanitizeUsername(name ?? "");
   },
 
   async saveMessageToMongo(message: Message, mongo: import("mongodb").MongoClient, collectionName: string = "Messages") {
@@ -1578,7 +1864,7 @@ const DiscordUtilityService = {
           MediaArchivalService.rewriteDocumentUrls(messageObject, archiveMap);
         }
       } catch (error: unknown) {
-        console.warn(`📦 Media archival failed for message ${message.id}: ${(error as Error).message}`);
+        console.warn(`📦 Media archival failed for message ${message.id}: ${errorMessage(error)}`);
       }
     }
 
@@ -1625,7 +1911,7 @@ const DiscordUtilityService = {
           MediaArchivalService.rewriteDocumentUrls(messageObject, archiveMap);
         }
       } catch (error: unknown) {
-        console.warn(`📦 Media archival failed for message ${message.id}: ${(error as Error).message}`);
+        console.warn(`📦 Media archival failed for message ${message.id}: ${errorMessage(error)}`);
       }
     }
 
@@ -1651,7 +1937,7 @@ const DiscordUtilityService = {
         { $set: { reactions: transformedReactions } },
       );
     } catch (error: unknown) {
-      console.warn(`[syncReactionsToMongo] Failed for message ${reactionMessage.id}: ${(error as Error).message}`);
+      console.warn(`[syncReactionsToMongo] Failed for message ${reactionMessage.id}: ${errorMessage(error)}`);
     }
   },
 
@@ -1659,8 +1945,7 @@ const DiscordUtilityService = {
     const audioUrls: string[] = [];
     if (message?.attachments?.size) {
       for (const attachment of message.attachments.values()) {
-    // @ts-expect-error - Remaining unresolved typing
-        const isAudio = attachment.contentType.includes("audio/ogg");
+        const isAudio = attachment.contentType?.includes("audio/ogg");
         if (isAudio) {
           audioUrls.push(attachment.url);
         }
@@ -1673,8 +1958,7 @@ const DiscordUtilityService = {
     // Attachments
     if (message?.attachments?.size) {
       for (const attachment of message.attachments.values()) {
-    // @ts-expect-error - Remaining unresolved typing
-        const isImage = attachment.contentType.includes("image/");
+        const isImage = attachment.contentType?.includes("image/");
         if (isImage) {
           imageUrls.push(attachment.url);
         }
@@ -1710,10 +1994,9 @@ const DiscordUtilityService = {
   async retrieveMessageReferenceFromMessage(message: Message) {
     let messageReference: Message | null;
     if (message?.reference && message.reference.messageId) {
-    // @ts-expect-error - Remaining unresolved typing
       messageReference = message.channel.messages.cache.get(
         message.reference.messageId,
-      );
+      ) ?? null;
       if (!messageReference) {
         try {
           messageReference = await message.channel.messages.fetch(
@@ -1724,16 +2007,13 @@ const DiscordUtilityService = {
         }
       }
     }
-    // @ts-expect-error - Remaining unresolved typing
-    return messageReference;
+    return messageReference!;
   },
-    // @ts-expect-error - Remaining unresolved typing
-  getDisplayNameFromUserOrMember({ user, member }: unknown) {
-    let displayName: string | null;
+  getDisplayNameFromUserOrMember({ user, member }: { user?: User; member?: GuildMember }) {
+    let displayName: string | null = null;
     if (user || member) {
-      displayName = user?.displayName || member?.displayName;
+      displayName = user?.displayName || member?.displayName || null;
     }
-    // @ts-expect-error - Remaining unresolved typing
     return displayName;
   },
   getCleanUsernameFromUser(user: User) {
@@ -1742,7 +2022,7 @@ const DiscordUtilityService = {
     return DiscordUtilityService._sanitizeUsername(raw);
   },
   async getDisplayName(message: Message, userId: string) {
-    let displayName: string | null;
+    let displayName: string | null = null;
     if (message && message.guild && userId) {
       const member = await DiscordUtilityService.retrieveMemberFromGuildById(
         message.guild,
@@ -1761,7 +2041,6 @@ const DiscordUtilityService = {
         }
       }
     }
-    // @ts-expect-error - Remaining unresolved typing
     return displayName;
   },
   /**
@@ -1774,26 +2053,24 @@ const DiscordUtilityService = {
   getUserMentionFromMessage(message: Message) {
     if (message) {
       // Find out why author and why user are different
-    // @ts-expect-error - Remaining unresolved typing
-      const userId = message?.author?.id || message?.user?.id;
+      const userId = message?.author?.id || (message as Message & { user?: User })?.user?.id;
       return `<@${userId}>`;
     }
   },
   getDiscordTagFromMessage(message: Message) {
     if (message) {
-    // @ts-expect-error - Remaining unresolved typing
-      const userTag = message?.author?.tag || message?.user?.tag;
+      const userTag = message?.author?.tag || (message as Message & { user?: User })?.user?.tag;
       return userTag;
     }
   },
   async printOutAllRoles(client: Client) {
     // print out all roles in the order that they are in the server
     consoleLog("<", "printOutAllRoles");
-    // @ts-expect-error - Remaining unresolved typing
-    const roles = client.guilds.cache.get(config.GUILD_ID_PRIMARY).roles.cache;
+    const guild = client.guilds.cache.get(config.GUILD_ID_PRIMARY!);
+    if (!guild) return;
+    const roles = guild.roles.cache;
     const orderedRoles = roles
-    // @ts-expect-error - Remaining unresolved typing
-      .sort((a: unknown, b: unknown) => a.rawPosition - b.rawPosition)
+      .sort((a, b) => a.rawPosition - b.rawPosition)
       .reverse();
     consoleLog(
       "=",
@@ -1806,9 +2083,9 @@ const DiscordUtilityService = {
   },
   async printOutAllEmojis(client: Client) {
     consoleLog("<", "printOutAllEmojis");
-    // @ts-expect-error - Remaining unresolved typing
-    const emojis = client.guilds.cache.get(config.GUILD_ID_PRIMARY).emojis
-      .cache;
+    const guild = client.guilds.cache.get(config.GUILD_ID_PRIMARY!);
+    if (!guild) return;
+    const emojis = guild.emojis.cache;
     consoleLog("=", `Printing out all emojis in the server`);
     for (const emoji of emojis.values()) {
       console.log(`${emoji.name} - ${emoji.id}`);
@@ -1838,7 +2115,7 @@ const DiscordUtilityService = {
       } catch (error: unknown) {
         consoleLog(
           "!",
-          `Could not fetch user with ID ${userId}. Error: ${(error as Error).message}`,
+          `Could not fetch user with ID ${userId}. Error: ${errorMessage(error)}`,
         );
         return null;
       }
@@ -1868,33 +2145,28 @@ const DiscordUtilityService = {
       customFunction(client, options);
     });
   },
-    // @ts-expect-error - Remaining unresolved typing
-  onEventMessageCreate(client: Client, { mongo, localMongo }: unknown, customFunction: (...args: unknown[]) => void) {
+  onEventMessageCreate(client: Client, { mongo, localMongo }: MongoConnections, customFunction: (...args: unknown[]) => void) {
     return client.on(Events.MessageCreate, async (message: Message) => {
       customFunction(client, { mongo, localMongo }, message);
     });
   },
-    // @ts-expect-error - Remaining unresolved typing
-  onEventMessageUpdate(client: Client, { mongo, localMongo }: unknown, customFunction: (...args: unknown[]) => void) {
+  onEventMessageUpdate(client: Client, { mongo, localMongo }: MongoConnections, customFunction: (...args: unknown[]) => void) {
     return client.on(Events.MessageUpdate, async (oldMessage: Message | PartialMessage, newMessage: Message | PartialMessage) => {
       customFunction(client, { mongo, localMongo }, oldMessage, newMessage);
     });
   },
   onEventMessageDelete(client: Client, mongo: import("mongodb").MongoClient, customFunction: (...args: unknown[]) => void) {
-    // @ts-expect-error - Remaining unresolved typing
-    return client.on(Events.MessageDelete, async (message: Message) => {
+    return client.on(Events.MessageDelete, async (message) => {
       customFunction(client, mongo, message);
     });
   },
   onEventMessageReactionAdd(client: Client, mongo: import("mongodb").MongoClient, customFunction: (...args: unknown[]) => void) {
-    // @ts-expect-error - Remaining unresolved typing
-    return client.on(Events.MessageReactionAdd, async (reaction: MessageReaction | PartialMessageReaction, user: User) => {
+    return client.on(Events.MessageReactionAdd, async (reaction, user) => {
       customFunction(client, mongo, reaction, user);
     });
   },
   onEventMessageReactionRemove(client: Client, mongo: import("mongodb").MongoClient, customFunction: (...args: unknown[]) => void) {
-    // @ts-expect-error - Remaining unresolved typing
-    return client.on(Events.MessageReactionRemove, async (reaction: MessageReaction | PartialMessageReaction, user: User) => {
+    return client.on(Events.MessageReactionRemove, async (reaction, user) => {
       customFunction(client, mongo, reaction, user);
     });
   },
@@ -1904,8 +2176,7 @@ const DiscordUtilityService = {
     });
   },
   onEventGuildMemberAvailable(client: Client, mongo: import("mongodb").MongoClient, customFunction: (...args: unknown[]) => void) {
-    // @ts-expect-error - Remaining unresolved typing
-    return client.on(Events.GuildMemberAvailable, async (member: GuildMember) => {
+    return client.on(Events.GuildMemberAvailable, async (member) => {
       customFunction(client, mongo, member);
     });
   },
@@ -1928,8 +2199,7 @@ const DiscordUtilityService = {
     });
   },
   onEventGuildMemberRemove(client: Client, mongo: import("mongodb").MongoClient, customFunction: (...args: unknown[]) => void) {
-    // @ts-expect-error - Remaining unresolved typing
-    return client.on(Events.GuildMemberRemove, async (member: GuildMember) => {
+    return client.on(Events.GuildMemberRemove, async (member) => {
       customFunction(client, mongo, member);
     });
   },
@@ -1940,9 +2210,7 @@ const DiscordUtilityService = {
   },
   async getAllServerEmojisFromMessage(message: Message, format: "string" | "array" = "string") {
     // format can be: array, string
-    // @ts-expect-error - Remaining unresolved typing
-    if (message.guild.emojis.cache.size) {
-    // @ts-expect-error - Remaining unresolved typing
+    if (message.guild?.emojis.cache.size) {
       const emojis = message.guild.emojis.cache.map((emoji: GuildEmoji) => {
         return {
           id: emoji.id,
@@ -1953,31 +2221,29 @@ const DiscordUtilityService = {
       if (format === "array") {
         return emojis;
       } else if (format === "string") {
-    // @ts-expect-error - Remaining unresolved typing
-        return emojis.map((emoji: GuildEmoji) => `<${emoji.name}:${emoji.id}>`).join(", ");
+        return emojis.map((emoji: { name: string; id: string }) => `<${emoji.name}:${emoji.id}>`).join(", ");
       }
     } else {
       return [];
     }
   },
   // Special functions
-  async fetchMessages(client: Client, channelId: string, options: Record<string, any> = {}) {
+  async fetchMessages(client: Client, channelId: string, options: FetchMessagesOptions = {}) {
     const channel = client.channels.cache.find(
-    // @ts-expect-error - Remaining unresolved typing
-      (channel: TextChannel) => channel.id == channelId,
-    );
+      (ch) => ch.id === channelId,
+    ) as TextChannel | undefined;
 
     if (!channel) return null;
 
     const {
       limit = 10,
-      before = null,
-      after = null,
-      around = null,
+      before,
+      after,
+      around,
       cache = true,
     } = options;
 
-    let allMessages = new Collection();
+    let allMessages = new Collection<string, Message>();
 
     // Metrics tracking
     let _apiCallCount = 0;
@@ -1986,8 +2252,7 @@ const DiscordUtilityService = {
     // If 'around' is specified, fetch once and return (Discord API behavior)
     if (around) {
       _apiCallCount++;
-    // @ts-expect-error - Remaining unresolved typing
-      const messages = await channel.messages.fetch({
+      let messages = await channel!.messages.fetch({
         limit: Math.min(100, limit),
         around,
         cache,
@@ -1997,11 +2262,11 @@ const DiscordUtilityService = {
 
     // Determine pagination direction and cursor
     const isAfterMode = after && !before;
-    let cursor = before || after;
+    let cursor: string | undefined = before || after;
 
     // Initial fetch
     _apiCallCount++;
-    const initialFetchOptions: Record<string, any> = {
+    const initialFetchOptions: FetchMessagesOptions = {
       limit: Math.min(100, limit),
       cache,
     };
@@ -2009,8 +2274,7 @@ const DiscordUtilityService = {
     if (before) initialFetchOptions.before = before;
     if (after) initialFetchOptions.after = after;
 
-    // @ts-expect-error - Remaining unresolved typing
-    let messages = await channel.messages.fetch(initialFetchOptions);
+      let messages = await channel!.messages.fetch(initialFetchOptions as import("discord.js").FetchMessagesOptions);
     allMessages = allMessages.concat(messages);
 
     // Continue fetching if we need more messages
@@ -2029,7 +2293,7 @@ const DiscordUtilityService = {
       const additionalMessagesNeeded = limit - allMessages.size;
       _apiCallCount++;
 
-      const fetchOptions: Record<string, any> = {
+      const fetchOptions: FetchMessagesOptions = {
         limit: Math.min(100, additionalMessagesNeeded),
         cache,
       };
@@ -2041,8 +2305,7 @@ const DiscordUtilityService = {
         fetchOptions.before = cursor;
       }
 
-    // @ts-expect-error - Remaining unresolved typing
-      messages = await channel.messages.fetch(fetchOptions);
+      messages = await channel!.messages.fetch(fetchOptions as import("discord.js").FetchMessagesOptions);
 
       // Avoid duplicates (Discord API might return overlapping messages)
       const uniqueMessages = messages.filter((message: Message) => !allMessages.has(message.id));
@@ -2055,11 +2318,10 @@ const DiscordUtilityService = {
 
     // Trim collection if we fetched more than needed
     if (allMessages.size > limit) {
-      const trimmedCollection = new Collection();
+      const trimmedCollection = new Collection<string, Message>();
       let count = 0;
 
       // Maintain message order based on fetch direction
-    // @ts-expect-error - Remaining unresolved typing
       const messageArray: Message[] = Array.from(allMessages.values());
       if (isAfterMode) {
         // For 'after' mode, keep the oldest messages first
@@ -2081,12 +2343,11 @@ const DiscordUtilityService = {
     let channel = client.channels.cache.get(channelId);
     if (!channel) {
       try {
-    // @ts-expect-error - Remaining unresolved typing
-        channel = await client.channels.fetch(channelId);
+      channel = await client.channels.fetch(channelId) ?? undefined;
       } catch (error: unknown) {
         consoleLog(
           "!",
-          `Could not fetch channel with ID ${channelId}. Error: ${(error as Error).message}`,
+          `Could not fetch channel with ID ${channelId}. Error: ${errorMessage(error)}`,
         );
         return null;
       }
@@ -2095,10 +2356,9 @@ const DiscordUtilityService = {
   },
   // User functions
   getBotName(client: Client) {
-    // @ts-expect-error - Remaining unresolved typing
-    return client.user.tag;
+    return client.user?.tag;
   },
-  setUserActivity(client: Client, message: any) {
+  setUserActivity(client: Client, message: string) {
     return client.user?.setActivity(message, { type: ActivityType.Custom });
   },
   // Channel functions
@@ -2106,31 +2366,26 @@ const DiscordUtilityService = {
     return client.channels.cache.get(channelId);
   },
   getChannelName(client: Client, channelId: string) {
-    // @ts-expect-error - Remaining unresolved typing
-    return client.channels.cache.get(channelId)?.name;
+    return (client.channels.cache.get(channelId) as TextChannel | undefined)?.name;
   },
   // Guilds functions
   getGuildById(client: Client, guildId: string) {
     return client.guilds.cache.get(guildId);
   },
   getAllGuilds(client: Client) {
-    let guildsCollection: import('discord.js').Collection<string, Guild>;
+    let guildsCollection: import('discord.js').Collection<string, Guild> | undefined;
     if (client) {
       guildsCollection = client.guilds.cache;
     }
-    // @ts-expect-error - Remaining unresolved typing
     return guildsCollection;
   },
-  getNameFromItem(item: unknown) {
+  getNameFromItem(item: Message | Interaction) {
+    const msg = item as Message & { user?: User };
     return (
-    // @ts-expect-error - Remaining unresolved typing
-      item?.author?.displayName ||
-    // @ts-expect-error - Remaining unresolved typing
-      item?.author?.username ||
-    // @ts-expect-error - Remaining unresolved typing
-      item?.user?.globalName ||
-    // @ts-expect-error - Remaining unresolved typing
-      item?.user?.username
+      msg?.author?.displayName ||
+      msg?.author?.username ||
+      msg?.user?.globalName ||
+      msg?.user?.username
     );
   },
   // REST functions
@@ -2154,8 +2409,7 @@ const DiscordUtilityService = {
     });
   },
   async getBannerFromUserId(client: Client, userId: string) {
-    const getUser = await client.rest.get(`/users/${userId}`);
-    // @ts-expect-error - Remaining unresolved typing
+    const getUser = await client.rest.get(`/users/${userId}`) as Record<string, unknown>;
     return getUser.banner;
   },
   // Typing functions
@@ -2191,7 +2445,7 @@ const DiscordUtilityService = {
     const messageChunkSizeLimit = 2000;
     let fileName = "lupos.png";
     let imageDescription = "";
-    let returnedFirstMessage: Message | null;
+    let returnedFirstMessage: Message | null = null;
 
     if (imagePrompt) {
       fileName = `${imagePrompt.substring(0, 240)}.png`;
@@ -2210,8 +2464,7 @@ const DiscordUtilityService = {
         description: imageDescription,
       }];
       if (sendOrReply === "send") {
-    // @ts-expect-error - Remaining unresolved typing
-        return await message.channel.send({ files });
+      return await (message.channel as TextChannel).send({ files });
       } else {
         return await message.reply({ files });
       }
@@ -2219,23 +2472,20 @@ const DiscordUtilityService = {
 
     for (
       let i = 0;
-    // @ts-expect-error - Remaining unresolved typing
-      i < generatedTextResponse.length;
+      i < generatedTextResponse!.length;
       i += messageChunkSizeLimit
     ) {
-    // @ts-expect-error - Remaining unresolved typing
-      const chunk = generatedTextResponse.substring(
+      const chunk = generatedTextResponse!.substring(
         i,
         i + messageChunkSizeLimit,
       );
-      let messageReplyOptions = { content: chunk };
+      let messageReplyOptions: Record<string, unknown> = { content: chunk };
       const files: import('discord.js').AttachmentPayload[] = [];
 
 
       if (
         encodedImageDataBase64 &&
-    // @ts-expect-error - Remaining unresolved typing
-        i + messageChunkSizeLimit >= generatedTextResponse.length
+        i + messageChunkSizeLimit >= generatedTextResponse!.length
       ) {
         // encodedImageDataBase64 may be a Buffer (from agent) or a base64 string (legacy)
         const imageAttachment = Buffer.isBuffer(encodedImageDataBase64)
@@ -2247,24 +2497,20 @@ const DiscordUtilityService = {
           description: imageDescription,
         });
       }
-      messageReplyOptions = { ...messageReplyOptions, files: files } as any;
+      messageReplyOptions = { ...messageReplyOptions, files: files };
       if (sendOrReply === "send") {
-    // @ts-expect-error - Remaining unresolved typing
-        const sentMessage = await message.channel.send(messageReplyOptions);
-    // @ts-expect-error - Remaining unresolved typing
+      const sentMessage = await (message.channel as TextChannel).send(messageReplyOptions);
         if (!returnedFirstMessage) {
           returnedFirstMessage = sentMessage;
         }
       } else if (sendOrReply === "reply") {
         const repliedMessage = await message.reply(messageReplyOptions);
-    // @ts-expect-error - Remaining unresolved typing
         if (!returnedFirstMessage) {
           returnedFirstMessage = repliedMessage;
         }
       }
     }
-    // @ts-expect-error - Remaining unresolved typing
-    return returnedFirstMessage;
+    return returnedFirstMessage!;
   },
   // Utility functions
   async displayAllChannelActivity(client: Client) {
@@ -2281,10 +2527,12 @@ const DiscordUtilityService = {
       `[CONFIG] Processing ${CONCURRENT_CHANNELS} channels concurrently`,
     );
 
-    // @ts-expect-error - Remaining unresolved typing
-    const guild = client.guilds.cache.get(config.GUILD_ID_PRIMARY);
+    const guild = client.guilds.cache.get(config.GUILD_ID_PRIMARY!);
+    if (!guild) {
+      console.error("[ERROR] Primary guild not found");
+      return;
+    }
     console.log(
-    // @ts-expect-error - Remaining unresolved typing
       `[GUILD] Found guild: ${guild.name} with ${guild.channels.cache.size} total channels`,
     );
 
@@ -2314,8 +2562,8 @@ const DiscordUtilityService = {
       `[FILTER] Excluding ${excludedChannels.length} specific channels`,
     );
 
-    const channelStats: unknown[] = [];
-    const globalUserStats: Record<string, any> = {};
+    const channelStats: ChannelStat[] = [];
+    const globalUserStats: Record<string, UserStat> = {};
     const now = TemporalHelpers.now();
     const cutoffDate = TemporalHelpers.minus(now, { months: MONTHS_TO_ANALYZE });
     console.log(`[TIME] Current time: ${TemporalHelpers.nowISO()}`);
@@ -2328,7 +2576,6 @@ const DiscordUtilityService = {
 
     // Collect all eligible channels first
     const eligibleChannels: TextChannel[] = [];
-    // @ts-expect-error - Remaining unresolved typing
     for (const channel of guild.channels.cache.values()) {
       if (
         channel.type === ChannelType.GuildText &&
@@ -2350,8 +2597,7 @@ const DiscordUtilityService = {
     const processChannel = async (channel: TextChannel, channelIndex: number) => {
       const logPrefix = `[CH ${channelIndex}/${eligibleChannelCount}]`;
       console.log(
-    // @ts-expect-error - Remaining unresolved typing
-        `\n${logPrefix} Processing: #${channel.name} (Category: ${channel.parent.name})`,
+        `\n${logPrefix} Processing: #${channel.name} (Category: ${channel.parent?.name ?? "No Category"})`,
       );
 
       try {
@@ -2381,7 +2627,6 @@ const DiscordUtilityService = {
             lastMessageId ? lastMessageId : undefined,
           );
 
-    // @ts-expect-error - Remaining unresolved typing
           const messagesArray: Message[] = messages ? Array.from(messages.values()) : [];
 
           if (messagesArray.length === 0) {
@@ -2468,8 +2713,7 @@ const DiscordUtilityService = {
             `  ${logPrefix} [FETCH] Next fetch will use before: ${lastMessageId}`,
           );
 
-    // @ts-expect-error - Remaining unresolved typing
-          await new Promise((resolve: Record<string, unknown>) => setTimeout(resolve, 100));
+          await new Promise<void>((resolve) => setTimeout(resolve, 100));
         }
 
         console.log(
@@ -2487,8 +2731,8 @@ const DiscordUtilityService = {
           `  ${logPrefix} [PROCESS] Found ${messagesInPeriod.length} messages in the last ${periodText} (out of ${allMessages.length} total fetched)`,
         );
 
-        const userMessageCount: Record<string, any> = {};
-        const localUserStats: Record<string, any> = {}; // Collect locally first to avoid race conditions
+        const userMessageCount: Record<string, { username: string; count: number }> = {};
+        const localUserStats: Record<string, UserStat> = {}; // Collect locally first to avoid race conditions
 
         messagesInPeriod.forEach((message: Message) => {
           const userId = message.author.id;
@@ -2518,18 +2762,16 @@ const DiscordUtilityService = {
         );
 
         const sortedUsers = Object.entries(userMessageCount)
-    // @ts-expect-error - Remaining unresolved typing
-          .sort((a: Record<string, unknown>, b: Record<string, unknown>) => b[1].count - a[1].count)
+          .sort(([, a], [, b]) => b.count - a.count)
           .slice(0, 20)
-    // @ts-expect-error - Remaining unresolved typing
-          .map(([_userId, data]: Record<string, unknown>) => ({
+          .map(([_userId, data]) => ({
             username: data.username,
             count: data.count,
           }));
 
         if (sortedUsers.length > 0) {
           console.log(`  ${logPrefix} [TOP USERS] Top contributors:`);
-          sortedUsers.forEach((user: Record<string, unknown>, index: number) => {
+          sortedUsers.forEach((user, index: number) => {
             console.log(
               `    ${index + 1}. ${user.username}: ${user.count} messages`,
             );
@@ -2592,16 +2834,16 @@ const DiscordUtilityService = {
       } catch (error: unknown) {
         console.error(
           `  ${logPrefix} [ERROR] Failed to fetch messages for channel ${channel.name}:`,
-          (error as Error).message,
+          errorMessage(error),
         );
-        console.error(`  ${logPrefix} [ERROR] Stack trace:`, (error as any).stack);
+        console.error(`  ${logPrefix} [ERROR] Stack trace:`, errorStack(error));
         processedChannelCount++;
         return null;
       }
     };
 
     // Process channels in batches with concurrency limit
-    const results: unknown[] = [];
+    const results: (ActivityChannelResult | null)[] = [];
     for (let i = 0; i < eligibleChannels.length; i += CONCURRENT_CHANNELS) {
       const batch = eligibleChannels.slice(i, i + CONCURRENT_CHANNELS);
       const batchNumber = Math.floor(i / CONCURRENT_CHANNELS) + 1;
@@ -2628,12 +2870,10 @@ const DiscordUtilityService = {
     // Merge results
     for (const result of results) {
       if (result) {
-    // @ts-expect-error - Remaining unresolved typing
         channelStats.push(result.channelStat);
 
         // Merge local user stats into global
-    // @ts-expect-error - Remaining unresolved typing
-        for (const [userId, data] of Object.entries(result.localUserStats) as [string, any][]) {
+        for (const [userId, data] of Object.entries(result.localUserStats)) {
           if (!globalUserStats[userId]) {
             globalUserStats[userId] = {
               username: data.username,
@@ -2652,8 +2892,7 @@ const DiscordUtilityService = {
     console.log("\n----------------------------------------");
     console.log("[SORT] Sorting channels by average messages per day...");
     channelStats.sort(
-    // @ts-expect-error - Remaining unresolved typing
-      (a: Record<string, unknown>, b: Record<string, unknown>) => b.averageMessagesPerDay - a.averageMessagesPerDay,
+      (a, b) => b.averageMessagesPerDay - a.averageMessagesPerDay,
     );
     console.log("[SORT] Sorting complete (by average messages/day)");
 
@@ -2666,38 +2905,28 @@ const DiscordUtilityService = {
       "-----|---------|----------|-------|----------|---------------------|----------------------|-------------",
     );
 
-    channelStats.forEach((stat: unknown, index: number) => {
+    channelStats.forEach((stat, index: number) => {
       const rank = (index + 1).toString().padStart(4, " ");
-    // @ts-expect-error - Remaining unresolved typing
       const avgPerDay = stat.averageMessagesPerDay.toFixed(2).padStart(7, " ");
-    // @ts-expect-error - Remaining unresolved typing
       const messageCount = stat.messageCount.toString().padStart(8, " ");
-    // @ts-expect-error - Remaining unresolved typing
       const uniqueUsers = stat.uniqueUsers.toString().padStart(5, " ");
 
       let daysSinceLastMessage = "N/A";
-    // @ts-expect-error - Remaining unresolved typing
       if (stat.lastMessageDate) {
-    // @ts-expect-error - Remaining unresolved typing
         const daysDiff = TemporalHelpers.diffIn(now, stat.lastMessageDate, "days");
         daysSinceLastMessage = daysDiff.toFixed(0).padStart(8, " ");
       } else {
         daysSinceLastMessage = daysSinceLastMessage.padStart(8, " ");
       }
 
-    // @ts-expect-error - Remaining unresolved typing
       const category = stat.categoryName.substring(0, 20).padEnd(20, " ");
-    // @ts-expect-error - Remaining unresolved typing
       const channelName = stat.channel.name.substring(0, 20).padEnd(20, " ");
 
       let topUsersStr = "";
-    // @ts-expect-error - Remaining unresolved typing
       if (stat.topUsers.length > 0) {
-    // @ts-expect-error - Remaining unresolved typing
         topUsersStr = stat.topUsers
           .slice(0, 3)
-    // @ts-expect-error - Remaining unresolved typing
-          .map((user: User, index: number) => `${index + 1}. ${user.username} (${user.count})`)
+          .map((user, userIndex: number) => `${userIndex + 1}. ${user.username} (${user.count})`)
           .join(", ");
       } else {
         topUsersStr = "No activity";
@@ -2709,28 +2938,23 @@ const DiscordUtilityService = {
     });
 
     const totalMessages = channelStats.reduce(
-    // @ts-expect-error - Remaining unresolved typing
-      (sum: unknown, stat: unknown) => sum + stat.messageCount,
+      (sum, stat) => sum + stat.messageCount,
       0,
     );
     const activeChannels = channelStats.filter(
-    // @ts-expect-error - Remaining unresolved typing
-      (stat: unknown) => stat.messageCount > 0,
+      (stat) => stat.messageCount > 0,
     ).length;
     const inactiveChannels = channelStats.filter(
-    // @ts-expect-error - Remaining unresolved typing
-      (stat: unknown) => stat.messageCount === 0,
+      (stat) => stat.messageCount === 0,
     ).length;
     const totalUniqueUsers = Object.keys(globalUserStats).length;
 
     const mostActiveByAverage = channelStats[0];
 
     const topTenUsers = Object.entries(globalUserStats)
-    // @ts-expect-error - Remaining unresolved typing
-      .sort((a: Record<string, unknown>, b: Record<string, unknown>) => b[1].totalMessages - a[1].totalMessages)
+      .sort(([, a], [, b]) => b.totalMessages - a.totalMessages)
       .slice(0, 10)
-    // @ts-expect-error - Remaining unresolved typing
-      .map(([_userId, data]: Record<string, unknown>) => ({
+      .map(([_userId, data]) => ({
         username: data.username,
         totalMessages: data.totalMessages,
         channelCount: data.channels.size,
@@ -2745,7 +2969,6 @@ const DiscordUtilityService = {
     console.log(`[SUMMARY] Active channels: ${activeChannels}`);
     console.log(`[SUMMARY] Inactive channels: ${inactiveChannels}`);
     console.log(
-    // @ts-expect-error - Remaining unresolved typing
       `[SUMMARY] Most active channel (by avg/day): ${mostActiveByAverage?.channel.name || "N/A"} (${mostActiveByAverage?.averageMessagesPerDay.toFixed(2) || 0} messages/day)`,
     );
     console.log(`[SUMMARY] Total channels processed: ${processedChannelCount}`);
@@ -2772,16 +2995,13 @@ const DiscordUtilityService = {
       "-----|-------------------------|----------------|----------------",
     );
 
-    topTenUsers.forEach((user: Record<string, unknown>, index: number) => {
+    topTenUsers.forEach((user, index: number) => {
       const rank = (index + 1).toString().padStart(4, " ");
-    // @ts-expect-error - Remaining unresolved typing
       const username = user.username.substring(0, 23).padEnd(23, " ");
-    // @ts-expect-error - Remaining unresolved typing
-      const totalMessages = user.totalMessages.toString().padStart(14, " ");
-    // @ts-expect-error - Remaining unresolved typing
+      const totalMsgs = user.totalMessages.toString().padStart(14, " ");
       const channelCount = user.channelCount.toString().padStart(15, " ");
 
-      console.log(`${rank} | ${username} | ${totalMessages} | ${channelCount}`);
+      console.log(`${rank} | ${username} | ${totalMsgs} | ${channelCount}`);
     });
 
     console.log("\n[END] Channel activity analysis complete!");
@@ -2805,11 +3025,11 @@ const DiscordUtilityService = {
     let lastMessageDate = null;
 
     try {
-      const recentMessages = (
-        await DiscordUtilityService.fetchMessages(client, channel.id, {
+      const fetchResult = await DiscordUtilityService.fetchMessages(client, channel.id, {
           limit: 100,
-        })
-      ).reverse();
+        });
+      if (!fetchResult) return;
+      const recentMessages = fetchResult.reverse();
       for (const recentMsg of recentMessages.values()) {
         messageCount++;
         if (
@@ -2821,8 +3041,7 @@ const DiscordUtilityService = {
       }
     } catch (error: unknown) {
       console.log(
-    // @ts-expect-error - Remaining unresolved typing
-        `Error fetching messages from channel ${channel.name}: ${(error as Error).message}`,
+        `Error fetching messages from channel ${(channel as TextChannel).name}: ${errorMessage(error)}`,
       );
       return;
     }
@@ -2836,8 +3055,7 @@ const DiscordUtilityService = {
       (daysSinceStart * 24)
     ).toFixed(2);
 
-    // @ts-expect-error - Remaining unresolved typing
-    console.log(`Channel: ${channel.name}`);
+    console.log(`Channel: ${(channel as TextChannel).name}`);
     console.log(
       `Messages sent in the last ${daysSinceStart} days: ${messageCount}`,
     );
@@ -2855,17 +3073,16 @@ const DiscordUtilityService = {
     try {
       if (
         !member.user.bot &&
-        !member.roles.cache.some((role: Role) => role.id === roleId)
+        !member.roles.cache.some((r: Role) => r.id === roleId)
       ) {
-    // @ts-expect-error - Remaining unresolved typing
+        if (!role) return;
         await member.roles.add(role);
-    // @ts-expect-error - Remaining unresolved typing
         console.log(...LogFormatter.roleAdded(member, role));
       }
     } catch (error: unknown) {
+      if (!role) return;
       console.error(
-    // @ts-expect-error - Remaining unresolved typing
-        ...LogFormatter.roleFailedToAdd(member.user.id, role, (error as Error).message),
+        ...LogFormatter.roleFailedToAdd(member, role, error instanceof Error ? error : new Error(errorMessage(error))),
       );
     }
   },
@@ -2876,27 +3093,26 @@ const DiscordUtilityService = {
     try {
       if (
         !member.user.bot &&
-        member.roles.cache.some((role: Role) => role.id === roleId)
+        member.roles.cache.some((r: Role) => r.id === roleId)
       ) {
-    // @ts-expect-error - Remaining unresolved typing
+        if (!role) return;
         await member.roles.remove(role);
-    // @ts-expect-error - Remaining unresolved typing
         console.log(...LogFormatter.roleRemoved(member, role));
       }
     } catch (error: unknown) {
+      if (!role) return;
       console.error(
-    // @ts-expect-error - Remaining unresolved typing
-        ...LogFormatter.roleFailedToRemove(member.user.id, role, (error as Error).message),
+        ...LogFormatter.roleFailedToRemove(member.user.id, role, error instanceof Error ? error : new Error(errorMessage(error))),
       );
     }
   },
   async setUserStatus(client: Client, status: PresenceStatusData) {
     try {
-    // @ts-expect-error - Remaining unresolved typing
+      if (!client.user) return;
       await client.user.setStatus(status);
       console.log(`Set bot status to ${status}`);
     } catch (error: unknown) {
-      console.error(`Failed to set bot status to ${status}:`, (error as Error).message);
+      console.error(`Failed to set bot status to ${status}:`, errorMessage(error));
     }
   },
 };
