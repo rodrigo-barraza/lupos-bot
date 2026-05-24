@@ -1,13 +1,13 @@
 import type { RESTPostAPIChatInputApplicationCommandsJSONBody } from "discord.js";
 import { REST, Routes, Client, GatewayIntentBits } from "discord.js";
-import secrets from "./config.ts";
+import secrets from "../config.ts";
 import fs from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 const { LUPOS_TOKEN } = secrets;
 
 const commands: RESTPostAPIChatInputApplicationCommandsJSONBody[] = [];
-const foldersPath = path.join(import.meta.dirname, "commands");
+const foldersPath = path.join(import.meta.dirname, "..", "commands");
 const commandFolders = fs.readdirSync(foldersPath);
 
 for (const folder of commandFolders) {
