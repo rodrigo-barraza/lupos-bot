@@ -15,7 +15,7 @@
  */
 function parseCommaSeparated(envKey: string) {
   const raw = process.env[envKey];
-  return raw ? raw.split(",").map((s) => s.trim()).filter(Boolean) : [];
+  return raw ? raw.split(",").map((segment) => segment.trim()).filter(Boolean) : [];
 }
 
 

@@ -176,23 +176,23 @@ function formatMembersData(guild: Guild): TransformedGuildMembers {
   // ── Helper: pick a display-worthy activity from presence ─────
   function pickActivity(presence: Presence | null | undefined): string | null {
     if (!presence?.activities?.length) return null;
-    const realActivity = presence.activities.find((a: Activity) => a.type !== 4);
+    const realActivity = presence.activities.find((activity: Activity) => activity.type !== 4);
     if (realActivity) return realActivity.name;
-    const customStatus = presence.activities.find((a: Activity) => a.type === 4);
+    const customStatus = presence.activities.find((activity: Activity) => activity.type === 4);
     return customStatus?.state || null;
   }
 
   // Collect online members (online, idle, dnd — not offline).
   const onlineMembers = guild.members.cache.filter(
-    (m: GuildMember) =>
-      m.presence &&
-      m.presence.status &&
-      m.presence.status !== "offline",
+    (member: GuildMember) =>
+      member.presence &&
+      member.presence.status &&
+      member.presence.status !== "offline",
   );
 
   // Bots without presence are treated as online sidebar elements per Discord behavior
   const offlineBots = guild.members.cache.filter(
-    (m: GuildMember) => m.user.bot && (!m.presence || m.presence.status === "offline"),
+    (member: GuildMember) => member.user.bot && (!member.presence || member.presence.status === "offline"),
   );
 
   const roleMap = new Map<string, RoleGroup>();
