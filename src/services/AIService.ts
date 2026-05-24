@@ -37,6 +37,7 @@ export interface ChatMessage {
   role: string;
   name?: string;
   content: string;
+  images?: string[];
 }
 
 export interface GenerateTextOptions {

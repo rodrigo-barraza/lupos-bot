@@ -13,6 +13,7 @@ import type {
   VoiceConnectionState,
   VoiceReceiver,
   AudioReceiveStream,
+  AudioResource,
 } from "@discordjs/voice";
 import play from "play-dl";
 import type { YouTubeVideo } from "play-dl";
@@ -27,13 +28,13 @@ import {
   EmbedBuilder,
   AttachmentBuilder,
 } from "discord.js";
-import type { Client, Message, GuildMember, TextChannel } from "discord.js";
+import type { Client, Message, GuildMember, TextChannel, APIEmbed } from "discord.js";
 
 // new
 import prism from "prism-media";
 import fs from "fs";
 import path from "path";
-import type { Transform } from "stream";
+import type { Transform, Readable } from "stream";
 
 interface QueueItem {
   video: YouTubeVideo;
@@ -373,24 +374,18 @@ class YouTubeService {
 
       // Add message when song is added to queue
       if (isQueueProcessing) {
-        const _formatted = utilities.formatPlaybackTime((player!.state as any).resource.playbackDuration);
+        const _formatted = utilities.formatPlaybackTime(YouTubeService.getPlaybackDuration());
 
         // grab existing message embed and resend it with updated fields
-        const existingEmbed = nowPlayingMessage!.embeds[0];
-        const updatedEmbed = {
-          color: existingEmbed.color,
-          title: existingEmbed.title,
-          url: existingEmbed.url,
-          description: existingEmbed.description,
+        const existingEmbedData = nowPlayingMessage!.embeds[0].data;
+        const updatedEmbed: APIEmbed = {
+          ...existingEmbedData,
           fields: [
             {
-              name: "",
+              name: "\u200b",
               value: `Volume: ${volumeLevel}%`,
             },
-          ] as { name: string; value: string; inline?: boolean }[],
-          footer: existingEmbed.footer,
-          author: existingEmbed.author,
-          image: existingEmbed.image,
+          ],
         };
 
         if (queue.length > 0) {
@@ -400,7 +395,7 @@ class YouTubeService {
                 `${index + 1}. ${item.video.title} (${item.video.durationRaw})`,
             )
             .join("\n");
-          updatedEmbed.fields.push({
+          updatedEmbed.fields!.push({
             name: "Up Next",
             value: nextSongs,
             inline: false,
@@ -410,7 +405,7 @@ class YouTubeService {
         message.reply(
           `Added to queue: **${video.title}** (${video.durationRaw}) - Position #${queue.length}`,
         );
-        nowPlayingMessage = await (message.channel as any).send({
+        nowPlayingMessage = await (message.channel as TextChannel).send({
           embeds: [updatedEmbed],
         });
 
@@ -583,7 +578,7 @@ class YouTubeService {
     try {
       const opusStream = receiver.subscribe(userId, {
         end: {
-          behavior: "afterSilence" as any,
+          behavior: EndBehaviorType.AfterSilence,
           duration: 100,
         },
       });
@@ -621,7 +616,7 @@ class YouTubeService {
       });
 
       // Pipe to individual file
-      (opusStream as any)
+      (opusStream as Readable)
         .pipe(decoder)
         .pipe(outputStream)
         .on("finish", async () => {
@@ -647,13 +642,13 @@ class YouTubeService {
       if (audioMixer) {
         const mixerStream = receiver.subscribe(userId, {
           end: {
-            behavior: "afterSilence" as any,
+            behavior: EndBehaviorType.AfterSilence,
             duration: 100,
           },
         });
 
         if (mixerStream) {
-          (mixerStream as any).pipe(mixerDecoder);
+          (mixerStream as Readable).pipe(mixerDecoder);
           audioMixer.addSource(userId, mixerDecoder);
         }
       }
@@ -722,14 +717,14 @@ class YouTubeService {
       let volumeBar = "░░░░░░░░░░░░";
 
       const progress =
-        (player!.state as any).resource.playbackDuration /
+        YouTubeService.getPlaybackDuration() /
         (currentVideo!.durationInSec * 1000);
       const filledLength = Math.floor(progress * progressBar.length);
       progressBar =
         progressBar.substring(0, filledLength).replace(/░/g, "█") +
         progressBar.substring(filledLength);
 
-      const formatted = utilities.formatPlaybackTime((player!.state as any).resource.playbackDuration);
+      const formatted = utilities.formatPlaybackTime(YouTubeService.getPlaybackDuration());
 
       dividingLine = dividingLine
         .slice(formatted.length)
@@ -753,49 +748,43 @@ ${formatted} ${dividingLine} ${currentVideo!.durationRaw}
 \`\`\``;
 
       // Create a completely new embed object
-      const existingEmbed = nowPlayingMessage!.embeds[0];
-      const updatedEmbed = {
-        color: existingEmbed.color,
-        title: existingEmbed.title,
-        url: existingEmbed.url,
-        // description: existingEmbed.description,
-        description: existingEmbed.description,
+      const existingEmbedData = nowPlayingMessage!.embeds[0].data;
+      const updatedEmbed: APIEmbed = {
+        ...existingEmbedData,
         fields: [
           {
-            name: "",
+            name: "\u200b",
             value: dox,
           },
           {
-            name: "",
-            value: `\`🔊 ${volumeLevel}% | Queue: ${queue.length} | Requested by @${DiscordUtilityService.getNameFromItem(currentMessage as any)}\``,
+            name: "\u200b",
+            value: `\`🔊 ${volumeLevel}% | Queue: ${queue.length} | Requested by @${currentMessage ? DiscordUtilityService.getNameFromItem(currentMessage) : "Unknown"}\``,
             inline: true,
           },
         ],
-        author: existingEmbed.author,
-        image: existingEmbed.image,
       };
 
       if (queue.length > 0) {
         const nextSongs = queue
           .map(
             (item: QueueItem, index: number) =>
-              `\`${index + 1}. ${item.video.title} (${item.video.durationRaw}) @${DiscordUtilityService.getNameFromItem(item.message as any)}\``,
+              `\`${index + 1}. ${item.video.title} (${item.video.durationRaw}) @${DiscordUtilityService.getNameFromItem(item.message)}\``,
           )
           .join("\n");
-        updatedEmbed.fields.push({
+        updatedEmbed.fields!.push({
           name: "Up Next",
           value: nextSongs,
           inline: false,
         });
       } else {
-        updatedEmbed.fields.push({
+        updatedEmbed.fields!.push({
           name: "Up Next",
           value: "No songs in the queue.",
           inline: false,
         });
       }
 
-      const actionRow = new ActionRowBuilder();
+      const actionRow = new ActionRowBuilder<ButtonBuilder>();
       // if is paused change button to resume
 
       const isThereANextSong = queue.length > 0;
@@ -846,7 +835,7 @@ ${formatted} ${dividingLine} ${currentVideo!.durationRaw}
           .setStyle(ButtonStyle.Secondary)
           .setDisabled(true),
       );
-      const volumeRow = new ActionRowBuilder().addComponents(
+      const volumeRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
         new ButtonBuilder()
           .setCustomId("empty3")
           .setLabel("⠀⠀")
@@ -874,7 +863,7 @@ ${formatted} ${dividingLine} ${currentVideo!.durationRaw}
       );
 
       nowPlayingMessage!
-        .edit({ embeds: [updatedEmbed as any], components: [actionRow as any, volumeRow as any] })
+        .edit({ embeds: [updatedEmbed], components: [actionRow, volumeRow] })
         .catch((error: Error) => {
           console.error("Failed to update embed:", error);
           YouTubeService.stopUpdateInterval();
@@ -961,25 +950,19 @@ ${formatted} ${dividingLine} ${currentVideo!.durationRaw}
       message.reply(`Volume set to ${volumeLevel}%`);
 
       // Create a completely new embed object
-      const existingEmbed = nowPlayingMessage!.embeds[0];
-      const updatedEmbed = {
-        color: existingEmbed.color,
-        title: existingEmbed.title,
-        url: existingEmbed.url,
-        description: existingEmbed.description,
+      const existingEmbedData = nowPlayingMessage!.embeds[0].data;
+      const updatedEmbed: APIEmbed = {
+        ...existingEmbedData,
         fields: [
           {
-            name: "",
-            value: "",
+            name: "\u200b",
+            value: "\u200b",
           },
           {
-            name: "",
+            name: "\u200b",
             value: `Volume: ${volumeLevel}%`,
           },
-        ] as { name: string; value: string; inline?: boolean }[],
-        author: existingEmbed.author,
-        image: existingEmbed.image,
-        footer: existingEmbed.footer,
+        ],
       };
 
       if (queue.length > 0) {
@@ -989,20 +972,20 @@ ${formatted} ${dividingLine} ${currentVideo!.durationRaw}
               `${index + 1}. ${item.video.title} (${item.video.durationRaw})`,
           )
           .join("\n");
-        updatedEmbed.fields.push({
+        updatedEmbed.fields!.push({
           name: "Up Next",
           value: nextSongs,
           inline: false,
         });
       } else {
-        updatedEmbed.fields.push({
+        updatedEmbed.fields!.push({
           name: "Up Next",
           value: "No songs in the queue.",
           inline: false,
         });
       }
 
-      nowPlayingMessage = await (message.channel as any).send({
+      nowPlayingMessage = await (message.channel as TextChannel).send({
         embeds: [updatedEmbed],
       });
 
@@ -1077,12 +1060,27 @@ ${formatted} ${dividingLine} ${currentVideo!.durationRaw}
     if (!message.content.startsWith("!time")) return;
     if (!player) return message.reply("No song is currently playing!");
 
-    const currentTime = (player!.state as any).resource.playbackDuration;
-    const totalDuration = (player!.state as any).resource.metadata.duration;
+    const currentTime = YouTubeService.getPlaybackDuration();
+    const metadata = YouTubeService.getPlayerMetadata();
+    const totalDuration = metadata ? metadata.durationInSec * 1000 : 0;
 
     message.reply(
       `Current time: ${utilities.formatPlaybackTime(currentTime)} / ${utilities.formatPlaybackTime(totalDuration)}`,
     );
+  }
+
+  private static getPlaybackDuration(): number {
+    if (player && "resource" in player.state && player.state.resource) {
+      return (player.state.resource as AudioResource<YouTubeVideo>).playbackDuration;
+    }
+    return 0;
+  }
+
+  private static getPlayerMetadata(): YouTubeVideo | null {
+    if (player && "resource" in player.state && player.state.resource) {
+      return (player.state.resource as AudioResource<YouTubeVideo>).metadata;
+    }
+    return null;
   }
 }
 
