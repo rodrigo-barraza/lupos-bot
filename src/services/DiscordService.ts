@@ -30,6 +30,7 @@ import MongoService from "#root/services/MongoService.js";
 import PrismService from "#root/services/PrismService.js";
 import DiscordUtilityService from "#root/services/DiscordUtilityService.js";
 import AIService from "#root/services/AIService.js";
+import type { ChatMessage } from "#root/services/AIService.js";
 import CurrentService from "#root/services/CurrentService.js";
 
 import BirthdayJob from "#root/jobs/scheduled/BirthdayJob.js";
@@ -570,7 +571,7 @@ async function buildAndGenerateReply({
     ) {
       // Match recent messages and user names against custom context keywords
       const customContextWhitemane = MessageConstant.customContextWhitemane;
-      const serverContextSet = new Set();
+      const serverContextSet = new Set<{ title?: string; keywords?: string | string[]; description?: string }>();
 
       const contextWithPatterns = customContextWhitemane.map((context: { keywords: string | string[] }) => {
         const keywords = Array.isArray(context.keywords)
@@ -602,7 +603,7 @@ async function buildAndGenerateReply({
           }
         }
       }
-      serverContext.push(...(serverContextSet as unknown as any[]));
+      serverContext.push(...serverContextSet);
     }
 
     systemPrompt = `# Discord client information`;
@@ -1609,14 +1610,14 @@ Respond with ONLY "yes" or "no". Nothing else.`,
     // ── Build agent conversation ─────────────────────────────────
     // No system prompt injected here — Prism's SystemPromptAssembler
     // builds the complete prompt (persona + agentContext blocks).
-    const agentConversation = [...(conversation || [])] as Record<string, any>[];
+    const agentConversation = [...(conversation || [])] as unknown as ChatMessage[];
 
     // Attach collected image data URLs to the last user message
     // so the agent (and the generate_image tool) can access them
     if (imageUrls.length > 0) {
       const lastUserMsg = [...agentConversation]
         .reverse()
-        .find((m: Record<string, any>) => m.role === "user");
+        .find((m) => m.role === "user");
       if (lastUserMsg) {
         if (!lastUserMsg.images) lastUserMsg.images = [];
         lastUserMsg.images.push(...imageUrls);
@@ -1660,7 +1661,7 @@ Respond with ONLY "yes" or "no". Nothing else.`,
             : config.ANTHROPIC_LANGUAGE_MODEL_FAST;
 
     const agentResponse = await PrismService.generateAgentResponse({
-      messages: agentConversation as any[],
+      messages: agentConversation,
       type: config.LANGUAGE_MODEL_TYPE || "",
       model: agentModel || "",
       agentContext,
@@ -1927,7 +1928,7 @@ ${combinedGuildInformation && combinedChannelInformation ? `URL: ${utilities.get
       PrismService.extractMemories({
         guildId,
         channelId: (message as Message).channel?.id || "",
-        messages: recentUserMessages as unknown as any[],
+        messages: recentUserMessages as ChatMessage[],
         participants: memoryParticipants.map((p: { id: string; displayName?: string; username?: string }) => p.displayName || p.username || p.id),
         sourceMessageId: (message as Message).id,
         traceId: CurrentService.getTraceId() || undefined,
@@ -2118,11 +2119,11 @@ async function extractContentFromMessages(
 
   // Prepare all async operations
   const allPromises = {
-    conversations: [] as any[],
-    emojis: [] as any[],
-    audio: [] as any[],
-    images: [] as any[],
-    replies: [] as any[],
+    conversations: [] as { userId: string; promise: Promise<unknown> }[],
+    emojis: [] as { messageId: string; promise: Promise<Collection<string, unknown>> }[],
+    audio: [] as { message: Message; promise: Promise<{ transcriptionsMap: Map<string, unknown> }> }[],
+    images: [] as { message: Message; promise: Promise<{ images: string[]; imagesMap: Map<string, any> }> }[],
+    replies: [] as { messageId: string; referenceId: string; promise: Promise<Message | void | null> }[],
   };
 
   // First pass: collect all async operations
@@ -2274,15 +2275,15 @@ async function extractContentFromMessages(
           // instead of pre-captioning every avatar on every message.
           let avatarUrl: string | null = null, bannerUrl: string | null = null;
           if (user) {
-            avatarUrl = utilities.getDiscordAvatarUrl(user.id, user.avatar as any);
-            bannerUrl = utilities.getDiscordBannerUrl(user.id, user.banner as any);
+            avatarUrl = user.avatar ? utilities.getDiscordAvatarUrl(user.id, user.avatar) : null;
+            bannerUrl = user.banner ? utilities.getDiscordBannerUrl(user.id, user.banner) : null;
           }
           if (member) {
             if (member.avatar) {
-              avatarUrl = utilities.getDiscordAvatarUrl(member.id, member.avatar as any);
+              avatarUrl = utilities.getDiscordAvatarUrl(member.id, member.avatar);
             }
             if (member.banner) {
-              bannerUrl = utilities.getDiscordBannerUrl(member.id, member.banner as any);
+              bannerUrl = utilities.getDiscordBannerUrl(member.id, member.banner);
             }
           }
 
@@ -2310,7 +2311,7 @@ async function extractContentFromMessages(
           );
         if (audioUrls?.length) {
           allPromises.audio.push({
-            messageId: recentMessage.id,
+            message: recentMessage,
             promise: AIService.transcribeAudioUrls(
               audioUrls,
               recentMessage.id,
@@ -2326,7 +2327,7 @@ async function extractContentFromMessages(
           );
         if (imageUrls.length) {
           allPromises.images.push({
-            messageId: recentMessage.id,
+            message: recentMessage,
             promise: AIService.captionImages(imageUrls, localMongo, "IMAGE"),
           });
         }
@@ -2387,11 +2388,11 @@ async function extractContentFromMessages(
     // Rest of your code remains the same...
     // Execute all promises in parallel
     const results = await Promise.allSettled([
-      ...allPromises.conversations.map((item: any) => item.promise),
-      ...allPromises.emojis.map((item: any) => item.promise),
-      ...allPromises.audio.map((item: any) => item.promise),
-      ...allPromises.images.map((item: any) => item.promise),
-      ...allPromises.replies.map((item: any) => item.promise),
+      ...allPromises.conversations.map((item: { userId: string; promise: Promise<unknown> }) => item.promise),
+      ...allPromises.emojis.map((item: { messageId: string; promise: Promise<Collection<string, unknown>> }) => item.promise),
+      ...allPromises.audio.map((item: { message: Message; promise: Promise<{ transcriptionsMap: Map<string, unknown> }> }) => item.promise),
+      ...allPromises.images.map((item: { message: Message; promise: Promise<{ images: string[]; imagesMap: Map<string, any> }> }) => item.promise),
+      ...allPromises.replies.map((item: { messageId: string; referenceId: string; promise: Promise<Message | void | null> }) => item.promise),
     ]);
 
     // Process results
@@ -2401,16 +2402,16 @@ async function extractContentFromMessages(
     for (const item of allPromises.conversations) {
       const result = results[resultIndex++];
       if (result.status === "fulfilled") {
-        conversationsCollection.set(item.userId, (result as any).value);
+        conversationsCollection.set(item.userId, (result as PromiseFulfilledResult<unknown>).value);
       }
     }
 
 
     // Process emojis
     for (const _item of allPromises.emojis) {
-      const result = results[resultIndex++];
-      if (result.status === "fulfilled" && (result as any).value?.size) {
-        for (const [emoji, emojiObject] of (result as any).value.entries()) {
+      const result = results[resultIndex++] as PromiseSettledResult<Collection<string, unknown>>;
+      if (result.status === "fulfilled" && result.value?.size) {
+        for (const [emoji, emojiObject] of result.value.entries()) {
           messagesEmojisCollection.set(emoji, emojiObject);
         }
       }
@@ -2418,20 +2419,19 @@ async function extractContentFromMessages(
 
     // Process audio
     for (const item of allPromises.audio) {
-      const result = results[resultIndex++];
+      const result = results[resultIndex++] as PromiseSettledResult<{ transcriptionsMap: Map<string, any> }>;
       if (result.status === "fulfilled") {
-        const { transcriptionsMap } = (result as any).value;
-        messagesTranscriptionsCollection.set(item.messageId, transcriptionsMap);
-        for (const [hash, transcriptionObject] of transcriptionsMap.entries()) {
+        const { transcriptionsMap } = result.value;
+        messagesTranscriptionsCollection.set(item.message.id, new Collection(transcriptionsMap));
+        for (const [hash, transcriptionObject] of (transcriptionsMap as Map<string, any>).entries()) {
           console.log(
             ...LogFormatter.transcribeSuccess({
               functionName,
-              hash,
-              message: { id: item.messageId } as any,
+              message: item.message,
               audioUrl: transcriptionObject.url,
               transcription: transcriptionObject.transcription,
               cached: transcriptionObject.cached,
-            } as any),
+            }),
           );
         }
       }
@@ -2439,21 +2439,20 @@ async function extractContentFromMessages(
 
     // Process images
     for (const item of allPromises.images) {
-      const result = results[resultIndex++];
+      const result = results[resultIndex++] as PromiseSettledResult<{ images: string[]; imagesMap: Map<string, any> }>;
       if (result.status === "fulfilled") {
-        const { imagesMap } = (result as any).value;
-        messagesImagesCollection.set(item.messageId, imagesMap);
-        for (const [hash, mapObject] of imagesMap.entries()) {
+        const { imagesMap } = result.value;
+        messagesImagesCollection.set(item.message.id, new Collection(imagesMap));
+        for (const [hash, mapObject] of (imagesMap as Map<string, any>).entries()) {
           console.log(
             ...LogFormatter.captionSuccess({
               functionName,
               hash,
-              message: { id: item.messageId } as any,
+              message: item.message,
               imageUrl: mapObject.url,
               caption: mapObject.caption,
-              fileType: mapObject.fileType,
               cached: mapObject.cached,
-            } as any),
+            }),
           );
         }
       }
@@ -2766,7 +2765,7 @@ async function generateRolesEmbedMessage(client: Client) {
   const channel = DiscordUtilityService.getChannelById(
     client,
     channelId,
-  ) as any;
+  ) as TextChannel | null;
   if (!channel) {
     return;
   }
@@ -2800,9 +2799,9 @@ async function generateRolesEmbedMessage(client: Client) {
     const message1 = allMessages.at(allMessages.size - 1);
     const message2 = allMessages.at(allMessages.size - 2);
     const message3 = allMessages.at(allMessages.size - 3);
-    await message1.edit({ embeds: [factions.embed], components: factions.rows });
-    await message2.edit({ embeds: [classes.embed], components: classes.rows });
-    await message3.edit({ embeds: [videogames.embed], components: videogames.rows });
+    if (message1) await message1.edit({ embeds: [factions.embed], components: factions.rows });
+    if (message2) await message2.edit({ embeds: [classes.embed], components: classes.rows });
+    if (message3) await message3.edit({ embeds: [videogames.embed], components: videogames.rows });
     return;
   }
 }
@@ -3466,8 +3465,8 @@ async function luposOnGuildMemberUpdate(client: Client, mongo: import("mongodb")
   await kickIfForbiddenCombo(newMember, functionName);
 
   // Whenever a user completes onboarding
-  const hasOldMemberCompletedOnboarding = (oldMember.flags as any) & (1 << 1);
-  const hasNewMemberCompletedOnboarding = (newMember.flags as any) & (1 << 1);
+  const hasOldMemberCompletedOnboarding = oldMember.flags ? (oldMember.flags.bitfield & (1 << 1)) : 0;
+  const hasNewMemberCompletedOnboarding = newMember.flags ? (newMember.flags.bitfield & (1 << 1)) : 0;
   if (!hasOldMemberCompletedOnboarding && hasNewMemberCompletedOnboarding) {
     // LightsService.cycleColor(config.PRIMARY_LIGHT_ID);
     console.log(
@@ -3701,7 +3700,7 @@ async function generateAttachmentsResponse(
   if (!(message as Message).content) {
     if ((transcriptionsCollection?.size ?? 0) > 0) {
       // iterate through the first one only
-      const audioTranscriptions = (transcriptionsCollection as any).values().next()
+      const audioTranscriptions = transcriptionsCollection!.values().next()
         .value?.transcription || "";
       modifiedContent += `\nType: Voice Message`;
       modifiedContent += `\nAudio Content:`;
@@ -3721,7 +3720,7 @@ async function generateAttachmentsResponse(
     }
   } else {
     if ((transcriptionsCollection?.size ?? 0)) {
-      const audioTranscriptions = (transcriptionsCollection as any).values().next()
+      const audioTranscriptions = transcriptionsCollection!.values().next()
         .value?.transcription || "";
       modifiedContent += `\nAudio Transcription: ${audioTranscriptions}`;
     }
@@ -3890,8 +3889,8 @@ const DiscordService = {
     );
     // Register clone handlers so live messages aren't dropped when
     // Discord load-balances gateway events across the two sessions.
-    DiscordUtilityService.onEventMessageCreate(luposClient, { mongo: localMongo, localMongo }, luposOnMessageCreateCloneMessage as (...args: any[]) => void);
-    DiscordUtilityService.onEventMessageUpdate(luposClient, { mongo: localMongo, localMongo }, luposOnMessageUpdateCloneMessage as (...args: any[]) => void);
+    DiscordUtilityService.onEventMessageCreate(luposClient, { mongo: localMongo, localMongo }, luposOnMessageCreateCloneMessage as (...args: unknown[]) => void);
+    DiscordUtilityService.onEventMessageUpdate(luposClient, { mongo: localMongo, localMongo }, luposOnMessageUpdateCloneMessage as (...args: unknown[]) => void);
     DiscordUtilityService.onEventMessageDelete(luposClient, localMongo, luposOnMessageDelete as (...args: unknown[]) => void);
   },
   async deleteDuplicateMessages() {

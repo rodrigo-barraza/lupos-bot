@@ -19,7 +19,8 @@ import type {
   Presence,
   Activity,
   MessageReaction,
-  } from "discord.js";
+  Guild,
+} from "discord.js";
 import type { WithId, Document } from "mongodb";
 import DiscordWrapper from "#root/wrappers/DiscordWrapper.js";
 import config from "#root/config.js";
@@ -70,6 +71,16 @@ interface RoleGroup {
   color: string | null;
   position: number;
   members: MemberData[];
+}
+
+/** Hoisted and flat sections for transformed guild members. */
+interface TransformedGuildMembers {
+  guildId: string;
+  guildName: string;
+  totalOnline: number;
+  totalMembers: number;
+  roles: RoleGroup[];
+  bots: MemberData[];
 }
 
 /**
@@ -150,7 +161,7 @@ router.get("/guild/channels", (req: Request, res: Response) => {
 // Query: ?guildId=...
 
 interface CachedMembers {
-  data: any;
+  data: TransformedGuildMembers;
   timestamp: number;
 }
 
@@ -161,7 +172,7 @@ const MEMBERS_CACHE_TTL_MS = 60 * 1000; // Cache duration: 1 minute
  * Transforms, groups, and formats raw guild members data into hoist roles & flat sections.
  * Optimized to be a pure, high-performance CPU-bound operation.
  */
-function formatMembersData(guild: any): any {
+function formatMembersData(guild: Guild): TransformedGuildMembers {
   // ── Helper: pick a display-worthy activity from presence ─────
   function pickActivity(presence: Presence | null | undefined): string | null {
     if (!presence?.activities?.length) return null;
@@ -329,7 +340,7 @@ function formatMembersData(guild: any): any {
  * Re-scrapes/fetches members from Discord gateway only if cache is sparse or unpopulated,
  * compiles the formatted result, and updates the in-memory SWR cache.
  */
-async function refreshMembersCache(guildId: string): Promise<any> {
+async function refreshMembersCache(guildId: string): Promise<TransformedGuildMembers | null> {
   const client = DiscordWrapper.getClient("lupos");
   const guild = client.guilds.cache.get(guildId);
   if (!guild) return null;
@@ -812,7 +823,7 @@ router.get("/bot/stats", asyncHandler(async (req: Request, res: Response) => {
     };
 
     // 6. Guild details — lightweight server list
-    const guilds = client?.guilds?.cache?.map((guild: any) => ({
+    const guilds = client?.guilds?.cache?.map((guild: Guild) => ({
       id: guild.id,
       name: guild.name,
       icon: guild.iconURL({ extension: "png", size: 128 }),
@@ -843,7 +854,7 @@ router.get("/bot/guilds", (req: Request, res: Response) => {
   try {
     const client = DiscordWrapper.getClient("lupos");
 
-    const guilds = client.guilds.cache.map((guild: any) => ({
+    const guilds = client.guilds.cache.map((guild: Guild) => ({
       id: guild.id,
       name: guild.name,
       icon: guild.iconURL({ extension: "png", size: 128 }),
@@ -916,8 +927,7 @@ router.get("/bot/activity", asyncHandler(async (req: Request, res: Response) => 
           uniqueUsers: { $size: "$uniqueUserIds" },
         },
       },
-      { $sort: { _id: 1 } },
-    ]).toArray();
+    ]).toArray() as unknown as { _id: string; count: number; uniqueUserIds?: string[] }[];
 
     // 2. Audio transcription activity
     const transcriptionActivity = await db.collection("AudioTranscriptions").aggregate([
@@ -934,7 +944,7 @@ router.get("/bot/activity", asyncHandler(async (req: Request, res: Response) => 
         },
       },
       { $sort: { _id: 1 } },
-    ]).toArray();
+    ]).toArray() as unknown as { _id: string; count: number }[];
 
     // 3. Image caption activity (ImageCaptions collection)
     const imageCaptionActivity = await db.collection("ImageCaptions").aggregate([
@@ -951,7 +961,7 @@ router.get("/bot/activity", asyncHandler(async (req: Request, res: Response) => 
         },
       },
       { $sort: { _id: 1 } },
-    ]).toArray();
+    ]).toArray() as unknown as { _id: string; count: number }[];
 
     // 4. Image generation activity + unique IPs per hour (Prism requests for lupos)
     const imageGenActivity = await prismDb.collection("requests").aggregate([
@@ -975,7 +985,7 @@ router.get("/bot/activity", asyncHandler(async (req: Request, res: Response) => 
         },
       },
       { $sort: { _id: 1 } },
-    ]).toArray();
+    ]).toArray() as unknown as { _id: string; count: number }[];
 
     // 5. Unique users — union of Discord userIds + client IPs (pseudo-users)
     //    Discord userIds come from MetricsMessageGeneration (already aggregated above).
@@ -1004,9 +1014,9 @@ router.get("/bot/activity", asyncHandler(async (req: Request, res: Response) => 
         },
       },
       { $sort: { _id: 1 } },
-    ]).toArray();
+    ]).toArray() as unknown as { _id: string; uniqueIps: string[] }[];
     const prismIpMap = new Map<string, string[]>(
-      prismUniqueIps.map((r: any) => [r._id, r.uniqueIps]),
+      prismUniqueIps.map((r: { _id: string; uniqueIps: string[] }) => [r._id, r.uniqueIps]),
     );
 
     // 5b. Total 24h unique users (union of Discord userIds + client IPs)
@@ -1039,21 +1049,21 @@ router.get("/bot/activity", asyncHandler(async (req: Request, res: Response) => 
 
     // ── Transform aggregation results into fast lookup Maps ─────
     const messageMap = new Map<string, number>(
-      messageActivity.map((r: any) => [r._id, r.count]),
+      messageActivity.map((r: { _id: string; count: number }) => [r._id, r.count]),
     );
     const transcriptionMap = new Map<string, number>(
-      transcriptionActivity.map((r: any) => [r._id, r.count]),
+      transcriptionActivity.map((r: { _id: string; count: number }) => [r._id, r.count]),
     );
     const imageCaptionMap = new Map<string, number>(
-      imageCaptionActivity.map((r: any) => [r._id, r.count]),
+      imageCaptionActivity.map((r: { _id: string; count: number }) => [r._id, r.count]),
     );
     const imageGenMap = new Map<string, number>(
-      imageGenActivity.map((r: any) => [r._id, r.count]),
+      imageGenActivity.map((r: { _id: string; count: number }) => [r._id, r.count]),
     );
 
     // ── Per-hour unique users: merge Discord userIds + Prism IPs ─
     const msgUserMap = new Map<string, string[]>(
-      messageActivity.map((r: any) => [r._id, (r.uniqueUserIds || []).map((id: string) => `uid:${id}`)]),
+      messageActivity.map((r: { _id: string; count: number; uniqueUserIds?: string[] }) => [r._id, (r.uniqueUserIds || []).map((id: string) => `uid:${id}`)]),
     );
     const uniqueUsersMap = new Map<string, number>();
     for (const hour of hours) {
