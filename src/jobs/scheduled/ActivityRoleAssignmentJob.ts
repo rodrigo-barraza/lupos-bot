@@ -64,7 +64,6 @@ async function assignActivityRoles({
 
   // Exit early if no messages in the last time period
   if (messages.length === 0) {
-    // consoleLog(`No messages found in the last ${periodMinutes} minutes`);
     return;
   }
 
@@ -111,7 +110,6 @@ async function assignActivityRoles({
           } catch (error: unknown) {
             // Skip reactions with unknown/deleted emojis
             if ((error as { code?: number }).code === 10014) {
-              // consoleLog(`Skipping unknown emoji reaction: ${reaction.emoji.name || reaction.emoji.id}`);
               return new Map<string, User>(); // Return empty Map to maintain structure
             }
             throw error; // Re-throw other errors
@@ -149,7 +147,6 @@ async function assignActivityRoles({
 
   // Exit if no authors found
   if (authorCounts.length === 0) {
-    // consoleLog('No authors found');
     return;
   }
 

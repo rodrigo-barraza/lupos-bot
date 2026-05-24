@@ -183,15 +183,9 @@ function createEmbed(video: YouTubeVideo, queueMessage: Message) {
     fields: [
       { name: "", value: "", inline: false },
       { name: "", value: `Volume: ${volumeLevel}%` },
-      // { name: 'Currently Playing', value: videoTitle, inline: false },
-      // { name: 'Duration', value: `${formatted} / ${videoDuration}`, inline: false },
-      // { name: 'Duration', value: videoDuration, inline: true },
-      // { name: 'Views', value: videoViews.toString(), inline: true },
-      // { name: 'Channel', value: channelName, inline: true },
     ],
     footer: {
       text: `${statusStymbol} ${formatted} / ${videoDuration}`,
-      // icon_url: userProfilePicture,
     },
     author: {
       name: queueMessage.author.globalName || queueMessage.author.username,
@@ -270,11 +264,7 @@ class YouTubeService {
       const stream = ytdl(video.url, {
         filter: "audio",
         quality: selectedFormat?.itag,
-        // quality: 'highestaudio',
-        // highWaterMark: 1 << 25, // 32MB
-        // liveBuffer: 1 << 25, // 32MB
         highWaterMark: 1,
-        // liveBuffer: 1 << 62, // 4GB
         dlChunkSize: 0,
         requestOptions: {
           headers: {
@@ -501,7 +491,6 @@ class YouTubeService {
     setTimeout(() => {
       if (isRecording) {
         isRecording = false;
-        // message.reply('🟥 Recording stopped! Check the recordings folder for your MP3 files.');
 
         // Stop all active recordings
         for (const [_userId, streams] of recordingStreams) {
@@ -552,8 +541,6 @@ class YouTubeService {
                     value: userTags || "No users recorded",
                   })
                   .setColor("#00FF00");
-                // .setTimestamp()
-                // .setFooter({ text: 'Recording Bot' });
 
                 await replyMessage.edit({
                   content: "",
@@ -849,7 +836,6 @@ ${formatted} ${dividingLine} ${currentVideo!.durationRaw}
           .setCustomId("volumeLevel")
           .setLabel(`🔊 ${volumeLevel.toString()}%`)
           .setStyle(ButtonStyle.Secondary)
-          // .setEmoji('744928265009103008')
           .setDisabled(true),
         new ButtonBuilder()
           .setCustomId("volumeUp")

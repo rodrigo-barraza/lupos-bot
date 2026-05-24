@@ -30,7 +30,7 @@ import MongoService from "#root/services/MongoService.js";
 import PrismService from "#root/services/PrismService.js";
 import DiscordUtilityService from "#root/services/DiscordUtilityService.js";
 import AIService from "#root/services/AIService.js";
-import type { ChatMessage } from "#root/services/AIService.js";
+import type { ChatMessage, CaptionMapObject, TranscriptionMapObject } from "#root/services/AIService.js";
 import CurrentService from "#root/services/CurrentService.js";
 
 import BirthdayJob from "#root/jobs/scheduled/BirthdayJob.js";
@@ -107,9 +107,28 @@ async function fetchMembersWithRetry(guild: Guild, maxRetries: number = 3) {
 const args = process.argv.slice(2);
 const mode = args.find((arg: string) => arg.startsWith("mode="))?.split("=")[1];
 
+interface QueuedMessageData {
+  message: Message;
+  recentMessages: import("discord.js").Collection<string, Message>;
+  actionType: string;
+}
+
+interface MessageProcessingData {
+  index: number;
+  recentMessage: Message;
+  member: GuildMember | null;
+  user: User;
+  isBot: boolean;
+  isLastMessage: boolean;
+  userMessageXofY: number;
+  sequentialUserMessages: number;
+  dateIdFormat: string;
+  repliedMessage?: Message;
+}
+
 let lastMessageSentTime = TemporalHelpers.nowISO();
 let isProcessingQueue = false;
-const queuedData: Record<string, unknown>[] = [];
+const queuedData: QueuedMessageData[] = [];
 const cancelledMessageIds = new Set();
 // Bounded maps prevent unbounded memory growth during long-running sessions.
 // TTL: 2 hours, max 5,000 entries — entries auto-evict when stale.
@@ -1704,7 +1723,6 @@ Respond with ONLY "yes" or "no". Nothing else.`,
 
 async function replyMessage(queuedDatum: { message: import("discord.js").Message; recentMessages: import("discord.js").Collection<string, import("discord.js").Message>; actionType?: string }, localMongo: import("mongodb").MongoClient) {
   // Handles incoming Discord messages and message updates
-  // LightsService.cycleColor(config.PRIMARY_LIGHT_ID, DEFAULT_LIGHT_CYCLE);
   const message = queuedDatum.message;
   const _messages = queuedDatum.recentMessages;
   const actionType = queuedDatum.actionType;
@@ -1754,8 +1772,6 @@ async function replyMessage(queuedDatum: { message: import("discord.js").Message
     console.log(...LogFormatter.receivedDirectMessage(message as Message, actionType || ""));
   }
 
-  // CHECK IF WE CAN GENERATE AN IMAGE
-  // LightsService.cycleColor(config.PRIMARY_LIGHT_ID, DEFAULT_LIGHT_CYCLE);
 
   // Generate custom emoji reaction
   const customEmojiReact =
@@ -1766,13 +1782,8 @@ async function replyMessage(queuedDatum: { message: import("discord.js").Message
   if (customEmojiReact) {
     try {
       await message.react(customEmojiReact);
-    } catch {
-      // Handle error
-    }
-  } else {
-    // Handle case where no custom emoji is generated
+    } catch { /* emoji reaction failed — non-critical */ }
   }
-  // LightsService.cycleColor(config.PRIMARY_LIGHT_ID, DEFAULT_LIGHT_CYCLE);
 
   // Image detection is no longer needed — the agent decides autonomously
   // whether to generate images via the generate_image tool.
@@ -1796,7 +1807,7 @@ async function replyMessage(queuedDatum: { message: import("discord.js").Message
   } = await extractContentFromMessages(queuedDatum, localMongo);
 
 
-  // LightsService.cycleColor(config.PRIMARY_LIGHT_ID, DEFAULT_LIGHT_CYCLE);
+
 
   // Check if message was deleted during content extraction
   if (isMessageCancelled((message as Message).id)) {
@@ -1810,7 +1821,7 @@ async function replyMessage(queuedDatum: { message: import("discord.js").Message
 
   const { generatedText, image } =
     await buildAndGenerateReply({
-      conversation,
+      conversation: conversation as unknown as Record<string, unknown>[],
       conversationsCollection: conversationsCollection as import("discord.js").Collection<string, Record<string, unknown>[]>,
       memberMentionsCollection,
       messagesEmojisCollection,
@@ -1818,7 +1829,7 @@ async function replyMessage(queuedDatum: { message: import("discord.js").Message
       newSystemPrompt,
       participantsAvatarsCollection: participantsAvatarsCollection as import("discord.js").Collection<string, string>,
       participantsBannersCollection: participantsBannersCollection as import("discord.js").Collection<string, string>,
-      participantsCollection,
+      participantsCollection: participantsCollection as unknown as import("discord.js").Collection<string, GuildMember | User | { id: string }>,
       participantsMembersCollection,
       participantsUsersCollection,
       queuedDatum,
@@ -1831,17 +1842,17 @@ async function replyMessage(queuedDatum: { message: import("discord.js").Message
 
   // (Image conversations are already saved per-call inside generateImage)
 
-  // LightsService.cycleColor(config.PRIMARY_LIGHT_ID, DEFAULT_LIGHT_CYCLE);
+
   // GENERATE SUMMARY — use first ~5 words of the agent response instead of a separate LLM call
   const textSummary = generatedTextResponse
     ? `💬 ${generatedTextResponse.replace(/[*_~`#>]/g, "").split(/\s+/).slice(0, 5).join(" ").substring(0, 100)}…`
     : "";
   DiscordUtilityService.setUserActivity(client, textSummary);
-  // LightsService.cycleColor(config.PRIMARY_LIGHT_ID, DEFAULT_LIGHT_CYCLE);
+
   if (!generatedTextResponse && !generatedImage) {
     await message.reply("...");
     lastMessageSentTime = TemporalHelpers.nowISO();
-    // LightsService.setState({ color: "red" }, config.PRIMARY_LIGHT_ID);
+
     console.error(`❌ [DiscordService:replyMessage] NO RESPONSE GENERATED
 ${member ? `Member: ${combinedNames}` : `User: ${combinedNames}`}
 ${combinedGuildInformation ? `Guild: ${combinedGuildInformation}` : "Direct Message"}
@@ -1860,7 +1871,7 @@ ${combinedGuildInformation && combinedChannelInformation ? `URL: ${utilities.get
       return;
     }
     await message.fetch();
-    // LightsService.cycleColor(config.PRIMARY_LIGHT_ID, DEFAULT_LIGHT_CYCLE);
+
     const messageSent = await DiscordUtilityService.sendMessageInChunks(
       "reply",
       message,
@@ -1869,7 +1880,7 @@ ${combinedGuildInformation && combinedChannelInformation ? `URL: ${utilities.get
       null,
     );
     repliedMessagesCollection.set((message as Message).id, messageSent.id);
-    // LightsService.cycleColor(config.PRIMARY_LIGHT_ID, DEFAULT_LIGHT_CYCLE);
+
   } catch (error: unknown) {
     console.warn(`❌ [DiscordService:replyMessage] MESSAGE NOT FOUND (OR DELETED)
             ${error}
@@ -1877,7 +1888,7 @@ ${combinedGuildInformation && combinedChannelInformation ? `URL: ${utilities.get
     ${combinedGuildInformation ? `Guild: ${combinedGuildInformation}` : "Direct Message"}
     ${combinedChannelInformation ? `Channel: ${combinedChannelInformation}` : ""}
     ${combinedGuildInformation && combinedChannelInformation ? `URL: ${utilities.getDiscordMessageUrl(guild?.id || "", channel?.id || "", (message as Message).id)}` : ""}`);
-    // LightsService.setState({ color: "red" }, config.PRIMARY_LIGHT_ID);
+
     return;
   }
 
@@ -1891,7 +1902,7 @@ ${combinedGuildInformation && combinedChannelInformation ? `URL: ${utilities.get
     // Collect participant info for extraction
     if (participantsCollection?.size) {
       for (const participant of participantsCollection.values()) {
-        const pId = participant?.user?.id || participant?.id;
+        const pId = participant?.user?.id;
         const pUser = participant?.user || participant;
         if (pId) {
           memoryParticipants.push({
@@ -1922,13 +1933,13 @@ ${combinedGuildInformation && combinedChannelInformation ? `URL: ${utilities.get
     if (memoryParticipants.length > 0) {
       // Only send the last ~10 user messages for extraction (skip system/assistant)
       const recentUserMessages = conversation
-        .filter((m: Record<string, unknown>) => m.role === "user")
+        .filter((m: ChatMessage) => m.role === "user")
         .slice(-10);
 
       PrismService.extractMemories({
         guildId,
         channelId: (message as Message).channel?.id || "",
-        messages: recentUserMessages as ChatMessage[],
+        messages: recentUserMessages,
         participants: memoryParticipants.map((p: { id: string; displayName?: string; username?: string }) => p.displayName || p.username || p.id),
         sourceMessageId: (message as Message).id,
         traceId: CurrentService.getTraceId() || undefined,
@@ -1990,7 +2001,6 @@ ${combinedGuildInformation && combinedChannelInformation ? `URL: ${utilities.get
   CurrentService.clearModelTypes();
   CurrentService.clearTraceId();
 
-  // LightsService.cycleColor(config.PRIMARY_LIGHT_ID, DEFAULT_LIGHT_CYCLE);
   return;
 }
 
@@ -2044,7 +2054,7 @@ async function extractContentFromMessages(
   _maxSimultaneous: number = 50,
 ) {
   const functionName = "extractContentFromMessages";
-  // LightsService.cycleColor(config.PRIMARY_LIGHT_ID, DEFAULT_LIGHT_CYCLE);
+
   const { message, recentMessages } = queuedDatum;
   const newestMessage = recentMessages.last();
 
@@ -2103,7 +2113,7 @@ async function extractContentFromMessages(
   const client = message.client;
 
   // Initialize collections
-  const participantsCollection = new Collection<string, any>();
+  const participantsCollection = new Collection<string, { user: User; member: GuildMember | null; time?: number }>();
   const participantsAvatarsCollection = new Collection<string, string | null>();
   const participantsBannersCollection = new Collection<string, string | null>();
   const participantsUsersCollection = new Collection<string, User>();
@@ -2114,20 +2124,20 @@ async function extractContentFromMessages(
   const messagesTranscriptionsCollection = new Collection<string, DiscordCollection<string, { transcription: string }>>();
   const messagesEmojisCollection = new Collection<string, unknown>();
   const conversationsCollection = new Collection<string, unknown>();
-  const conversation: Record<string, any>[] = [];
+  const conversation: ChatMessage[] = [];
   const newSystemPrompt = "";
 
   // Prepare all async operations
   const allPromises = {
     conversations: [] as { userId: string; promise: Promise<unknown> }[],
     emojis: [] as { messageId: string; promise: Promise<Collection<string, unknown>> }[],
-    audio: [] as { message: Message; promise: Promise<{ transcriptionsMap: Map<string, unknown> }> }[],
-    images: [] as { message: Message; promise: Promise<{ images: string[]; imagesMap: Map<string, any> }> }[],
+    audio: [] as { message: Message; promise: Promise<{ transcriptionsMap: Map<string, TranscriptionMapObject> }> }[],
+    images: [] as { message: Message; promise: Promise<{ images: string[]; imagesMap: Map<string, CaptionMapObject> }> }[],
     replies: [] as { messageId: string; referenceId: string; promise: Promise<Message | void | null> }[],
   };
 
   // First pass: collect all async operations
-  const messageProcessingData: any[] = [];
+  const messageProcessingData: MessageProcessingData[] = [];
 
   if ((message as Message).guild) {
     let index = 0;
@@ -2240,10 +2250,10 @@ async function extractContentFromMessages(
       const userMessageXofY = sequenceInfo.xOfY;
       const sequentialUserMessages = sequenceInfo.total;
 
-      const messageData: Record<string, unknown> = {
+      const messageData: MessageProcessingData = {
         index,
         recentMessage,
-        member,
+        member: member ?? null,
         user,
         isBot,
         isLastMessage,
@@ -2293,7 +2303,7 @@ async function extractContentFromMessages(
           if (bannerUrl) {
             participantsBannersCollection.set(user.id, bannerUrl);
           }
-        } else if (userExists.time < recentMessage.createdTimestamp) {
+        } else if (userExists.time !== undefined && userExists.time < recentMessage.createdTimestamp) {
           userExists.time = recentMessage.createdTimestamp;
         }
 
@@ -2390,8 +2400,8 @@ async function extractContentFromMessages(
     const results = await Promise.allSettled([
       ...allPromises.conversations.map((item: { userId: string; promise: Promise<unknown> }) => item.promise),
       ...allPromises.emojis.map((item: { messageId: string; promise: Promise<Collection<string, unknown>> }) => item.promise),
-      ...allPromises.audio.map((item: { message: Message; promise: Promise<{ transcriptionsMap: Map<string, unknown> }> }) => item.promise),
-      ...allPromises.images.map((item: { message: Message; promise: Promise<{ images: string[]; imagesMap: Map<string, any> }> }) => item.promise),
+      ...allPromises.audio.map((item: { message: Message; promise: Promise<{ transcriptionsMap: Map<string, TranscriptionMapObject> }> }) => item.promise),
+      ...allPromises.images.map((item: { message: Message; promise: Promise<{ images: string[]; imagesMap: Map<string, CaptionMapObject> }> }) => item.promise),
       ...allPromises.replies.map((item: { messageId: string; referenceId: string; promise: Promise<Message | void | null> }) => item.promise),
     ]);
 
@@ -2419,11 +2429,11 @@ async function extractContentFromMessages(
 
     // Process audio
     for (const item of allPromises.audio) {
-      const result = results[resultIndex++] as PromiseSettledResult<{ transcriptionsMap: Map<string, any> }>;
+      const result = results[resultIndex++] as PromiseSettledResult<{ transcriptionsMap: Map<string, TranscriptionMapObject> }>;
       if (result.status === "fulfilled") {
         const { transcriptionsMap } = result.value;
         messagesTranscriptionsCollection.set(item.message.id, new Collection(transcriptionsMap));
-        for (const [hash, transcriptionObject] of (transcriptionsMap as Map<string, any>).entries()) {
+        for (const [hash, transcriptionObject] of transcriptionsMap.entries()) {
           console.log(
             ...LogFormatter.transcribeSuccess({
               functionName,
@@ -2439,11 +2449,11 @@ async function extractContentFromMessages(
 
     // Process images
     for (const item of allPromises.images) {
-      const result = results[resultIndex++] as PromiseSettledResult<{ images: string[]; imagesMap: Map<string, any> }>;
+      const result = results[resultIndex++] as PromiseSettledResult<{ images: string[]; imagesMap: Map<string, CaptionMapObject> }>;
       if (result.status === "fulfilled") {
         const { imagesMap } = result.value;
         messagesImagesCollection.set(item.message.id, new Collection(imagesMap));
-        for (const [hash, mapObject] of (imagesMap as Map<string, any>).entries()) {
+        for (const [hash, mapObject] of imagesMap.entries()) {
           console.log(
             ...LogFormatter.captionSuccess({
               functionName,
@@ -2459,11 +2469,11 @@ async function extractContentFromMessages(
     }
 
     // Process replies
-    const repliesMap: Record<string, unknown> = {};
+    const repliesMap: Record<string, Message> = {};
     for (const item of allPromises.replies) {
       const result = results[resultIndex++];
       if (result.status === "fulfilled" && result.value) {
-        repliesMap[item.messageId] = result.value;
+        repliesMap[item.messageId] = result.value as Message;
       }
     }
 
@@ -2593,8 +2603,8 @@ async function extractContentFromMessages(
         modifiedContent += `\nMessage ID: ${messageId}`;
 
         // Add reply information
-        const repliedMessage =
-          messageData.repliedMessage || repliesMap[recentMessage.id];
+        const repliedMessage: Message | undefined =
+          messageData.repliedMessage || (repliesMap[recentMessage.id] as Message | undefined);
         if (recentMessage.reference?.messageId) {
           modifiedContent += `\n\n[REPLYING TO]`;
           if (!repliedMessage) {
@@ -2669,7 +2679,7 @@ async function extractContentFromMessages(
           modifiedContent += `\nReaction list: ${utilities.formatReactions(recentMessage.reactions.cache, "inline")}`;
         }
 
-        const msgEntry: Record<string, unknown> = {
+        const msgEntry: ChatMessage = {
           role: "user",
           name: DiscordUtilityService.getUsernameNoSpaces(recentMessage),
           content: modifiedContent,
@@ -2737,9 +2747,9 @@ async function generateRolesEmbedMessage(client: Client) {
     }
     const rolesArray = filtered.map((role: import("discord.js").Role) => role);
 
-    const rows: import("discord.js").ActionRowBuilder<any>[] = [];
+    const rows: import("discord.js").ActionRowBuilder<import("discord.js").ButtonBuilder>[] = [];
     for (let i = 0; i < rolesArray.length; i += maxButtonsPerRow) {
-      const row = new ActionRowBuilder<any>();
+      const row = new ActionRowBuilder<import("discord.js").ButtonBuilder>();
       const currentRoles = rolesArray.slice(i, i + maxButtonsPerRow);
       for (const role of currentRoles) {
         const emoji = sourceArray.find((src: { id: string }) => src.id === role.id)?.emojiId || null;
@@ -3136,7 +3146,7 @@ async function sendMaintenanceCountdown(message: Message) {
 
 async function processMessage(
   client: Client,
-  { _mongo, localMongo }: Record<string, any>,
+  { mongo, localMongo }: { mongo: import("mongodb").MongoClient; localMongo: import("mongodb").MongoClient },
   message: Message,
   actionType: string,
 ) {
@@ -3203,10 +3213,6 @@ URL: ${utilities.getDiscordMessageUrl((message as Message).guild?.id || "", (mes
     await YouTubeService.pause(client, message);
     await YouTubeService.resume(client, message);
     await YouTubeService.setVolume(client, message);
-  }
-
-  if ((message as Message).channelId !== config.CHANNEL_ID_JUKEBOX_EXCEPTION) {
-    // LightsService.cycleColor(config.PRIMARY_LIGHT_ID, RAINBOW_LIGHT_CYCLE);
   }
 
   if (isMessageWithoutSelfMention) {
@@ -3306,7 +3312,7 @@ URL: ${utilities.getDiscordMessageUrl((message as Message).guild?.id || "", (mes
     isProcessingQueue = true;
     try {
       while (queuedData.length > 0) {
-        const queuedDatum = queuedData.shift() as { message: import("discord.js").Message; recentMessages: import("discord.js").Collection<string, import("discord.js").Message>; actionType?: string };
+        const queuedDatum = queuedData.shift() as QueuedMessageData;
         const currentChannelId = (queuedDatum.message as Message).channel.id;
         try {
           await replyMessage(queuedDatum, localMongo);
@@ -3325,7 +3331,7 @@ URL: ${utilities.getDiscordMessageUrl((message as Message).guild?.id || "", (mes
         }
         // No more queued messages for this channel — clear typing indicator
         if (
-          !queuedData.some((q: Record<string, any>) => q.message?.channel?.id === currentChannelId)
+          !queuedData.some((q: QueuedMessageData) => q.message?.channel?.id === currentChannelId)
         ) {
           // Clear typing for this specific channel only
           if (typingIntervals[currentChannelId]) {
@@ -3349,7 +3355,7 @@ async function luposOnMessageCreate(client: Client, { mongo, localMongo }: { mon
 
 async function luposOnMessageCreateCloneMessage(
   client: Client,
-  { _mongo, localMongo }: Record<string, any>,
+  { _mongo, localMongo }: { _mongo: import("mongodb").MongoClient; localMongo: import("mongodb").MongoClient },
   message: Message,
 ) {
   await DiscordUtilityService.saveMessageToMongo(message, localMongo);
@@ -3357,7 +3363,7 @@ async function luposOnMessageCreateCloneMessage(
 
 async function luposOnMessageUpdateCloneMessage(
   client: Client,
-  { _mongo, localMongo }: Record<string, any>,
+  { _mongo, localMongo }: { _mongo: import("mongodb").MongoClient; localMongo: import("mongodb").MongoClient },
   oldMessage: Message | PartialMessage,
   newMessage: Message | PartialMessage,
 ) {
@@ -3468,7 +3474,7 @@ async function luposOnGuildMemberUpdate(client: Client, mongo: import("mongodb")
   const hasOldMemberCompletedOnboarding = oldMember.flags ? (oldMember.flags.bitfield & (1 << 1)) : 0;
   const hasNewMemberCompletedOnboarding = newMember.flags ? (newMember.flags.bitfield & (1 << 1)) : 0;
   if (!hasOldMemberCompletedOnboarding && hasNewMemberCompletedOnboarding) {
-    // LightsService.cycleColor(config.PRIMARY_LIGHT_ID);
+
     console.log(
       ...LogFormatter.memberUpdateOnboardingComplete(functionName, newMember),
     );
@@ -3557,7 +3563,7 @@ async function luposOnInteractionCreate(client: Client, mongo: import("mongodb")
       return;
     }
   } else if (interaction.isCommand()) {
-    // utilities.consoleLog('=', `Command interaction received: ${interaction.commandName}`);
+
     console.log(
       ...LogFormatter.interactionCreateCommand(functionName, interaction),
     );

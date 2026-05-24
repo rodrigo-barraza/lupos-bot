@@ -33,6 +33,14 @@ export interface CaptionMapObject {
   cached: boolean;
 }
 
+export interface TranscriptionMapObject {
+  hash: string;
+  url: string;
+  transcription: string;
+  type: string | null;
+  cached: boolean;
+}
+
 export interface ChatMessage {
   role: string;
   name?: string;
@@ -485,9 +493,9 @@ const AIService = {
     messageId: string,
     localMongo: MongoClient
   ): Promise<{
-    transcriptionsMap: Map<string, unknown>;
+    transcriptionsMap: Map<string, TranscriptionMapObject>;
   }> {
-    const transcriptionsMap = new Map<string, unknown>();
+    const transcriptionsMap = new Map<string, TranscriptionMapObject>();
     const db = localMongo.db(MONGO_DB_NAME);
     const collection = db.collection("AudioTranscriptions");
     let existingAudio: import("mongodb").WithId<import("mongodb").Document> | null;
