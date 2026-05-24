@@ -117,7 +117,7 @@ const MediaArchivalService = {
    */
   async ensureIndexes() {
     const collection = this._getCollection();
-    if (!col) return;
+    if (!collection) return;
     try {
       await collection.createIndex({ hash: 1 }, { unique: true, background: true });
       console.log(`📦 MediaArchivalService: MediaHashes index ensured`);
@@ -138,7 +138,7 @@ const MediaArchivalService = {
 
     // MongoDB lookup
     const collection = this._getCollection();
-    if (!col) return null;
+    if (!collection) return null;
 
     const document = await collection.findOne({ hash });
     if (document) {
@@ -162,7 +162,7 @@ const MediaArchivalService = {
    */
   async _registerHash(archiveRef: ArchiveRef, originalUrl: string) {
     const collection = this._getCollection();
-    if (!col) return;
+    if (!collection) return;
 
     try {
       await collection.updateOne(
