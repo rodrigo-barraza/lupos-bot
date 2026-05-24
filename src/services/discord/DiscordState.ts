@@ -19,16 +19,19 @@ const DiscordState = {
 
   // Bounded maps prevent unbounded memory growth during long-running sessions.
   // TTL: 2 hours, max 5,000 entries — entries auto-evict when stale.
-  repliedMessagesCollection: new BoundedMap(5000, 2 * 60 * 60 * 1000),
-  botRepliedMessages: new BoundedMap(5000, 2 * 60 * 60 * 1000),
+  repliedMessagesCollection: new BoundedMap<string, boolean>(5000, 2 * 60 * 60 * 1000),
+  botRepliedMessages: new BoundedMap<string, boolean>(5000, 2 * 60 * 60 * 1000),
 
   // ─── Reaction Highlights Queue ────────────────────────────────
   isProcessingOnReactionQueue: false,
-  reactionQueue: [] as { reaction: unknown; user: unknown }[],
+  reactionQueue: [] as {
+    reaction: import("discord.js").MessageReaction | import("discord.js").PartialMessageReaction;
+    user: import("discord.js").User | import("discord.js").PartialUser;
+  }[],
   // Bounded maps for reaction tracking — prevents memory leaks from
   // accumulating reaction data for every message ever reacted to.
-  allUniqueUsers: new BoundedMap(2000, 4 * 60 * 60 * 1000),
-  reactionMessages: new BoundedMap(2000, 4 * 60 * 60 * 1000),
+  allUniqueUsers: new BoundedMap<string, Set<string>>(2000, 4 * 60 * 60 * 1000),
+  reactionMessages: new BoundedMap<string, string>(2000, 4 * 60 * 60 * 1000),
 
   // ─── Typing Indicators ───────────────────────────────────────
   typingIntervals: {} as Record<string, ReturnType<typeof setInterval>>,

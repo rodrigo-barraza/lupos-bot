@@ -42,6 +42,7 @@ import EventReactJob from "#root/jobs/event-driven/ReactJob.js";
 
 import utilities from "#root/utilities.js";
 import BoundedMap from "#root/utilities/BoundedMap.js";
+import type { TransformedPrismResponse } from "#root/types/prism.js";
 // EXTRACTED MODULES (Phase 1 decomposition)
 import DeletedMessageLogger from "#root/services/discord/DeletedMessageLogger.js";
 import ReactionHighlights from "#root/services/discord/ReactionHighlights.js";
@@ -1244,7 +1245,7 @@ Respond with ONLY "yes" or "no". Nothing else.`,
             traceId: CurrentService.getTraceId() || undefined,
           });
 
-          if (memoryResult?.memories?.length > 0) {
+          if (memoryResult?.memories && memoryResult.memories.length > 0) {
             systemPrompt += `\n\n# Memories about participants`;
             systemPrompt += `\nThese are things you remember from past conversations. Use them naturally when relevant — don't force them into every response.`;
             for (const memory of memoryResult.memories) {
@@ -1931,7 +1932,7 @@ ${combinedGuildInformation && combinedChannelInformation ? `URL: ${utilities.get
         sourceMessageId: (message as Message).id,
         traceId: CurrentService.getTraceId() || undefined,
       })
-        .then((result: { response?: string; error?: string; count?: number }) => {
+        .then((result: TransformedPrismResponse) => {
           if (result?.count && result.count > 0) {
             console.log(
               `🧠 [DiscordService] Extracted ${result.count} memory/memories from conversation.`,

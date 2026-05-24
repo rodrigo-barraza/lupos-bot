@@ -203,7 +203,7 @@ const AIService = {
         ...AIService._getTraceParams(),
       });
 
-      textResponse = prismResult.text;
+      textResponse = prismResult.text ?? null;
 
       if (prismResult.model) {
         usedModel = prismResult.model;

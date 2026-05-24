@@ -101,3 +101,34 @@ export interface EmbeddingParams {
   model?: string;
   traceId?: string;
 }
+
+export interface PrismMemoryItem {
+  content: string;
+  createdAt: string | Date;
+  aboutUsername?: string;
+}
+
+/** Represents a response from the Prism API. */
+export interface TransformedPrismResponse {
+  text?: string;
+  model?: string;
+  provider?: string;
+  images?: Array<{
+    data?: string;
+    mimeType?: string;
+    minioRef?: string;
+  }>;
+  toolCalls?: Array<{
+    id: string;
+    type: string;
+    function: {
+      name: string;
+      arguments: string;
+    };
+  }>;
+  embedding?: number[];
+  results?: unknown;
+  memories?: PrismMemoryItem[];
+  count?: number;
+}
+

@@ -174,7 +174,7 @@ async function randomTag({ client, guildId, channelId }: RandomTagJobConfig) {
           queryText: person.displayName,
           limit: 3,
         });
-        if (memoryResult?.memories?.length > 0) {
+        if (memoryResult?.memories && memoryResult.memories.length > 0) {
           peopleContext += `\n### YOUR MEMORIES ABOUT ${person.displayName.toUpperCase()}:`;
           for (const memory of memoryResult.memories) {
             const createdDate = new Date(memory.createdAt);

@@ -14,6 +14,7 @@ import {
 import MongoService from "#root/services/MongoService.js";
 import config from "#root/config.js";
 import { MS_PER_DAY, MONGO_DB_NAME } from "#root/constants.js";
+import utilities from "#root/utilities.js";
 
 // ─── Constants ────────────────────────────────────────────────────────
 
@@ -345,8 +346,8 @@ function getDeathrollCollections() {
   // Ensure indexes once on first access (lazy init)
   if (!deathrollIndexesEnsured) {
     deathrollIndexesEnsured = true;
-    ensureDeathrollIndexes(collections).catch((err: any) =>
-      console.error("Failed to ensure deathroll indexes:", err.message),
+    ensureDeathrollIndexes(collections).catch((err: unknown) =>
+      console.error("Failed to ensure deathroll indexes:", utilities.errorMessage(err)),
     );
   }
 
@@ -468,6 +469,18 @@ async function aggregatePlayerStats(guildId: string, userId: string) {
   };
 }
 
+interface AggregatedPlayerDoc {
+  _id: string;
+  wins: number;
+  losses: number;
+  mmrWins: number;
+  mmrLosses: number;
+  multiplierWins: number;
+  multiplierLosses: number;
+  lastPlayedAt: number;
+  createdAt: number;
+}
+
 /**
  * Aggregates all players' stats from DeathRollGameHistory for leaderboard.
  * Each game doc is split into a winner and loser record, then grouped per player.
@@ -561,9 +574,9 @@ async function aggregateAllPlayerStats(guildId: string) {
         },
       },
     ])
-    .toArray();
+    .toArray() as unknown as AggregatedPlayerDoc[];
 
-  return results.map((r: any) => ({
+  return results.map((r: AggregatedPlayerDoc) => ({
     userId: r._id,
     wins: r.wins,
     losses: r.losses,
@@ -873,7 +886,7 @@ async function saveGameResult(
     { upsert: true },
   );
 
-  const gameRecord: Record<string, any> = {
+  const gameRecord: Record<string, unknown> = {
     gameId: `${guildId}_${game.messageId}`,
     guildId,
     channelId: game.channelId,
@@ -950,23 +963,46 @@ async function fetchTopRivals(guildId: string, userId: string, limit: number = 3
   }
 }
 
+interface LeaderboardPlayer {
+  userId: string;
+  wins: number;
+  losses: number;
+  totalGames: number;
+  mmrWins: number;
+  mmrLosses: number;
+  multiplierWins: number;
+  multiplierLosses: number;
+  multiplierGames: number;
+  lastPlayedAt: number;
+  createdAt: number;
+}
+
+interface RankedPlayer {
+  userId: string;
+  profile: PlayerProfile;
+}
+
 async function fetchLeaderboard(guildId: string, limit: number = 20) {
   try {
     const { statsCollection } = getDeathrollCollections();
-    const [historyStats, userStatsList] = await Promise.all([
+    const [historyStatsRaw, userStatsList] = await Promise.all([
       aggregateAllPlayerStats(guildId),
       statsCollection.find({ guildId }).toArray(),
     ]);
+
+    const historyStats = historyStatsRaw as unknown as LeaderboardPlayer[];
 
     if (historyStats.length === 0) {
       return { players: [], ranked: [], totalGamesPlayed: 0 };
     }
 
-    const userStatsMap = new Map(userStatsList.map((s: any) => [s.userId, s]));
+    const userStatsMap = new Map<string, Partial<UserStats>>(
+      userStatsList.map((s) => [s.userId as string, s as unknown as Partial<UserStats>]),
+    );
 
-    let ranked = historyStats
-      .map((hs: any) => {
-        const us: any = userStatsMap.get(hs.userId) || {};
+    let ranked: RankedPlayer[] = historyStats
+      .map((hs) => {
+        const us = userStatsMap.get(hs.userId) || {};
         const { mmr, rd } = getSeasonMMR(us);
         return {
           userId: hs.userId,
@@ -979,14 +1015,14 @@ async function fetchLeaderboard(guildId: string, limit: number = 20) {
           }),
         };
       })
-      .sort((a: any, b: any) => b.profile.mmr - a.profile.mmr);
+      .sort((a: RankedPlayer, b: RankedPlayer) => b.profile.mmr - a.profile.mmr);
 
     if (limit && limit > 0) {
       ranked = ranked.slice(0, limit);
     }
 
     // Each game has exactly one winner, so sum of wins = total games
-    const totalGamesPlayed = historyStats.reduce((sum: any, p: any) => sum + p.wins, 0);
+    const totalGamesPlayed = historyStats.reduce((sum: number, p: LeaderboardPlayer) => sum + p.wins, 0);
     return { players: historyStats, ranked, totalGamesPlayed };
   } catch (error: unknown) {
     console.error("Error fetching leaderboard:", error);
@@ -1100,7 +1136,7 @@ function createDoubleOrNothingCollector(
     idle: 10 * 1000,
   });
 
-  const agreed = new Set();
+  const agreed = new Set<string>();
   let countdown = 10;
   const baseContent = message.content;
   const nextMultiplier = (timeoutMultiplier || 1) * 2;
@@ -1111,7 +1147,7 @@ function createDoubleOrNothingCollector(
     if (countdown > 0) {
       const agreeLine =
         agreed.size > 0
-          ? `\n-# ${[...agreed].map((id: any) => `<@${id}>`).join(", ")} agreed — waiting for the other player...`
+          ? `\n-# ${[...agreed].map((id: string) => `<@${id}>`).join(", ")} agreed — waiting for the other player...`
           : "";
       await message
         .edit({
@@ -1125,7 +1161,7 @@ function createDoubleOrNothingCollector(
     }
   }, 1000);
 
-  collector.on("collect", async (buttonInteraction: any) => {
+  collector.on("collect", async (buttonInteraction: import("discord.js").ButtonInteraction) => {
     try {
       const userId = buttonInteraction.user.id;
 
@@ -1222,7 +1258,7 @@ function createDoubleOrNothingCollector(
         const game = activeGames.get(gameId);
         if (!game) return;
         const endGameData = await buildEndGameData(
-          buttonInteraction.guild.id,
+          guild.id,
           game,
           loserId,
           winnerId,
@@ -1274,32 +1310,34 @@ function createDoubleOrNothingCollector(
     } catch (error: unknown) {
       console.error("Error in Double or Nothing agreement collector:", error);
       try {
-        const channel = buttonInteraction.channel;
-        const recoveryMultiplierName = getMultiplierName(nextMultiplier);
-        const donButton = new ButtonBuilder()
-          .setCustomId(
-            `deathroll_don_agree_${winnerId}_${loserId}_${startingNumber}_${nextMultiplier}`,
-          )
-          .setLabel(
-            `${recoveryMultiplierName} or Nothing (${nextMultiplier * BASE_TIMEOUT_MINUTES}min timeout)`,
-          )
-          .setStyle(ButtonStyle.Danger)
-          .setEmoji("🎰");
-        const row = new ActionRowBuilder<import("discord.js").ButtonBuilder>().addComponents(donButton);
-        const recoveryMsg = await channel.send({
-          content: `⚠️ Something went wrong! <@${winnerId}> / <@${loserId}>, click below to agree to ${recoveryMultiplierName} or Nothing.`,
-          components: [row],
-        });
-        createDoubleOrNothingCollector(
-          recoveryMsg,
-          guild,
-          winnerId,
-          loserId,
-          startingNumber,
-          timeoutMultiplier,
-          pendingTimeoutData,
-          pendingGameData,
-        );
+        const channel = buttonInteraction.channel as import("discord.js").TextChannel | null;
+        if (channel) {
+          const recoveryMultiplierName = getMultiplierName(nextMultiplier);
+          const donButton = new ButtonBuilder()
+            .setCustomId(
+              `deathroll_don_agree_${winnerId}_${loserId}_${startingNumber}_${nextMultiplier}`,
+            )
+            .setLabel(
+              `${recoveryMultiplierName} or Nothing (${nextMultiplier * BASE_TIMEOUT_MINUTES}min timeout)`,
+            )
+            .setStyle(ButtonStyle.Danger)
+            .setEmoji("🎰");
+          const row = new ActionRowBuilder<import("discord.js").ButtonBuilder>().addComponents(donButton);
+          const recoveryMsg = await channel.send({
+            content: `⚠️ Something went wrong! <@${winnerId}> / <@${loserId}>, click below to agree to ${recoveryMultiplierName} or Nothing.`,
+            components: [row],
+          });
+          createDoubleOrNothingCollector(
+            recoveryMsg,
+            guild,
+            winnerId,
+            loserId,
+            startingNumber,
+            timeoutMultiplier,
+            pendingTimeoutData,
+            pendingGameData,
+          );
+        }
       } catch (recoveryError: unknown) {
         console.error(
           "Failed to recover from DoN agreement error:",
@@ -1309,7 +1347,7 @@ function createDoubleOrNothingCollector(
     }
   });
 
-  collector.on("end", async (collected: any, reason: any) => {
+  collector.on("end", async (collected: import("discord.js").Collection<string, import("discord.js").ButtonInteraction>, reason: string) => {
     clearInterval(countdownInterval);
     if (reason !== "manually stopped") {
       const timeoutMinutes =
@@ -1381,7 +1419,7 @@ function createRollCollector(message: import("discord.js").Message, gameId: stri
 
   activeCollectors.set(gameId, collector);
 
-  collector.on("collect", async (buttonInteraction: any) => {
+  collector.on("collect", async (buttonInteraction: import("discord.js").ButtonInteraction) => {
     try {
       await handleRollButton(buttonInteraction, gameId);
     } catch (error: unknown) {
@@ -1390,90 +1428,92 @@ function createRollCollector(message: import("discord.js").Message, gameId: stri
         const game = activeGames.get(gameId);
         if (!game) return;
 
-        const channel = buttonInteraction.channel;
-        const lastRoll =
-          game.rolls.length > 0 ? game.rolls[game.rolls.length - 1] : null;
-        const rollWasGenerated =
-          lastRoll && lastRoll.userId === buttonInteraction.user.id;
+        const channel = buttonInteraction.channel as import("discord.js").TextChannel | null;
+        if (channel) {
+          const lastRoll =
+            game.rolls.length > 0 ? game.rolls[game.rolls.length - 1] : null;
+          const rollWasGenerated =
+            lastRoll && lastRoll.userId === buttonInteraction.user.id;
 
-        if (!rollWasGenerated) {
-          // Error before roll — re-post the existing roll button
-          const rollButton = new ButtonBuilder()
-            .setCustomId(`deathroll_roll_${gameId}`)
-            .setLabel(`Roll (0-${game.currentNumber})`)
-            .setStyle(ButtonStyle.Primary)
-            .setEmoji("🎲");
-          const row = new ActionRowBuilder<import("discord.js").ButtonBuilder>().addComponents(rollButton);
-          const newMessage = await channel.send({
-            content: `⚠️ Something went wrong! <@${game.currentTurn}>, click below to roll again.`,
-            components: [row],
-          });
-          game.currentMessageId = newMessage.id;
-          createRollCollector(newMessage, gameId, buttonInteraction.guild);
-        } else if (lastRoll.roll === 0) {
-          // Roll was 0 (game over) but display failed — recover via channel
-          const winnerId =
-            lastRoll.userId === (game.initiator as string) ? (game.opponent as string) : (game.initiator as string);
-          const endGameData = await buildEndGameData(
-            buttonInteraction.guild.id,
-            game,
-            winnerId,
-            lastRoll.userId,
-          );
-          const gameOverMsg = await channel.send({
-            content: formatGameMessage(
-              game,
-              lastRoll.roll,
-              lastRoll.username,
-              lastRoll.userId,
-              true,
-              endGameData,
-            ),
-            components: buildDoubleOrNothingRow(
+          if (!rollWasGenerated) {
+            // Error before roll — re-post the existing roll button
+            const rollButton = new ButtonBuilder()
+              .setCustomId(`deathroll_roll_${gameId}`)
+              .setLabel(`Roll (0-${game.currentNumber})`)
+              .setStyle(ButtonStyle.Primary)
+              .setEmoji("🎲");
+            const row = new ActionRowBuilder<import("discord.js").ButtonBuilder>().addComponents(rollButton);
+            const newMessage = await channel.send({
+              content: `⚠️ Something went wrong! <@${game.currentTurn}>, click below to roll again.`,
+              components: [row],
+            });
+            game.currentMessageId = newMessage.id;
+            createRollCollector(newMessage, gameId, guild);
+          } else if (lastRoll.roll === 0) {
+            // Roll was 0 (game over) but display failed — recover via channel
+            const winnerId =
+              lastRoll.userId === (game.initiator as string) ? (game.opponent as string) : (game.initiator as string);
+            const endGameData = await buildEndGameData(
+              guild.id,
               game,
               winnerId,
               lastRoll.userId,
-            ),
-          });
-          await handleLoss(
-            buttonInteraction,
-            game,
-            lastRoll.userId,
-            lastRoll.roll,
-            gameOverMsg,
-          );
-          activeGames.delete(gameId);
-          activeCollectors.delete(gameId);
-        } else {
-          // Roll was generated but display failed — update state and re-post
-          game.currentNumber = lastRoll.roll;
-          game.currentTurn =
-            lastRoll.userId === (game.initiator as string) ? (game.opponent as string) : (game.initiator as string);
-
-          const rollButton = new ButtonBuilder()
-            .setCustomId(`deathroll_roll_${gameId}`)
-            .setLabel(`Roll (0-${lastRoll.roll})`)
-            .setStyle(ButtonStyle.Primary)
-            .setEmoji("🎲");
-          const row = new ActionRowBuilder<import("discord.js").ButtonBuilder>().addComponents(rollButton);
-          const midGameStats = await fetchMidGameStats(
-            buttonInteraction.guild.id,
-            (game.initiator as string),
-            (game.opponent as string),
-          );
-          const newMessage = await channel.send({
-            content: formatGameMessage(
+            );
+            const gameOverMsg = await channel.send({
+              content: formatGameMessage(
+                game,
+                lastRoll.roll,
+                lastRoll.username,
+                lastRoll.userId,
+                true,
+                endGameData,
+              ),
+              components: buildDoubleOrNothingRow(
+                game,
+                winnerId,
+                lastRoll.userId,
+              ),
+            });
+            await handleLoss(
+              buttonInteraction,
               game,
-              lastRoll.roll,
-              lastRoll.username,
               lastRoll.userId,
-              false,
-              midGameStats,
-            ),
-            components: [row],
-          });
-          game.currentMessageId = newMessage.id;
-          createRollCollector(newMessage, gameId, buttonInteraction.guild);
+              lastRoll.roll,
+              gameOverMsg,
+            );
+            activeGames.delete(gameId);
+            activeCollectors.delete(gameId);
+          } else {
+            // Roll was generated but display failed — update state and re-post
+            game.currentNumber = lastRoll.roll;
+            game.currentTurn =
+              lastRoll.userId === (game.initiator as string) ? (game.opponent as string) : (game.initiator as string);
+
+            const rollButton = new ButtonBuilder()
+              .setCustomId(`deathroll_roll_${gameId}`)
+              .setLabel(`Roll (0-${lastRoll.roll})`)
+              .setStyle(ButtonStyle.Primary)
+              .setEmoji("🎲");
+            const row = new ActionRowBuilder<import("discord.js").ButtonBuilder>().addComponents(rollButton);
+            const midGameStats = await fetchMidGameStats(
+              guild.id,
+              (game.initiator as string),
+              (game.opponent as string),
+            );
+            const newMessage = await channel.send({
+              content: formatGameMessage(
+                game,
+                lastRoll.roll,
+                lastRoll.username,
+                lastRoll.userId,
+                false,
+                midGameStats,
+              ),
+              components: [row],
+            });
+            game.currentMessageId = newMessage.id;
+            createRollCollector(newMessage, gameId, guild);
+          }
         }
       } catch (recoveryError: unknown) {
         console.error("Failed to recover from roll error:", recoveryError);
@@ -1481,7 +1521,7 @@ function createRollCollector(message: import("discord.js").Message, gameId: stri
     }
   });
 
-  collector.on("end", async (collected: any, reason: any) => {
+  collector.on("end", async (collected: import("discord.js").Collection<string, import("discord.js").ButtonInteraction>, reason: string) => {
     if (reason !== "manually stopped" && activeGames.has(gameId)) {
       const game = activeGames.get(gameId);
 

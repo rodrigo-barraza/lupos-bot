@@ -4,6 +4,7 @@ import {
   createAudioResource,
   AudioPlayerStatus,
   StreamType,
+  EndBehaviorType,
 } from "@discordjs/voice";
 import type {
   VoiceConnection,
@@ -11,6 +12,7 @@ import type {
   AudioPlayerError,
   VoiceConnectionState,
   VoiceReceiver,
+  AudioReceiveStream,
 } from "@discordjs/voice";
 import play from "play-dl";
 import type { YouTubeVideo } from "play-dl";
@@ -25,7 +27,7 @@ import {
   EmbedBuilder,
   AttachmentBuilder,
 } from "discord.js";
-import type { Client, Message, GuildMember } from "discord.js";
+import type { Client, Message, GuildMember, TextChannel } from "discord.js";
 
 // new
 import prism from "prism-media";
@@ -39,7 +41,7 @@ interface QueueItem {
 }
 
 interface RecordingStreamEntry {
-  opusStream: any;
+  opusStream: AudioReceiveStream;
   decoder: Transform;
   outputStream: fs.WriteStream;
   pcmPath: string;
@@ -163,14 +165,12 @@ function createEmbed(video: YouTubeVideo, queueMessage: Message) {
     ? video.thumbnails[1].url
     : video.thumbnails[0].url;
 
-  // message.reply(`Now playing: **${video.title}** (${video.durationRaw}), requested by ${video.author}`);
-
-  const _username = DiscordUtilityService.getNameFromItem(queueMessage as any);
+  const _username = DiscordUtilityService.getNameFromItem(queueMessage);
   const _userProfilePicture = queueMessage.author.displayAvatarURL();
 
   let formatted = "0:00";
-  if ((player?.state as any)?.resource?.playbackDuration) {
-    formatted = utilities.formatPlaybackTime((player!.state as any).resource.playbackDuration);
+  if (player && "resource" in player.state && player.state.resource?.playbackDuration) {
+    formatted = utilities.formatPlaybackTime(player.state.resource.playbackDuration);
   }
 
   // formatted message with embed
@@ -192,13 +192,13 @@ function createEmbed(video: YouTubeVideo, queueMessage: Message) {
       text: `${statusStymbol} ${formatted} / ${videoDuration}`,
       // icon_url: userProfilePicture,
     },
-    author: queueMessage.author,
+    author: {
+      name: queueMessage.author.globalName || queueMessage.author.username,
+      icon_url: queueMessage.author.displayAvatarURL(),
+    },
     image: {
       url: videoThumbnail,
     },
-    // thumbnail: {
-    //     url: videoThumbnail,
-    // },
   };
 
   // add a field with the name "Up Next:" and the value of all the next songs in the queue
@@ -299,7 +299,7 @@ class YouTubeService {
       // Add error handler
       player.on("error", async (error: AudioPlayerError) => {
         console.error("Player error:", error);
-        await (message.channel as any).send(
+        await (message.channel as TextChannel).send(
           "An error occurred while streaming the song, now skipping to the next song...",
         );
         YouTubeService.stopUpdateInterval();
@@ -315,7 +315,7 @@ class YouTubeService {
 
       const embed = createEmbed(video, queueMessage);
 
-      nowPlayingMessage = await (message.channel as any).send({ embeds: [embed] });
+      nowPlayingMessage = await (message.channel as TextChannel).send({ embeds: [embed] });
       YouTubeService.startUpdateInterval();
     } catch (error: unknown) {
       console.error("Error processing queue:", error);

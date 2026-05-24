@@ -560,6 +560,9 @@ const utilities = {
           .join("\n");
     }
   },
+  errorMessage(err: unknown): string {
+    return err instanceof Error ? err.message : String(err);
+  },
 };
 
 export default utilities;

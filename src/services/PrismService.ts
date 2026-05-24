@@ -1,4 +1,5 @@
 import config from "#root/config.js";
+import utilities from "#root/utilities.js";
 import type {
   PrismRequestOptions,
   GenerateTextParams,
@@ -9,6 +10,7 @@ import type {
   MemoryExtractParams,
   MemorySearchParams,
   EmbeddingParams,
+  TransformedPrismResponse,
 } from "#root/types/prism.js";
 
 const API_BASE = config.PRISM_API_URL;
@@ -38,7 +40,7 @@ export default class PrismService {
   static async _request(
     endpoint: string,
     { method = "POST", body, username = "lupos" }: PrismRequestOptions = {},
-  ): Promise<Record<string, any>> {
+  ): Promise<TransformedPrismResponse> {
     let res: Response;
     try {
       res = await fetch(`${API_BASE}${endpoint}`, {
@@ -47,11 +49,12 @@ export default class PrismService {
         ...(body && { body: JSON.stringify(body) }),
       });
     } catch (error: unknown) {
+      const msg = utilities.errorMessage(error);
       console.error(
         `[PrismService] Network error on ${endpoint}:`,
-        (error as Error).message,
+        msg,
       );
-      throw new Error(`Prism unreachable: ${(error as Error).message}`);
+      throw new Error(`Prism unreachable: ${msg}`);
     }
 
     if (!res.ok) {
@@ -59,7 +62,7 @@ export default class PrismService {
       throw new Error(`Prism API error: ${res.status} ${errorText}`);
     }
 
-    return await res.json() as Record<string, any>;
+    return await res.json() as TransformedPrismResponse;
   }
 
   // ---------------------------------------------------------------------------
@@ -85,16 +88,17 @@ export default class PrismService {
       throw new Error(`Unknown provider type: ${type}`);
     }
 
+    const options: Record<string, unknown> = {};
+    if (maxTokens) options.maxTokens = maxTokens;
+    if (temperature !== undefined) options.temperature = temperature;
+
     const body: Record<string, unknown> = {
       provider,
       model,
       messages,
-      options: {} as Record<string, unknown>,
+      options,
       skipConversation: true,
     };
-
-    if (maxTokens) (body.options as Record<string, unknown>).maxTokens = maxTokens;
-    if (temperature !== undefined) (body.options as Record<string, unknown>).temperature = temperature;
     if (traceId) body.traceId = traceId;
 
 

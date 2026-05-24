@@ -110,7 +110,7 @@ async function assignActivityRoles({
             return await reaction.users.fetch();
           } catch (error: unknown) {
             // Skip reactions with unknown/deleted emojis
-            if ((error as any).code === 10014) {
+            if ((error as { code?: number }).code === 10014) {
               // consoleLog(`Skipping unknown emoji reaction: ${reaction.emoji.name || reaction.emoji.id}`);
               return new Map<string, User>(); // Return empty Map to maintain structure
             }
@@ -200,7 +200,7 @@ async function assignActivityRoles({
       );
     }
   } catch (error: unknown) {
-    consoleLog("Error in generateYappers:", (error as Error).message);
+    consoleLog("Error in generateYappers:", utilities.errorMessage(error));
     console.error(error);
   }
 
@@ -242,7 +242,7 @@ async function assignActivityRoles({
       );
     }
   } catch (error: unknown) {
-    consoleLog("Error in generateYappers:", (error as Error).message);
+    consoleLog("Error in generateYappers:", utilities.errorMessage(error));
     console.error(error);
   }
 }
