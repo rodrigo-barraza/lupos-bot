@@ -692,7 +692,7 @@ router.post("/guild/react", asyncHandler(async (req: Request, res: Response) => 
       const localMongo = MongoService.getClient("local");
       if (!localMongo) throw new Error("MongoService: local client not initialized");
       const db = localMongo.db("lupos");
-      const col = db.collection("Messages");
+      const collection = db.collection("Messages");
 
       const transformedReactions = freshMessage.reactions.cache.map((r: MessageReaction) => ({
         count: r.count,
@@ -707,7 +707,7 @@ router.post("/guild/react", asyncHandler(async (req: Request, res: Response) => 
         },
       }));
 
-      await col.updateOne(
+      await collection.updateOne(
         { id: messageId },
         { $set: { reactions: transformedReactions } },
       );

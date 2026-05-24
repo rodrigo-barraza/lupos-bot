@@ -116,10 +116,10 @@ const MediaArchivalService = {
    * Called once at boot.
    */
   async ensureIndexes() {
-    const col = this._getCollection();
+    const collection = this._getCollection();
     if (!col) return;
     try {
-      await col.createIndex({ hash: 1 }, { unique: true, background: true });
+      await collection.createIndex({ hash: 1 }, { unique: true, background: true });
       console.log(`📦 MediaArchivalService: MediaHashes index ensured`);
     } catch (error: unknown) {
       console.warn(`📦 MediaArchivalService: index warning: ${(error as Error).message}`);
@@ -137,10 +137,10 @@ const MediaArchivalService = {
     if (hashCache.has(hash)) return hashCache.get(hash)!;
 
     // MongoDB lookup
-    const col = this._getCollection();
+    const collection = this._getCollection();
     if (!col) return null;
 
-    const document = await col.findOne({ hash });
+    const document = await collection.findOne({ hash });
     if (document) {
       const ref: ArchiveRef = {
         hash: document.hash as string,
@@ -161,11 +161,11 @@ const MediaArchivalService = {
 
    */
   async _registerHash(archiveRef: ArchiveRef, originalUrl: string) {
-    const col = this._getCollection();
+    const collection = this._getCollection();
     if (!col) return;
 
     try {
-      await col.updateOne(
+      await collection.updateOne(
         { hash: archiveRef.hash },
         {
           $setOnInsert: {
