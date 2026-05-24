@@ -2,6 +2,12 @@ import { MessageConstant, ClockCrewConstants } from "#root/constants.js";
 import config from "#root/config.js";
 const { ASSISTANT_MESSAGE } = config;
 
+interface ClockItem {
+  name: string;
+  url?: string;
+  description?: string;
+}
+
 const MessageService = {
   assembleAssistantMessage(canGenerateImage: boolean, guildId: string) {
     let assistantMessage = "";
@@ -37,7 +43,7 @@ const MessageService = {
         if (allClocks.length) {
           assistantMessage += `\n# List of Clocks`;
           for (const clock of allClocks) {
-            const c = clock as any;
+            const c = clock as ClockItem;
             const url = c.url;
             const name = c.name;
             const description = c.description;

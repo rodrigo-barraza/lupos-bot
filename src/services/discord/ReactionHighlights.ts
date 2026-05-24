@@ -67,7 +67,7 @@ async function processCreateReaction(client: Client, queuedReaction: QueuedReact
   )
     return;
 
-  (DiscordState.allUniqueUsers as any).getOrInsert(messageId, new Set<string>()).add(userId);
+  DiscordState.allUniqueUsers.getOrInsert(messageId, new Set<string>()).add(userId);
 
   let users;
   try {
@@ -80,14 +80,15 @@ async function processCreateReaction(client: Client, queuedReaction: QueuedReact
     }
     throw fetchErr;
   }
-  users.map((reactUser: User) => (DiscordState.allUniqueUsers as any).get(messageId).add(reactUser.id));
+  const uniqueUsers = DiscordState.allUniqueUsers.getOrInsert(messageId, new Set<string>());
+  users.forEach((reactUser: User) => uniqueUsers.add(reactUser.id));
   console.log(...LogFormatter.reactionAdded(functionName, user as User, reaction as MessageReaction));
-  if ([...(DiscordState.allUniqueUsers as any).get(messageId)].length >= uniqueUserLengthTrigger) {
+  if (uniqueUsers.size >= uniqueUserLengthTrigger) {
     const attachments = reaction.message.attachments;
     const stickers = reaction.message.stickers;
     const name = DiscordUtilityService.getDisplayNameFromUserOrMember({
-      member: reaction.message.member as any,
-      user: reaction.message.author as any,
+      member: reaction.message.member as import("discord.js").GuildMember | undefined,
+      user: reaction.message.author as import("discord.js").User | undefined,
     });
     const avatarUrl = utilities.getDiscordAvatarUrl(reaction.message.author?.id ?? "", reaction.message.author?.avatar ?? "") || "";
 
@@ -159,10 +160,10 @@ async function processCreateReaction(client: Client, queuedReaction: QueuedReact
       }
     }
 
+    const uniqueUserCount = DiscordState.allUniqueUsers.get(messageId)?.size ?? 0;
     const totalReactions =
-      [...(DiscordState.allUniqueUsers as any).get(messageId)].length >
-      reaction.message.reactions.cache.size
-        ? [...(DiscordState.allUniqueUsers as any).get(messageId)].length
+      uniqueUserCount > reaction.message.reactions.cache.size
+        ? uniqueUserCount
         : reaction.message.reactions.cache.size;
 
     embed.addFields({
@@ -211,13 +212,12 @@ async function processCreateReaction(client: Client, queuedReaction: QueuedReact
         "https://cdn.discordapp.com/icons/609471635308937237/cfeccc9c5372c8ae8130b184fd1c5346.png?size=256",
     });
 
-    if (!DiscordState.reactionMessages.has(messageId)) {
+    const existingMessageId = DiscordState.reactionMessages.get(messageId);
+    if (!existingMessageId) {
       const message = await targetChannel.send({ embeds: [embed] });
       DiscordState.reactionMessages.set(messageId, message.id);
     } else {
-      const message = await targetChannel.messages.fetch(
-        (DiscordState.reactionMessages as any).get(messageId),
-      );
+      const message = await targetChannel.messages.fetch(existingMessageId);
       await message.edit({ embeds: [embed] });
     }
   }

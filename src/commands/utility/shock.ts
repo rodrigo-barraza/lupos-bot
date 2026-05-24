@@ -241,7 +241,7 @@ export default {
             lastShockedAt: now,
             lastShockedBy: userId,
             lastShockedByUsername: interaction.user.username,
-            lastShockedByDisplayName: (interaction.member as any).displayName,
+            lastShockedByDisplayName: (interaction.member as GuildMember).displayName,
             lastMove: randomMoveName,
             lastMovePower: moveData.power,
             lastTimeoutDuration: timeoutSeconds,
