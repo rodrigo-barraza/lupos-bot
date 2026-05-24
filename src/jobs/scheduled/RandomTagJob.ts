@@ -94,13 +94,13 @@ async function randomTag({ client, guildId, channelId }: RandomTagJobConfig) {
       const index = Math.floor(Math.random() * membersArray.length);
       if (usedIndices.has(index)) continue;
       usedIndices.add(index);
-      const m = membersArray[index];
+      const member = membersArray[index];
       selectedMembers.push({
-        member: m,
+        member: member,
         displayName:
-          m.displayName || m.user.globalName || m.user.username,
-        username: m.user.username,
-        id: m.user.id,
+          member.displayName || member.user.globalName || member.user.username,
+        username: member.user.username,
+        id: member.user.id,
       });
     }
 

@@ -208,15 +208,15 @@ function removeFlaggedWords(string: string) {
 
     // Process in reverse order to keep indices valid
     for (let i = matches.length - 1; i >= 0; i--) {
-      const m = matches[i];
-      const fullWord = getFullWord(result, m.index, m.text.length);
+      const censorMatch = matches[i];
+      const fullWord = getFullWord(result, censorMatch.index, censorMatch.text.length);
 
       // Only censor if the full word is NOT whitelisted
       if (!WHITELISTED_WORDS.includes(fullWord)) {
         result =
-          result.slice(0, m.index) +
-          `||${"*".repeat(m.text.length)}||` +
-          result.slice(m.index + m.text.length);
+          result.slice(0, censorMatch.index) +
+          `||${"*".repeat(censorMatch.text.length)}||` +
+          result.slice(censorMatch.index + censorMatch.text.length);
       }
     }
   }
