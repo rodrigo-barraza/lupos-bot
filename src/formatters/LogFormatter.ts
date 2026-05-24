@@ -206,9 +206,6 @@ const LogFormatter = {
     if (logEmoji) {
       log += `\n${logEmoji}`;
     }
-    if (functionName) {
-      // log += ` [${functionName}]`;
-    }
     if (logName) {
       log += ` ${bold(slowBlink(logName))}`;
     }
@@ -322,7 +319,6 @@ const LogFormatter = {
     if (theMessage) {
       if (theMessage.content) {
         logParts.push("\n    Message Content:");
-        // logParts.push([{ content: theMessage.content }]);
         logParts.push(styles.white);
         logParts.push(`\n${theMessage.content}`);
         logParts.push(styles.reset);

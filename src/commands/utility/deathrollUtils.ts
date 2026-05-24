@@ -2076,7 +2076,7 @@ export async function executeDeathroll(interaction: import("discord.js").ChatInp
   });
   activeCollectors.set(gameId, collector);
 
-  collector.on("collect", async (buttonInteraction: any) => {
+  collector.on("collect", async (buttonInteraction: import("discord.js").ButtonInteraction) => {
     try {
       if (buttonInteraction.customId.startsWith("deathroll_engage_")) {
         await handleEngageButton(buttonInteraction, gameId);
@@ -2089,7 +2089,8 @@ export async function executeDeathroll(interaction: import("discord.js").ChatInp
         const game = activeGames.get(gameId);
         if (!game) return;
 
-        const channel = buttonInteraction.channel;
+        const channel = buttonInteraction.channel as import("discord.js").TextChannel | null;
+        if (!channel) return;
         const lastRoll =
           game.rolls.length > 0 ? game.rolls[game.rolls.length - 1] : null;
 
@@ -2098,7 +2099,7 @@ export async function executeDeathroll(interaction: import("discord.js").ChatInp
           if (lastRoll.roll === 0) {
             const winnerId = (game.initiator as string);
             const endGameData = await buildEndGameData(
-              buttonInteraction.guild.id,
+              buttonInteraction.guild!.id,
               game,
               winnerId,
               lastRoll.userId,
@@ -2137,7 +2138,7 @@ export async function executeDeathroll(interaction: import("discord.js").ChatInp
               .setEmoji("🎲");
             const row = new ActionRowBuilder<import("discord.js").ButtonBuilder>().addComponents(rollButton);
             const midGameStats = await fetchMidGameStats(
-              buttonInteraction.guild.id,
+              buttonInteraction.guild!.id,
               (game.initiator as string),
               (game.opponent as string),
             );
@@ -2153,7 +2154,7 @@ export async function executeDeathroll(interaction: import("discord.js").ChatInp
               components: [row],
             });
             game.currentMessageId = newMessage.id;
-            createRollCollector(newMessage, gameId, buttonInteraction.guild);
+            createRollCollector(newMessage, gameId, buttonInteraction.guild!);
           }
         } else {
           // Error before game started — re-post engage/decline buttons
@@ -2170,11 +2171,13 @@ export async function executeDeathroll(interaction: import("discord.js").ChatInp
             .setLabel("Decline")
             .setStyle(ButtonStyle.Secondary)
             .setEmoji("❌");
-          const row = new ActionRowBuilder().addComponents(
+          const row = new ActionRowBuilder<import("discord.js").ButtonBuilder>().addComponents(
             engageButton,
             declineButton,
           );
-          const recoveryMsg = await channel.send({
+          const recoveryChannel = buttonInteraction.channel;
+          if (!recoveryChannel || !('send' in recoveryChannel)) return;
+          const recoveryMsg = await recoveryChannel.send({
             content: `⚠️ Something went wrong! Click below to accept or decline the deathroll challenge from <@${(game.initiator as string)}>.`,
             components: [row],
           });
@@ -2183,7 +2186,7 @@ export async function executeDeathroll(interaction: import("discord.js").ChatInp
             idle: 5 * 60 * 1000,
           });
           activeCollectors.set(gameId, newCollector);
-          newCollector.on("collect", async (bi: any) => {
+          newCollector.on("collect", async (bi: import("discord.js").ButtonInteraction) => {
             try {
               if (bi.customId.startsWith("deathroll_engage_")) {
                 await handleEngageButton(bi, gameId);
@@ -2194,7 +2197,7 @@ export async function executeDeathroll(interaction: import("discord.js").ChatInp
               console.error("Error in recovery engage/decline collector:",  error);
             }
           });
-          newCollector.on("end", (collected: any, reason: any) => {
+          newCollector.on("end", (_collected: import("discord.js").Collection<string, import("discord.js").ButtonInteraction>, reason: string) => {
             if (reason !== "manually stopped" && activeGames.has(gameId)) {
               const g = activeGames.get(gameId);
               if (!g) return;
@@ -2220,7 +2223,7 @@ export async function executeDeathroll(interaction: import("discord.js").ChatInp
     }
   });
 
-  collector.on("end", (collected: any, reason: any) => {
+  collector.on("end", (_collected: import("discord.js").Collection<string, import("discord.js").ButtonInteraction>, reason: string) => {
     if (reason !== "manually stopped") {
       if (activeGames.has(gameId)) {
         const game = activeGames.get(gameId);
@@ -2307,7 +2310,7 @@ export async function executeDeathrollStats(interaction: import("discord.js").Ch
     embed.setDescription(description);
 
     if (mostPlayed.length > 0) {
-      const rivalLines = mostPlayed.map((opp: any, i: any) => {
+      const rivalLines = (mostPlayed as unknown as { _id: string; name: string; games: number; winsAgainst: number }[]).map((opp, i) => {
         const lossesAgainst = opp.games - opp.winsAgainst;
         return `**${i + 1}.** <@${opp._id}> — ${opp.games} games (${opp.winsAgainst}W / ${lossesAgainst}L)`;
       });
@@ -2347,8 +2350,8 @@ export async function executeDeathrollLeaderboard(interaction: import("discord.j
     }
 
     // Separate ranked (completed placement) from unranked (still placing)
-    const rankedPlayers = ranked.filter((p: any) => !p.profile.isPlacement);
-    const unrankedPlayers = ranked.filter((p: any) => p.profile.isPlacement);
+    const rankedPlayers = ranked.filter((p: RankedPlayer) => !p.profile.isPlacement);
+    const unrankedPlayers = ranked.filter((p: RankedPlayer) => p.profile.isPlacement);
 
     // Top 10: ranked players only
     const topPlayers = rankedPlayers.slice(0, 10);
@@ -2359,21 +2362,21 @@ export async function executeDeathrollLeaderboard(interaction: import("discord.j
         ? rankedPlayers.slice(Math.max(10, rankedPlayers.length - 10))
         : [];
 
-    const formatRankedLine = (player: any, index: any) => {
+    const formatRankedLine = (player: RankedPlayer, index: number) => {
       const p = player.profile;
       const streak = formatStreak(p.currentStreak);
       const lastPlayed = p.lastPlayedAt
         ? `<t:${Math.floor(p.lastPlayedAt / 1000)}:R>`
         : "Never";
       const don =
-        p.multiplierGames > 0
+        (p.multiplierGames ?? 0) > 0
           ? ` · 🎰 ${p.multiplierWins}W/${p.multiplierLosses}L`
           : "";
 
       return `**${index + 1}.** ${p.rank.emoji} <@${player.userId}> — ${p.mmr} MMR (${p.confidence}%)\n-# ${p.wins}W / ${p.losses}L (${p.winRate}%) · ${p.totalGames} games${streak ? " · " + streak : ""}${don} · ${lastPlayed}`;
     };
 
-    const formatUnrankedLine = (player: any) => {
+    const formatUnrankedLine = (player: RankedPlayer) => {
       const p = player.profile;
       const streak = formatStreak(p.currentStreak);
       const lastPlayed = p.lastPlayedAt
@@ -2383,13 +2386,13 @@ export async function executeDeathrollLeaderboard(interaction: import("discord.j
       return `   ${UNRANKED_DISPLAY.emoji} <@${player.userId}> — **${p.totalGames}/${PLACEMENT_GAMES}** placement games\n-# ${p.wins}W / ${p.losses}L${streak ? " · " + streak : ""} · ${lastPlayed}`;
     };
 
-    const topLines = topPlayers.map((p: any, i: any) => formatRankedLine(p, i));
+    const topLines = topPlayers.map((p: RankedPlayer, i: number) => formatRankedLine(p, i));
 
     let finalDescription = `**Ranked Players:** ${rankedPlayers.length}${unrankedPlayers.length > 0 ? ` · **Placing:** ${unrankedPlayers.length}` : ""} · **Total Games:** ${totalGamesPlayed}\nRanked by MMR.\n\n`;
     finalDescription += `**🏆 Top 10**\n` + topLines.join("\n");
 
     if (bottomRanked.length > 0) {
-      const bottomLines = bottomRanked.map((p: any) => {
+      const bottomLines = bottomRanked.map((p: RankedPlayer) => {
         const index = rankedPlayers.indexOf(p);
         return formatRankedLine(p, index);
       });
@@ -2398,7 +2401,7 @@ export async function executeDeathrollLeaderboard(interaction: import("discord.j
 
     if (unrankedPlayers.length > 0) {
       unrankedPlayers.sort(
-        (a: any, b: any) => b.profile.totalGames - a.profile.totalGames,
+        (a: RankedPlayer, b: RankedPlayer) => b.profile.totalGames - a.profile.totalGames,
       );
       const unrankedLines = unrankedPlayers.map(formatUnrankedLine);
       finalDescription +=
