@@ -452,20 +452,20 @@ async function aggregatePlayerStats(guildId: string, userId: string) {
     ])
     .toArray();
 
-  const r = results[0];
-  if (!r) return null;
+  const aggregation = results[0];
+  if (!aggregation) return null;
 
   return {
-    wins: r.wins,
-    losses: r.losses,
-    totalGames: r.wins + r.losses,
-    mmrWins: r.mmrWins,
-    mmrLosses: r.mmrLosses,
-    multiplierWins: r.multiplierWins,
-    multiplierLosses: r.multiplierLosses,
-    multiplierGames: r.multiplierWins + r.multiplierLosses,
-    lastPlayedAt: r.lastPlayedAt,
-    createdAt: r.createdAt,
+    wins: aggregation.wins,
+    losses: aggregation.losses,
+    totalGames: aggregation.wins + aggregation.losses,
+    mmrWins: aggregation.mmrWins,
+    mmrLosses: aggregation.mmrLosses,
+    multiplierWins: aggregation.multiplierWins,
+    multiplierLosses: aggregation.multiplierLosses,
+    multiplierGames: aggregation.multiplierWins + aggregation.multiplierLosses,
+    lastPlayedAt: aggregation.lastPlayedAt,
+    createdAt: aggregation.createdAt,
   };
 }
 
@@ -2199,12 +2199,12 @@ export async function executeDeathroll(interaction: import("discord.js").ChatInp
           });
           newCollector.on("end", (_collected: import("discord.js").Collection<string, import("discord.js").ButtonInteraction>, reason: string) => {
             if (reason !== "manually stopped" && activeGames.has(gameId)) {
-              const g = activeGames.get(gameId);
-              if (!g) return;
-              if (!g.opponent) {
+              const game = activeGames.get(gameId);
+              if (!game) return;
+              if (!game.opponent) {
                 recoveryMsg
                   .edit({
-                    content: `🎲 <@${g.initiator}>'s deathroll expired - no one engaged!`,
+                    content: `🎲 <@${game.initiator}>'s deathroll expired - no one engaged!`,
                     components: [],
                   })
                   .catch(() => {});
@@ -2363,27 +2363,27 @@ export async function executeDeathrollLeaderboard(interaction: import("discord.j
         : [];
 
     const formatRankedLine = (player: RankedPlayer, index: number) => {
-      const p = player.profile;
-      const streak = formatStreak(p.currentStreak);
-      const lastPlayed = p.lastPlayedAt
-        ? `<t:${Math.floor(p.lastPlayedAt / 1000)}:R>`
+      const profile = player.profile;
+      const streak = formatStreak(profile.currentStreak);
+      const lastPlayed = profile.lastPlayedAt
+        ? `<t:${Math.floor(profile.lastPlayedAt / 1000)}:R>`
         : "Never";
       const don =
-        (p.multiplierGames ?? 0) > 0
-          ? ` · 🎰 ${p.multiplierWins}W/${p.multiplierLosses}L`
+        (profile.multiplierGames ?? 0) > 0
+          ? ` · 🎰 ${profile.multiplierWins}W/${profile.multiplierLosses}L`
           : "";
 
-      return `**${index + 1}.** ${p.rank.emoji} <@${player.userId}> — ${p.mmr} MMR (${p.confidence}%)\n-# ${p.wins}W / ${p.losses}L (${p.winRate}%) · ${p.totalGames} games${streak ? " · " + streak : ""}${don} · ${lastPlayed}`;
+      return `**${index + 1}.** ${profile.rank.emoji} <@${player.userId}> — ${profile.mmr} MMR (${profile.confidence}%)\n-# ${profile.wins}W / ${profile.losses}L (${profile.winRate}%) · ${profile.totalGames} games${streak ? " · " + streak : ""}${don} · ${lastPlayed}`;
     };
 
     const formatUnrankedLine = (player: RankedPlayer) => {
-      const p = player.profile;
-      const streak = formatStreak(p.currentStreak);
-      const lastPlayed = p.lastPlayedAt
-        ? `<t:${Math.floor(p.lastPlayedAt / 1000)}:R>`
+      const profile = player.profile;
+      const streak = formatStreak(profile.currentStreak);
+      const lastPlayed = profile.lastPlayedAt
+        ? `<t:${Math.floor(profile.lastPlayedAt / 1000)}:R>`
         : "Never";
 
-      return `   ${UNRANKED_DISPLAY.emoji} <@${player.userId}> — **${p.totalGames}/${PLACEMENT_GAMES}** placement games\n-# ${p.wins}W / ${p.losses}L${streak ? " · " + streak : ""} · ${lastPlayed}`;
+      return `   ${UNRANKED_DISPLAY.emoji} <@${player.userId}> — **${profile.totalGames}/${PLACEMENT_GAMES}** placement games\n-# ${profile.wins}W / ${profile.losses}L${streak ? " · " + streak : ""} · ${lastPlayed}`;
     };
 
     const topLines = topPlayers.map((p: RankedPlayer, i: number) => formatRankedLine(p, i));

@@ -111,10 +111,10 @@ const TemporalHelpers = {
 
       case "yyyy-MM-dd HH:mm:ss": {
         const pd = zdt.toPlainDateTime();
-        const h = String(pd.hour).padStart(2, "0");
-        const m = String(pd.minute).padStart(2, "0");
-        const s = String(pd.second).padStart(2, "0");
-        return `${pd.toPlainDate().toString()} ${h}:${m}:${s}`;
+        const hours = String(pd.hour).padStart(2, "0");
+        const minutes = String(pd.minute).padStart(2, "0");
+        const seconds = String(pd.second).padStart(2, "0");
+        return `${pd.toPlainDate().toString()} ${hours}:${minutes}:${seconds}`;
       }
 
       case "yyyy-MM-dd HH:mm": {
