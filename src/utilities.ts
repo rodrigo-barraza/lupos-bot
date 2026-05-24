@@ -1,5 +1,6 @@
 import TemporalHelpers from "#root/utilities/TemporalHelpers.js";
 import crypto from "crypto";
+import { errorMessage } from "@rodrigo-barraza/utilities-library";
 import type { Guild, GuildMember, MessageReaction, Role, User } from "discord.js";
 
 interface UserOrMemberParam {
@@ -560,9 +561,7 @@ const utilities = {
           .join("\n");
     }
   },
-  errorMessage(err: unknown): string {
-    return err instanceof Error ? err.message : String(err);
-  },
+  errorMessage,
 };
 
 export default utilities;
