@@ -16,7 +16,7 @@ import {
 } from "discord.js";
 import config from "#root/config.js";
 import { GAME_ROLE_MAPPINGS, MONGO_DB_NAME } from "#root/constants.js";
-import { rolesVideogames } from "#root/arrays.js";
+import { rolesVideogames } from "#root/arrays/roles.js";
 import DiscordUtilityService from "#root/services/DiscordUtilityService.js";
 import ScraperService from "#root/services/ScraperService.js";
 import MongoService from "#root/services/MongoService.js";

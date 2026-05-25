@@ -17,12 +17,8 @@ import { pathToFileURL } from "node:url";
 
 import config from "#root/config.js";
 
-import {
-  rolesVideogames,
-  warcraftClasses,
-  warcraftFactions,
-  channels,
-} from "#root/arrays.js";
+import { rolesVideogames, warcraftClasses, warcraftFactions } from "#root/arrays/roles.js";
+import channels from "#root/arrays/channels.js";
 
 import DiscordWrapper from "#root/wrappers/DiscordWrapper.js";
 import YouTubeService from "#root/services/YouTubeService.js";

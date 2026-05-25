@@ -1,5 +1,5 @@
 import DiscordUtilityService from "#root/services/DiscordUtilityService.js";
-import { birthdays } from "#root/arrays.js";
+import birthdays from "#root/arrays/birthdays.js";
 import config from "#root/config.js";
 import type { Client, GuildMember, Role } from "discord.js";
 
