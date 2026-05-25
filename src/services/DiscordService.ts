@@ -628,7 +628,6 @@ async function buildAndGenerateReply({
     systemPrompt = `# Discord client information`;
     systemPrompt += `\n- Your name: ${utilities.getCombinedNamesFromUserOrMember({ user: bot })}`;
     systemPrompt += `\n- Your discord user ID tag: <@${bot.id}>`;
-    systemPrompt += `\n- The current date and time is ${TemporalHelpers.format(TemporalHelpers.now(), "cccc, LLLL dd, yyyy 'at' h:mm a")} PST.`;
     systemPrompt += `\n- To mention, tag or reply to someone, you do it by mentioning their Discord user ID tag. For example, to mention me, you would type <@${bot.id}>.`;
 
     const guild = (message as Message).guild;
@@ -1204,81 +1203,29 @@ Respond with ONLY "yes" or "no". Nothing else.`,
     // Server-specific context (customContextWhitemane matches) is now
     // injected via agentContext.serverContext in the agent path below.
 
-    // Memory retrieval — search for relevant memories about participants
+    // Memory retrieval is now handled server-side by Prism's SystemPromptAssembler.
+    // We only need to collect participant user IDs so Prism can scope its memory search.
     const guildId = (message as Message).guildId;
+    const participantUserIds: string[] = [];
     if (guildId) {
-      try {
-        // Collect all participant user IDs for the search
-        const participantUserIds: string[] = [];
-        if (message.author?.id) participantUserIds.push(message.author.id);
-        for (const [id] of memberMentionsCollection.entries()) {
-          if (!participantUserIds.includes(id)) participantUserIds.push(id);
-        }
-        for (const [id] of userMentionsCollection.entries()) {
-          if (!participantUserIds.includes(id)) participantUserIds.push(id);
-        }
-        // Add secondary participants
-        if (participantsCollection?.size) {
-          for (const participant of participantsCollection.values()) {
-            const pId = (participant as { user?: { id: string }, id?: string }).user?.id || (participant as { user?: { id: string }, id?: string }).id;
-            if (
-              pId &&
-              !participantUserIds.includes(pId)
-            ) {
-              participantUserIds.push(pId);
-            }
+      if (message.author?.id) participantUserIds.push(message.author.id);
+      for (const [id] of memberMentionsCollection.entries()) {
+        if (!participantUserIds.includes(id)) participantUserIds.push(id);
+      }
+      for (const [id] of userMentionsCollection.entries()) {
+        if (!participantUserIds.includes(id)) participantUserIds.push(id);
+      }
+      // Add secondary participants
+      if (participantsCollection?.size) {
+        for (const participant of participantsCollection.values()) {
+          const pId = (participant as { user?: { id: string }, id?: string }).user?.id || (participant as { user?: { id: string }, id?: string }).id;
+          if (
+            pId &&
+            !participantUserIds.includes(pId)
+          ) {
+            participantUserIds.push(pId);
           }
         }
-
-        // Build a search query from recent conversation — extract clean text
-        // from <message_content> tags, preserving who said what (name: text).
-        // This avoids embedding noisy metadata (timestamps, IDs, format headers).
-        const recentUserConvo = conversation
-          .filter((m: Record<string, unknown>) => m.role === "user")
-          .slice(-5)
-          .map((m: Record<string, unknown>) => {
-            const content = (m.content as string) || "";
-            // Extract sender name from "From: Name • username • ..." metadata line
-            const fromMatch = content.match(/^From:\s*(.+?)(?:\s*•|$)/m);
-            const sender = fromMatch ? fromMatch[1].trim() : "";
-            // Extract all message text from <message_content> tags
-            const textMatches = [...content.matchAll(/<message_content>\n([\s\S]*?)\n<\/message_content>/g)];
-            if (textMatches.length > 0) {
-              const text = textMatches.map((m: RegExpMatchArray) => m[1].trim()).join(" ");
-              return sender ? `${sender}: ${text}` : text;
-            }
-            return "";
-          })
-          .filter((t: string) => t.length > 0)
-          .join("\n");
-        const queryText =
-          recentUserConvo || message.cleanContent || (message as Message).content || "";
-        // Skip memory search for trivial messages (pure emoji, single words, noise)
-        // that would produce low-quality embedding matches
-        const strippedQuery = queryText.replace(/[\s\p{Emoji_Presentation}\p{Extended_Pictographic}]/gu, "").trim();
-        if (strippedQuery.length > 8) {
-          const memoryResult = await PrismService.searchMemories({
-            guildId,
-            userIds: participantUserIds,
-            queryText,
-            limit: 8,
-            traceId: CurrentService.getTraceId() || undefined,
-          });
-
-          if (memoryResult?.memories && memoryResult.memories.length > 0) {
-            systemPrompt += `\n\n# Memories about participants`;
-            systemPrompt += `\nThese are things you remember from past conversations. Use them naturally when relevant — don't force them into every response.`;
-            for (const memory of memoryResult.memories) {
-              const createdDate = new Date(memory.createdAt);
-              const timeAgo = TemporalHelpers.toRelative(TemporalHelpers.fromJSDate(createdDate));
-              systemPrompt += `\n- ${memory.content} (about ${memory.aboutUsername}, remembered ${timeAgo})`;
-            }
-          }
-        }
-      } catch (memoryErr: unknown) {
-        console.warn(
-          `🧠 [DiscordService] Memory retrieval failed: ${(memoryErr as Error).message}`,
-        );
       }
     }
 
@@ -1541,6 +1488,7 @@ Respond with ONLY "yes" or "no". Nothing else.`,
     const agentContext: Record<string, unknown> = {
       guildId: (message as Message).guildId || null,
       channelId: (message as Message).channelId || null,
+      participantUserIds: participantUserIds.length > 0 ? participantUserIds : null,
       aprilFoolsMode: APRIL_FOOLS_MODE,
       somaticState: {
         mood: {
