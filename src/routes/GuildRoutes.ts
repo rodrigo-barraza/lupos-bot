@@ -1042,7 +1042,7 @@ router.get("/bot/activity", asyncHandler(async (req: Request, res: Response) => 
     // ── Build 24-hour timeline buckets ──────────────────────────
     const hours: string[] = [];
     for (let i = 23; i >= 0; i--) {
-      const d = new Date(now.getTime() - i * 60 * 60 * 1000);
+      const hourTimestamp = new Date(now.getTime() - i * 60 * 60 * 1000);
       d.setMinutes(0, 0, 0);
       hours.push(d.toISOString().slice(0, 13) + ":00:00");
     }
