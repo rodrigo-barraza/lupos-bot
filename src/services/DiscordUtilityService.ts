@@ -2380,7 +2380,7 @@ const DiscordUtilityService = {
     return guildsCollection;
   },
   getNameFromItem(item: Message | Interaction) {
-    const msg = item as Message & { user?: User };
+    const discordMessage = item as Message & { user?: User };
     return (
       msg?.author?.displayName ||
       msg?.author?.username ||

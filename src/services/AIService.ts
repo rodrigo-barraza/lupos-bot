@@ -113,7 +113,7 @@ const AIService = {
    * Get the current Discord username from CurrentService, with "lupos" fallback.
    */
   _getDiscordUsername(): string {
-    const msg = CurrentService.getMessage() as Message | null | undefined;
+    const discordMessage = CurrentService.getMessage() as Message | null | undefined;
     return msg?.author?.username || "lupos";
   },
   /**
@@ -219,7 +219,7 @@ const AIService = {
       }
 
     } catch (prismError: unknown) {
-      const err = prismError instanceof Error ? prismError : new Error(String(prismError));
+      const wrappedError = prismError instanceof Error ? prismError : new Error(String(prismError));
       console.error(
         `Prism API error for ${type}/${usedModel}:`,
         err.message,
@@ -277,7 +277,7 @@ const AIService = {
           generatedImage = generatedImageResponseLocal;
         }
       } catch (error: unknown) {
-        const err = error instanceof Error ? error : new Error(String(error));
+        const wrappedError = error instanceof Error ? error : new Error(String(error));
         console.error(...LogFormatter.error("generateImage", err));
         hasError = true;
       }
@@ -313,7 +313,7 @@ const AIService = {
         generatedImage = prismResult.imageData;
 
       } catch (error: unknown) {
-        const err = error instanceof Error ? error : new Error(String(error));
+        const wrappedError = error instanceof Error ? error : new Error(String(error));
         console.error(...LogFormatter.error("generateImage", err));
       }
     }
@@ -350,7 +350,7 @@ const AIService = {
         error: null,
       };
     } catch (error: unknown) {
-      const err = error instanceof Error ? error : new Error(String(error));
+      const wrappedError = error instanceof Error ? error : new Error(String(error));
       return {
         response: null,
         model: model || "gemini-3-flash-preview",

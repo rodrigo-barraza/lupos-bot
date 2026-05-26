@@ -49,7 +49,7 @@ export default class PrismService {
         ...(body && { body: JSON.stringify(body) }),
       });
     } catch (error: unknown) {
-      const msg = utilities.errorMessage(error);
+      const errorMessage = utilities.errorMessage(error);
       console.error(
         `[PrismService] Network error on ${endpoint}:`,
         msg,
