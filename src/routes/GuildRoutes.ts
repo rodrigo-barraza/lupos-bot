@@ -1043,8 +1043,8 @@ router.get("/bot/activity", asyncHandler(async (req: Request, res: Response) => 
     const hours: string[] = [];
     for (let i = 23; i >= 0; i--) {
       const hourTimestamp = new Date(now.getTime() - i * 60 * 60 * 1000);
-      d.setMinutes(0, 0, 0);
-      hours.push(d.toISOString().slice(0, 13) + ":00:00");
+      hourTimestamp.setMinutes(0, 0, 0);
+      hours.push(hourTimestamp.toISOString().slice(0, 13) + ":00:00");
     }
 
     // ── Transform aggregation results into fast lookup Maps ─────

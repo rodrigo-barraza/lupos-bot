@@ -114,7 +114,7 @@ const AIService = {
    */
   _getDiscordUsername(): string {
     const discordMessage = CurrentService.getMessage() as Message | null | undefined;
-    return msg?.author?.username || "lupos";
+    return discordMessage?.author?.username || "lupos";
   },
   /**
    * Convert image URLs to { imageData, mimeType } objects for Prism.
@@ -222,7 +222,7 @@ const AIService = {
       const wrappedError = prismError instanceof Error ? prismError : new Error(String(prismError));
       console.error(
         `Prism API error for ${type}/${usedModel}:`,
-        err.message,
+        wrappedError.message,
       );
       return null;
     }
@@ -278,7 +278,7 @@ const AIService = {
         }
       } catch (error: unknown) {
         const wrappedError = error instanceof Error ? error : new Error(String(error));
-        console.error(...LogFormatter.error("generateImage", err));
+        console.error(...LogFormatter.error("generateImage", wrappedError));
         hasError = true;
       }
       if (hasError) {
@@ -314,7 +314,7 @@ const AIService = {
 
       } catch (error: unknown) {
         const wrappedError = error instanceof Error ? error : new Error(String(error));
-        console.error(...LogFormatter.error("generateImage", err));
+        console.error(...LogFormatter.error("generateImage", wrappedError));
       }
     }
 
@@ -355,7 +355,7 @@ const AIService = {
         response: null,
         model: model || "gemini-3-flash-preview",
         provider: provider || "google",
-        error: err,
+        error: wrappedError,
       };
     }
   },

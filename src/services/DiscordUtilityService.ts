@@ -2382,10 +2382,10 @@ const DiscordUtilityService = {
   getNameFromItem(item: Message | Interaction) {
     const discordMessage = item as Message & { user?: User };
     return (
-      msg?.author?.displayName ||
-      msg?.author?.username ||
-      msg?.user?.globalName ||
-      msg?.user?.username
+      discordMessage?.author?.displayName ||
+      discordMessage?.author?.username ||
+      discordMessage?.user?.globalName ||
+      discordMessage?.user?.username
     );
   },
   // REST functions

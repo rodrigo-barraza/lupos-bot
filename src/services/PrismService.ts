@@ -52,9 +52,9 @@ export default class PrismService {
       const errorMessage = utilities.errorMessage(error);
       console.error(
         `[PrismService] Network error on ${endpoint}:`,
-        msg,
+        errorMessage,
       );
-      throw new Error(`Prism unreachable: ${msg}`);
+      throw new Error(`Prism unreachable: ${errorMessage}`);
     }
 
     if (!res.ok) {
