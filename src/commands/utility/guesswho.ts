@@ -120,15 +120,70 @@ export default {
     }
 
     try {
-      // Get random message using aggregation
-      const messages = await messagesCollection
-        .aggregate([
-          { $match: match },
-          { $sample: { size: 1 } },
-        ])
-        .toArray();
+      let chosenMessage: Document | null = null;
+      const nowTimestamp = Date.now();
+      const maximumAttempts = 15;
 
-      if (messages.length === 0) {
+      // Try to find a message using the fast random timestamp method
+      for (let attemptIndex = 0; attemptIndex < maximumAttempts; attemptIndex++) {
+        const randomTimestamp = unixStartDate + Math.floor(Math.random() * (nowTimestamp - unixStartDate));
+
+        // Query a batch of messages after the random timestamp
+        let messageBatch = await messagesCollection
+          .find({
+            guildId: interaction.guildId,
+            ...(channel ? { channelId: channel.id } : {}),
+            createdTimestamp: { $gte: randomTimestamp },
+          })
+          .sort({ createdTimestamp: 1 })
+          .limit(100)
+          .toArray();
+
+        // If batch is empty, try looking before the random timestamp
+        if (messageBatch.length === 0) {
+          messageBatch = await messagesCollection
+            .find({
+              guildId: interaction.guildId,
+              ...(channel ? { channelId: channel.id } : {}),
+              createdTimestamp: { $lte: randomTimestamp, $gte: unixStartDate },
+            })
+            .sort({ createdTimestamp: -1 })
+            .limit(100)
+            .toArray();
+        }
+
+        // Filter the batch in-memory for our game requirements
+        const validMessages = messageBatch.filter((messageDocument: Document) => {
+          if (messageDocument.author?.bot === true) return false;
+          if (messageDocument.author?.id === invokerId) return false;
+          if (!messageDocument.content || messageDocument.content === "") return false;
+          if (/^[!./]/.test(messageDocument.content)) return false;
+          if (messageDocument.content.length < minLength) return false;
+          return true;
+        });
+
+        if (validMessages.length > 0) {
+          // Pick a random message from the valid messages in this batch
+          const randomIndex = Math.floor(Math.random() * validMessages.length);
+          chosenMessage = validMessages[randomIndex];
+          break;
+        }
+      }
+
+      // Fallback to slow aggregation only if the extremely fast method yields nothing
+      if (!chosenMessage) {
+        const fallbackMessages = await messagesCollection
+          .aggregate([
+            { $match: match },
+            { $sample: { size: 1 } },
+          ])
+          .toArray();
+        if (fallbackMessages.length > 0) {
+          chosenMessage = fallbackMessages[0];
+        }
+      }
+
+      if (!chosenMessage) {
         await interaction.editReply({
           content:
             "No suitable messages found in the specified time period. Try adjusting your parameters!",
@@ -136,7 +191,7 @@ export default {
         return;
       }
 
-      const message = messages[0];
+      const message = chosenMessage;
       const correctUserId = message.author.id;
       const correctUsername = message.author.username;
 
@@ -144,25 +199,83 @@ export default {
       const messageLink = `https://discord.com/channels/${message.guildId}/${message.channelId}/${message.id}`;
 
       // Get 7 other random users from the same time period as decoys
-      const decoyUsers = await messagesCollection
-        .aggregate([
-          {
-            $match: {
-              ...match,
+      const uniqueDecoys = new Map<string, { _id: string; username: string; defaultAvatarURL: string }>();
+
+      // Try to find decoy users using fast random timestamp queries
+      for (let attemptIndex = 0; attemptIndex < maximumAttempts && uniqueDecoys.size < 7; attemptIndex++) {
+        const randomTimestamp = unixStartDate + Math.floor(Math.random() * (nowTimestamp - unixStartDate));
+
+        let decoyMessageBatch = await messagesCollection
+          .find({
+            guildId: interaction.guildId,
+            ...(channel ? { channelId: channel.id } : {}),
+            createdTimestamp: { $gte: randomTimestamp },
+          })
+          .sort({ createdTimestamp: 1 })
+          .limit(100)
+          .toArray();
+
+        if (decoyMessageBatch.length === 0) {
+          decoyMessageBatch = await messagesCollection
+            .find({
               guildId: interaction.guildId,
-              "author.id": { $ne: correctUserId, $nin: [invokerId] },
-            },
-          },
-          {
-            $group: {
-              _id: "$author.id",
-              username: { $first: "$author.username" },
-              avatar: { $first: "$author.defaultAvatarURL" },
-            },
-          },
-          { $sample: { size: 7 } },
-        ])
-        .toArray();
+              ...(channel ? { channelId: channel.id } : {}),
+              createdTimestamp: { $lte: randomTimestamp, $gte: unixStartDate },
+            })
+            .sort({ createdTimestamp: -1 })
+            .limit(100)
+            .toArray();
+        }
+
+        for (const messageDocument of decoyMessageBatch) {
+          const author = messageDocument.author;
+          if (!author || author.bot === true) continue;
+
+          const authorId = String(author.id);
+          if (authorId === correctUserId || authorId === invokerId) continue;
+
+          uniqueDecoys.set(authorId, {
+            _id: authorId,
+            username: author.username,
+            defaultAvatarURL: author.defaultAvatarURL || author.avatar || "",
+          });
+
+          if (uniqueDecoys.size === 7) {
+            break;
+          }
+        }
+      }
+
+      // If we still don't have 7 decoys, fetch from recent messages in the guild (very fast index scan)
+      if (uniqueDecoys.size < 7) {
+        const recentMessages = await messagesCollection
+          .find({
+            guildId: interaction.guildId,
+          })
+          .sort({ createdTimestamp: -1 })
+          .limit(200)
+          .toArray();
+
+        for (const messageDocument of recentMessages) {
+          const author = messageDocument.author;
+          if (!author || author.bot === true) continue;
+
+          const authorId = String(author.id);
+          if (authorId === correctUserId || authorId === invokerId) continue;
+
+          uniqueDecoys.set(authorId, {
+            _id: authorId,
+            username: author.username,
+            defaultAvatarURL: author.defaultAvatarURL || author.avatar || "",
+          });
+
+          if (uniqueDecoys.size === 7) {
+            break;
+          }
+        }
+      }
+
+      const decoyUsers = Array.from(uniqueDecoys.values());
 
       if (decoyUsers.length < 7) {
         await interaction.editReply({
