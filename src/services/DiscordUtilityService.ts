@@ -1034,6 +1034,14 @@ const DiscordUtilityService = {
       }
     }
 
+    try {
+      await collection.createIndex({ guildId: 1, createdTimestamp: -1 }, { background: true });
+      await collection.createIndex({ guildId: 1, channelId: 1, createdTimestamp: -1 }, { background: true });
+      console.log(`[INDEX] Ensured compound indexes on "${collectionName}"`);
+    } catch (indexError: unknown) {
+      console.error(`[INDEX] Failed to create compound indexes on "${collectionName}":`, indexError);
+    }
+
     // ── Resume logic ────────────────────────────────────────────────
     const resumeMap = new Map<string, string>();
     const completedChannelIds = new Set<string>();

@@ -2764,6 +2764,16 @@ async function luposOnReady(client: Client, { mongo }: { mongo: import("mongodb"
   console.log(...LogFormatter.botReady(client));
   consoleLogAllGuilds(client);
 
+  try {
+    const db = mongo.db(MONGO_DB_NAME);
+    const messagesCollection = db.collection("Messages");
+    await messagesCollection.createIndex({ guildId: 1, createdTimestamp: -1 }, { background: true });
+    await messagesCollection.createIndex({ guildId: 1, channelId: 1, createdTimestamp: -1 }, { background: true });
+    console.log("🔌 [DiscordService] Messages compound indexes ensured");
+  } catch (indexError: unknown) {
+    console.error("⚠️ [DiscordService] Failed to create Messages indexes:", indexError);
+  }
+
   // Warm up the Discord REST connection pool — the first REST call after
   // gateway connect can stall on DNS/TLS in Docker (Synology bridge network).
   // Issuing a lightweight call here primes the pool so sendTyping() doesn't hang.
