@@ -110,6 +110,9 @@ export default {
         $ne: "",
         $not: { $regex: "^[!./]" },
       },
+      $expr: {
+        $gte: [{ $strLenCP: "$content" }, minLength],
+      },
     };
 
     if (channel) {
@@ -121,16 +124,6 @@ export default {
       const messages = await messagesCollection
         .aggregate([
           { $match: match },
-          {
-            $addFields: {
-              contentLength: { $strLenCP: "$content" },
-            },
-          },
-          {
-            $match: {
-              contentLength: { $gte: minLength },
-            },
-          },
           { $sample: { size: 1 } },
         ])
         .toArray();
