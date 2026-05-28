@@ -13,9 +13,9 @@ export default class MongoService {
       console.log(...LogFormatter.mongoConnectionSuccess(name));
       return client;
     } catch (error: unknown) {
-      const err = error instanceof Error ? error : new Error(String(error));
-      console.error(...LogFormatter.mongoConnectionError(name, err));
-      throw err;
+      const typedError = error instanceof Error ? error : new Error(String(error));
+      console.error(...LogFormatter.mongoConnectionError(name, typedError));
+      throw typedError;
     }
   }
 

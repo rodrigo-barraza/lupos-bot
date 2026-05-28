@@ -110,18 +110,18 @@ const TemporalHelpers = {
         }).replace(/,\s*(\d)/, " at $1");
 
       case "yyyy-MM-dd HH:mm:ss": {
-        const pd = zdt.toPlainDateTime();
-        const hours = String(pd.hour).padStart(2, "0");
-        const minutes = String(pd.minute).padStart(2, "0");
-        const seconds = String(pd.second).padStart(2, "0");
-        return `${pd.toPlainDate().toString()} ${hours}:${minutes}:${seconds}`;
+        const plainDateTime = zdt.toPlainDateTime();
+        const hours = String(plainDateTime.hour).padStart(2, "0");
+        const minutes = String(plainDateTime.minute).padStart(2, "0");
+        const seconds = String(plainDateTime.second).padStart(2, "0");
+        return `${plainDateTime.toPlainDate().toString()} ${hours}:${minutes}:${seconds}`;
       }
 
       case "yyyy-MM-dd HH:mm": {
-        const pd2 = zdt.toPlainDateTime();
-        const h2 = String(pd2.hour).padStart(2, "0");
-        const m2 = String(pd2.minute).padStart(2, "0");
-        return `${pd2.toPlainDate().toString()} ${h2}:${m2}`;
+        const plainDateTime = zdt.toPlainDateTime();
+        const formattedHours = String(plainDateTime.hour).padStart(2, "0");
+        const formattedMinutes = String(plainDateTime.minute).padStart(2, "0");
+        return `${plainDateTime.toPlainDate().toString()} ${formattedHours}:${formattedMinutes}`;
       }
 
       case "yyyy-MM-dd":
@@ -262,21 +262,21 @@ const TemporalHelpers = {
    * - y=year, M=month, d=day, H=hour, m=minute, S=millisecond
    */
   toDateId(zdt: Temporal.ZonedDateTime, pattern: string): string {
-    const pd = zdt.toPlainDateTime();
-    const y2 = String(pd.year % 100).padStart(2, "0");
-    const M2 = String(pd.month).padStart(2, "0");
-    const d2 = String(pd.day).padStart(2, "0");
-    const H2 = String(pd.hour).padStart(2, "0");
-    const m2 = String(pd.minute).padStart(2, "0");
-    const ms = String(pd.millisecond).padStart(3, "0");
+    const plainDateTime = zdt.toPlainDateTime();
+    const yearShort = String(plainDateTime.year % 100).padStart(2, "0");
+    const monthPadded = String(plainDateTime.month).padStart(2, "0");
+    const dayPadded = String(plainDateTime.day).padStart(2, "0");
+    const hourPadded = String(plainDateTime.hour).padStart(2, "0");
+    const minutePadded = String(plainDateTime.minute).padStart(2, "0");
+    const millisecondPadded = String(plainDateTime.millisecond).padStart(3, "0");
 
     switch (pattern) {
-      case "yyMMddHHmmSSS": return `${y2}${M2}${d2}${H2}${m2}${ms}`;
-      case "mSSS":          return `${m2}${ms}`;
-      case "HmmSSS":        return `${H2}${m2}${ms}`;
-      case "dHHmmSSS":      return `${d2}${H2}${m2}${ms}`;
-      case "MddHHmmSSS":    return `${M2}${d2}${H2}${m2}${ms}`;
-      default:              return `${y2}${M2}${d2}${H2}${m2}${ms}`;
+      case "yyMMddHHmmSSS": return `${yearShort}${monthPadded}${dayPadded}${hourPadded}${minutePadded}${millisecondPadded}`;
+      case "mSSS":          return `${minutePadded}${millisecondPadded}`;
+      case "HmmSSS":        return `${hourPadded}${minutePadded}${millisecondPadded}`;
+      case "dHHmmSSS":      return `${dayPadded}${hourPadded}${minutePadded}${millisecondPadded}`;
+      case "MddHHmmSSS":    return `${monthPadded}${dayPadded}${hourPadded}${minutePadded}${millisecondPadded}`;
+      default:              return `${yearShort}${monthPadded}${dayPadded}${hourPadded}${minutePadded}${millisecondPadded}`;
     }
   },
 };
