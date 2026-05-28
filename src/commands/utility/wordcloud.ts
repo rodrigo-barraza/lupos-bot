@@ -96,9 +96,10 @@ export default {
         year: "numeric",
       });
 
-      // Fetch all messages from the user
+      // Fetch all messages from the user in this guild
       const messages = await messagesCollection
         .find({
+          guildId: interaction.guildId,
           "author.id": user!.id,
           createdTimestamp: { $gte: unixStartDate },
         })

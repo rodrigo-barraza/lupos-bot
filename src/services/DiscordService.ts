@@ -2769,9 +2769,28 @@ async function luposOnReady(client: Client, { mongo }: { mongo: import("mongodb"
     const messagesCollection = db.collection("Messages");
     await messagesCollection.createIndex({ guildId: 1, createdTimestamp: -1 }, { background: true });
     await messagesCollection.createIndex({ guildId: 1, channelId: 1, createdTimestamp: -1 }, { background: true });
+    await messagesCollection.createIndex({ guildId: 1, "mentions.users.id": 1, createdTimestamp: -1 }, { background: true });
+    await messagesCollection.createIndex({ guildId: 1, "author.id": 1, createdTimestamp: -1 }, { background: true });
     console.log("🔌 [DiscordService] Messages compound indexes ensured");
+
+    const guessWhoScoresCollection = db.collection("GuessWhoGameScore");
+    await guessWhoScoresCollection.createIndex({ userId: 1, guildId: 1 }, { unique: true, background: true });
+    await guessWhoScoresCollection.createIndex({ guildId: 1, score: -1 }, { background: true });
+    console.log("🔌 [DiscordService] GuessWhoGameScore compound indexes ensured");
+
+    const beatUpVotesCollection = db.collection("BeatUpGameVotes");
+    await beatUpVotesCollection.createIndex({ targetId: 1, guildId: 1 }, { unique: true, background: true });
+    console.log("🔌 [DiscordService] BeatUpGameVotes unique index ensured");
+
+    const beatUpCooldownsCollection = db.collection("BeatUpGameCooldowns");
+    await beatUpCooldownsCollection.createIndex({ userId: 1, guildId: 1, type: 1 }, { unique: true, background: true });
+    console.log("🔌 [DiscordService] BeatUpGameCooldowns unique index ensured");
+
+    const shockStatisticsCollection = db.collection("ShockGameStatistics");
+    await shockStatisticsCollection.createIndex({ userId: 1, guildId: 1 }, { unique: true, background: true });
+    console.log("🔌 [DiscordService] ShockGameStatistics unique index ensured");
   } catch (indexError: unknown) {
-    console.error("⚠️ [DiscordService] Failed to create Messages indexes:", indexError);
+    console.error("⚠️ [DiscordService] Failed to create database indexes:", indexError);
   }
 
   // Warm up the Discord REST connection pool — the first REST call after
