@@ -280,12 +280,12 @@ function computePlayerProfile(playerStats: Partial<AggregatedStats> & Partial<Us
   const totalGames = playerStats?.totalGames || (wins || 0) + (losses || 0);
   const winRate = totalGames > 0 ? Math.round((wins / totalGames) * 100) : 0;
   const mmr = playerStats?.mmr ?? BASE_MMR;
-  const rd = playerStats?.rd ?? MAX_RD;
+  const ratingDeviation = playerStats?.rd ?? MAX_RD;
   const isPlacement = totalGames < PLACEMENT_GAMES;
   const rank = isPlacement
     ? RANK_TIERS[RANK_TIERS.length - 1]
     : getRankTitle(mmr);
-  const confidence = calculateConfidence(rd);
+  const confidence = calculateConfidence(ratingDeviation);
   const currentStreak = playerStats?.currentStreak || 0;
   const bestStreak = playerStats?.bestStreak || 0;
   const multiplierGames = playerStats?.multiplierGames || 0;
@@ -300,7 +300,7 @@ function computePlayerProfile(playerStats: Partial<AggregatedStats> & Partial<Us
     totalGames,
     winRate,
     mmr,
-    rd,
+    rd: ratingDeviation,
     confidence,
     rank,
     isPlacement,
@@ -1002,16 +1002,16 @@ async function fetchLeaderboard(guildId: string, limit: number = 20) {
 
     let ranked: RankedPlayer[] = historyStats
       .map((hs) => {
-        const us = userStatsMap.get(hs.userId) || {};
-        const { mmr, rd } = getSeasonMMR(us);
+        const userStatsEntry = userStatsMap.get(hs.userId) || {};
+        const { mmr, rd } = getSeasonMMR(userStatsEntry);
         return {
           userId: hs.userId,
           profile: computePlayerProfile({
             ...hs,
             mmr,
-            rd: applyTimeDecayRD(rd, us.lastPlayedAt),
-            currentStreak: us.currentStreak || 0,
-            bestStreak: us.bestStreak || 0,
+            rd: applyTimeDecayRD(rd, userStatsEntry.lastPlayedAt),
+            currentStreak: userStatsEntry.currentStreak || 0,
+            bestStreak: userStatsEntry.bestStreak || 0,
           }),
         };
       })

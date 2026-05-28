@@ -41,9 +41,9 @@ export default class PrismService {
     endpoint: string,
     { method = "POST", body, username = "lupos" }: PrismRequestOptions = {},
   ): Promise<TransformedPrismResponse> {
-    let res: Response;
+    let fetchResponse: Response;
     try {
-      res = await fetch(`${API_BASE}${endpoint}`, {
+      fetchResponse = await fetch(`${API_BASE}${endpoint}`, {
         method,
         headers: getHeaders(username),
         ...(body && { body: JSON.stringify(body) }),
@@ -57,12 +57,12 @@ export default class PrismService {
       throw new Error(`Prism unreachable: ${errorMessage}`);
     }
 
-    if (!res.ok) {
-      const errorText = await res.text();
-      throw new Error(`Prism API error: ${res.status} ${errorText}`);
+    if (!fetchResponse.ok) {
+      const errorText = await fetchResponse.text();
+      throw new Error(`Prism API error: ${fetchResponse.status} ${errorText}`);
     }
 
-    return await res.json() as TransformedPrismResponse;
+    return await fetchResponse.json() as TransformedPrismResponse;
   }
 
   // ---------------------------------------------------------------------------

@@ -30,68 +30,68 @@ export default class SomaticAdaptationService {
 
     // 2. Food -> Decrease Hunger (satisfies), Increase Bathroom slightly
     if (FOOD_KEYWORDS.test(cleanText)) {
-      const prev = HungerService.getHungerLevel();
+      const previousLevel = HungerService.getHungerLevel();
       HungerService.decreaseHungerLevel();
-      const current = HungerService.getHungerLevel();
-      console.log(`🍖 [SomaticAdaptationService] Food keyword matched. Hunger level: ${prev} -> ${current}`);
+      const currentLevel = HungerService.getHungerLevel();
+      console.log(`🍖 [SomaticAdaptationService] Food keyword matched. Hunger level: ${previousLevel} -> ${currentLevel}`);
       BathroomService.increaseBathroomLevel();
     }
 
     // 3. Drinks -> Decrease Thirst, Increase Bathroom
     if (DRINK_KEYWORDS.test(cleanText)) {
-      const prev = ThirstService.getThirstLevel();
+      const previousLevel = ThirstService.getThirstLevel();
       ThirstService.decreaseThirstLevel();
-      const current = ThirstService.getThirstLevel();
-      console.log(`💧 [SomaticAdaptationService] Drink keyword matched. Thirst level: ${prev} -> ${current}`);
+      const currentLevel = ThirstService.getThirstLevel();
+      console.log(`💧 [SomaticAdaptationService] Drink keyword matched. Thirst level: ${previousLevel} -> ${currentLevel}`);
       BathroomService.increaseBathroomLevel();
     }
 
     // 4. Rest -> Increase Energy
     if (REST_KEYWORDS.test(cleanText)) {
-      const prev = EnergyService.getEnergyLevel();
+      const previousLevel = EnergyService.getEnergyLevel();
       EnergyService.increaseEnergyLevel();
-      const current = EnergyService.getEnergyLevel();
-      console.log(`💤 [SomaticAdaptationService] Rest keyword matched. Energy level: ${prev} -> ${current}`);
+      const currentLevel = EnergyService.getEnergyLevel();
+      console.log(`💤 [SomaticAdaptationService] Rest keyword matched. Energy level: ${previousLevel} -> ${currentLevel}`);
     }
 
     // 5. Work/Activity -> Decrease Energy (fatigues)
     if (WORK_KEYWORDS.test(cleanText)) {
-      const prev = EnergyService.getEnergyLevel();
+      const previousLevel = EnergyService.getEnergyLevel();
       EnergyService.decreaseEnergyLevel();
-      const current = EnergyService.getEnergyLevel();
-      console.log(`🔨 [SomaticAdaptationService] Work/Activity keyword matched. Energy level: ${prev} -> ${current}`);
+      const currentLevel = EnergyService.getEnergyLevel();
+      console.log(`🔨 [SomaticAdaptationService] Work/Activity keyword matched. Energy level: ${previousLevel} -> ${currentLevel}`);
     }
 
     // 6. Sick/Toxins -> Increase Sickness
     if (SICK_KEYWORDS.test(cleanText)) {
-      const prev = SicknessService.getSicknessLevel();
+      const previousLevel = SicknessService.getSicknessLevel();
       SicknessService.increaseSicknessLevel();
-      const current = SicknessService.getSicknessLevel();
-      console.log(`🤮 [SomaticAdaptationService] Sickness keyword matched. Sickness level: ${prev} -> ${current}`);
+      const currentLevel = SicknessService.getSicknessLevel();
+      console.log(`🤮 [SomaticAdaptationService] Sickness keyword matched. Sickness level: ${previousLevel} -> ${currentLevel}`);
     }
 
     // 7. Alcohol -> Increase Alcohol, decrease mood slightly if too drunk (or keep happy)
     if (ALCOHOL_KEYWORDS.test(cleanText)) {
-      const prev = AlcoholService.getAlcoholLevel();
+      const previousLevel = AlcoholService.getAlcoholLevel();
       AlcoholService.increaseAlcoholLevel();
-      const current = AlcoholService.getAlcoholLevel();
-      console.log(`🍺 [SomaticAdaptationService] Alcohol keyword matched. Alcohol level: ${prev} -> ${current}`);
+      const currentLevel = AlcoholService.getAlcoholLevel();
+      console.log(`🍺 [SomaticAdaptationService] Alcohol keyword matched. Alcohol level: ${previousLevel} -> ${currentLevel}`);
     }
 
     // 7.5. Substance -> Increase Substance
     if (SUBSTANCE_KEYWORDS.test(cleanText)) {
-      const prev = SubstanceService.getSubstanceLevel();
+      const previousLevel = SubstanceService.getSubstanceLevel();
       SubstanceService.increaseSubstanceLevel();
-      const current = SubstanceService.getSubstanceLevel();
-      console.log(`🌿 [SomaticAdaptationService] Substance keyword matched. Substance level: ${prev} -> ${current}`);
+      const currentLevel = SubstanceService.getSubstanceLevel();
+      console.log(`🌿 [SomaticAdaptationService] Substance keyword matched. Substance level: ${previousLevel} -> ${currentLevel}`);
     }
 
     // 8. Bathroom -> Reset/Decrease Bathroom level
     if (BATHROOM_KEYWORDS.test(cleanText)) {
-      const prev = BathroomService.getBathroomLevel();
+      const previousLevel = BathroomService.getBathroomLevel();
       BathroomService.decreaseBathroomLevel();
-      const current = BathroomService.getBathroomLevel();
-      console.log(`🚽 [SomaticAdaptationService] Bathroom keyword matched. Bathroom level: ${prev} -> ${current}`);
+      const currentLevel = BathroomService.getBathroomLevel();
+      console.log(`🚽 [SomaticAdaptationService] Bathroom keyword matched. Bathroom level: ${previousLevel} -> ${currentLevel}`);
     }
   }
 
