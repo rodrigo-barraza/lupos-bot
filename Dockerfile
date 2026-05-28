@@ -17,7 +17,7 @@ WORKDIR /app
 COPY package.json package-lock.json .npmrc ./
 
 ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
-RUN npm ci
+RUN --mount=type=ssh npm ci
 
 # ── Stage 2: Compile TypeScript ───────────────────────────────
 FROM deps AS build
@@ -35,7 +35,7 @@ WORKDIR /app
 COPY package.json package-lock.json .npmrc ./
 
 ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
-RUN npm ci --omit=dev
+RUN --mount=type=ssh npm ci --omit=dev
 
 # ── Stage 4: Runtime ──────────────────────────────────────────
 FROM node:26-slim
