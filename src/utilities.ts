@@ -1,6 +1,6 @@
 import TemporalHelpers from "#root/utilities/TemporalHelpers.js";
 import crypto from "crypto";
-import { errorMessage } from "@rodrigo-barraza/utilities-library";
+import { errorMessage, capitalize as libraryCapitalize, fetchWithTimeout as libraryFetchWithTimeout } from "@rodrigo-barraza/utilities-library";
 import type { Guild, GuildMember, MessageReaction, Role, User } from "discord.js";
 
 interface UserOrMemberParam {
@@ -52,10 +52,8 @@ const utilities = {
     }
   },
   // String utilities
-  capitalize(string: string) {
-    if (string) {
-      return string.charAt(0).toUpperCase() + string.slice(1);
-    }
+  capitalize(text: string) {
+    return libraryCapitalize(text);
   },
 
   /**
@@ -524,17 +522,7 @@ const utilities = {
 
    */
   async fetchWithTimeout(url: string, timeoutMs: number = 3000) {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), timeoutMs);
-    try {
-      const response = await fetch(url, { signal: controller.signal });
-      if (!response.ok) return null;
-      return await response.json();
-    } catch {
-      return null;
-    } finally {
-      clearTimeout(timer);
-    }
+    return libraryFetchWithTimeout(url, timeoutMs);
   },
   /**
    * Format a Discord.js reactions cache into a human-readable string.
