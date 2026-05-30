@@ -120,7 +120,7 @@ export default class PrismService {
 
   /**
    * Generate a response via Prism's /agent endpoint.
-   * The agent autonomously decides which tools to call (e.g. generate_image, web_search)
+   * The agent autonomously decides which tools to call (e.g. generate_image, search_web)
    * and returns the final response after executing the full agentic loop.
    *
    * Prism assembles the personality system prompt server-side via
