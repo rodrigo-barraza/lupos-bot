@@ -1631,6 +1631,256 @@ router.get("/guild/word-frequencies", asyncHandler(async (req: Request, res: Res
   }
 }));
 
+// ─── GET /guild/voice-members ────────────────────────────────────
+router.get("/guild/voice-members", asyncHandler(async (req: Request, res: Response) => {
+  try {
+    const guildId = (req.query.guildId as string) || config.GUILD_ID_CLOCK_CREW || "";
+    const client = DiscordWrapper.getClient("lupos");
+    const guild = client.guilds.cache.get(guildId);
+    if (!guild) {
+      return res.status(404).json({ error: "Guild not found" });
+    }
+
+    const voiceChannelMembers = guild.channels.cache.filter(
+      (channel) =>
+        (channel.type === ChannelType.GuildVoice || (channel.type as unknown as number) === 13) &&
+        (channel as import("discord.js").VoiceChannel).members &&
+        (channel as import("discord.js").VoiceChannel).members.size > 0
+    );
+
+    const channels = voiceChannelMembers.map((channel) => {
+      const voiceChannel = channel as import("discord.js").VoiceChannel | import("discord.js").StageChannel;
+      return {
+        id: voiceChannel.id,
+        name: voiceChannel.name,
+        memberCount: voiceChannel.members.size,
+        members: voiceChannel.members.map((member) => ({
+          id: member.id,
+          displayName: member.displayName,
+          username: member.user.username,
+          status: member.presence?.status || "offline",
+          voiceState: {
+            mute: member.voice.mute || false,
+            deaf: member.voice.deaf || false,
+            selfMute: member.voice.selfMute || false,
+            selfDeaf: member.voice.selfDeaf || false,
+            streaming: (member.voice as unknown as { streaming?: boolean }).streaming || false,
+            cameraOn: member.voice.selfVideo || false,
+          }
+        }))
+      };
+    });
+
+    res.json({
+      guildId,
+      guildName: guild.name,
+      channels,
+    });
+  } catch (error: unknown) {
+    console.error("[guild/voice-members] Error:", (error as Error).message);
+    res.status(500).json({ error: "Failed to fetch voice channel members" });
+  }
+}));
+
+// ─── GET /guild/user-profile ─────────────────────────────────────
+router.get("/guild/user-profile", asyncHandler(async (req: Request, res: Response) => {
+  try {
+    const { userId, guildId = config.GUILD_ID_CLOCK_CREW || "" } = req.query as { userId?: string; guildId?: string };
+    if (!userId) {
+      return res.status(400).json({ error: "userId is required" });
+    }
+
+    const client = DiscordWrapper.getClient("lupos");
+    const guild = client.guilds.cache.get(guildId);
+    if (!guild) {
+      return res.status(404).json({ error: "Guild not found" });
+    }
+
+    let member: GuildMember | null = guild.members.cache.get(userId) || null;
+    if (!member) {
+      try {
+        member = await guild.members.fetch(userId);
+      } catch {
+        // member not in guild or failed to fetch
+      }
+    }
+
+    let user: User | null = client.users.cache.get(userId) || null;
+    if (!user) {
+      try {
+        user = await client.users.fetch(userId);
+      } catch {
+        // user failed to fetch
+      }
+    }
+
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    const accentColor = user.accentColor;
+    const toHex = (colorValue: number) => "#" + colorValue.toString(16).padStart(6, "0").toUpperCase();
+    const hexColor = accentColor ? toHex(accentColor) : null;
+
+    // Get presence & activities
+    const presence = member?.presence;
+    const customStatus = presence?.activities?.find((activity) => activity.type === 4)?.state || null;
+    const activities = presence?.activities
+      ?.filter((activity) => activity.type !== 4)
+      ?.map((activity) => {
+        const types = ["Playing", "Streaming", "Listening to", "Watching", "Custom", "Competing"];
+        const state = activity.state ? `: (${activity.state})` : "";
+        return `${types[activity.type]} ${activity.name}${state}`;
+      }) || [];
+
+    // Permissions
+    const administrator = member ? member.permissions.has("Administrator") : false;
+    const moderationPermissionsList = ["ManageMessages", "KickMembers", "BanMembers", "ManageRoles"] as const;
+    const moderationPermissions = member
+      ? moderationPermissionsList.filter((permission) => member.permissions.has(permission))
+      : [];
+
+    // Manageable
+    const kickable = member?.kickable || false;
+    const manageable = member?.manageable || false;
+
+    // Roles
+    const roles = member
+      ? member.roles.cache
+          .filter((role) => role.name !== "@everyone")
+          .map((role) => role.name)
+      : [];
+    const highestRole = member?.roles?.highest?.name || null;
+    const displayColor = (member && member.displayHexColor !== "#000000") ? member.displayHexColor : null;
+
+    // Voice state
+    const voiceState = member?.voice?.channel
+      ? {
+          channelName: member.voice.channel.name,
+          deaf: member.voice.deaf || member.voice.selfDeaf || false,
+          mute: member.voice.mute || member.voice.selfMute || false,
+          streaming: (member.voice as unknown as { streaming?: boolean }).streaming || false,
+          cameraOn: member.voice.selfVideo || false,
+          suppress: member.voice.suppress || false,
+        }
+      : null;
+
+    const profileData = {
+      id: user.id,
+      username: user.username,
+      displayName: user.displayName || user.globalName || user.username,
+      nickname: member?.nickname || null,
+      globalName: user.globalName || null,
+      avatarUrl: member ? member.displayAvatarURL() : user.displayAvatarURL(),
+      bannerUrl: user.bannerURL() || null,
+      profileColor: hexColor,
+      status: presence?.status || "offline",
+      activePlatforms: presence?.status === "online" && presence.clientStatus ? Object.keys(presence.clientStatus) : [],
+      customStatus,
+      activities,
+      accountCreatedAt: user.createdAt.toISOString(),
+      joinedAt: member?.joinedTimestamp ? new Date(member.joinedTimestamp).toISOString() : null,
+      boostingSince: member?.premiumSinceTimestamp ? new Date(member.premiumSinceTimestamp).toISOString() : null,
+      administrator,
+      moderationPermissions,
+      kickable,
+      manageable,
+      roles,
+      highestRole,
+      displayColor,
+      voiceState,
+      isBot: user.bot,
+    };
+
+    res.json(profileData);
+  } catch (error: unknown) {
+    console.error("[guild/user-profile] Error:", (error as Error).message);
+    res.status(500).json({ error: "Failed to fetch user profile" });
+  }
+}));
+
+// ─── GET /guild/channel-stats ────────────────────────────────────
+router.get("/guild/channel-stats", asyncHandler(async (req: Request, res: Response) => {
+  try {
+    const guildId = (req.query.guildId as string) || config.GUILD_ID_CLOCK_CREW || "";
+    let days = req.query.days ? parseInt(req.query.days as string, 10) : 7;
+    if (isNaN(days) || days < 1) days = 7;
+    if (days > 90) days = 90; // Cap to prevent massive database scan
+
+    const client = DiscordWrapper.getClient("lupos");
+    const guild = client.guilds.cache.get(guildId);
+    if (!guild) {
+      return res.status(404).json({ error: "Guild not found" });
+    }
+
+    const { unixStartDate } = computeStartDate(0, 0, days);
+    const database = getMongoDb();
+    const messagesCollection = database.collection("Messages");
+
+    const channelStatistics = await messagesCollection.aggregate([
+      {
+        $match: {
+          guildId,
+          createdTimestamp: { $gte: unixStartDate },
+          "author.bot": { $ne: true }
+        }
+      },
+      {
+        $group: {
+          _id: "$channelId",
+          messageCount: { $sum: 1 },
+          uniqueUsers: { $addToSet: "$author.id" },
+          users: { $push: { id: "$author.id", name: "$author.username" } }
+        }
+      }
+    ]).toArray();
+
+    const formattedStatistics = channelStatistics.map((channelEntry) => {
+      const channelId = channelEntry._id;
+      const channel = guild.channels.cache.get(channelId);
+      const channelName = channel ? channel.name : "unknown-channel";
+
+      // Calculate top contributor/yapper
+      const userCounts: Record<string, { count: number; name: string }> = {};
+      for (const userItem of channelEntry.users) {
+        if (!userCounts[userItem.id]) {
+          userCounts[userItem.id] = { count: 0, name: userItem.name || "Unknown" };
+        }
+        userCounts[userItem.id].count++;
+      }
+
+      let topUser: { id: string; name: string; count: number } | null = null;
+      for (const [id, info] of Object.entries(userCounts)) {
+        if (!topUser || info.count > topUser.count) {
+          topUser = { id, name: info.name, count: info.count };
+        }
+      }
+
+      const uniqueUsersCount = channelEntry.uniqueUsers.length;
+      const messagesPerDay = channelEntry.messageCount / days;
+
+      return {
+        channelId,
+        channelName,
+        messageCount: channelEntry.messageCount,
+        uniqueUsersCount,
+        messagesPerDay: parseFloat(messagesPerDay.toFixed(1)),
+        topUser,
+      };
+    }).sort((a, b) => b.messageCount - a.messageCount);
+
+    res.json({
+      guildId,
+      guildName: guild.name,
+      days,
+      channels: formattedStatistics,
+    });
+  } catch (error: unknown) {
+    console.error("[guild/channel-stats] Error:", (error as Error).message);
+    res.status(500).json({ error: "Failed to fetch channel activity stats" });
+  }
+}));
+
 const DAYS = [
   "Monday",
   "Tuesday",
