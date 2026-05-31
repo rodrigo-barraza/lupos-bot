@@ -34,6 +34,12 @@ import BathroomService from "#root/services/BathroomService.js";
 import SubstanceService from "#root/services/SubstanceService.js";
 import { MOODS } from "#root/constants.js";
 import type { MoodEntry } from "#root/types/index.js";
+import {
+  getMongoDb,
+  getServerAgeYears,
+  computeStartDate,
+  formatTimePeriod,
+} from "#root/commands/utility/commandUtils.js";
 
 const router = Router();
 
@@ -1102,5 +1108,570 @@ router.get("/bot/activity", asyncHandler(async (req: Request, res: Response) => 
     res.status(500).json({ error: "Failed to fetch activity metrics", detail: (error as Error).message });
   }
 }));
+
+// ─── GET /guild/heatmap ──────────────────────────────────────────
+// Returns activity heatmap by day/hour for a user.
+// Query: ?guildId=...&userId=...&channelId=...&years=...&months=...&days=...
+router.get("/guild/heatmap", asyncHandler(async (req: Request, res: Response) => {
+  const guildId = (req.query.guildId as string) || config.GUILD_ID_CLOCK_CREW || "";
+  const userId = req.query.userId as string;
+  const channelId = req.query.channelId as string;
+  let years = req.query.years ? parseInt(req.query.years as string, 10) : 0;
+  const months = req.query.months ? parseInt(req.query.months as string, 10) : 0;
+  const days = req.query.days ? parseInt(req.query.days as string, 10) : 0;
+
+  if (!userId) {
+    return res.status(400).json({ error: "userId is required" });
+  }
+
+  const client = DiscordWrapper.getClient("lupos");
+  const guild = client.guilds.cache.get(guildId);
+  if (!guild) {
+    return res.status(404).json({ error: "Guild not found" });
+  }
+
+  if (years === 0 && months === 0 && days === 0) {
+    years = getServerAgeYears(guild) + 1;
+  }
+
+  const now = new Date();
+  const { startDate, unixStartDate } = computeStartDate(years, months, days);
+  const actualDays = Math.ceil((now.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+
+  const matchQuery: Record<string, unknown> = {
+    createdTimestamp: { $gte: unixStartDate },
+    guildId,
+    "author.id": userId,
+    "author.bot": { $ne: true },
+  };
+
+  if (channelId) {
+    matchQuery.channelId = channelId;
+  }
+
+  try {
+    const database = getMongoDb();
+    const messagesCollection = database.collection("Messages");
+
+    const [hourlyResult] = await messagesCollection
+      .aggregate([
+        { $match: matchQuery },
+        {
+          $project: {
+            date: { $toDate: "$createdTimestamp" },
+          },
+        },
+        {
+          $group: {
+            _id: {
+              dayOfWeek: {
+                $subtract: [
+                  {
+                    $dayOfWeek: {
+                      date: "$date",
+                      timezone: "America/Los_Angeles",
+                    },
+                  },
+                  1,
+                ],
+              },
+              hour: { $hour: { date: "$date", timezone: "America/Los_Angeles" } },
+              minute: { $minute: { date: "$date", timezone: "America/Los_Angeles" } },
+            },
+            count: { $sum: 1 },
+          },
+        },
+        {
+          $project: {
+            dayOfWeek: "$_id.dayOfWeek",
+            block: {
+              $add: [
+                { $multiply: ["$_id.hour", 2] },
+                { $cond: [{ $gte: ["$_id.minute", 30] }, 1, 0] },
+              ],
+            },
+            count: 1,
+          },
+        },
+        {
+          $group: {
+            _id: {
+              dayOfWeek: "$dayOfWeek",
+              block: "$block",
+            },
+            count: { $sum: "$count" },
+          },
+        },
+        {
+          $group: {
+            _id: null,
+            messages: {
+              $push: {
+                day: "$_id.dayOfWeek",
+                block: "$_id.block",
+                count: "$count",
+              },
+            },
+            totalMessages: { $sum: "$count" },
+          },
+        },
+      ])
+      .toArray();
+
+    const [monthlyResult] = await messagesCollection
+      .aggregate([
+        { $match: matchQuery },
+        {
+          $project: {
+            date: { $toDate: "$createdTimestamp" },
+          },
+        },
+        {
+          $group: {
+            _id: {
+              year: { $year: { date: "$date", timezone: "America/Los_Angeles" } },
+              month: { $month: { date: "$date", timezone: "America/Los_Angeles" } },
+            },
+            count: { $sum: 1 },
+          },
+        },
+        {
+          $group: {
+            _id: null,
+            messages: {
+              $push: {
+                year: "$_id.year",
+                month: "$_id.month",
+                count: "$count",
+              },
+            },
+          },
+        },
+      ])
+      .toArray();
+
+    if (!hourlyResult || hourlyResult.totalMessages === 0) {
+      return res.json({
+        totalMessages: 0,
+        actualDays,
+        hourlyMessages: [],
+        monthlyMessages: [],
+        heatmapData: [],
+      });
+    }
+
+    const hourlyMessages = hourlyResult.messages as HourlyMessageEntry[];
+    const totalMessages = hourlyResult.totalMessages as number;
+    const monthlyMessages = (monthlyResult?.messages || []) as MonthlyMessageEntry[];
+
+    const heatmapData = Array(7)
+      .fill(null)
+      .map(() => Array<number>(48).fill(0));
+
+    hourlyMessages.forEach((message) => {
+      heatmapData[message.day][message.block] = message.count;
+    });
+
+    let maxCount = 0;
+    let peakDay = 0;
+    let peakBlock = 0;
+
+    heatmapData.forEach((dayData, dayIndex) => {
+      dayData.forEach((count, blockIndex) => {
+        if (count > maxCount) {
+          maxCount = count;
+          peakDay = dayIndex;
+          peakBlock = blockIndex;
+        }
+      });
+    });
+
+    const averagePerHour = actualDays > 0 ? (totalMessages / (actualDays * 24)).toFixed(2) : "0.00";
+
+    const dayCounts = heatmapData.map((dayData) => dayData.reduce((sum, count) => sum + count, 0));
+    const maxDayIndex = dayCounts.indexOf(Math.max(...dayCounts));
+    const mostActiveDay = `${DAYS[maxDayIndex]} (${dayCounts[maxDayIndex]} messages)`;
+
+    const blockCounts = Array<number>(48).fill(0);
+    heatmapData.forEach((dayData) => {
+      dayData.forEach((count, blockIndex) => {
+        blockCounts[blockIndex] += count;
+      });
+    });
+    const topActiveTimes = blockCounts
+      .map((count, blockIndex) => ({ blockIndex, count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 3)
+      .map((item) => `${formatTimeBlock(item.blockIndex)} (${item.count})`)
+      .join(", ");
+
+    res.json({
+      totalMessages,
+      actualDays,
+      averagePerHour,
+      mostActiveDay,
+      mostActiveTimes: topActiveTimes,
+      peakActivity: {
+        day: DAYS[peakDay],
+        time: formatTimeBlock(peakBlock),
+        count: maxCount,
+      },
+      hourlyMessages,
+      monthlyMessages,
+      heatmapData,
+    });
+  } catch (error: unknown) {
+    console.error("[guild/heatmap] Error:", (error as Error).message);
+    res.status(500).json({ error: "Failed to fetch heatmap data" });
+  }
+}));
+
+// ─── GET /guild/mentions ─────────────────────────────────────────
+// Shows top 5 users who have mentioned a specific user.
+// Query: ?guildId=...&userId=...&years=...&months=...&days=...&channelId=...
+router.get("/guild/mentions", asyncHandler(async (req: Request, res: Response) => {
+  const guildId = (req.query.guildId as string) || config.GUILD_ID_CLOCK_CREW || "";
+  const userId = req.query.userId as string;
+  const channelId = req.query.channelId as string;
+  let years = req.query.years ? parseInt(req.query.years as string, 10) : 0;
+  const months = req.query.months ? parseInt(req.query.months as string, 10) : 0;
+  const days = req.query.days ? parseInt(req.query.days as string, 10) : 0;
+
+  if (!userId) {
+    return res.status(400).json({ error: "userId query parameter is required" });
+  }
+
+  const client = DiscordWrapper.getClient("lupos");
+  const guild = client.guilds.cache.get(guildId);
+  if (!guild) {
+    return res.status(404).json({ error: "Guild not found" });
+  }
+
+  if (years === 0 && months === 0 && days === 0) {
+    years = getServerAgeYears(guild);
+  }
+
+  const { startDate, unixStartDate } = computeStartDate(years, months, days);
+
+  const matchQuery: Record<string, unknown> = {
+    createdTimestamp: { $gte: unixStartDate },
+    guildId,
+    "mentions.users": {
+      $elemMatch: { id: userId },
+    },
+  };
+
+  if (channelId) {
+    matchQuery.channelId = channelId;
+  }
+
+  try {
+    const database = getMongoDb();
+    const messagesCollection = database.collection("Messages");
+
+    const [result] = await messagesCollection
+      .aggregate([
+        { $match: matchQuery },
+        {
+          $facet: {
+            topMentioners: [
+              {
+                $match: {
+                  "author.bot": { $ne: true },
+                  "author.id": { $ne: userId },
+                },
+              },
+              {
+                $group: {
+                  _id: "$author.id",
+                  username: { $first: "$author.username" },
+                  avatar: { $first: "$author.defaultAvatarURL" },
+                  count: { $sum: 1 },
+                },
+              },
+              { $sort: { count: -1 } },
+              { $limit: 10 },
+            ],
+            stats: [
+              {
+                $match: {
+                  "author.bot": { $ne: true },
+                },
+              },
+              {
+                $group: {
+                  _id: null,
+                  totalMentions: { $sum: 1 },
+                  uniqueMentioners: { $addToSet: "$author.id" },
+                },
+              },
+              {
+                $project: {
+                  totalMentions: 1,
+                  uniqueMentioners: { $size: "$uniqueMentioners" },
+                },
+              },
+            ],
+          },
+        },
+      ])
+      .toArray();
+
+    const topMentioners = (result?.topMentioners || []) as MentionerEntry[];
+    const stats = (result?.stats[0] || {
+      totalMentions: 0,
+      uniqueMentioners: 0,
+    }) as { totalMentions: number; uniqueMentioners: number };
+
+    const averageMentionsPerUser = stats.uniqueMentioners > 0 ? (stats.totalMentions / stats.uniqueMentioners).toFixed(1) : "0.0";
+
+    const formattedMentioners = topMentioners.map((mentionerItem, indexIndex) => {
+      const percentage = stats.totalMentions > 0 ? ((mentionerItem.count / stats.totalMentions) * 100).toFixed(1) : "0.0";
+      return {
+        rank: indexIndex + 1,
+        userId: mentionerItem._id,
+        username: mentionerItem.username,
+        count: mentionerItem.count,
+        percentage: parseFloat(percentage),
+      };
+    });
+
+    res.json({
+      targetUserId: userId,
+      timePeriod: formatTimePeriod(years, months, days),
+      totalMentions: stats.totalMentions,
+      uniqueMentioners: stats.uniqueMentioners,
+      averageMentionsPerUser: parseFloat(averageMentionsPerUser),
+      topMentioners: formattedMentioners,
+    });
+  } catch (error: unknown) {
+    console.error("[guild/mentions] Error:", (error as Error).message);
+    res.status(500).json({ error: "Failed to fetch mentions leaderboard" });
+  }
+}));
+
+// ─── GET /guild/leaderboard ──────────────────────────────────────
+// Shows message leaderboard for a specified time period.
+// Query: ?guildId=...&years=...&months=...&days=...&channelId=...
+router.get("/guild/leaderboard", asyncHandler(async (req: Request, res: Response) => {
+  const guildId = (req.query.guildId as string) || config.GUILD_ID_CLOCK_CREW || "";
+  const channelId = req.query.channelId as string;
+  const years = req.query.years ? parseInt(req.query.years as string, 10) : 0;
+  const months = req.query.months ? parseInt(req.query.months as string, 10) : 0;
+  let days = req.query.days ? parseInt(req.query.days as string, 10) : 0;
+
+  if (years === 0 && months === 0 && days === 0) {
+    days = 7;
+  }
+
+  const client = DiscordWrapper.getClient("lupos");
+  const guild = client.guilds.cache.get(guildId);
+  if (!guild) {
+    return res.status(404).json({ error: "Guild not found" });
+  }
+
+  const { startDate, unixStartDate } = computeStartDate(years, months, days);
+
+  const matchQuery: Record<string, unknown> = {
+    createdTimestamp: { $gte: unixStartDate },
+    guildId,
+  };
+
+  if (channelId) {
+    matchQuery.channelId = channelId;
+  }
+
+  try {
+    const database = getMongoDb();
+    const messagesCollection = database.collection("Messages");
+
+    const [totalMessages, allUsers] = await Promise.all([
+      messagesCollection.countDocuments(matchQuery),
+      messagesCollection
+        .aggregate([
+          { $match: { ...matchQuery, "author.bot": { $ne: true } } },
+          {
+            $group: {
+              _id: "$author.id",
+              username: { $first: "$author.username" },
+              count: { $sum: 1 },
+            },
+          },
+          { $sort: { count: -1 } },
+        ])
+        .toArray() as unknown as Promise<LeaderboardUser[]>,
+    ]);
+
+    const totalUsers = allUsers.length;
+    const totalUserMessages = allUsers.reduce((sum, userItem) => sum + userItem.count, 0);
+    const averageMessagesPerUser = totalUsers > 0 ? (totalUserMessages / totalUsers) : 0;
+
+    const topContributors = allUsers.slice(0, 20).map((userItem, indexIndex) => ({
+      rank: indexIndex + 1,
+      userId: userItem._id,
+      username: userItem.username,
+      count: userItem.count,
+    }));
+
+    res.json({
+      timePeriod: formatTimePeriod(years, months, days),
+      totalMessages,
+      activeUsers: totalUsers,
+      averageMessagesPerUser: parseFloat(averageMessagesPerUser.toFixed(1)),
+      topContributors,
+    });
+  } catch (error: unknown) {
+    console.error("[guild/leaderboard] Error:", (error as Error).message);
+    res.status(500).json({ error: "Failed to fetch message leaderboard" });
+  }
+}));
+
+// ─── GET /guild/word-frequencies ─────────────────────────────────
+// Generate word frequency analysis for a user.
+// Query: ?guildId=...&userId=...&years=...&months=...&days=...&limit=...
+router.get("/guild/word-frequencies", asyncHandler(async (req: Request, res: Response) => {
+  const guildId = (req.query.guildId as string) || config.GUILD_ID_CLOCK_CREW || "";
+  const userId = req.query.userId as string;
+  let years = req.query.years ? parseInt(req.query.years as string, 10) : 0;
+  const months = req.query.months ? parseInt(req.query.months as string, 10) : 0;
+  const days = req.query.days ? parseInt(req.query.days as string, 10) : 0;
+  const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : 150;
+
+  if (!userId) {
+    return res.status(400).json({ error: "userId query parameter is required" });
+  }
+
+  const client = DiscordWrapper.getClient("lupos");
+  const guild = client.guilds.cache.get(guildId);
+  if (!guild) {
+    return res.status(404).json({ error: "Guild not found" });
+  }
+
+  if (years === 0 && months === 0 && days === 0) {
+    years = getServerAgeYears(guild);
+  }
+
+  const { startDate, unixStartDate } = computeStartDate(years, months, days);
+
+  try {
+    const database = getMongoDb();
+    const messagesCollection = database.collection("Messages");
+
+    const messages = await messagesCollection
+      .find({
+        guildId,
+        "author.id": userId,
+        createdTimestamp: { $gte: unixStartDate },
+      })
+      .toArray();
+
+    if (messages.length === 0) {
+      return res.json({
+        totalMessages: 0,
+        words: [],
+      });
+    }
+
+    const STOP_WORDS = new Set([
+      "the", "be", "to", "of", "and", "a", "in", "that", "have", "i",
+      "it", "for", "not", "on", "with", "he", "as", "you", "do", "at",
+      "this", "but", "his", "by", "from", "they", "we", "say", "her",
+      "she", "or", "an", "will", "my", "one", "all", "would", "there",
+      "their", "what", "so", "up", "out", "if", "about", "who", "get",
+      "which", "go", "me", "when", "make", "can", "like", "time", "no",
+      "just", "him", "know", "take", "into", "year", "your", "some",
+      "could", "them", "than", "then", "now", "only", "its", "also",
+      "back", "after", "use", "how", "our", "even", "want", "any",
+      "these", "give", "most", "us", "is", "was", "are", "been", "has",
+      "had", "were", "did", "am", "im", "youre", "dont",
+    ]);
+
+    const frequencyMap: Record<string, number> = {};
+
+    for (const messageItem of messages) {
+      if (!messageItem.content) continue;
+
+      const cleanContent = messageItem.content
+        .replace(/https?:\/\/\S+/g, "")
+        .replace(/<@!?\d+>/g, "")
+        .replace(/<#\d+>/g, "")
+        .replace(/<@&\d+>/g, "")
+        .replace(/<a?:\w+:\d+>/g, "")
+        .replace(/[^\w\s'-]/g, " ")
+        .toLowerCase();
+
+      const words = cleanContent.split(/\s+/).filter((wordItem: string) => {
+        const trimmed = wordItem.trim();
+        return (
+          trimmed.length > 2 &&
+          !STOP_WORDS.has(trimmed) &&
+          !/^\d+$/.test(trimmed) &&
+          /[a-z]/.test(trimmed)
+        );
+      });
+
+      for (const wordItem of words) {
+        frequencyMap[wordItem] = (frequencyMap[wordItem] || 0) + 1;
+      }
+    }
+
+    const sortedWords = Object.entries(frequencyMap)
+      .map(([text, value]) => ({ text, value }))
+      .sort((a, b) => b.value - a.value)
+      .slice(0, limit);
+
+    res.json({
+      totalMessages: messages.length,
+      timePeriod: formatTimePeriod(years, months, days),
+      words: sortedWords,
+    });
+  } catch (error: unknown) {
+    console.error("[guild/word-frequencies] Error:", (error as Error).message);
+    res.status(500).json({ error: "Failed to fetch word frequencies" });
+  }
+}));
+
+const DAYS = [
+  "Monday",
+  "Tuesday",
+  "Wednesday",
+  "Thursday",
+  "Friday",
+  "Saturday",
+  "Sunday",
+];
+
+function formatTimeBlock(block: number): string {
+  const hour = Math.floor(block / 2);
+  const minute = (block % 2) * 30;
+  const period = hour >= 12 ? "PM" : "AM";
+  const displayHour = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour;
+  return `${displayHour}:${minute === 0 ? "00" : minute} ${period}`;
+}
+
+interface MentionerEntry {
+  _id: string;
+  username: string;
+  avatar: string;
+  count: number;
+}
+
+interface LeaderboardUser {
+  _id: string;
+  username: string;
+  count: number;
+}
+
+interface HourlyMessageEntry {
+  day: number;
+  block: number;
+  count: number;
+}
+
+interface MonthlyMessageEntry {
+  year: number;
+  month: number;
+  count: number;
+}
 
 export default router;
