@@ -5,6 +5,7 @@
 // ─────────────────────────────────────────────────────────────
 
 import { MinioManager } from "@rodrigo-barraza/service-library/minio";
+import type { BucketItemStat } from "minio";
 import type { Readable } from "stream";
 
 const MinioWrapper = {
@@ -43,7 +44,7 @@ const MinioWrapper = {
     }
   },
 
-  async stat(key: string): Promise<Record<string, unknown>> {
+  async stat(key: string): Promise<BucketItemStat> {
     return MinioManager.stat(key);
   },
 
