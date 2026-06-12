@@ -579,6 +579,7 @@ async function buildAndGenerateReply({
   let generatedText: string = "";
   const serverContext: { title?: string; keywords?: string | string[]; description?: string }[] = [];
   let image: unknown = null;
+  let audioRef: string | null = null;
   try {
     if (
       (message as Message).guildId === config.GUILD_ID_PRIMARY ||
@@ -1609,6 +1610,7 @@ Respond with ONLY "yes" or "no". Nothing else.`,
       return {
         generatedText: null,
         image: null,
+        audioRef: null,
         promptForImagePromptGeneration: null,
       };
     }
@@ -1650,6 +1652,20 @@ Respond with ONLY "yes" or "no". Nothing else.`,
       }
     }
 
+    // Extract any generated audio from the agent response
+    audioRef = agentResponse.audioRef || null;
+
+    // If no top-level audioRef, check tool results for audioRef (from generate_audio or synthesize_speech)
+    if (!audioRef && agentResponse.toolResults?.length > 0) {
+      for (const toolResult of agentResponse.toolResults) {
+        const resultObject = toolResult.result as Record<string, unknown> | null;
+        if (resultObject?.audioRef) {
+          audioRef = resultObject.audioRef as string;
+          break;
+        }
+      }
+    }
+
     // Sanitize the response
     generatedText = utilities.fixBareMentions(generatedText);
     generatedText = utilities.removeMentions(generatedText);
@@ -1662,6 +1678,7 @@ Respond with ONLY "yes" or "no". Nothing else.`,
   return {
     generatedText,
     image,
+    audioRef: audioRef ?? null,
   };
 }
 
@@ -1763,7 +1780,7 @@ async function replyMessage(queuedDatum: { message: import("discord.js").Message
   }
 
 
-  const { generatedText, image } =
+  const { generatedText, image, audioRef } =
     await buildAndGenerateReply({
       conversation: conversation as unknown as Record<string, unknown>[],
       conversationsCollection: conversationsCollection as import("discord.js").Collection<string, Record<string, unknown>[]>,
@@ -1783,6 +1800,7 @@ async function replyMessage(queuedDatum: { message: import("discord.js").Message
 
   const generatedTextResponse = generatedText;
   const generatedImage = image;
+  const generatedAudioRef = audioRef;
 
   // (Image conversations are already saved per-call inside generateImage)
 
@@ -1793,7 +1811,7 @@ async function replyMessage(queuedDatum: { message: import("discord.js").Message
     : "";
   DiscordUtilityService.setUserActivity(client, textSummary);
 
-  if (!generatedTextResponse && !generatedImage) {
+  if (!generatedTextResponse && !generatedImage && !generatedAudioRef) {
     await message.reply("...");
     lastMessageSentTime = TemporalHelpers.nowISO();
 
@@ -1822,6 +1840,7 @@ ${combinedGuildInformation && combinedChannelInformation ? `URL: ${utilities.get
       generatedTextResponse,
       generatedImage as string | Buffer | null,
       null,
+      generatedAudioRef,
     );
     repliedMessagesCollection.set((message as Message).id, messageSent.id);
 

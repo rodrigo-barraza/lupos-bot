@@ -118,6 +118,12 @@ export interface TransformedPrismResponse {
     mimeType?: string;
     minioRef?: string;
   }>;
+  audio?: Array<{
+    data?: string;
+    mimeType?: string;
+    minioRef?: string;
+  }>;
+  audioRef?: string;
   toolCalls?: Array<{
     id: string;
     type: string;
@@ -125,6 +131,12 @@ export interface TransformedPrismResponse {
       name: string;
       arguments: string;
     };
+  }>;
+  toolResults?: Array<{
+    name?: string;
+    args?: Record<string, unknown>;
+    result?: unknown;
+    status?: string;
   }>;
   embedding?: number[];
   results?: unknown;
