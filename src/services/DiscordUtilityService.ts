@@ -2465,13 +2465,28 @@ const DiscordUtilityService = {
 
     // Fetch audio binary from Prism file service if audioRef is provided
     let audioBuffer: Buffer | null = null;
+    let audioExtension = "wav";
     if (audioRef) {
       try {
         const audioUrl = `${config.PRISM_API_URL}/files/${audioRef}`;
-        const audioResponse = await fetch(audioUrl);
+        const audioResponse = await fetch(audioUrl, {
+          signal: AbortSignal.timeout(10000),
+        });
         if (audioResponse.ok) {
           const arrayBuffer = await audioResponse.arrayBuffer();
           audioBuffer = Buffer.from(arrayBuffer);
+          const contentType = audioResponse.headers.get("content-type");
+          if (contentType) {
+            if (contentType.includes("mpeg") || contentType.includes("mp3")) {
+              audioExtension = "mp3";
+            } else if (contentType.includes("ogg")) {
+              audioExtension = "ogg";
+            } else if (contentType.includes("webm")) {
+              audioExtension = "webm";
+            } else if (contentType.includes("wav") || contentType.includes("wave")) {
+              audioExtension = "wav";
+            }
+          }
         } else {
           console.error(`[sendMessageInChunks] Failed to fetch audio from ${audioUrl}: ${audioResponse.status}`);
         }
@@ -2496,7 +2511,7 @@ const DiscordUtilityService = {
       if (audioBuffer) {
         files.push({
           attachment: audioBuffer,
-          name: "lupos-audio.wav",
+          name: `lupos-audio.${audioExtension}`,
           description: "Generated audio",
         });
       }
@@ -2535,7 +2550,7 @@ const DiscordUtilityService = {
       if (audioBuffer && isLastChunk) {
         files.push({
           attachment: audioBuffer,
-          name: "lupos-audio.wav",
+          name: `lupos-audio.${audioExtension}`,
           description: "Generated audio",
         });
       }
