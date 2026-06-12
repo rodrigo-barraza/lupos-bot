@@ -174,6 +174,8 @@ export default class PrismService {
       text: data.text || null,
       images: data.images || [],
       toolCalls: data.toolCalls || [],
+      toolResults: data.toolResults || [],
+      audioRef: data.audioRef || null,
       model: data.model,
       provider: data.provider,
     };

@@ -2451,6 +2451,7 @@ const DiscordUtilityService = {
     generatedTextResponse: string | null,
     encodedImageDataBase64: Buffer | string | null,
     imagePrompt: string | null,
+    audioRef?: string | null,
   ) {
     const messageChunkSizeLimit = 2000;
     let fileName = "lupos.png";
@@ -2462,17 +2463,43 @@ const DiscordUtilityService = {
       imageDescription = imagePrompt.substring(0, 1000);
     }
 
-    // Handle image-only response (agent generated an image but no text)
-    if ((!generatedTextResponse || generatedTextResponse.length === 0) && encodedImageDataBase64) {
-      // encodedImageDataBase64 may be a Buffer (from agent) or a base64 string (legacy)
-      const imageAttachment = Buffer.isBuffer(encodedImageDataBase64)
-        ? encodedImageDataBase64
-        : Buffer.from(encodedImageDataBase64, "base64");
-      const files = [{
-        attachment: imageAttachment,
-        name: fileName,
-        description: imageDescription,
-      }];
+    // Fetch audio binary from Prism file service if audioRef is provided
+    let audioBuffer: Buffer | null = null;
+    if (audioRef) {
+      try {
+        const audioUrl = `${config.PRISM_API_URL}/files/${audioRef}`;
+        const audioResponse = await fetch(audioUrl);
+        if (audioResponse.ok) {
+          const arrayBuffer = await audioResponse.arrayBuffer();
+          audioBuffer = Buffer.from(arrayBuffer);
+        } else {
+          console.error(`[sendMessageInChunks] Failed to fetch audio from ${audioUrl}: ${audioResponse.status}`);
+        }
+      } catch (audioFetchError) {
+        console.error("[sendMessageInChunks] Error fetching audio:", audioFetchError);
+      }
+    }
+
+    // Handle media-only response (image/audio but no text)
+    if ((!generatedTextResponse || generatedTextResponse.length === 0) && (encodedImageDataBase64 || audioBuffer)) {
+      const files: import('discord.js').AttachmentPayload[] = [];
+      if (encodedImageDataBase64) {
+        const imageAttachment = Buffer.isBuffer(encodedImageDataBase64)
+          ? encodedImageDataBase64
+          : Buffer.from(encodedImageDataBase64, "base64");
+        files.push({
+          attachment: imageAttachment,
+          name: fileName,
+          description: imageDescription,
+        });
+      }
+      if (audioBuffer) {
+        files.push({
+          attachment: audioBuffer,
+          name: "lupos-audio.wav",
+          description: "Generated audio",
+        });
+      }
       if (sendOrReply === "send") {
       return await (message.channel as TextChannel).send({ files });
       } else {
@@ -2492,11 +2519,9 @@ const DiscordUtilityService = {
       let messageReplyOptions: Record<string, unknown> = { content: chunk };
       const files: import('discord.js').AttachmentPayload[] = [];
 
+      const isLastChunk = i + messageChunkSizeLimit >= generatedTextResponse!.length;
 
-      if (
-        encodedImageDataBase64 &&
-        i + messageChunkSizeLimit >= generatedTextResponse!.length
-      ) {
+      if (encodedImageDataBase64 && isLastChunk) {
         // encodedImageDataBase64 may be a Buffer (from agent) or a base64 string (legacy)
         const imageAttachment = Buffer.isBuffer(encodedImageDataBase64)
           ? encodedImageDataBase64
@@ -2505,6 +2530,13 @@ const DiscordUtilityService = {
           attachment: imageAttachment,
           name: fileName,
           description: imageDescription,
+        });
+      }
+      if (audioBuffer && isLastChunk) {
+        files.push({
+          attachment: audioBuffer,
+          name: "lupos-audio.wav",
+          description: "Generated audio",
         });
       }
       messageReplyOptions = { ...messageReplyOptions, files: files };
