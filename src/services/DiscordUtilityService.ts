@@ -2468,7 +2468,8 @@ const DiscordUtilityService = {
     let audioExtension = "wav";
     if (audioRef) {
       try {
-        const audioUrl = `${config.PRISM_API_URL}/files/${audioRef}`;
+        const audioFileKey = audioRef.startsWith("minio://") ? audioRef.replace("minio://", "") : audioRef;
+        const audioUrl = `${config.PRISM_API_URL}/files/${audioFileKey}`;
         const audioResponse = await fetch(audioUrl, {
           signal: AbortSignal.timeout(10000),
         });
