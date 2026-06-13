@@ -113,9 +113,9 @@ export default {
       }
 
       // Process words
-      const wordFreq = processWords(messages, limit);
+      const wordFrequency = processWords(messages, limit, interaction.client.user.id);
 
-      if (wordFreq.length === 0) {
+      if (wordFrequency.length === 0) {
         await interaction.editReply({
           content: `No valid words found for <@${user!.id}>.`,
         });
@@ -123,7 +123,7 @@ export default {
       }
 
       // Generate word cloud image
-      const imageBuffer = await generateWordCloudImage(wordFreq);
+      const imageBuffer = await generateWordCloudImage(wordFrequency);
 
       // Create attachment
       const attachment = new AttachmentBuilder(imageBuffer, {
@@ -131,7 +131,7 @@ export default {
       });
 
       await interaction.editReply({
-        content: `**Word Cloud for <@${user!.id}>**\nBased on ${messages.length} messages from the last ${formatTimePeriod(years, months, days, "1 year (default)")} (From ${formattedStartDate} to ${formattedEndDate})`,
+        content: `**Word Cloud for <@${user!.id}>**\nBased on ${messages.length} messages from the ${formatTimePeriod(years, months, days, "last 1 year (default)")} (From ${formattedStartDate} to ${formattedEndDate})`,
         files: [attachment],
       });
     } catch (error: unknown) {
@@ -145,14 +145,45 @@ export default {
 };
 
 // Process messages to extract word frequencies
-function processWords(messages: WithId<Document>[], limit: number): WordFrequency[] {
-  const freqMap: Record<string, number> = {};
+function processWords(
+  messages: WithId<Document>[],
+  resultLimit: number,
+  botUserIdentifier?: string,
+): WordFrequency[] {
+  const wordFrequencyMap: Record<string, number> = {};
 
   for (const message of messages) {
     if (!message.content) continue;
 
+    const trimmedMessageContent = message.content.trim();
+    if (!trimmedMessageContent) continue;
+
+    // Skip commands starting with typical prefix characters
+    if (/^[!/.?$#\-+=~]/.test(trimmedMessageContent)) continue;
+
+    // Skip messages mentioning the bot directly
+    if (
+      botUserIdentifier &&
+      (trimmedMessageContent.includes(`<@${botUserIdentifier}>`) ||
+        trimmedMessageContent.includes(`<@!${botUserIdentifier}>`))
+    ) {
+      continue;
+    }
+
+    // Skip messages starting with command verbs
+    if (/^(draw|redraw|paint|generate|image|play)\b/i.test(trimmedMessageContent)) continue;
+
+    // Skip messages containing common command keywords or style prompt patterns
+    if (
+      /\b(draw|redraw|photorealistic|hyper-realistic|hyperrealistic|aspect ratio|aspect-ratio)\b/i.test(
+        trimmedMessageContent,
+      )
+    ) {
+      continue;
+    }
+
     // Remove URLs, mentions, emojis, and special characters
-    const cleanContent = message.content
+    const cleanedMessageContent = message.content
       .replace(/https?:\/\/\S+/g, "") // Remove URLs
       .replace(/<@!?\d+>/g, "") // Remove user mentions
       .replace(/<#\d+>/g, "") // Remove channel mentions
@@ -161,26 +192,29 @@ function processWords(messages: WithId<Document>[], limit: number): WordFrequenc
       .replace(/[^\w\s'-]/g, " ") // Remove punctuation except hyphens and apostrophes
       .toLowerCase();
 
-    const words = cleanContent.split(/\s+/).filter((word: string) => {
-      word = word.trim();
+    const extractedWords = cleanedMessageContent.split(/\s+/).filter((wordText: string) => {
+      const trimmedWord = wordText.trim();
       return (
-        word.length > 2 && // At least 3 characters
-        !STOP_WORDS.has(word) &&
-        !/^\d+$/.test(word) && // Not just numbers
-        /[a-z]/.test(word)
+        trimmedWord.length > 2 && // At least 3 characters
+        !STOP_WORDS.has(trimmedWord) &&
+        !/^\d+$/.test(trimmedWord) && // Not just numbers
+        /[a-z]/.test(trimmedWord)
       ); // Contains at least one letter
     });
 
-    for (const word of words) {
-      freqMap[word] = (freqMap[word] || 0) + 1;
+    for (const wordText of extractedWords) {
+      const trimmedWord = wordText.trim();
+      wordFrequencyMap[trimmedWord] = (wordFrequencyMap[trimmedWord] || 0) + 1;
     }
   }
 
   // Convert to array and sort
-  return Object.entries(freqMap)
+  return Object.entries(wordFrequencyMap)
     .map(([text, value]: [string, number]) => ({ text, value }))
-    .sort((a: WordFrequency, b: WordFrequency) => b.value - a.value)
-    .slice(0, limit);
+    .sort(
+      (firstItem: WordFrequency, secondItem: WordFrequency) => secondItem.value - firstItem.value,
+    )
+    .slice(0, resultLimit);
 }
 
 // Generate word cloud image using Playwright
