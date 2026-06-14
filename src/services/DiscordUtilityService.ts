@@ -2510,9 +2510,10 @@ const DiscordUtilityService = {
         });
       }
       if (audioBuffer) {
+        const audioTimestamp = new Date().toISOString().replace(/[-:T]/g, '').slice(0, 14);
         files.push({
           attachment: audioBuffer,
-          name: `lupos-audio.${audioExtension}`,
+          name: `${audioTimestamp}.${audioExtension}`,
           description: "Generated audio",
         });
       }
@@ -2549,9 +2550,10 @@ const DiscordUtilityService = {
         });
       }
       if (audioBuffer && isLastChunk) {
+        const audioTimestamp = new Date().toISOString().replace(/[-:T]/g, '').slice(0, 14);
         files.push({
           attachment: audioBuffer,
-          name: `lupos-audio.${audioExtension}`,
+          name: `${audioTimestamp}.${audioExtension}`,
           description: "Generated audio",
         });
       }
