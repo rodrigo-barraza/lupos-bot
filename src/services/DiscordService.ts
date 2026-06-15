@@ -1630,7 +1630,7 @@ Respond with ONLY "yes" or "no". Nothing else.`,
       type: config.LANGUAGE_MODEL_TYPE || "",
       model: agentModel || "",
       agentContext,
-      maxTokens: 4096, // Agent needs headroom for tool-call JSON + reasoning + final reply
+      maxTokens: 16_384, // Lupos text is ~1 sentence, but tool-call JSON (generate_audio compositions) can be 3-5K tokens
       temperature: config.LANGUAGE_MODEL_TEMPERATURE ? parseFloat(config.LANGUAGE_MODEL_TEMPERATURE) : undefined,
       thinkingEnabled: true,
       thinkingBudget: 10_000,
