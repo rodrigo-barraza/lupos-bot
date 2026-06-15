@@ -21,7 +21,7 @@ import type {
   MessageReaction,
   Guild,
 } from "discord.js";
-import type { WithId, Document } from "mongodb";
+
 import DiscordWrapper from "#root/wrappers/DiscordWrapper.js";
 import config from "#root/config.js";
 import MoodService from "#root/services/MoodService.js";
@@ -791,62 +791,58 @@ router.get("/bot/stats", asyncHandler(async (req: Request, res: Response) => {
       }
     }
 
-    // 3. Game Activity
-    let topGames: WithId<Document>[] = [];
+    // 3. Top Games — names and play counts only
+    let topGames: { name: string; players: number }[] = [];
     if (db) {
       try {
-        topGames = await db
+        const rawGames = await db
           .collection("GameActivity")
-          .find({})
+          .find({}, { projection: { _id: 0, name: 1, count: 1 } })
           .sort({ count: -1 })
           .limit(5)
           .toArray();
+        topGames = rawGames.map((game) => ({
+          name: (game.name as string) || "Unknown",
+          players: (game.count as number) || 0,
+        }));
       } catch (gameErr: unknown) {
         console.warn("[bot/stats] Failed to fetch game activity:", (gameErr as Error).message);
       }
     }
 
-    // 4. Active Streamers
-    let activeStreamers: WithId<Document>[] = [];
+    // 4. Active Streamers — names only
+    let activeStreamers: string[] = [];
     if (db) {
       try {
-        activeStreamers = await db
+        const rawStreamers = await db
           .collection("ActiveStreamers")
-          .find({ isStreaming: true })
+          .find({ isStreaming: true }, { projection: { _id: 0, username: 1, displayName: 1 } })
           .toArray();
+        activeStreamers = rawStreamers.map(
+          (streamer) => (streamer.displayName as string) || (streamer.username as string) || "Unknown",
+        );
       } catch (streamErr: unknown) {
         console.warn("[bot/stats] Failed to fetch active streamers:", (streamErr as Error).message);
       }
     }
 
-    // 5. Discord connection info
-    const discordInfo = {
-      isReady: client?.isReady() || false,
-      guildsCount: client?.guilds?.cache?.size || 0,
-      username: client?.user?.username || null,
-      avatarUrl: client?.user?.displayAvatarURL() || null,
-      uptime: client?.uptime || 0,
-    };
+    // 5. Compact Discord summary
+    const uptimeMilliseconds = client?.uptime || 0;
+    const uptimeHours = Math.floor(uptimeMilliseconds / 3_600_000);
+    const uptimeMinutes = Math.floor((uptimeMilliseconds % 3_600_000) / 60_000);
 
-    // 6. Guild details — lightweight server list
-    const guilds = client?.guilds?.cache?.map((guild: Guild) => ({
-      id: guild.id,
-      name: guild.name,
-      icon: guild.iconURL({ extension: "png", size: 128 }),
-      memberCount: guild.memberCount,
-      channelCount: guild.channels?.cache?.size || 0,
-      emojiCount: guild.emojis?.cache?.size || 0,
-      boostCount: guild.premiumSubscriptionCount || 0,
-      boostTier: guild.premiumTier || 0,
-    })) || [];
+    const discord = {
+      isReady: client?.isReady() || false,
+      guilds: client?.guilds?.cache?.size || 0,
+      uptime: `${uptimeHours}h ${uptimeMinutes}m`,
+    };
 
     res.json({
       somatic,
       database,
       topGames,
       activeStreamers,
-      discordInfo,
-      guilds,
+      discord,
     });
   } catch (error: unknown) {
     console.error("[bot/stats] Error:", (error as Error).message, (error as Error).stack);
