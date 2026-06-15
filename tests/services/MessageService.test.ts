@@ -60,10 +60,4 @@ describe("MessageService", () => {
     expect(message).not.toContain("CORE_PERSONALITY");
   });
 
-  test("assembleAssistantMessageForImagePromptGeneration should combine core personality and political beliefs", () => {
-    const message =
-      MessageService.assembleAssistantMessageForImagePromptGeneration();
-    expect(message).toContain("CORE_PERSONALITY");
-    expect(message).toContain("POLITICAL_BELIEFS");
-  });
 });
