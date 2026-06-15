@@ -1434,6 +1434,7 @@ Respond with ONLY "yes" or "no". Nothing else.`,
     //   - Image captions
     //   - Clock Crew data (if applicable)
     const agentContext: Record<string, unknown> = {
+      platform: "discord",
       guildId: (message as Message).guildId || null,
       channelId: (message as Message).channelId || null,
       participantUserIds: participantUserIds.length > 0 ? participantUserIds : null,
