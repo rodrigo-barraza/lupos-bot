@@ -405,10 +405,12 @@ async function generateDescription(
     systemPrompt += `\n- Profile color (their choice of color): ${colorName} (${hexColor})`;
   }
 
-  const createdDateTime = TemporalHelpers.fromMillis(user.createdTimestamp);
-  const accountCreatedAt = TemporalHelpers.format(createdDateTime, "LLLL dd, yyyy 'at' hh:mm:ss a");
-  const accountCreatedAtRelative = TemporalHelpers.toRelative(createdDateTime);
-  systemPrompt += `\n- Account creation date: ${accountCreatedAt} (${accountCreatedAtRelative})`;
+  if (who === "PRIMARY") {
+    const createdDateTime = TemporalHelpers.fromMillis(user.createdTimestamp);
+    const accountCreatedAt = TemporalHelpers.format(createdDateTime, "LLLL dd, yyyy 'at' hh:mm:ss a");
+    const accountCreatedAtRelative = TemporalHelpers.toRelative(createdDateTime);
+    systemPrompt += `\n- Account creation date: ${accountCreatedAt} (${accountCreatedAtRelative})`;
+  }
   if (messageSentAt && messageSentAtRelative) {
     systemPrompt += `\n- Last message sent on: ${messageSentAt} (${messageSentAtRelative})`;
   }
@@ -632,46 +634,13 @@ async function buildAndGenerateReply({
       const bans = await guild.bans.fetch();
 
       systemPrompt += `\n\n# Discord server information`;
-      // GUILD NAME
       systemPrompt += `\n- You are in the discord server called: ${guild.name}.`;
-      // CREATED AT
-      const createdDateTime = TemporalHelpers.fromMillis(
-        guild.createdTimestamp,
-      );
-      const createdAtTimestampAt = TemporalHelpers.format(createdDateTime, "LLLL dd, yyyy 'at' hh:mm:ss a");
-      const createdAtTimestampRelative = TemporalHelpers.toRelative(createdDateTime);
-      systemPrompt += `\n- This server was created on: ${createdAtTimestampAt} (${createdAtTimestampRelative})`;
-      // DESCRIPTION
       if (guild.description) {
         systemPrompt += `\n- The server description is: ${guild.description}`;
       }
-      // SERVER HAS
-      systemPrompt += `\n- This server has:`;
-      systemPrompt += `\n  - ${guild.memberCount} members`;
-      systemPrompt += `\n  - ${guild.channels.cache.size} channels`;
-      systemPrompt += `\n  - ${guild.premiumSubscriptionCount} server nitro boosts`;
-      if (guild.mfaLevel === 1) {
-        systemPrompt += `\n  - 2FA enabled`;
-      }
-      // mfaLevel
-      // commands
-      if (guild.commands.cache.size) {
-        systemPrompt += `\n  - ${guild.commands.cache.size} commands:`;
-        for (const command of guild.commands.cache.values()) {
-          systemPrompt += `\n    - ${command.name} (${command.description})`;
-        }
-      }
-      // bans
+      systemPrompt += `\n- This server has ${guild.memberCount} members, ${guild.channels.cache.size} channels, and ${guild.premiumSubscriptionCount} nitro boosts.`;
       if (bans.size) {
-        systemPrompt += `\n  - ${bans.size} bans`;
-      }
-      // emojis
-      if (guild.emojis.cache.size) {
-        systemPrompt += `\n  - ${guild.emojis.cache.size} emojis`;
-      }
-      // roles
-      if (guild.roles.cache.size) {
-        systemPrompt += `\n  - ${guild.roles.cache.size} roles`;
+        systemPrompt += `\n- ${bans.size} bans on record.`;
       }
 
 
@@ -698,14 +667,6 @@ async function buildAndGenerateReply({
       }
       if ((channel as import("discord.js").TextChannel).topic) {
         systemPrompt += `\n- The channel topic is: ${(channel as import("discord.js").TextChannel).topic}.`;
-      }
-      if (channel.createdTimestamp) {
-        const channelCreatedDateTime = TemporalHelpers.fromMillis(
-          channel.createdTimestamp,
-        );
-        const channelCreatedAt = TemporalHelpers.format(channelCreatedDateTime, "LLLL dd, yyyy 'at' hh:mm:ss a");
-        const channelCreatedAtRelative = TemporalHelpers.toRelative(channelCreatedDateTime);
-        systemPrompt += `\n- This channel was created on: ${channelCreatedAt} (${channelCreatedAtRelative})`;
       }
       if (channel.lastMessage) {
         const lastMessageCreatedDateTime = TemporalHelpers.fromMillis(
