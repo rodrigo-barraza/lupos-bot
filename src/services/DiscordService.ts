@@ -668,17 +668,7 @@ async function buildAndGenerateReply({
       if ((channel as import("discord.js").TextChannel).topic) {
         systemPrompt += `\n- The channel topic is: ${(channel as import("discord.js").TextChannel).topic}.`;
       }
-      if (channel.lastMessage) {
-        const lastMessageCreatedDateTime = TemporalHelpers.fromMillis(
-          channel.lastMessage.createdTimestamp,
-        );
-        const lastMessageSentAt = TemporalHelpers.format(lastMessageCreatedDateTime, "LLLL dd, yyyy 'at' hh:mm:ss a");
-        const lastMessageSentAtRelative =
-          TemporalHelpers.toRelative(lastMessageCreatedDateTime);
-        systemPrompt += `\n- Last message in this channel sent at: ${lastMessageSentAt} (${lastMessageSentAtRelative})`;
-      } else {
-        systemPrompt += `\n- No messages have been sent in this channel yet.`;
-      }
+
     }
 
     let participantMember: GuildMember | undefined;
@@ -2517,13 +2507,9 @@ async function extractContentFromMessages(
         const combinedNames = utilities.getCombinedNamesFromUserOrMember({
           member: recentMessage.member,
         });
-        const messageSentAt = TemporalHelpers.format(recentMessageDateTime, "LLLL dd, yyyy 'at' hh:mm:ss a");
-        const messageSentAtRelative = TemporalHelpers.toRelative(recentMessageDateTime);
-
         let modifiedContent = `=== MESSAGE ${userMessageXofY} of ${sequentialUserMessages} ${userMessageXofY === sequentialUserMessages && isLastMessage ? "(MOST RECENT)" : ""} ===`;
         modifiedContent += `\n[METADATA]`;
         modifiedContent += `\nFrom: ${combinedNames}`;
-        modifiedContent += `\nTime: ${messageSentAt} (${messageSentAtRelative})`;
         modifiedContent += `\nMessage ID: ${messageId}`;
 
         // Add reply information

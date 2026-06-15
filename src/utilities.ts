@@ -175,11 +175,7 @@ const utilities = {
       return false;
     }
   },
-  // Date Utilities
-  getCurrentDateAndTime(date: Date) {
-    // 2024-01-31 03:45:27 PM
-    return TemporalHelpers.format(TemporalHelpers.fromJSDate(date), "yyyy-MM-dd HH:mm:ss a");
-  },
+
   getMinutesAgo(date: Date) {
     return TemporalHelpers.toRelative(TemporalHelpers.fromJSDate(date));
   },
