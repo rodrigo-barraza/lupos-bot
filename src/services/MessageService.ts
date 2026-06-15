@@ -75,12 +75,6 @@ ${MessageConstant.sleeperAgentMode}`;
     }
     return assistantMessage;
   },
-  assembleAssistantMessageForImagePromptGeneration() {
-    let assistantMessage = "";
-    assistantMessage = `${MessageConstant.corePersonality}
-${MessageConstant.politicalBeliefs}`;
-    return assistantMessage;
-  },
 };
 
 export default MessageService;
