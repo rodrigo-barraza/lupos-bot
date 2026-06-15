@@ -57,15 +57,7 @@ import {
 } from "#root/constants.js";
 import CensorService from "#root/services/CensorService.js";
 import { kickIfTooNew, kickIfForbiddenCombo, purgeByAccountAge } from "#root/services/AccountGuardService.js";
-import MoodService from "#root/services/MoodService.js";
-import HungerService from "#root/services/HungerService.js";
-import ThirstService from "#root/services/ThirstService.js";
-import EnergyService from "#root/services/EnergyService.js";
-import SicknessService from "#root/services/SicknessService.js";
-import AlcoholService from "#root/services/AlcoholService.js";
-import BathroomService from "#root/services/BathroomService.js";
-import SubstanceService from "#root/services/SubstanceService.js";
-import SomaticAdaptationService from "#root/services/SomaticAdaptationService.js";
+
 
 /**
  * Fetch guild members with automatic retry on Gateway rate limits (opcode 8).
@@ -1193,8 +1185,6 @@ Respond with ONLY "yes" or "no". Nothing else.`,
       composition = composition.replace(botMentionSyntax, "").trim();
     }
 
-    // Adapt somatic state of Lupos in real-time depending on what is being talked about
-    SomaticAdaptationService.adaptFromMessage(composition);
 
     // if has image attachment, check if messagesImagesCollection has any images using the message id as the key
     if (message.attachments && message.attachments.size > 0) {
@@ -1426,77 +1416,44 @@ Respond with ONLY "yes" or "no". Nothing else.`,
 
     // ── Build agentContext for Prism ─────────────────────────────
     // Prism's SystemPromptAssembler handles personality, tool policy,
-    // and guidelines via AgentPersonaRegistry. Lupos only needs to
-    // pass the runtime context that only it can provide:
-    //   - Discord server/channel/participant info (systemPrompt)
-    //   - Trending data
-    //   - Server-specific context (customContextWhitemane matches)
-    //   - Image captions
-    //   - Clock Crew data (if applicable)
+    // guidelines, and somatic state via AgentPersonaRegistry and
+    // SomaticStateService. Lupos only passes platform-specific runtime:
+    //   - platformContext: Discord server/channel/participant info, image captions
+    //   - Top-level: platform identifier, guild/channel IDs, participant IDs
+    const messageGuildId = (message as Message).guildId || null;
+    const messageChannelId = (message as Message).channelId || null;
+
+    // ── Platform Context (Discord-specific runtime data) ──────────
+    const platformContext: Record<string, unknown> = {};
+    if (systemPrompt) {
+      platformContext.description = systemPrompt;
+    }
+    if (serverContext?.length) {
+      let serverContextText = "\n\n# Relevant information for this conversation";
+      for (const contextItem of serverContext) {
+        serverContextText += `\n\n# ${contextItem.title}`;
+        serverContextText += `\n- Keywords: ${contextItem.keywords}`;
+        serverContextText += `\n- Description: ${contextItem.description}`;
+      }
+      platformContext.serverContext = serverContextText;
+    }
+    if (edittedMessageCleanContent?.trim()) {
+      platformContext.imageContext = edittedMessageCleanContent;
+    }
+    if (messageGuildId) {
+      let idsBlock = `# Discord IDs\n- Guild ID: ${messageGuildId}`;
+      if (messageChannelId) idsBlock += `\n- Channel ID: ${messageChannelId}`;
+      platformContext.ids = idsBlock;
+    }
+
     const agentContext: Record<string, unknown> = {
       platform: "discord",
-      guildId: (message as Message).guildId || null,
-      channelId: (message as Message).channelId || null,
+      guildId: messageGuildId,
+      channelId: messageChannelId,
       participantUserIds: participantUserIds.length > 0 ? participantUserIds : null,
       aprilFoolsMode: APRIL_FOOLS_MODE,
-      somaticState: {
-        mood: {
-          level: MoodService.getMoodLevel(),
-          name: MoodService.getMoodName(),
-        },
-        hunger: {
-          level: HungerService.getHungerLevel(),
-          label: HungerService.getHungerLevel() >= 80 ? "Starving" : HungerService.getHungerLevel() >= 40 ? "Hungry" : "Satisfied",
-        },
-        thirst: {
-          level: ThirstService.getThirstLevel(),
-          label: ThirstService.getThirstLevel() >= 80 ? "Dehydrated" : ThirstService.getThirstLevel() >= 40 ? "Thirsty" : "Quenched",
-        },
-        energy: {
-          level: EnergyService.getEnergyLevel(),
-          label: EnergyService.getEnergyLevel() <= 30 ? "Exhausted" : EnergyService.getEnergyLevel() <= 60 ? "Tired" : "Energized",
-        },
-        sickness: {
-          level: SicknessService.getSicknessLevel(),
-          label: SicknessService.getSicknessLevel() >= 70 ? "Severely Ill" : SicknessService.getSicknessLevel() >= 30 ? "Nauseous" : "Healthy",
-        },
-        alcohol: {
-          level: AlcoholService.getAlcoholLevel(),
-          label: AlcoholService.getAlcoholLevel() >= 7 ? "Wasted" : AlcoholService.getAlcoholLevel() >= 4 ? "Drunk" : AlcoholService.getAlcoholLevel() >= 1 ? "Tipsy" : "Sober",
-        },
-        substance: {
-          level: SubstanceService.getSubstanceLevel(),
-          label: SubstanceService.getSubstanceLevel() >= 7 ? "Tripping / Stoned" : SubstanceService.getSubstanceLevel() >= 4 ? "High / Baked" : SubstanceService.getSubstanceLevel() >= 1 ? "Buzzed / Elevated" : "Sober",
-        },
-        bathroom: {
-          level: BathroomService.getBathroomLevel(),
-          label: BathroomService.getBathroomLevel() >= 80 ? "Needs to use restroom urgently" : BathroomService.getBathroomLevel() >= 40 ? "Needs to pee" : "Fine",
-        },
-      },
+      platformContext,
     };
-
-    // Discord context — the systemPrompt variable contains server info,
-    // channel info, participant descriptions, emoji context, and memories
-    if (systemPrompt) {
-      agentContext.discordContext = systemPrompt;
-    }
-
-    // Server-specific contextual knowledge (matched per-user descriptions)
-    if (serverContext?.length) {
-      let serverCtx = "\n\n# Relevant information for this conversation";
-      for (const context of serverContext) {
-        serverCtx += `\n\n# ${context.title}`;
-        serverCtx += `\n- Keywords: ${context.keywords}`;
-        serverCtx += `\n- Description: ${context.description}`;
-      }
-      agentContext.serverContext = serverCtx;
-    }
-
-
-    // Image context (captions, labels from attached/replied images)
-    if (edittedMessageCleanContent?.trim()) {
-      agentContext.imageContext = edittedMessageCleanContent;
-    }
 
     // Clock Crew context — if this is the Clock Crew guild, build the
     // clocks list for injection into the persona. The persona identity
