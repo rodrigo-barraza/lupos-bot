@@ -764,27 +764,26 @@ router.get("/bot/stats", asyncHandler(async (req: Request, res: Response) => {
     let database = {
       totalMessages: 0,
       totalUniqueUsers: 0,
-      totalTranscriptions: 0,
-      totalArchivedMedia: 0,
     };
 
     if (db) {
       try {
-        const primaryGuildId = config.GUILD_ID_CLOCK_CREW || config.GUILD_ID_PRIMARY || "";
+        const primaryGuildId = config.GUILD_ID_PRIMARY || config.GUILD_ID_CLOCK_CREW || "";
         const primaryGuild = client?.guilds?.cache?.get(primaryGuildId);
-        const memberCount = primaryGuild ? primaryGuild.memberCount : 0;
+        let memberCount = 0;
+        if (primaryGuild) {
+          memberCount = primaryGuild.memberCount;
+        } else if (client?.guilds?.cache) {
+          for (const [, guild] of client.guilds.cache) {
+            memberCount += guild.memberCount || 0;
+          }
+        }
 
-        const [msgCount, transcriberCount, mediaCount] = await Promise.all([
-          db.collection("Messages").estimatedDocumentCount().catch(() => 0),
-          db.collection("AudioTranscriptions").estimatedDocumentCount().catch(() => 0),
-          db.collection("MediaMetadata").estimatedDocumentCount().catch(() => 0),
-        ]);
+        const msgCount = await db.collection("Messages").estimatedDocumentCount().catch(() => 0);
 
         database = {
           totalMessages: msgCount,
           totalUniqueUsers: memberCount,
-          totalTranscriptions: transcriberCount,
-          totalArchivedMedia: mediaCount,
         };
       } catch (dbErr: unknown) {
         console.warn("[bot/stats] Failed to fetch database metrics:", (dbErr as Error).message);
@@ -799,7 +798,7 @@ router.get("/bot/stats", asyncHandler(async (req: Request, res: Response) => {
           .collection("GameActivity")
           .find({}, { projection: { _id: 0, name: 1, count: 1 } })
           .sort({ count: -1 })
-          .limit(5)
+          .limit(10)
           .toArray();
         topGames = rawGames.map((game) => ({
           name: (game.name as string) || "Unknown",
@@ -816,11 +815,17 @@ router.get("/bot/stats", asyncHandler(async (req: Request, res: Response) => {
       try {
         const rawStreamers = await db
           .collection("ActiveStreamers")
-          .find({ isStreaming: true }, { projection: { _id: 0, username: 1, displayName: 1 } })
+          .find({ isStreaming: true }, { projection: { _id: 0, userName: 1, username: 1, displayName: 1 } })
           .toArray();
-        activeStreamers = rawStreamers.map(
-          (streamer) => (streamer.displayName as string) || (streamer.username as string) || "Unknown",
-        );
+        activeStreamers = rawStreamers
+          .map(
+            (streamer) =>
+              (streamer.displayName as string) ||
+              (streamer.userName as string) ||
+              (streamer.username as string) ||
+              "",
+          )
+          .filter((name) => name && name !== "Unknown");
       } catch (streamErr: unknown) {
         console.warn("[bot/stats] Failed to fetch active streamers:", (streamErr as Error).message);
       }
