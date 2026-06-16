@@ -1251,19 +1251,50 @@ Respond with ONLY "yes" or "no". Nothing else.`,
             }
           }
 
-          // Check embeds for images (bot-generated images are sent via embeds)
+          // Check embeds for images (bot-generated images are sent via embeds,
+          // Tenor/Giphy GIFs use embed.thumbnail or embed.video instead of embed.image)
           if (
             !foundImage &&
             cachedMessageReference.embeds &&
             cachedMessageReference.embeds.length > 0
           ) {
             for (const embed of cachedMessageReference.embeds) {
-              const embedImageUrl = embed.image?.proxyURL || embed.image?.url;
+              // Prefer static image sources (first frame for GIFs), fall back to video
+              const staticImageUrl =
+                embed.image?.proxyURL || embed.image?.url ||
+                embed.thumbnail?.proxyURL || embed.thumbnail?.url;
+              const videoUrl = embed.video?.proxyURL || embed.video?.url;
+              const embedImageUrl = staticImageUrl || videoUrl;
+
               if (embedImageUrl) {
-                imageLabels.push("Replied-to message image (generated)");
-                imageUrls.push(embedImageUrl);
-                foundImage = true;
-                break; // Only take the first embed image
+                // If we only have a video/GIF URL (no static thumbnail), extract
+                // the first frame so the model receives a proper static image
+                if (!staticImageUrl && videoUrl) {
+                  try {
+                    const videoResponse = await fetch(videoUrl);
+                    const videoBuffer = Buffer.from(await videoResponse.arrayBuffer());
+                    const contentType = videoResponse.headers.get("content-type") || "";
+                    if (contentType.includes("gif") || contentType.includes("image")) {
+                      const { default: sharp } = await import("sharp");
+                      const firstFrameBuffer = await sharp(videoBuffer, { animated: false }).png().toBuffer();
+                      const firstFrameDataUrl = `data:image/png;base64,${firstFrameBuffer.toString("base64")}`;
+                      imageLabels.push("Replied-to message image (embedded, first frame)");
+                      imageUrls.push(firstFrameDataUrl);
+                      foundImage = true;
+                      console.log(`🖼️ [DiscordService] Extracted first frame from GIF embed for reference`);
+                      break;
+                    }
+                  } catch (frameError: unknown) {
+                    console.warn(`🖼️ [DiscordService] First-frame extraction failed, using video URL directly: ${(frameError as Error).message}`);
+                  }
+                }
+
+                if (!foundImage) {
+                  imageLabels.push("Replied-to message image (embedded)");
+                  imageUrls.push(embedImageUrl);
+                  foundImage = true;
+                }
+                break;
               }
             }
           }
