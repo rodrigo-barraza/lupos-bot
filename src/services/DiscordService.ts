@@ -2713,6 +2713,15 @@ async function luposOnReady(client: Client, { mongo }: { mongo: import("mongodb"
     const shockStatisticsCollection = db.collection("ShockGameStatistics");
     await shockStatisticsCollection.createIndex({ userId: 1, guildId: 1 }, { unique: true, background: true });
     console.log("🔌 [DiscordService] ShockGameStatistics unique index ensured");
+
+    const gameActivityCollection = db.collection("GameActivity");
+    await gameActivityCollection.createIndex({ name: 1 }, { unique: true, background: true });
+    await gameActivityCollection.createIndex({ count: -1 }, { background: true });
+    console.log("🔌 [DiscordService] GameActivity indexes ensured");
+
+    const activeStreamersCollection = db.collection("ActiveStreamers");
+    await activeStreamersCollection.createIndex({ userId: 1 }, { unique: true, background: true });
+    console.log("🔌 [DiscordService] ActiveStreamers index ensured");
   } catch (indexError: unknown) {
     console.error("⚠️ [DiscordService] Failed to create database indexes:", indexError);
   }

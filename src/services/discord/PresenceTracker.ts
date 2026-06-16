@@ -49,17 +49,11 @@ async function handlePresenceUpdate(client: Client, _oldPresence: Presence | nul
 
         const db = mongo.db(MONGO_DB_NAME);
         const collection = db.collection("GameActivity");
-        const existingActivity = await collection.findOne({
-          name: activity.name,
-        });
-        if (!existingActivity) {
-          await collection.insertOne({ name: activity.name, count: 1 });
-        } else {
-          await collection.updateOne(
-            { name: activity.name },
-            { $inc: { count: 1 } },
-          );
-        }
+        await collection.updateOne(
+          { name: activity.name },
+          { $inc: { count: 1 } },
+          { upsert: true },
+        );
 
         for (const mapping of GAME_ROLE_MAPPINGS) {
           if (activity.name.toLowerCase().includes(mapping.activityName)) {
