@@ -7,7 +7,7 @@
 
 import type { Guild, GuildMember } from "discord.js";
 import config from "#root/config.js";
-import { ACCOUNT_AGE_THRESHOLD_MS, MS_PER_DAY } from "#root/constants.js";
+import { ACCOUNT_AGE_THRESHOLD_MS, MILLISECONDS_PER_DAY } from "#root/constants.js";
 
 /**
  * Kick a member if their Discord account is too new (< 4 weeks old)
@@ -22,7 +22,7 @@ export async function kickIfTooNew(member: GuildMember, callerName: string = "Ac
   );
 
   if (accountAge < ACCOUNT_AGE_THRESHOLD_MS && !isWhitelisted) {
-    const ageDays = Math.floor(accountAge / MS_PER_DAY);
+    const ageDays = Math.floor(accountAge / MILLISECONDS_PER_DAY);
     console.log(
       `[${callerName}] Kicking new account: ${member.user.username} (${member.id}), account age: ${ageDays} days`,
     );
@@ -71,7 +71,7 @@ export async function kickIfForbiddenCombo(member: GuildMember, callerName: stri
   const joinAge = Date.now() - (member.joinedTimestamp || 0);
   if (joinAge > ACCOUNT_AGE_THRESHOLD_MS) return false;
 
-  const joinDays = Math.floor(joinAge / MS_PER_DAY);
+  const joinDays = Math.floor(joinAge / MILLISECONDS_PER_DAY);
   const comboNames = FORBIDDEN_COMBO_ROLE_IDS.map((id: string) => {
     const role = member.guild.roles.cache.get(id);
     return role ? role.name : id;
@@ -99,7 +99,7 @@ export async function kickIfForbiddenCombo(member: GuildMember, callerName: stri
  */
 export async function purgeByAccountAge(guild: Guild, thresholdMs: number, options: { dryRun?: boolean; callerName?: string } = {}) {
   const { dryRun = false, callerName = "purgeByAccountAge" } = options;
-  const thresholdDays = Math.floor(thresholdMs / MS_PER_DAY);
+  const thresholdDays = Math.floor(thresholdMs / MILLISECONDS_PER_DAY);
 
   console.log(
     `[${callerName}] Fetching all members for guild "${guild.name}" (${guild.id})...`,
@@ -119,7 +119,7 @@ export async function purgeByAccountAge(guild: Guild, thresholdMs: number, optio
     const accountAge = Date.now() - member.user.createdAt.getTime();
     if (accountAge >= thresholdMs) continue;
 
-    const ageDays = Math.floor(accountAge / MS_PER_DAY);
+    const ageDays = Math.floor(accountAge / MILLISECONDS_PER_DAY);
     const isWhitelisted = config.USER_IDS_NEW_ACCOUNT_WHITELIST?.includes(
       member.id,
     );

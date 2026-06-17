@@ -13,7 +13,7 @@ import {
 } from "discord.js";
 import MongoService from "#root/services/MongoService.js";
 import config from "#root/config.js";
-import { MS_PER_DAY, MONGO_DB_NAME } from "#root/constants.js";
+import { MILLISECONDS_PER_DAY, MONGO_DB_NAME } from "#root/constants.js";
 import utilities from "#root/utilities.js";
 
 // ─── Constants ────────────────────────────────────────────────────────
@@ -218,7 +218,7 @@ function calculateConfidence(rd: number) {
  */
 function applyTimeDecayRD(rd: number, lastPlayedAt: number | undefined) {
   if (!lastPlayedAt) return MAX_RD;
-  const daysSince = (Date.now() - lastPlayedAt) / MS_PER_DAY;
+  const daysSince = (Date.now() - lastPlayedAt) / MILLISECONDS_PER_DAY;
   return Math.min(MAX_RD, rd + daysSince * RD_DECAY_PER_DAY);
 }
 

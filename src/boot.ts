@@ -1,8 +1,8 @@
 // ─── Boot Sequence ──────────────────────────────────────────
 
-import { bootstrapEnv } from "@rodrigo-barraza/utilities-library/vault";
+import { bootstrapEnvironment } from "@rodrigo-barraza/utilities-library/vault";
 
-await bootstrapEnv();
+await bootstrapEnvironment();
 
 // Forward CLI args to lupos.js
 await import("./lupos.ts");

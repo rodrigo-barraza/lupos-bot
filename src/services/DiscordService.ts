@@ -52,7 +52,7 @@ import {
   APRIL_FOOLS_MODE,
   EXPLOSION_GIFS,
   YOUTUBE_BUTTON_ACTIONS,
-  MS_PER_DAY,
+  MILLISECONDS_PER_DAY,
   MONGO_DB_NAME,
 } from "#root/constants.js";
 import CensorService from "#root/services/CensorService.js";
@@ -2946,7 +2946,7 @@ async function luposOnReadyDeleteNewAccounts(client: Client) {
  * One-off purge: kick all members with accounts < 2 months old
  * in a specific guild.
  */
-const TWO_MONTHS_MS = 60 * MS_PER_DAY;
+const TWO_MONTHS_MS = 60 * MILLISECONDS_PER_DAY;
 const PURGE_TARGET_GUILD_ID = "609471635308937237";
 const REVOKE_ROLE_ID = "1353101921681936456";
 

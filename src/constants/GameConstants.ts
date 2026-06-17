@@ -5,7 +5,7 @@
  * when users play specific games.
  */
 
-import { MS_PER_DAY } from "@rodrigo-barraza/utilities-library";
+import { MILLISECONDS_PER_DAY } from "@rodrigo-barraza/utilities-library";
 
 export const GAME_ROLE_MAPPINGS = [
   { activityName: "apex legends", roleName: "apex legends" },
@@ -61,12 +61,12 @@ export const YOUTUBE_BUTTON_ACTIONS = {
 /**
  * Time constants.
  */
-export { MS_PER_DAY };
+export { MILLISECONDS_PER_DAY };
 
 /**
  * Account guard constants.
  */
-export const ACCOUNT_AGE_THRESHOLD_MS = 28 * MS_PER_DAY; // 4 weeks
+export const ACCOUNT_AGE_THRESHOLD_MS = 28 * MILLISECONDS_PER_DAY; // 4 weeks
 
 /**
  * MongoDB database name.
