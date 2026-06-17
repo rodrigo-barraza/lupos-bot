@@ -3,7 +3,7 @@ import utilities from "#root/utilities.js";
 const { consoleLog } = utilities;
 import config from "#root/config.js";
 import { Collection, ChannelType, Events, ActivityType } from "discord.js";
-import { MS_PER_DAY, MONGO_DB_NAME } from "#root/constants.js";
+import { MILLISECONDS_PER_DAY, MONGO_DB_NAME } from "#root/constants.js";
 import ScraperService from "#root/services/ScraperService.js";
 import LogFormatter from "#root/formatters/LogFormatter.js";
 import MediaArchivalService from "#root/services/MediaArchivalService.js";
@@ -3108,7 +3108,7 @@ const DiscordUtilityService = {
 
     const daysSinceStart = Math.max(
       1,
-      Math.ceil((now - (lastMessageDate?.getTime() || now)) / MS_PER_DAY),
+      Math.ceil((now - (lastMessageDate?.getTime() || now)) / MILLISECONDS_PER_DAY),
     );
     const averageMessagesPerHour = (
       messageCount /

@@ -5,7 +5,7 @@ export {
   MOOD_TEMPERATURE_THRESHOLDS,
 } from "./constants/MoodConstants.ts";
 export {
-  MS_PER_DAY,
+  MILLISECONDS_PER_DAY,
   GAME_ROLE_MAPPINGS,
   EXPLOSION_GIFS,
   YOUTUBE_BUTTON_ACTIONS,
