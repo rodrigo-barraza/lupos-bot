@@ -78,6 +78,7 @@ export default class PrismService {
     messages,
     type,
     model,
+    systemPrompt,
     maxTokens,
     temperature,
     username = "lupos",
@@ -99,6 +100,7 @@ export default class PrismService {
       options,
       skipConversation: true,
     };
+    if (systemPrompt) body.systemPrompt = systemPrompt;
     if (traceId) body.traceId = traceId;
 
 
@@ -113,6 +115,7 @@ export default class PrismService {
       provider: data.provider,
     };
   }
+
 
   // ---------------------------------------------------------------------------
   // Agent — autonomous agentic loop with tool calling
