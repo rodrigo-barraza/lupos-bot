@@ -973,10 +973,8 @@ async function buildAndGenerateReply({
         // Only runs when regex didn't match but image request is likely.
         // Uses the fastest model (~200ms) with a simple yes/no classification.
         try {
-          const classificationConversation = [
-            {
-              role: "system",
-              content: `You are a classifier. Determine if the user's message is asking for an image that involves THEMSELVES — their own appearance, their own profile picture, their own avatar, or any visual depiction of themselves.
+          const classificationResult = await AIService.generateText({
+            systemPrompt: `You are a classifier. Determine if the user's message is asking for an image that involves THEMSELVES — their own appearance, their own profile picture, their own avatar, or any visual depiction of themselves.
 
 This includes:
 - Direct self-references in ANY language: "draw me", "dibújame", "dessine-moi", "画我", "나를 그려줘", "нарисуй меня", etc.
@@ -986,15 +984,12 @@ This includes:
 - Shorthand: "my pfp", "my dp", "my avi"
 
 Respond with ONLY "yes" or "no". Nothing else.`,
-            },
-            {
-              role: "user",
-              content: message.cleanContent || (message as Message).content || "",
-            },
-          ];
-
-          const classificationResult = await AIService.generateText({
-            conversation: classificationConversation,
+            conversation: [
+              {
+                role: "user",
+                content: message.cleanContent || (message as Message).content || "",
+              },
+            ],
             type: "ANTHROPIC",
             model: config.ANTHROPIC_LANGUAGE_MODEL_FAST,
             temperature: 0,

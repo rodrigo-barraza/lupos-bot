@@ -50,6 +50,7 @@ export interface ChatMessage {
 
 export interface GenerateTextOptions {
   conversation: ChatMessage[];
+  systemPrompt?: string;
   type?: string;
   modelPerformance?: string;
   temperature?: number;
@@ -63,21 +64,6 @@ export interface GenerateTextOptions {
 export interface GenerateVisionOptions {
   model?: string;
   provider?: string;
-}
-
-function assembleConversation(systemMessage: string, userMessage: string, message: Message): ChatMessage[] {
-  const conversation = [
-    {
-      role: "system",
-      content: systemMessage,
-    },
-    {
-      role: "user",
-      name: DiscordUtilityService.getUsernameNoSpaces(message) || "Default",
-      content: userMessage,
-    },
-  ];
-  return conversation;
 }
 
 /**
@@ -149,6 +135,7 @@ const AIService = {
   // Base Text-to-Text Generation (Completion)
   async generateText({
     conversation,
+    systemPrompt,
     type = config.LANGUAGE_MODEL_TYPE || "OPENAI",
     modelPerformance = config.LANGUAGE_MODEL_PERFORMANCE,
     temperature,
@@ -201,9 +188,22 @@ const AIService = {
     let usedModel = model || generateTextModel || "";
     const discordUsername = AIService._getDiscordUsername();
 
+    // Extract any system messages from the conversation array and pass
+    // as a separate systemPrompt field — messages should only contain
+    // user/assistant turns.
+    let resolvedSystemPrompt = systemPrompt;
+    const userAndAssistantMessages = conversation.filter((message) => {
+      if (message.role === "system") {
+        if (!resolvedSystemPrompt) resolvedSystemPrompt = message.content;
+        return false;
+      }
+      return true;
+    });
+
     try {
       const prismResult = await PrismService.generateText({
-        messages: conversation,
+        messages: userAndAssistantMessages,
+        systemPrompt: resolvedSystemPrompt,
         type: type!,
         model: usedModel,
         maxTokens: finalTokens,
@@ -546,18 +546,18 @@ const AIService = {
 
   // "mini-brains" for specific tasks
   async generateTextSummaryFromMessage(message: Message, messageContent: string): Promise<string> {
-    const systemContent = `You are an expert at summarizing the text that is given to you in two to three words. Start with an emoji. Do not use any other formatting, just give the emoji and the two to three words.`;
-    const conversation = assembleConversation(
-      systemContent,
-      messageContent,
-      message,
-    );
     const generatedText = await AIService.generateText({
-      conversation,
+      systemPrompt: `You are an expert at summarizing the text that is given to you in two to three words. Start with an emoji. Do not use any other formatting, just give the emoji and the two to three words.`,
+      conversation: [
+        {
+          role: "user",
+          name: DiscordUtilityService.getUsernameNoSpaces(message) || "Default",
+          content: messageContent,
+        },
+      ],
       modelPerformance: "POWERFUL",
     });
     if (!generatedText) return "";
-    // trim generatedText to 128 characters
     return generatedText.substring(0, 128);
   },
   async generateTextCustomEmojiReactFromMessage(message: Message, localMongo: MongoClient): Promise<string | null> {
@@ -585,7 +585,8 @@ const AIService = {
       }
     }
 
-    const systemContent = `You are an expert at generating emoji reactions to text messages. 
+    const generatedText = await AIService.generateText({
+      systemPrompt: `You are an expert at generating emoji reactions to text messages. 
 
 # INSTRUCTIONS:
 - Analyze the message and respond with a single, relevant emoji reaction
@@ -598,17 +599,15 @@ ${guildEmojiList}
 - For Unicode emojis: Return just the emoji character
 - For custom emojis: Return just the emoji name (e.g., "pogchamp", "kekw")
 - Return ONLY the emoji or emoji name, nothing else
-- No explanations, no punctuation, no extra text`;
-
-    const conversation = assembleConversation(
-      systemContent,
-      modifiedMessageContent,
-      message,
-    );
-
-    const generatedText = await AIService.generateText({
+- No explanations, no punctuation, no extra text`,
+      conversation: [
+        {
+          role: "user",
+          name: DiscordUtilityService.getUsernameNoSpaces(message as Message) || "Default",
+          content: modifiedMessageContent,
+        },
+      ],
       localMongo: localMongo,
-      conversation: conversation,
       type: "ANTHROPIC",
       model: config.ANTHROPIC_LANGUAGE_MODEL_FAST,
       label: "🧠 Emoji React",
@@ -700,21 +699,17 @@ ${guildEmojiList}
     cleanUserName: string,
     userMessagesAsText: string
   ): Promise<string | null> {
-    const conversation = [
-      {
-        role: "system",
-        content: `You are an expert at providing concise, accurate descriptions of messages. Analyze the content sent to you and create a detailed summary of what ${userName} is discussing. Focus on being precise and direct while capturing all key points and context from their message.
+    const generatedText = await AIService.generateText({
+      systemPrompt: `You are an expert at providing concise, accurate descriptions of messages. Analyze the content sent to you and create a detailed summary of what ${userName} is discussing. Focus on being precise and direct while capturing all key points and context from their message.
                 
 As the output, I want you to provide the descriptions in dash list form, without using any bold, italics, or any other formatting. You can have nested lists, but no more than 3 levels deep. Do not announce that you are generating a response, just provide the descriptions. Seperate each line with a new line, not two new lines.`,
-      },
-      {
-        role: "user",
-        name: cleanUserName,
-        content: `Recent messages from ${userName}: ${userMessagesAsText}`,
-      },
-    ];
-    const generatedText = await AIService.generateText({
-      conversation: conversation,
+      conversation: [
+        {
+          role: "user",
+          name: cleanUserName,
+          content: `Recent messages from ${userName}: ${userMessagesAsText}`,
+        },
+      ],
       type: "OPENAI",
       model: config.OPENAI_LANGUAGE_MODEL_GPT4_1_NANO,
     });

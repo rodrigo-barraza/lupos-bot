@@ -230,19 +230,14 @@ ${conversationContext ? `## RECENT CHAT CONTEXT (STAY ON THIS TOPIC):\n${convers
     // Start typing indicator while generating
     const typingInterval = await DiscordUtilityService.startTypingInterval(channel);
 
-    const conversation = [
-      {
-        role: "system",
-        content: systemPrompt,
-      },
-      {
-        role: "user",
-        content: `Generate a message tagging ${namesList}. You're initiating a group conversation. Be chaotic and in-character. Make sure you involve all of them.`,
-      },
-    ];
-
     const generatedText = await AIService.generateText({
-      conversation,
+      systemPrompt: systemPrompt,
+      conversation: [
+        {
+          role: "user",
+          content: `Generate a message tagging ${namesList}. You're initiating a group conversation. Be chaotic and in-character. Make sure you involve all of them.`,
+        },
+      ],
       type: config.LANGUAGE_MODEL_TYPE,
       modelPerformance: "POWERFUL",
       tokens: 250,

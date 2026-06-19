@@ -16,6 +16,7 @@ export interface GenerateTextParams {
   messages: ChatMessage[];
   type: string;
   model: string;
+  systemPrompt?: string;
   maxTokens?: number;
   temperature?: number;
   username?: string;
