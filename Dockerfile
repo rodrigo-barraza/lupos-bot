@@ -14,15 +14,18 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
-COPY package.json package-lock.json .npmrc ./
+RUN npm install -g pnpm
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
 
 ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
-RUN --mount=type=ssh npm ci
+RUN --mount=type=ssh \
+    --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store \
+    pnpm install --frozen-lockfile
 
 # ── Stage 2: Compile TypeScript ───────────────────────────────
 FROM deps AS build
 COPY . .
-RUN npx tsc
+RUN pnpm exec tsc
 
 # ── Stage 3: Production dependencies only ─────────────────────
 FROM node:26-slim AS prod-deps
@@ -32,10 +35,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
-COPY package.json package-lock.json .npmrc ./
+RUN npm install -g pnpm
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
 
 ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
-RUN --mount=type=ssh npm ci --omit=dev
+RUN --mount=type=ssh \
+    --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store \
+    pnpm install --frozen-lockfile --prod
 
 # ── Stage 4: Runtime ──────────────────────────────────────────
 FROM node:26-slim

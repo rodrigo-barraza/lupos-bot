@@ -1,0 +1,11 @@
+allowBuilds:
+  '@rodrigo-barraza/service-library': true
+  '@rodrigo-barraza/utilities-library': true
+  sharp: true
+  esbuild: true
+  protobufjs: true
+  canvas: true
+  unrs-resolver: true
+  '@rodrigo-barraza/service-library@https://codeload.github.com/rodrigo-barraza/service-library/tar.gz/3177c55d343144d136b49afcd6e18311515f3fb9': true
+  '@rodrigo-barraza/utilities-library@file:../utilities-library': true
+  '@rodrigo-barraza/utilities-library@https://codeload.github.com/rodrigo-barraza/utilities-library/tar.gz/16951ef6d0c01979265c18c3e94070d304851a3a': true

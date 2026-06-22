@@ -12,3 +12,6 @@
 
 # TypeScript build artifacts
 *.tsbuildinfo
+
+# Migrated to pnpm
+package-lock.json
