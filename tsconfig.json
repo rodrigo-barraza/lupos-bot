@@ -2,6 +2,8 @@
   "compilerOptions": {
     "target": "ES2022",
     "module": "NodeNext",
+    "incremental": true,
+    "tsBuildInfoFile": "./dist/.tsbuildinfo",
     "moduleResolution": "NodeNext",
     "declaration": true,
     "declarationMap": true,
@@ -15,8 +17,17 @@
     "resolveJsonModule": true,
     "isolatedModules": true,
     "rewriteRelativeImportExtensions": true,
-    "lib": ["ES2022", "ESNext"]
+    "lib": [
+      "ES2022",
+      "ESNext"
+    ]
   },
-  "include": ["src/**/*.ts"],
-  "exclude": ["node_modules", "dist", "tests"]
+  "include": [
+    "src/**/*.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "tests"
+  ]
 }
