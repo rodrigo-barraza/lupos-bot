@@ -6,6 +6,5 @@ allowBuilds:
   protobufjs: true
   canvas: true
   unrs-resolver: true
-  '@rodrigo-barraza/service-library@https://codeload.github.com/rodrigo-barraza/service-library/tar.gz/3177c55d343144d136b49afcd6e18311515f3fb9': true
-  '@rodrigo-barraza/utilities-library@file:../utilities-library': true
-  '@rodrigo-barraza/utilities-library@https://codeload.github.com/rodrigo-barraza/utilities-library/tar.gz/16951ef6d0c01979265c18c3e94070d304851a3a': true
+  '@rodrigo-barraza/service-library@https://codeload.github.com/rodrigo-barraza/service-library/tar.gz/257a5ba50eab4dd822b546946595b66490af0d75': true
+  '@rodrigo-barraza/utilities-library@https://codeload.github.com/rodrigo-barraza/utilities-library/tar.gz/8ebb9ca5dbf6ae7eccd329c9fcfdded30b8b31d6': true
