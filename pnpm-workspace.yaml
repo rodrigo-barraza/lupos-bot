@@ -1,6 +1,9 @@
+blockExoticSubdeps: false
 allowBuilds:
   sharp: true
   esbuild: true
   protobufjs: true
   canvas: true
   unrs-resolver: true
+  '@discordjs/opus': true
+  ffmpeg-static: true
