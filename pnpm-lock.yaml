@@ -22,7 +22,7 @@ importers:
         version: https://codeload.github.com/rodrigo-barraza/service-library/tar.gz/aa80777cb14ae5393278261ba025112866e1a72e(express@5.2.1)(mongodb@7.3.0)
       '@rodrigo-barraza/utilities-library':
         specifier: github:rodrigo-barraza/utilities-library
-        version: https://codeload.github.com/rodrigo-barraza/utilities-library/tar.gz/802d6e8a3eba22f3ad2fbba7c6f65e8037f59fad
+        version: https://codeload.github.com/rodrigo-barraza/utilities-library/tar.gz/ba734b5efc065a2726ba5c53b1b67503a99d93f3
       discord.js:
         specifier: ^14.26.4
         version: 14.26.4
@@ -559,8 +559,8 @@ packages:
       mongodb:
         optional: true
 
-  '@rodrigo-barraza/utilities-library@https://codeload.github.com/rodrigo-barraza/utilities-library/tar.gz/802d6e8a3eba22f3ad2fbba7c6f65e8037f59fad':
-    resolution: {gitHosted: true, tarball: https://codeload.github.com/rodrigo-barraza/utilities-library/tar.gz/802d6e8a3eba22f3ad2fbba7c6f65e8037f59fad}
+  '@rodrigo-barraza/utilities-library@https://codeload.github.com/rodrigo-barraza/utilities-library/tar.gz/ba734b5efc065a2726ba5c53b1b67503a99d93f3':
+    resolution: {gitHosted: true, tarball: https://codeload.github.com/rodrigo-barraza/utilities-library/tar.gz/ba734b5efc065a2726ba5c53b1b67503a99d93f3}
     version: 0.2.0
 
   '@rolldown/binding-android-arm64@1.0.3':
@@ -2621,7 +2621,7 @@ snapshots:
 
   '@rodrigo-barraza/service-library@https://codeload.github.com/rodrigo-barraza/service-library/tar.gz/aa80777cb14ae5393278261ba025112866e1a72e(express@5.2.1)(mongodb@7.3.0)':
     dependencies:
-      '@rodrigo-barraza/utilities-library': https://codeload.github.com/rodrigo-barraza/utilities-library/tar.gz/802d6e8a3eba22f3ad2fbba7c6f65e8037f59fad
+      '@rodrigo-barraza/utilities-library': https://codeload.github.com/rodrigo-barraza/utilities-library/tar.gz/ba734b5efc065a2726ba5c53b1b67503a99d93f3
       express: 5.2.1
     optionalDependencies:
       mongodb: 7.3.0
@@ -2634,7 +2634,7 @@ snapshots:
       - snappy
       - socks
 
-  '@rodrigo-barraza/utilities-library@https://codeload.github.com/rodrigo-barraza/utilities-library/tar.gz/802d6e8a3eba22f3ad2fbba7c6f65e8037f59fad':
+  '@rodrigo-barraza/utilities-library@https://codeload.github.com/rodrigo-barraza/utilities-library/tar.gz/ba734b5efc065a2726ba5c53b1b67503a99d93f3':
     dependencies:
       mongodb: 7.3.0
       zod: 4.4.3
