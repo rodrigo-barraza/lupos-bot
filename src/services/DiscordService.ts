@@ -1981,14 +1981,6 @@ async function extractContentFromMessages(
   const recentXMessages = filteredRecentMessages.last(messagesToFetch);
   const client = message.client;
 
-  // ── Diagnostic: trace message pipeline ──────────────────────
-  console.log(`📊 [MESSAGE PIPELINE] recentMessages.size=${recentMessages.size} → filteredRecentMessages.size=${filteredRecentMessages.size} → recentXMessages.length=${recentXMessages.length}`);
-  if (recentXMessages.length <= 10) {
-    for (const [index, recentXMessage] of recentXMessages.entries()) {
-      const isBot = recentXMessage.author?.id === client.user?.id;
-      console.log(`  [${index}] ${isBot ? "BOT" : "USER"} ${recentXMessage.author?.username}: "${(recentXMessage.content || "").slice(0, 60)}"`);
-    }
-  }
 
   // Initialize collections
   const participantsCollection = new Collection<string, { user: User; member: GuildMember | null; time?: number }>();
@@ -2573,10 +2565,6 @@ async function extractContentFromMessages(
   );
   memberMentionsCollection.delete(client.user!.id);
 
-  // ── Diagnostic: final conversation composition ──────────────
-  const userMessageCount = conversation.filter((entry) => entry.role === "user").length;
-  const assistantMessageCount = conversation.filter((entry) => entry.role === "assistant").length;
-  console.log(`📊 [CONVERSATION RESULT] ${conversation.length} total entries (${userMessageCount} user, ${assistantMessageCount} assistant)`);
 
   return {
     conversation,
