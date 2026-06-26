@@ -121,7 +121,7 @@ const cancelledMessageIds = new Set();
 // Bounded maps prevent unbounded memory growth during long-running sessions.
 // TTL: 2 hours, max 5,000 entries — entries auto-evict when stale.
 const repliedMessagesCollection = new BoundedMap(5000, 2 * 60 * 60 * 1000);
-const botRepliedMessages = new BoundedMap(5000, 2 * 60 * 60 * 1000);
+
 
 /**
  * Check if a message has been cancelled (deleted by user).
@@ -1954,43 +1954,14 @@ async function extractContentFromMessages(
   const functionName = "extractContentFromMessages";
 
   const { message, recentMessages } = queuedDatum;
-  const newestMessage = recentMessages.last();
 
-  for (const recentMessage of recentMessages.values()) {
-    if ((recentMessage as Message).author?.bot) {
-      if (recentMessage.reference && recentMessage.reference.messageId) {
-        botRepliedMessages.set(
-          recentMessage.reference.messageId,
-          recentMessage.id,
-        );
-      }
-    }
-  }
-  // Filter messages
-  const filteredRecentMessages = recentMessages.filter((recentMessage: Message) => {
-    // Include bot messages
-    if ((recentMessage as Message).author?.bot) {
-      return true;
-    }
 
-    // Include the newest message
-    if (newestMessage && recentMessage.id === newestMessage.id) {
-      return true;
-    }
 
-    // For user messages (not the newest):
-    // Exclude if it mentions the bot AND is NOT in botRepliedMessages
-    if (
-      recentMessage.mentions?.has(message.client.user!.id) &&
-      !botRepliedMessages.has(recentMessage.id)
-    ) {
-      return false;
-    }
 
-    // Include all other user messages (those that don't mention bot,
-    // or those that mention bot but are in botRepliedMessages)
-    return true;
-  });
+  // All messages are kept as conversation context — bot messages, other users'
+  // messages, and the current message. The agent needs the full channel history
+  // to understand the ongoing discussion.
+  const filteredRecentMessages = recentMessages;
 
   const totalMessages = filteredRecentMessages.size;
 
