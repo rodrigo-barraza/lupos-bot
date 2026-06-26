@@ -2726,6 +2726,14 @@ async function luposOnReady(client: Client, { mongo }: { mongo: import("mongodb"
     console.log("🔌 [DiscordService] ShockGameStatistics unique index ensured");
 
     const gameActivityCollection = db.collection("GameActivity");
+    const existingGameActivityIndexes = await gameActivityCollection.indexes();
+    const conflictingNameIndex = existingGameActivityIndexes.find(
+      (existingIndex) => existingIndex.name === "name_1" && !existingIndex.unique,
+    );
+    if (conflictingNameIndex) {
+      await gameActivityCollection.dropIndex("name_1");
+      console.log("🔌 [DiscordService] GameActivity dropped stale non-unique name_1 index");
+    }
     await gameActivityCollection.createIndex({ name: 1 }, { unique: true, background: true });
     await gameActivityCollection.createIndex({ count: -1 }, { background: true });
     console.log("🔌 [DiscordService] GameActivity indexes ensured");
