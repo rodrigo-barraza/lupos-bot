@@ -49,6 +49,7 @@ const FLAGGED_WORDS = [
 ];
 
 const WHITELISTED_WORDS = [
+  // "nigger" / "nigga" / "niglet" false positives
   "nigeria",
   "nigerian",
   "nigerians",
@@ -75,9 +76,17 @@ const WHITELISTED_WORDS = [
   "niggled",
   "niggling",
   "niggles",
+
+  // "fag" / "faggot" false positives
   "fagot",
   "fagots",
   "fagging",
+  "leafage",
+  "leafages",
+  "wharfage",
+  "wharfages",
+
+  // "coon" false positives
   "raccoon",
   "raccoons",
   "racoon",
@@ -88,6 +97,12 @@ const WHITELISTED_WORDS = [
   "cocooning",
   "tycoon",
   "tycoons",
+  "coonhound",
+  "coonhounds",
+  "coonskin",
+  "coonskins",
+
+  // "spic" / "spick" false positives
   "despicable",
   "despicably",
   "spice",
@@ -103,27 +118,100 @@ const WHITELISTED_WORDS = [
   "conspicuous",
   "conspicuously",
   "inconspicuous",
+  "inconspicuously",
   "suspicion",
   "suspicions",
   "suspicious",
   "suspiciously",
   "unsuspicious",
-  "inconspicuously",
   "perspicacious",
   "perspicacity",
   "auspices",
+  "hospice",
+  "hospices",
+  "aspic",
+  "allspice",
+  "allspices",
+
+  // "chink" false positives
+  "pachinko",
+
+  // "jap" false positives
   "japan",
   "japanese",
   "japans",
-  // "firecracker", "firecrackers",
-  // "nutcracker", "nutcrackers",
-  // "safecracker", "safecrackers",
-  // "custard", "custards",
-  // "mustard", "mustards",
-  // "leotard", "leotards",
-  // "petard", "petards",
-  // "unitard", "unitards",
-  // "tardy", "tardiness", "tardiest"
+  "jape",
+  "japes",
+  "japed",
+  "japing",
+  "japonica",
+
+  // "paki" false positives
+  "pakistan",
+  "pakistani",
+  "pakistanis",
+
+  // "kraut" false positives
+  "sauerkraut",
+
+  // "wop" false positives
+  "swop",
+  "swops",
+  "swopped",
+  "swopping",
+  "twopence",
+  "twopenny",
+
+  // "dago" false positives
+  "pedagog",
+  "pedagogs",
+  "pedagogy",
+  "pedagogic",
+  "pedagogical",
+  "pedagogically",
+  "pedagogies",
+  "pedagogue",
+  "pedagogues",
+
+  // "dyke" false positives
+  "vandyke",
+  "vandykes",
+  "dike",
+  "dikes",
+  "diked",
+  "diking",
+
+  // "gook" false positives
+  "gobbledegook",
+  "gobbledygook",
+
+  // "kys" false positives
+  "skyscraper",
+  "skyscrapers",
+  "skyscape",
+  "skyscapes",
+  "skyscraping",
+
+  // "retard" / "tard" false positives (if ever re-enabled)
+  "firecracker",
+  "firecrackers",
+  "nutcracker",
+  "nutcrackers",
+  "safecracker",
+  "safecrackers",
+  "custard",
+  "custards",
+  "mustard",
+  "mustards",
+  "leotard",
+  "leotards",
+  "petard",
+  "petards",
+  "unitard",
+  "unitards",
+  "tardy",
+  "tardiness",
+  "tardiest",
 ];
 
 const CHAR_SUBSTITUTIONS = {
