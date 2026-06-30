@@ -80,6 +80,8 @@ const WHITELISTED_WORDS = [
   "fagging",
   "raccoon",
   "raccoons",
+  "racoon",
+  "racoons",
   "cocoon",
   "cocoons",
   "cocooned",
