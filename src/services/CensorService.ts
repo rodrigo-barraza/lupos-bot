@@ -78,9 +78,6 @@ const WHITELISTED_WORDS = [
   "niggles",
 
   // "fag" / "faggot" false positives
-  "fagot",
-  "fagots",
-  "fagging",
   "leafage",
   "leafages",
   "wharfage",
