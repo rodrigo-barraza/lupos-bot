@@ -82,6 +82,10 @@ const WHITELISTED_WORDS = [
   "leafages",
   "wharfage",
   "wharfages",
+  "fagot",
+  "fagots",
+  "fagoting",
+  "faggoting",
 
   // "coon" false positives
   "raccoon",
