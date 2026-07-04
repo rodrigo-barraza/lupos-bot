@@ -22,7 +22,7 @@ importers:
         version: https://codeload.github.com/rodrigo-barraza/service-library/tar.gz/aa80777cb14ae5393278261ba025112866e1a72e(express@5.2.1)(mongodb@7.3.0)
       '@rodrigo-barraza/utilities-library':
         specifier: github:rodrigo-barraza/utilities-library
-        version: https://codeload.github.com/rodrigo-barraza/utilities-library/tar.gz/ae27380c959d29895d4f24cf72b6c08cca9cfc12
+        version: https://codeload.github.com/rodrigo-barraza/utilities-library/tar.gz/18cc526e6be0eaaab7869d17871bbc8ccfdc66f3
       discord.js:
         specifier: ^14.26.4
         version: 14.26.4
@@ -565,8 +565,8 @@ packages:
       mongodb:
         optional: true
 
-  '@rodrigo-barraza/utilities-library@https://codeload.github.com/rodrigo-barraza/utilities-library/tar.gz/ae27380c959d29895d4f24cf72b6c08cca9cfc12':
-    resolution: {gitHosted: true, tarball: https://codeload.github.com/rodrigo-barraza/utilities-library/tar.gz/ae27380c959d29895d4f24cf72b6c08cca9cfc12}
+  '@rodrigo-barraza/utilities-library@https://codeload.github.com/rodrigo-barraza/utilities-library/tar.gz/18cc526e6be0eaaab7869d17871bbc8ccfdc66f3':
+    resolution: {gitHosted: true, tarball: https://codeload.github.com/rodrigo-barraza/utilities-library/tar.gz/18cc526e6be0eaaab7869d17871bbc8ccfdc66f3}
     version: 0.2.0
 
   '@rolldown/binding-android-arm64@1.0.3':
@@ -1765,6 +1765,10 @@ packages:
     resolution: {integrity: sha512-QP88BAKvMam/3NxH6vj2o21R6MjxZUAd6nlwAS/pnGvN9IVLocLHxGYIzFhg6fUQ+5th6P4dv4eW9jX3DSIj7A==}
     engines: {node: '>=12'}
 
+  picomatch@4.0.5:
+    resolution: {integrity: sha512-RvwwcruNjI1ncT5xRakeyS9Lf8lcItv34KD+aif+VH9kduAyfYBipGh12274xtenIPZ119/R9BdTBa8gAwSh0A==}
+    engines: {node: '>=12'}
+
   play-audio@0.5.2:
     resolution: {integrity: sha512-ZAqHUKkQLix2Iga7pPbsf1LpUoBjcpwU93F1l3qBIfxYddQLhxS6GKmS0d3jV8kSVaUbr6NnOEcEMFvuX93SWQ==}
 
@@ -2630,7 +2634,7 @@ snapshots:
 
   '@rodrigo-barraza/service-library@https://codeload.github.com/rodrigo-barraza/service-library/tar.gz/aa80777cb14ae5393278261ba025112866e1a72e(express@5.2.1)(mongodb@7.3.0)':
     dependencies:
-      '@rodrigo-barraza/utilities-library': https://codeload.github.com/rodrigo-barraza/utilities-library/tar.gz/ae27380c959d29895d4f24cf72b6c08cca9cfc12
+      '@rodrigo-barraza/utilities-library': https://codeload.github.com/rodrigo-barraza/utilities-library/tar.gz/18cc526e6be0eaaab7869d17871bbc8ccfdc66f3
       express: 5.2.1
     optionalDependencies:
       mongodb: 7.3.0
@@ -2643,7 +2647,7 @@ snapshots:
       - snappy
       - socks
 
-  '@rodrigo-barraza/utilities-library@https://codeload.github.com/rodrigo-barraza/utilities-library/tar.gz/ae27380c959d29895d4f24cf72b6c08cca9cfc12':
+  '@rodrigo-barraza/utilities-library@https://codeload.github.com/rodrigo-barraza/utilities-library/tar.gz/18cc526e6be0eaaab7869d17871bbc8ccfdc66f3':
     dependencies:
       mongodb: 7.3.0
       zod: 4.4.3
@@ -3367,9 +3371,9 @@ snapshots:
       strnum: 2.4.1
       xml-naming: 0.1.0
 
-  fdir@6.5.0(picomatch@4.0.4):
+  fdir@6.5.0(picomatch@4.0.5):
     optionalDependencies:
-      picomatch: 4.0.4
+      picomatch: 4.0.5
 
   ffmpeg-static@5.3.0:
     dependencies:
@@ -3794,6 +3798,8 @@ snapshots:
 
   picomatch@4.0.4: {}
 
+  picomatch@4.0.5: {}
+
   play-audio@0.5.2: {}
 
   play-dl@1.9.7:
@@ -4061,8 +4067,8 @@ snapshots:
 
   tinyglobby@0.2.17:
     dependencies:
-      fdir: 6.5.0(picomatch@4.0.4)
-      picomatch: 4.0.4
+      fdir: 6.5.0(picomatch@4.0.5)
+      picomatch: 4.0.5
 
   tinyrainbow@3.1.0: {}
 
@@ -4147,7 +4153,7 @@ snapshots:
   vite@8.0.16(@types/node@25.9.4)(esbuild@0.28.1)(tsx@4.22.4):
     dependencies:
       lightningcss: 1.32.0
-      picomatch: 4.0.4
+      picomatch: 4.0.5
       postcss: 8.5.16
       rolldown: 1.0.3
       tinyglobby: 0.2.17
