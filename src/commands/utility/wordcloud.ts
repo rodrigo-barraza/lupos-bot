@@ -9,6 +9,7 @@ import {
   formatTimePeriod,
   getPlaywrightOptions,
 } from "./commandUtils.ts";
+import { EXCLUDE_SOFT_DELETED } from "#root/constants.js";
 
 interface WordFrequency {
   text: string;
@@ -99,6 +100,7 @@ export default {
       // Fetch all messages from the user in this guild
       const messages = await messagesCollection
         .find({
+          ...EXCLUDE_SOFT_DELETED,
           guildId: interaction.guildId,
           "author.id": user!.id,
           createdTimestamp: { $gte: unixStartDate },

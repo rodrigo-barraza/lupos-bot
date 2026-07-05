@@ -11,6 +11,7 @@ import {
   computeStartDate,
   getPlaywrightOptions,
 } from "./commandUtils.ts";
+import { EXCLUDE_SOFT_DELETED } from "#root/constants.js";
 
 interface HourlyMessageEntry {
   day: number;
@@ -100,6 +101,7 @@ export default {
     );
 
     const match: Record<string, unknown> = {
+      ...EXCLUDE_SOFT_DELETED,
       createdTimestamp: { $gte: unixStartDate },
       guildId: interaction.guildId,
       "author.id": user.id,

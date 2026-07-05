@@ -32,7 +32,7 @@ import SicknessService from "#root/services/SicknessService.js";
 import AlcoholService from "#root/services/AlcoholService.js";
 import BathroomService from "#root/services/BathroomService.js";
 import SubstanceService from "#root/services/SubstanceService.js";
-import { MOODS } from "#root/constants.js";
+import { MOODS, EXCLUDE_SOFT_DELETED } from "#root/constants.js";
 import type { MoodEntry } from "#root/types/index.js";
 import {
   getMongoDb,
@@ -1140,6 +1140,7 @@ router.get("/guild/heatmap", asyncHandler(async (req: Request, res: Response) =>
   const actualDays = Math.ceil((now.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
 
   const matchQuery: Record<string, unknown> = {
+    ...EXCLUDE_SOFT_DELETED,
     createdTimestamp: { $gte: unixStartDate },
     guildId,
     "author.id": userId,
@@ -1355,6 +1356,7 @@ router.get("/guild/mentions", asyncHandler(async (req: Request, res: Response) =
   const { startDate, unixStartDate } = computeStartDate(years, months, days);
 
   const matchQuery: Record<string, unknown> = {
+    ...EXCLUDE_SOFT_DELETED,
     createdTimestamp: { $gte: unixStartDate },
     guildId,
     "mentions.users": {
@@ -1474,6 +1476,7 @@ router.get("/guild/leaderboard", asyncHandler(async (req: Request, res: Response
   const { startDate, unixStartDate } = computeStartDate(years, months, days);
 
   const matchQuery: Record<string, unknown> = {
+    ...EXCLUDE_SOFT_DELETED,
     createdTimestamp: { $gte: unixStartDate },
     guildId,
   };
@@ -1560,6 +1563,7 @@ router.get("/guild/word-frequencies", asyncHandler(async (req: Request, res: Res
 
     const messages = await messagesCollection
       .find({
+        ...EXCLUDE_SOFT_DELETED,
         guildId,
         "author.id": userId,
         createdTimestamp: { $gte: unixStartDate },
@@ -1821,6 +1825,7 @@ router.get("/guild/channel-stats", asyncHandler(async (req: Request, res: Respon
     const channelStatistics = await messagesCollection.aggregate([
       {
         $match: {
+          ...EXCLUDE_SOFT_DELETED,
           guildId,
           createdTimestamp: { $gte: unixStartDate },
           "author.bot": { $ne: true }

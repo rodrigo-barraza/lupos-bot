@@ -4,7 +4,8 @@
 // Handles the Discord `messageDelete` event by:
 // 1. Removing the message from the processing queue if pending
 // 2. Marking it as cancelled for in-flight processing
-// 3. Deleting it from MongoDB to keep the Messages collection in sync
+// 3. Soft-deleting it in MongoDB (isDeleted + deletedAt) so the
+//    Messages collection retains a full audit trail
 // 4. Posting a rich embed in the #deleted-messages audit channel
 // ============================================================
 
@@ -21,7 +22,7 @@ import { MONGO_DB_NAME } from "#root/constants.js";
  * Handle a message deletion event.
  * - Removes from pending queue
  * - Marks as cancelled for in-flight processing
- * - Deletes from MongoDB
+ * - Soft-deletes in MongoDB (sets isDeleted + deletedAt)
  * - Posts audit embed in #deleted-messages
  */
 async function handleMessageDelete(client: Client, mongo: MongoClient, message: Message | PartialMessage) {
@@ -52,20 +53,23 @@ async function handleMessageDelete(client: Client, mongo: MongoClient, message: 
   // Mark as cancelled for in-flight processing
   DiscordState.markCancelled(deletedMessageId);
 
-  // ── Delete from MongoDB ─────────────────────────────────────────
-  // Keep the Messages collection in sync with Discord — remove any
-  // deleted message so live consumers (e.g. DiscordChatComponent)
-  // see the deletion reflected immediately on the next poll cycle.
+  // ── Soft-delete in MongoDB ──────────────────────────────────────
+  // Tag the message as deleted rather than removing it, so the full
+  // audit trail is preserved.  Live consumers filter on
+  // { isDeleted: { $ne: true } } via EXCLUDE_SOFT_DELETED.
   try {
     const db = mongo.db(MONGO_DB_NAME);
-    const result = await db.collection("Messages").deleteOne({ id: deletedMessageId });
-    if (result.deletedCount > 0) {
+    const result = await db.collection("Messages").updateOne(
+      { id: deletedMessageId },
+      { $set: { isDeleted: true, deletedAt: new Date() } },
+    );
+    if (result.modifiedCount > 0) {
       console.log(
-        `🗑️ [DeletedMessageLogger] Deleted message ${deletedMessageId} from MongoDB (author: ${message.author?.id})`,
+        `🗑️ [DeletedMessageLogger] Soft-deleted message ${deletedMessageId} in MongoDB (author: ${message.author?.id})`,
       );
     }
   } catch (dbError: unknown) {
-    console.warn(`🗑️ [DeletedMessageLogger] MongoDB delete failed for ${deletedMessageId}: ${(dbError as Error).message}`);
+    console.warn(`🗑️ [DeletedMessageLogger] MongoDB soft-delete failed for ${deletedMessageId}: ${(dbError as Error).message}`);
   }
 
   // Early returns for invalid cases
