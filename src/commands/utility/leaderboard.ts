@@ -1,6 +1,7 @@
 import { SlashCommandBuilder, EmbedBuilder } from "discord.js";
 import type { ChatInputCommandInteraction, SlashCommandIntegerOption, SlashCommandChannelOption } from "discord.js";
 import { getMongoDb, formatTimePeriod, getMedal } from "./commandUtils.ts";
+import { EXCLUDE_SOFT_DELETED } from "#root/constants.js";
 
 interface LeaderboardUser {
   _id: string;
@@ -68,6 +69,7 @@ export default {
     const unixStartDate = Math.floor(startDate.getTime());
 
     const match: Record<string, unknown> = {
+      ...EXCLUDE_SOFT_DELETED,
       createdTimestamp: { $gte: unixStartDate },
       guildId: interaction.guildId,
     };

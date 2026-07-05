@@ -27,6 +27,7 @@ for (const [key, value] of Object.entries(secrets)) {
 }
 
 // Now import config (relies on process.env being populated)
+import { EXCLUDE_SOFT_DELETED } from "#root/constants.js";
 const { default: MinioWrapper } = await import("../wrappers/MinioWrapper.js");
 
 // ─── CLI args ───────────────────────────────────────────────────
@@ -293,6 +294,7 @@ async function main() {
 
   // ── Query: messages with media but no archive ───────────────
   const query: Record<string, unknown> = {
+    ...EXCLUDE_SOFT_DELETED,
     mediaArchive: { $exists: false },
     $or: [
       { "attachments.0": { $exists: true } },

@@ -3,7 +3,7 @@ import utilities from "#root/utilities.js";
 const { consoleLog } = utilities;
 import config from "#root/config.js";
 import { Collection, ChannelType, Events, ActivityType } from "discord.js";
-import { MILLISECONDS_PER_DAY, MONGO_DB_NAME } from "#root/constants.js";
+import { MILLISECONDS_PER_DAY, MONGO_DB_NAME, EXCLUDE_SOFT_DELETED } from "#root/constants.js";
 import ScraperService from "#root/services/ScraperService.js";
 import LogFormatter from "#root/formatters/LogFormatter.js";
 import MediaArchivalService from "#root/services/MediaArchivalService.js";
@@ -353,6 +353,8 @@ interface TransformedMessage {
   url: string;
   webhookId: string | null;
   mediaArchive?: Record<string, unknown>;
+  isDeleted?: boolean;
+  deletedAt?: Date;
   [key: string]: unknown;
 }
 
@@ -1447,14 +1449,14 @@ const DiscordUtilityService = {
         }
       }
 
-      // ── Cleanup: purge deleted messages from target users ─────────
+      // ── Cleanup: soft-delete orphaned messages from target users ──
       // Compare MongoDB messages by these users in this channel against
-      // what was found on Discord — delete any orphans.
+      // what was found on Discord — soft-delete any orphans.
       if (discordUserMessageIds.size > 0 || !limitDate) {
         try {
           const mongoUserMessages = await collection
             .find(
-              { channelId: channel.id, "author.id": { $in: CLEANUP_USER_IDS } },
+              { ...EXCLUDE_SOFT_DELETED, channelId: channel.id, "author.id": { $in: CLEANUP_USER_IDS } },
               { projection: { id: 1 } },
             )
             .toArray();
@@ -1464,11 +1466,12 @@ const DiscordUtilityService = {
             .map((document: import('mongodb').Document) => document.id);
 
           if (orphanIds.length > 0) {
-            const deleteResult = await collection.deleteMany({
-              id: { $in: orphanIds },
-            });
+            const softDeleteResult = await collection.updateMany(
+              { id: { $in: orphanIds } },
+              { $set: { isDeleted: true, deletedAt: new Date() } },
+            );
             console.log(
-              `  [CLEANUP] #${channel.name}: Removed ${deleteResult.deletedCount} orphaned message(s) from tracked users`,
+              `  [CLEANUP] #${channel.name}: Soft-deleted ${softDeleteResult.modifiedCount} orphaned message(s) from tracked users`,
             );
           }
         } catch (cleanupErr: unknown) {
@@ -1535,10 +1538,10 @@ const DiscordUtilityService = {
   },
 
   /**
-   * Purge deleted messages for specific users.
+   * Soft-delete orphaned messages for specific users.
    * Queries MongoDB for all messages by the given user IDs, then verifies
    * each one against Discord. Messages that no longer exist (404/10008)
-   * are deleted from MongoDB.
+   * are soft-deleted in MongoDB (isDeleted + deletedAt).
    */
   async purgeDeletedMessagesForUsers(client: Client, mongo: import("mongodb").MongoClient, guildId: string, userIds: string[], options: PurgeOptions = {}) {
     const {
@@ -1559,7 +1562,7 @@ const DiscordUtilityService = {
     // Find all messages in MongoDB by these users in this guild
     const mongoMessages = await collection
       .find(
-        { guildId, "author.id": { $in: userIds } },
+        { ...EXCLUDE_SOFT_DELETED, guildId, "author.id": { $in: userIds } },
         { projection: { id: 1, channelId: 1, "author.id": 1 } },
       )
       .toArray();
@@ -1625,10 +1628,13 @@ const DiscordUtilityService = {
       }
 
       if (orphanIds.length > 0) {
-        const deleteResult = await collection.deleteMany({ id: { $in: orphanIds } });
-        totalDeleted += deleteResult.deletedCount;
+        const softDeleteResult = await collection.updateMany(
+          { id: { $in: orphanIds } },
+          { $set: { isDeleted: true, deletedAt: new Date() } },
+        );
+        totalDeleted += softDeleteResult.modifiedCount;
         console.log(
-          `  [CLEANUP] #${channel.name}: Removed ${deleteResult.deletedCount} deleted message(s)`,
+          `  [CLEANUP] #${channel.name}: Soft-deleted ${softDeleteResult.modifiedCount} message(s)`,
         );
       } else {
         console.log(
@@ -1678,6 +1684,7 @@ const DiscordUtilityService = {
     }
 
     const query: import("mongodb").Filter<import("mongodb").Document> = {
+      ...EXCLUDE_SOFT_DELETED,
       $and: [
         { $or: archiveConditions },
         {

@@ -2694,6 +2694,10 @@ async function luposOnReady(client: Client, { mongo }: { mongo: import("mongodb"
     await messagesCollection.createIndex({ guildId: 1, channelId: 1, createdTimestamp: -1 }, { background: true });
     await messagesCollection.createIndex({ guildId: 1, "mentions.users.id": 1, createdTimestamp: -1 }, { background: true });
     await messagesCollection.createIndex({ guildId: 1, "author.id": 1, createdTimestamp: -1 }, { background: true });
+    await messagesCollection.createIndex(
+      { isDeleted: 1 },
+      { background: true, partialFilterExpression: { isDeleted: true } },
+    );
     console.log("🔌 [DiscordService] Messages compound indexes ensured");
 
     const guessWhoScoresCollection = db.collection("GuessWhoGameScore");

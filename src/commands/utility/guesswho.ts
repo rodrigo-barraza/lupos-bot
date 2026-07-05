@@ -21,6 +21,7 @@ import {
   shuffleArray,
 } from "./commandUtils.ts";
 import { WRONG_GUESS_ROASTS } from "../../constants/GuessWhoConstants.ts";
+import { EXCLUDE_SOFT_DELETED } from "#root/constants.js";
 
 interface GuessOption {
   userId: string;
@@ -101,6 +102,7 @@ export default {
     const invokerId = interaction.user.id;
 
     const match: Record<string, unknown> = {
+      ...EXCLUDE_SOFT_DELETED,
       createdTimestamp: { $gte: unixStartDate },
       guildId: interaction.guildId,
       "author.bot": { $ne: true },
@@ -131,6 +133,7 @@ export default {
         // Query a batch of messages after the random timestamp
         let messageBatch = await messagesCollection
           .find({
+            ...EXCLUDE_SOFT_DELETED,
             guildId: interaction.guildId,
             ...(channel ? { channelId: channel.id } : {}),
             createdTimestamp: { $gte: randomTimestamp },
@@ -143,6 +146,7 @@ export default {
         if (messageBatch.length === 0) {
           messageBatch = await messagesCollection
             .find({
+              ...EXCLUDE_SOFT_DELETED,
               guildId: interaction.guildId,
               ...(channel ? { channelId: channel.id } : {}),
               createdTimestamp: { $lte: randomTimestamp, $gte: unixStartDate },

@@ -14,3 +14,4 @@ export {
   DEFAULT_LIGHT_CYCLE,
   RAINBOW_LIGHT_CYCLE,
 } from "./constants/GameConstants.ts";
+export { EXCLUDE_SOFT_DELETED } from "./constants/QueryFilters.ts";

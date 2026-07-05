@@ -6,6 +6,7 @@ import {
   formatTimePeriod,
   getMedal,
 } from "./commandUtils.ts";
+import { EXCLUDE_SOFT_DELETED } from "#root/constants.js";
 
 interface MentionerEntry {
   _id: string;
@@ -79,6 +80,7 @@ export default {
 
     // Build match query
     const match: Record<string, unknown> = {
+      ...EXCLUDE_SOFT_DELETED,
       createdTimestamp: { $gte: unixStartDate },
       guildId: interaction.guildId,
       "mentions.users": {
