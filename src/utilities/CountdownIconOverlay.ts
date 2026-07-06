@@ -24,9 +24,9 @@ function buildNumberOverlaySvg(
 
   // Scale font size dynamically — shrink for 3+ digit numbers
   const baseFontScale = displayText.length > 2 ? 0.3 : 0.4;
-  const fontSize = Math.round(frameWidth * baseFontScale * 0.5);
+  const fontSize = 120;
   const strokeWidth = 8;
-  const badgeRadius = Math.round(frameWidth * 0.32);
+  const badgeRadius = 100;
   const centerX = Math.round(frameWidth / 2);
   const centerY = Math.round(frameHeight / 2);
 
