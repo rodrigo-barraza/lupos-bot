@@ -1533,6 +1533,11 @@ router.get("/guild/leaderboard", asyncHandler(async (req: Request, res: Response
 // ─── GET /guild/word-frequencies ─────────────────────────────────
 // Generate word frequency analysis for a user.
 // Query: ?guildId=...&userId=...&years=...&months=...&days=...&limit=...
+//
+// Uses cursor-based streaming with content-only projection to avoid
+// OOM crashes — the original .toArray() approach loaded 664K+ full
+// message documents into heap simultaneously, exhausting the V8 heap
+// when 10 parallel calls hit this endpoint.
 router.get("/guild/word-frequencies", asyncHandler(async (req: Request, res: Response) => {
   const guildId = (req.query.guildId as string) || config.GUILD_ID_CLOCK_CREW || "";
   const userId = req.query.userId as string;
@@ -1561,22 +1566,6 @@ router.get("/guild/word-frequencies", asyncHandler(async (req: Request, res: Res
     const database = getMongoDb();
     const messagesCollection = database.collection("Messages");
 
-    const messages = await messagesCollection
-      .find({
-        ...EXCLUDE_SOFT_DELETED,
-        guildId,
-        "author.id": userId,
-        createdTimestamp: { $gte: unixStartDate },
-      })
-      .toArray();
-
-    if (messages.length === 0) {
-      return res.json({
-        totalMessages: 0,
-        words: [],
-      });
-    }
-
     const STOP_WORDS = new Set([
       "the", "be", "to", "of", "and", "a", "in", "that", "have", "i",
       "it", "for", "not", "on", "with", "he", "as", "you", "do", "at",
@@ -1592,11 +1581,25 @@ router.get("/guild/word-frequencies", asyncHandler(async (req: Request, res: Res
     ]);
 
     const frequencyMap: Record<string, number> = {};
+    let totalMessages = 0;
 
-    for (const messageItem of messages) {
+    // Stream documents one at a time with content-only projection.
+    // This keeps heap usage at O(1) instead of O(n × doc_size).
+    const cursor = messagesCollection.find(
+      {
+        ...EXCLUDE_SOFT_DELETED,
+        guildId,
+        "author.id": userId,
+        createdTimestamp: { $gte: unixStartDate },
+      },
+      { projection: { content: 1 } },
+    );
+
+    for await (const messageItem of cursor) {
+      totalMessages++;
       if (!messageItem.content) continue;
 
-      const cleanContent = messageItem.content
+      const cleanContent = (messageItem.content as string)
         .replace(/https?:\/\/\S+/g, "")
         .replace(/<@!?\d+>/g, "")
         .replace(/<#\d+>/g, "")
@@ -1620,13 +1623,20 @@ router.get("/guild/word-frequencies", asyncHandler(async (req: Request, res: Res
       }
     }
 
+    if (totalMessages === 0) {
+      return res.json({
+        totalMessages: 0,
+        words: [],
+      });
+    }
+
     const sortedWords = Object.entries(frequencyMap)
       .map(([text, value]) => ({ text, value }))
       .sort((a, b) => b.value - a.value)
       .slice(0, limit);
 
     res.json({
-      totalMessages: messages.length,
+      totalMessages,
       timePeriod: formatTimePeriod(years, months, days),
       words: sortedWords,
     });
