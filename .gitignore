@@ -1,6 +1,9 @@
 /node_modules
 /dist
-/images
+/images/*
+!/images/countdown/
+/images/countdown/*
+!/images/countdown/base-icon.gif
 /recordings
 /voices
 .env

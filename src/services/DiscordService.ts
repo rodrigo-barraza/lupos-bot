@@ -35,6 +35,7 @@ import ActivityRoleAssignmentJob from "#root/jobs/scheduled/ActivityRoleAssignme
 import PermanentTimeOutJob from "#root/jobs/scheduled/PermanentTimeOutJob.js";
 import RandomTagJob from "#root/jobs/scheduled/RandomTagJob.js";
 import ServerIconJob from "#root/jobs/scheduled/ServerIconJob.js";
+import CountdownIconJob from "#root/jobs/scheduled/CountdownIconJob.js";
 import EventReactJob from "#root/jobs/event-driven/ReactJob.js";
 
 import utilities from "#root/utilities.js";
@@ -2831,7 +2832,16 @@ async function luposOnReady(client: Client, { mongo }: { mongo: import("mongodb"
       });
     }
 
+  }
 
+  // Countdown icon overlay — runs in ALL modes (daily countdown on guild icon)
+  if (config.COUNTDOWN_ICON_GUILD_ID && config.COUNTDOWN_ICON_TARGET_DATE) {
+    const { parseTargetDateString } = await import("#root/utilities/CountdownIconOverlay.js");
+    CountdownIconJob.startJob({
+      client,
+      guildId: config.COUNTDOWN_ICON_GUILD_ID,
+      targetDate: parseTargetDateString(config.COUNTDOWN_ICON_TARGET_DATE),
+    });
   }
 }
 
