@@ -9,6 +9,7 @@ services:
       - .env
     environment:
       - TZ=America/Los_Angeles
+      - NODE_OPTIONS=--max-old-space-size=1024
     volumes:
       - /usr/share/zoneinfo/America/Los_Angeles:/etc/localtime:ro
     # Chromium needs larger shared memory in Docker
@@ -27,4 +28,4 @@ services:
     deploy:
       resources:
         limits:
-          memory: 512M
+          memory: 2G
