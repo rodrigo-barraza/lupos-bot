@@ -18,7 +18,7 @@ const BASE_ICON_FILENAME = "base-icon.gif";
 
 // Fallback URL — used to auto-download the base icon on first boot
 const BASE_ICON_FALLBACK_URL =
-  "https://cdn.discordapp.com/attachments/634583290984136716/1523756103136055346/maga-lupos-animated.gif";
+  "https://cdn.discordapp.com/attachments/634583290984136716/1524160419399467168/whitemane-icon-fire-ashes-final.gif";
 
 interface CountdownIconJobConfiguration {
   client: Client;

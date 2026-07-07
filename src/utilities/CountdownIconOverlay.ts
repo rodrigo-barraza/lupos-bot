@@ -28,7 +28,7 @@ function buildNumberOverlaySvg(
   const strokeWidth = 8;
   const badgeRadius = 100;
   const centerX = Math.round(frameWidth / 2);
-  const centerY = Math.round(frameHeight / 2);
+  const centerY = Math.round(frameHeight * 0.3);
 
   return Buffer.from(`<svg width="${frameWidth}" height="${frameHeight}" xmlns="http://www.w3.org/2000/svg">
   <circle cx="${centerX}" cy="${centerY}" r="${badgeRadius}"
