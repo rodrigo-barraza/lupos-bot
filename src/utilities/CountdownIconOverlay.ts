@@ -23,10 +23,10 @@ function buildNumberOverlaySvg(
   const displayText = countdownNumber.toString();
 
   // Scale font size dynamically — shrink for 3+ digit numbers
-  const baseFontScale = displayText.length > 2 ? 0.3 : 0.4;
-  const fontSize = 120;
-  const strokeWidth = 8;
-  const badgeRadius = 100;
+  const smallestDimension = Math.min(frameWidth, frameHeight);
+  const fontSize = Math.round(smallestDimension * 0.18);
+  const strokeWidth = Math.round(smallestDimension * 0.012);
+  const badgeRadius = Math.round(smallestDimension * 0.15);
   const centerX = Math.round(frameWidth / 2);
   const centerY = Math.round(frameHeight * 0.3);
 
