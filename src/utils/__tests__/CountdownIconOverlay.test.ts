@@ -102,16 +102,16 @@ describe("CountdownIconOverlay", () => {
       const svgString = svg.toString("utf-8");
 
       expect(svgString).toContain("365");
-      // Reduced font-size of 120px (512 * 0.234375)
-      expect(svgString).toContain('font-size="120"');
+      // Reduced font-size of 105px (512 * 0.205)
+      expect(svgString).toContain('font-size="105"');
     });
 
     it("uses two-digit font scale for numbers under 100", () => {
       const svg = buildNumberOverlaySvg(512, 512, 68);
       const svgString = svg.toString("utf-8");
 
-      // Normal scale font-size of 160px (512 * 0.3125)
-      expect(svgString).toContain('font-size="160"');
+      // Normal scale font-size of 141px (512 * 0.275)
+      expect(svgString).toContain('font-size="141"');
     });
 
     it("contains a semi-transparent circle badge", () => {
