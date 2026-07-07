@@ -1,13 +1,13 @@
 import { describe, test, expect, beforeEach } from "vitest";
 
-const SomaticAdaptationService = (await import("../../src/services/SomaticAdaptationService.js")).default;
-const HungerService = (await import("../../src/services/HungerService.js")).default;
-const ThirstService = (await import("../../src/services/ThirstService.js")).default;
-const EnergyService = (await import("../../src/services/EnergyService.js")).default;
-const SicknessService = (await import("../../src/services/SicknessService.js")).default;
-const AlcoholService = (await import("../../src/services/AlcoholService.js")).default;
-const SubstanceService = (await import("../../src/services/SubstanceService.js")).default;
-const BathroomService = (await import("../../src/services/BathroomService.js")).default;
+const SomaticAdaptationService = (await import("../SomaticAdaptationService.js")).default;
+const HungerService = (await import("../HungerService.js")).default;
+const ThirstService = (await import("../ThirstService.js")).default;
+const EnergyService = (await import("../EnergyService.js")).default;
+const SicknessService = (await import("../SicknessService.js")).default;
+const AlcoholService = (await import("../AlcoholService.js")).default;
+const SubstanceService = (await import("../SubstanceService.js")).default;
+const BathroomService = (await import("../BathroomService.js")).default;
 
 describe("SomaticAdaptationService", () => {
   beforeEach(() => {

@@ -1,4 +1,4 @@
-const SicknessService = (await import("../../src/services/SicknessService.js"))
+const SicknessService = (await import("../SicknessService.js"))
   .default;
 
 describe("SicknessService", () => {

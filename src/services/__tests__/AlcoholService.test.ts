@@ -1,5 +1,5 @@
 // Mock StatService — the factory that AlcoholService delegates to
-vi.mock("../../src/services/StatService", () => {
+vi.mock("../StatService", () => {
   let level = 0;
   const mockStat = {
     getLevel: vi.fn(() => level),
@@ -32,9 +32,9 @@ vi.mock("../../src/services/StatService", () => {
   };
 });
 
-const AlcoholService = (await import("../../src/services/AlcoholService.js"))
+const AlcoholService = (await import("../AlcoholService.js"))
   .default;
-const { __resetLevel } = await import("../../src/services/StatService");
+const { __resetLevel } = await import("../StatService");
 
 describe("AlcoholService", () => {
   beforeEach(() => {

@@ -1,5 +1,5 @@
 // Mock config.js — MessageService imports config from "#root/config.js"
-vi.mock("../../src/config", () => ({
+vi.mock("../../config", () => ({
   default: {
     ASSISTANT_MESSAGE: null,
     GUILD_ID_CLOCK_CREW: "249010731910037507",
@@ -7,7 +7,7 @@ vi.mock("../../src/config", () => ({
 }));
 
 // Mock constants.js barrel — MessageService imports { MessageConstant, ClockCrewConstants }
-vi.mock("../../src/constants", () => ({
+vi.mock("../../constants", () => ({
   MessageConstant: {
     clockCrewCorePersonality: "CLOCK_CREW_PERSONALITY",
     aiInformation: "AI_INFO",
@@ -27,7 +27,7 @@ vi.mock("../../src/constants", () => ({
   APRIL_FOOLS_MODE: false,
 }));
 
-const MessageService = (await import("../../src/services/MessageService.js"))
+const MessageService = (await import("../MessageService.js"))
   .default;
 
 describe("MessageService", () => {

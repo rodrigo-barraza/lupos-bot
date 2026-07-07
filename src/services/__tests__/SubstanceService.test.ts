@@ -1,7 +1,7 @@
 import { describe, test, expect, beforeEach, vi } from "vitest";
 
 // Mock StatService — the factory that SubstanceService delegates to
-vi.mock("../../src/services/StatService", () => {
+vi.mock("../StatService", () => {
   let level = 0;
   const mockStat = {
     getLevel: vi.fn(() => level),
@@ -34,9 +34,9 @@ vi.mock("../../src/services/StatService", () => {
   };
 });
 
-const SubstanceService = (await import("../../src/services/SubstanceService.js"))
+const SubstanceService = (await import("../SubstanceService.js"))
   .default;
-const { __resetLevel } = await import("../../src/services/StatService");
+const { __resetLevel } = await import("../StatService");
 
 describe("SubstanceService", () => {
   beforeEach(() => {

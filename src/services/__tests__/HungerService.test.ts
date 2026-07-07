@@ -1,4 +1,4 @@
-vi.mock("../../src/services/AIService", () => ({
+vi.mock("../AIService", () => ({
   default: {
     generateInCharacterResponse2Special: vi
       .fn()
@@ -6,7 +6,7 @@ vi.mock("../../src/services/AIService", () => ({
   },
 }));
 
-const HungerService = (await import("../../src/services/HungerService.js")).default;
+const HungerService = (await import("../HungerService.js")).default;
 
 describe("HungerService", () => {
   beforeEach(() => {

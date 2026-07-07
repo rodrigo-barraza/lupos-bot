@@ -1,11 +1,11 @@
 // ── Mocks ────────────────────────────────────────────────────────────────────
 // Mock heavyweight dependencies that AIService transitively depends on
-vi.mock("../../src/services/MongoService", () => ({
+vi.mock("../MongoService", () => ({
   default: {
     getClient: vi.fn().mockReturnValue(null),
   },
 }));
-vi.mock("../../src/services/CurrentService", () => ({
+vi.mock("../CurrentService", () => ({
   default: {
     getMessage: vi.fn().mockReturnValue({
       author: { username: "test_runner", id: "000" },
@@ -22,13 +22,13 @@ vi.mock("../../src/services/CurrentService", () => ({
     addModelType: vi.fn(),
   },
 }));
-vi.mock("../../src/services/DiscordUtilityService", () => ({
+vi.mock("../DiscordUtilityService", () => ({
   default: {
     getUsernameNoSpaces: vi.fn().mockReturnValue("TestUser"),
     getDisplayName: vi.fn().mockResolvedValue("TestUser"),
   },
 }));
-vi.mock("../../src/services/PrismService", () => ({
+vi.mock("../PrismService", () => ({
   default: {
     generateText: vi.fn(),
     generateImage: vi.fn(),
@@ -38,7 +38,7 @@ vi.mock("../../src/services/PrismService", () => ({
 }));
 
 // ── Import AIService (after mocks are set up) ───────────────────────────────
-const AIService = (await import("../../src/services/AIService.js")).default;
+const AIService = (await import("../AIService.js")).default;
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 const mockMessage = {

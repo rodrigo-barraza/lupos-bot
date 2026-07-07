@@ -1,4 +1,4 @@
-const CurrentService = (await import("../../src/services/CurrentService.js"))
+const CurrentService = (await import("../CurrentService.js"))
   .default;
 
 describe("CurrentService", () => {
