@@ -1,5 +1,5 @@
 const DiscordUtilityService = (
-  await import("../../src/services/DiscordUtilityService.js")
+  await import("../DiscordUtilityService.js")
 ).default;
 
 describe("DiscordUtilityService - Pure Functions", () => {
