@@ -102,7 +102,7 @@ describe("CountdownIconOverlay", () => {
       const svgString = svg.toString("utf-8");
 
       expect(svgString).toContain("365");
-      // Fixed font-size of 120px
+      // Reduced font-size of 120px (512 * 0.234375)
       expect(svgString).toContain('font-size="120"');
     });
 
@@ -110,8 +110,8 @@ describe("CountdownIconOverlay", () => {
       const svg = buildNumberOverlaySvg(512, 512, 68);
       const svgString = svg.toString("utf-8");
 
-      // Fixed font-size of 120px
-      expect(svgString).toContain('font-size="120"');
+      // Normal scale font-size of 160px (512 * 0.3125)
+      expect(svgString).toContain('font-size="160"');
     });
 
     it("contains a semi-transparent circle badge", () => {
