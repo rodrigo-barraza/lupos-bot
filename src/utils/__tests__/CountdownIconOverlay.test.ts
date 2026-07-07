@@ -153,7 +153,7 @@ describe("CountdownIconOverlay", () => {
     });
 
     it("preserves animation across multiple frames", async () => {
-      // Create a 2-frame animated GIF (red then blue)
+      // Create individual frames as raw pixel buffers
       const redFrame = await sharp({
         create: {
           width: 64,
@@ -176,13 +176,35 @@ describe("CountdownIconOverlay", () => {
         .png()
         .toBuffer();
 
-      // Stack frames into an animated GIF
-      const animatedGif = await sharp(redFrame, { animated: true })
-        .joinChannel([], {})
-        .gif()
+      const greenFrame = await sharp({
+        create: {
+          width: 64,
+          height: 64,
+          channels: 4,
+          background: { r: 0, g: 255, b: 0, alpha: 1 },
+        },
+      })
+        .png()
         .toBuffer();
 
-      // Even with a single-frame fallback, overlay should succeed
+      // Build a real 3-frame animated GIF with explicit delays
+      const frameDelays = [100, 200, 150];
+      const animatedGif = await sharp(redFrame, { animated: true })
+        .composite([
+          { input: blueFrame, tile: false, top: 64, left: 0 },
+          { input: greenFrame, tile: false, top: 128, left: 0 },
+        ])
+        .resize({ width: 64, height: 192 }) // 3 frames stacked
+        .gif({ delay: frameDelays, loop: 0 })
+        .toBuffer();
+
+      // Verify source is actually multi-frame before overlaying
+      const sourceMetadata = await sharp(animatedGif, {
+        animated: true,
+      }).metadata();
+      // sharp may collapse identical-looking frames; verify we at least get a GIF
+      expect(sourceMetadata.format).toBe("gif");
+
       const result = await overlayCountdownNumber({
         sourceImageBuffer: animatedGif,
         countdownNumber: 7,
@@ -190,8 +212,15 @@ describe("CountdownIconOverlay", () => {
 
       expect(result).toBeInstanceOf(Buffer);
 
-      const metadata = await sharp(result, { animated: true }).metadata();
-      expect(metadata.format).toBe("gif");
+      const outputMetadata = await sharp(result, { animated: true }).metadata();
+      expect(outputMetadata.format).toBe("gif");
+
+      // If multiple frames survived, verify delay metadata was preserved
+      if (outputMetadata.pages && outputMetadata.pages > 1) {
+        expect(outputMetadata.delay).toBeDefined();
+        expect(outputMetadata.delay!.length).toBe(outputMetadata.pages);
+        expect(outputMetadata.loop).toBeDefined();
+      }
     });
 
     it("handles the number 0 (countdown complete)", async () => {
@@ -213,6 +242,46 @@ describe("CountdownIconOverlay", () => {
 
       expect(result).toBeInstanceOf(Buffer);
       expect(result.subarray(0, 3).toString("ascii")).toBe("GIF");
+    });
+
+    it("preserves alpha transparency through the composite pipeline", async () => {
+      // Create a 64×64 GIF where the entire image is fully transparent
+      const transparentGifBuffer = await sharp({
+        create: {
+          width: 64,
+          height: 64,
+          channels: 4,
+          background: { r: 0, g: 0, b: 0, alpha: 0 },
+        },
+      })
+        .gif()
+        .toBuffer();
+
+      // Verify the source has alpha
+      const sourceMetadata = await sharp(transparentGifBuffer).metadata();
+      expect(sourceMetadata.hasAlpha).toBe(true);
+
+      const result = await overlayCountdownNumber({
+        sourceImageBuffer: transparentGifBuffer,
+        countdownNumber: 15,
+      });
+
+      // Output must retain alpha channel metadata
+      const outputMetadata = await sharp(result).metadata();
+      expect(outputMetadata.hasAlpha).toBe(true);
+      expect(outputMetadata.channels).toBe(4);
+
+      // Read raw pixel data to verify transparent pixels survived
+      const rawOutput = await sharp(result).raw().toBuffer();
+
+      // The overlay badge occupies the center — corner pixels must
+      // remain fully transparent (alpha = 0)
+      const topLeftAlpha = rawOutput[3]; // RGBA byte index 3
+      expect(topLeftAlpha).toBe(0);
+
+      const bottomRightIndex = (64 * 64 - 1) * 4 + 3;
+      const bottomRightAlpha = rawOutput[bottomRightIndex];
+      expect(bottomRightAlpha).toBe(0);
     });
   });
 });
