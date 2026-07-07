@@ -70,12 +70,25 @@ async function overlayCountdownNumber({
 
   const frameWidth = metadata.width!;
   const frameHeight = metadata.pageHeight || metadata.height!;
+  const frameCount = metadata.pages || 1;
 
   const svgOverlay = buildNumberOverlaySvg(
     frameWidth,
     frameHeight,
     countdownNumber,
   );
+
+  // Preserve animation metadata through the composite pipeline.
+  // Sharp does not implicitly carry frame delays or loop count
+  // through processing — they must be forwarded explicitly.
+  const gifOutputOptions: sharp.GifOptions = {};
+
+  if (frameCount > 1) {
+    if (metadata.delay && metadata.delay.length > 0) {
+      gifOutputOptions.delay = metadata.delay;
+    }
+    gifOutputOptions.loop = metadata.loop ?? 0;
+  }
 
   return image
     .composite([
@@ -85,7 +98,7 @@ async function overlayCountdownNumber({
         gravity: "northwest",
       },
     ])
-    .gif()
+    .gif(gifOutputOptions)
     .toBuffer();
 }
 
