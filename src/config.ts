@@ -89,7 +89,6 @@ const config = {
   USER_IDS_NEW_ACCOUNT_WHITELIST: parseCommaSeparated("USER_IDS_NEW_ACCOUNT_WHITELIST"),
 
   // ─── Countdown Icon ────────────────────────────────────────────
-  COUNTDOWN_ICON_GUILD_ID: process.env.COUNTDOWN_ICON_GUILD_ID,
   COUNTDOWN_ICON_TARGET_DATE: process.env.COUNTDOWN_ICON_TARGET_DATE,
 
   // ─── Feature Flags ─────────────────────────────────────────────

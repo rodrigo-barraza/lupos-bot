@@ -2835,11 +2835,11 @@ async function luposOnReady(client: Client, { mongo }: { mongo: import("mongodb"
   }
 
   // Countdown icon overlay — runs in ALL modes (daily countdown on guild icon)
-  if (config.COUNTDOWN_ICON_GUILD_ID && config.COUNTDOWN_ICON_TARGET_DATE) {
+  if (config.GUILD_ID_PRIMARY && config.COUNTDOWN_ICON_TARGET_DATE) {
     const { parseTargetDateString } = await import("#root/utilities/CountdownIconOverlay.js");
     CountdownIconJob.startJob({
       client,
-      guildId: config.COUNTDOWN_ICON_GUILD_ID,
+      guildId: config.GUILD_ID_PRIMARY,
       targetDate: parseTargetDateString(config.COUNTDOWN_ICON_TARGET_DATE),
     });
   }
