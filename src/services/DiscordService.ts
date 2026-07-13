@@ -1194,6 +1194,21 @@ Respond with ONLY "yes" or "no". Nothing else.`,
           imageUrls.push(imageUrl);
         }
       }
+
+      // Video attachments aren't in messagesImagesCollection (it's
+      // image-only). Extract their first frame here so a video can be used
+      // as a redraw/reference image, mirroring the GIF first-frame behavior.
+      for (const attachment of (message as Message).attachments.values()) {
+        if (attachment.contentType?.startsWith("video/")) {
+          const firstFrameDataUrl =
+            await AIService.extractVideoFirstFrameDataUrl(attachment.url);
+          if (firstFrameDataUrl) {
+            imageLabels.push("Attached video (first frame)");
+            imageUrls.push(firstFrameDataUrl);
+            console.log(`🎞️ [DiscordService] Extracted first frame from attached video for reference`);
+          }
+        }
+      }
     }
 
 
@@ -1244,6 +1259,27 @@ Respond with ONLY "yes" or "no". Nothing else.`,
               imageLabels.push("Replied-to message image");
               imageUrls.push(imageUrl);
               foundImage = true;
+            }
+
+            // No image attachment, but there may be a video — extract its
+            // first frame so a replied-to video can be redrawn/referenced.
+            if (!foundImage) {
+              const videoAttachment = cachedMessageReference.attachments.find(
+                (attachment: import("discord.js").Attachment) =>
+                  attachment.contentType?.startsWith("video/"),
+              );
+              if (videoAttachment) {
+                const firstFrameDataUrl =
+                  await AIService.extractVideoFirstFrameDataUrl(
+                    videoAttachment.proxyURL || videoAttachment.url,
+                  );
+                if (firstFrameDataUrl) {
+                  imageLabels.push("Replied-to message video (first frame)");
+                  imageUrls.push(firstFrameDataUrl);
+                  foundImage = true;
+                  console.log(`🎞️ [DiscordService] Extracted first frame from replied-to video for reference`);
+                }
+              }
             }
           }
 

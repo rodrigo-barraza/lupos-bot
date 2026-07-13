@@ -22,6 +22,41 @@ async function convertGifToPng(imageBuffer: Buffer): Promise<Buffer> {
     .toBuffer();
 }
 
+/**
+ * Extract the first frame of a video as a PNG buffer.
+ *
+ * sharp's { animated: false } first-frame trick only works on image
+ * containers (GIF/WebP); it can't decode real video (mp4/webm/mov), so we
+ * shell out to ffmpeg (already a dependency, used by YouTubeService). We
+ * round-trip through a temp file because seeking on a piped stdin is
+ * unreliable — frame 0 to a PNG is fast regardless.
+ */
+async function extractVideoFirstFramePng(videoBuffer: Buffer): Promise<Buffer> {
+  const { default: ffmpeg } = await import("fluent-ffmpeg");
+  const os = await import("node:os");
+  const fs = await import("node:fs");
+  const nodePath = await import("node:path");
+
+  const tmpDir = await fs.promises.mkdtemp(nodePath.join(os.tmpdir(), "lupos-vid-"));
+  const inputPath = nodePath.join(tmpDir, "input");
+  const outputPath = nodePath.join(tmpDir, "frame.png");
+  await fs.promises.writeFile(inputPath, videoBuffer);
+
+  try {
+    await new Promise<void>((resolve, reject) => {
+      ffmpeg(inputPath)
+        .outputOptions(["-frames:v", "1"])
+        .output(outputPath)
+        .on("end", () => resolve())
+        .on("error", (error: Error) => reject(error))
+        .run();
+    });
+    return await fs.promises.readFile(outputPath);
+  } finally {
+    await fs.promises.rm(tmpDir, { recursive: true, force: true });
+  }
+}
+
 export interface CaptionMapObject {
   hash: string;
   url: string;
@@ -131,6 +166,24 @@ const AIService = {
       }
     }
     return imageObjects;
+  },
+  /**
+   * Fetch a video URL and return its first frame as a `data:image/png`
+   * URL, suitable for use as a redraw/reference image. Mirrors the GIF
+   * first-frame behavior but via ffmpeg since sharp can't decode video.
+   * Returns null on failure so callers can skip the attachment gracefully.
+   */
+  async extractVideoFirstFrameDataUrl(videoUrl: string): Promise<string | null> {
+    try {
+      const response = await fetch(videoUrl);
+      const videoBuffer = Buffer.from(await response.arrayBuffer());
+      const firstFrameBuffer = await extractVideoFirstFramePng(videoBuffer);
+      return `data:image/png;base64,${firstFrameBuffer.toString("base64")}`;
+    } catch (error: unknown) {
+      const wrappedError = error instanceof Error ? error : new Error(String(error));
+      console.error(...LogFormatter.error("extractVideoFirstFrameDataUrl", wrappedError));
+      return null;
+    }
   },
   // Base Text-to-Text Generation (Completion)
   async generateText({
