@@ -603,7 +603,7 @@ export async function extractContentFromMessages(
           item.message.id,
           new Collection(transcriptionsMap),
         );
-        for (const [hash, transcriptionObject] of transcriptionsMap.entries()) {
+        for (const [, transcriptionObject] of transcriptionsMap.entries()) {
           console.log(
             ...LogFormatter.transcribeSuccess({
               functionName,
@@ -669,7 +669,7 @@ export async function extractContentFromMessages(
           imageSize: number = 0,
           imageWidth: number = 0,
           imageHeight: number = 0;
-        let attachmentContext: string | null = null;
+        let attachmentContext: string;
 
         // Bot has attached an image to this message
         if (recentMessage?.attachments?.size > 0) {

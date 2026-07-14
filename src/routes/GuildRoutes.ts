@@ -1653,7 +1653,7 @@ router.get(
       years = getServerAgeYears(guild);
     }
 
-    const { startDate, unixStartDate } = computeStartDate(years, months, days);
+    const { unixStartDate } = computeStartDate(years, months, days);
 
     const matchQuery: Record<string, unknown> = {
       ...EXCLUDE_SOFT_DELETED,
@@ -1787,7 +1787,7 @@ router.get(
       return res.status(404).json({ error: "Guild not found" });
     }
 
-    const { startDate, unixStartDate } = computeStartDate(years, months, days);
+    const { unixStartDate } = computeStartDate(years, months, days);
 
     const matchQuery: Record<string, unknown> = {
       ...EXCLUDE_SOFT_DELETED,
@@ -1890,7 +1890,7 @@ router.get(
       years = getServerAgeYears(guild);
     }
 
-    const { startDate, unixStartDate } = computeStartDate(years, months, days);
+    const { unixStartDate } = computeStartDate(years, months, days);
 
     try {
       const database = getMongoDb();

@@ -545,13 +545,11 @@ const DiscordUtilityService = {
     let allMessages = new Collection<string, Message>();
 
     // Metrics tracking
-    let _apiCallCount = 0;
     const _startTime = Date.now();
 
     // If 'around' is specified, fetch once and return (Discord API behavior)
     if (around) {
-      _apiCallCount++;
-      let messages = await channel!.messages.fetch({
+      const messages = await channel!.messages.fetch({
         limit: Math.min(100, limit),
         around,
         cache,
@@ -561,10 +559,9 @@ const DiscordUtilityService = {
 
     // Determine pagination direction and cursor
     const isAfterMode = after && !before;
-    let cursor: string | undefined = before || after;
+    let cursor: string | undefined;
 
     // Initial fetch
-    _apiCallCount++;
     const initialFetchOptions: FetchMessagesOptions = {
       limit: Math.min(100, limit),
       cache,
@@ -592,7 +589,6 @@ const DiscordUtilityService = {
       if (!cursor) break;
 
       const additionalMessagesNeeded = limit - allMessages.size;
-      _apiCallCount++;
 
       const fetchOptions: FetchMessagesOptions = {
         limit: Math.min(100, additionalMessagesNeeded),
