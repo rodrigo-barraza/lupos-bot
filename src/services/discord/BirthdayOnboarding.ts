@@ -102,11 +102,11 @@ function buildPromptEmbed(selectedMonth?: string) {
       );
   } else {
     embed
-      .setTitle("Welcome to Whitemane!")
+      .setTitle("Welcome to Classic Whitemane!")
       .setDescription(
         `${WHITEMANE_EMOJI} So you made it past the Monastery gates — welcome ` +
-          `to **Whitemane**. I'm **Lupos**, the wolf who prowls these scarlet ` +
-          `halls. The Inquisitor runs her Crusade; the pack answers to me.\n\n` +
+          `to **Classic Whitemane**. I'm **Lupos**, the wolf who prowls these ` +
+          `scarlet halls. The Inquisitor runs her Crusade; the pack answers to me.\n\n` +
           `Tell me your **birthday month**, and when it arrives you'll be ` +
           `granted the **🎂 birthday role** — your month to rise as the pack's ` +
           `champion and be celebrated across the server.\n\n` +
