@@ -1,8 +1,9 @@
 // ============================================================
 // BirthdayOnboarding — DM month-picker for new members
 // ============================================================
-// When a new member joins the primary guild, Lupos DMs them a
-// one-time prompt with 12 month buttons. Their pick is stored in
+// When a new member finishes onboarding in the primary guild, Lupos
+// DMs them a one-time prompt with 12 month buttons. Their pick is
+// stored in
 // the "UserBirthdays" Mongo collection (keyed by Discord user id)
 // and BirthdayJob unions it with the hardcoded birthdays array to
 // assign the birthday role each month. Users can change their
@@ -154,8 +155,35 @@ async function syncBirthdayRole(
 
 const BirthdayOnboarding = {
   /**
-   * DM a new member the birthday month picker. Skips bots, members
-   * who already answered (rejoins), and users with DMs closed.
+   * Role re-sync only, no DM — used on guildMemberAdd so rejoining
+   * members who already picked a month get their birthday role back
+   * even if they stall in onboarding. The DM prompt itself is sent
+   * by sendBirthdayPrompt once onboarding completes.
+   */
+  async syncExistingBirthday(client: Client, member: GuildMember) {
+    const functionName = "syncExistingBirthday";
+    if (member.user.bot) return;
+
+    let existing: UserBirthdayDocument | null;
+    try {
+      existing = await getCollection().findOne({ userId: member.id });
+    } catch (error: unknown) {
+      console.error(
+        `❌ [${functionName}] Mongo lookup failed for ${member.user.username}:`,
+        error,
+      );
+      return;
+    }
+
+    if (existing) {
+      await syncBirthdayRole(client, member.id, existing.monthNumber);
+    }
+  },
+
+  /**
+   * DM a member the birthday month picker once they complete
+   * onboarding. Skips bots, members who already answered (rejoins),
+   * and users with DMs closed.
    */
   async sendBirthdayPrompt(client: Client, member: GuildMember) {
     const functionName = "sendBirthdayPrompt";
