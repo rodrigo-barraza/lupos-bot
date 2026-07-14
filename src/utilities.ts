@@ -16,10 +16,7 @@
 // working unchanged.
 // ============================================================
 
-import {
-  capitalize,
-  errorMessage,
-} from "@rodrigo-barraza/utilities-library";
+import { capitalize, errorMessage } from "@rodrigo-barraza/utilities-library";
 import {
   convertToSuperScript,
   fixBareMentions,

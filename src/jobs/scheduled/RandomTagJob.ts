@@ -51,14 +51,20 @@ async function randomTag({ client, guildId, channelId }: RandomTagJobConfig) {
       return;
     }
 
-    const channel = DiscordUtilityService.getChannelById(client, channelId) as import("discord.js").TextChannel | undefined;
+    const channel = DiscordUtilityService.getChannelById(client, channelId) as
+      | import("discord.js").TextChannel
+      | undefined;
     if (!channel) {
       consoleLog("!", `[RandomTagJob] Channel ${channelId} not found`);
       return;
     }
 
     // Scan all text channels under the target categories for active users
-    const CATEGORY_IDS = ["610921893071028408", "610924121311674415", "609652454375555082"];
+    const CATEGORY_IDS = [
+      "610921893071028408",
+      "610924121311674415",
+      "609652454375555082",
+    ];
     const activeAuthors = new Map<string, GuildMember>(); // userId -> member
 
     for (const [, ch] of guild.channels.cache) {
@@ -79,7 +85,10 @@ async function randomTag({ client, guildId, channelId }: RandomTagJobConfig) {
     }
 
     if (activeAuthors.size === 0) {
-      consoleLog("!", `[RandomTagJob] No active human authors found in target categories`);
+      consoleLog(
+        "!",
+        `[RandomTagJob] No active human authors found in target categories`,
+      );
       return;
     }
 
@@ -103,7 +112,9 @@ async function randomTag({ client, guildId, channelId }: RandomTagJobConfig) {
       });
     }
 
-    const namesStr = selectedMembers.map((s: SelectedMember) => s.displayName).join(", ");
+    const namesStr = selectedMembers
+      .map((s: SelectedMember) => s.displayName)
+      .join(", ");
     consoleLog(
       "=",
       `[RandomTagJob] 🎯 Targeting: ${namesStr} [pool: ${activeAuthors.size} active users]`,
@@ -131,7 +142,9 @@ async function randomTag({ client, guildId, channelId }: RandomTagJobConfig) {
     // Build a simplified conversation context from recent messages
     let conversationContext = "";
     if (recentMessages && recentMessages.size > 0) {
-      const messagesArray: Message[] = Array.from(recentMessages.values()).reverse() as Message[];
+      const messagesArray: Message[] = Array.from(
+        recentMessages.values(),
+      ).reverse() as Message[];
       for (const message of messagesArray.slice(-15)) {
         const author =
           message.member?.displayName ||
@@ -177,7 +190,9 @@ async function randomTag({ client, guildId, channelId }: RandomTagJobConfig) {
           peopleContext += `\n### YOUR MEMORIES ABOUT ${person.displayName.toUpperCase()}:`;
           for (const memory of memoryResult.memories) {
             const createdDate = new Date(memory.createdAt);
-            const timeAgo = TemporalHelpers.toRelative(TemporalHelpers.fromJSDate(createdDate));
+            const timeAgo = TemporalHelpers.toRelative(
+              TemporalHelpers.fromJSDate(createdDate),
+            );
             peopleContext += `\n- ${memory.content} (remembered ${timeAgo})`;
           }
         }
@@ -235,7 +250,8 @@ The people you are tagging are: ${namesList}
     userMessage += `\n\n${conversationContext ? `## RECENT CHAT CONTEXT (STAY ON THIS TOPIC):\n${conversationContext}` : "## No recent messages — just vibe and be chaotic."}`;
 
     // Start typing indicator while generating
-    const typingInterval = await DiscordUtilityService.startTypingInterval(channel);
+    const typingInterval =
+      await DiscordUtilityService.startTypingInterval(channel);
 
     const agentModel =
       config.LANGUAGE_MODEL_TYPE === "GOOGLE"
