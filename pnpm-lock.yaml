@@ -22,7 +22,7 @@ importers:
         version: https://codeload.github.com/rodrigo-barraza/service-library/tar.gz/a8ce2b97e3d4d4f1c99fc383648ab7d615f95c98(express@5.2.1)(mongodb@7.3.0)
       '@rodrigo-barraza/utilities-library':
         specifier: github:rodrigo-barraza/utilities-library
-        version: https://codeload.github.com/rodrigo-barraza/utilities-library/tar.gz/0e7751c631417b41cc3470be77bbd177018c7e04
+        version: https://codeload.github.com/rodrigo-barraza/utilities-library/tar.gz/3edad15ee7d9894e464501a07e4cff1f931206c9
       discord.js:
         specifier: ^14.26.4
         version: 14.26.4
@@ -570,9 +570,9 @@ packages:
       mongodb:
         optional: true
 
-  '@rodrigo-barraza/utilities-library@https://codeload.github.com/rodrigo-barraza/utilities-library/tar.gz/0e7751c631417b41cc3470be77bbd177018c7e04':
-    resolution: {gitHosted: true, tarball: https://codeload.github.com/rodrigo-barraza/utilities-library/tar.gz/0e7751c631417b41cc3470be77bbd177018c7e04}
-    version: 0.3.1
+  '@rodrigo-barraza/utilities-library@https://codeload.github.com/rodrigo-barraza/utilities-library/tar.gz/3edad15ee7d9894e464501a07e4cff1f931206c9':
+    resolution: {gitHosted: true, tarball: https://codeload.github.com/rodrigo-barraza/utilities-library/tar.gz/3edad15ee7d9894e464501a07e4cff1f931206c9}
+    version: 0.3.2
 
   '@rolldown/binding-android-arm64@1.0.3':
     resolution: {integrity: sha512-454rs7jHngixp/NMxd5srYD57OnzSlZ/eFTETjORQHLwJG1lRtmNOJcBerZlfu4GjKqeq8aCCIQrMdHyhI51Hw==}
@@ -2646,7 +2646,7 @@ snapshots:
 
   '@rodrigo-barraza/service-library@https://codeload.github.com/rodrigo-barraza/service-library/tar.gz/a8ce2b97e3d4d4f1c99fc383648ab7d615f95c98(express@5.2.1)(mongodb@7.3.0)':
     dependencies:
-      '@rodrigo-barraza/utilities-library': https://codeload.github.com/rodrigo-barraza/utilities-library/tar.gz/0e7751c631417b41cc3470be77bbd177018c7e04
+      '@rodrigo-barraza/utilities-library': https://codeload.github.com/rodrigo-barraza/utilities-library/tar.gz/3edad15ee7d9894e464501a07e4cff1f931206c9
       express: 5.2.1
     optionalDependencies:
       mongodb: 7.3.0
@@ -2659,7 +2659,7 @@ snapshots:
       - snappy
       - socks
 
-  '@rodrigo-barraza/utilities-library@https://codeload.github.com/rodrigo-barraza/utilities-library/tar.gz/0e7751c631417b41cc3470be77bbd177018c7e04':
+  '@rodrigo-barraza/utilities-library@https://codeload.github.com/rodrigo-barraza/utilities-library/tar.gz/3edad15ee7d9894e464501a07e4cff1f931206c9':
     dependencies:
       mongodb: 7.3.0
       nanoid: 5.1.16
