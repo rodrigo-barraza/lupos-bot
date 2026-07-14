@@ -57,6 +57,8 @@ import {
   luposOnReadyPurgeYoungAccounts,
   revokeRoleFromAllMembers,
 } from "#root/services/discord/ModerationSweeps.js";
+// Importing BirthdayOnboarding also registers its "birthday-month-" button handler
+import BirthdayOnboarding from "#root/services/discord/BirthdayOnboarding.js";
 // Importing RolePicker also registers its "pick-role-" button handler
 // with ButtonRouter at module load.
 import { generateRolesEmbedMessage } from "#root/services/discord/RolePicker.js";
@@ -199,38 +201,39 @@ async function replyMessage(
     return;
   }
 
-  const { generatedText, image, audioRef } = await buildAndGenerateReply({
-    conversation: conversation as unknown as Record<string, unknown>[],
-    conversationsCollection:
-      conversationsCollection as import("discord.js").Collection<
-        string,
-        Record<string, unknown>[]
-      >,
-    memberMentionsCollection,
-    messagesEmojisCollection,
-    messagesImagesCollection,
-    newSystemPrompt,
-    participantsAvatarsCollection:
-      participantsAvatarsCollection as import("discord.js").Collection<
-        string,
-        string
-      >,
-    participantsBannersCollection:
-      participantsBannersCollection as import("discord.js").Collection<
-        string,
-        string
-      >,
-    participantsCollection:
-      participantsCollection as unknown as import("discord.js").Collection<
-        string,
-        GuildMember | User | { id: string }
-      >,
-    participantsMembersCollection,
-    participantsUsersCollection,
-    queuedDatum,
-    userMentionsCollection,
-    localMongo,
-  });
+  const { generatedText, image, audioRef, imagePrompt } =
+    await buildAndGenerateReply({
+      conversation: conversation as unknown as Record<string, unknown>[],
+      conversationsCollection:
+        conversationsCollection as import("discord.js").Collection<
+          string,
+          Record<string, unknown>[]
+        >,
+      memberMentionsCollection,
+      messagesEmojisCollection,
+      messagesImagesCollection,
+      newSystemPrompt,
+      participantsAvatarsCollection:
+        participantsAvatarsCollection as import("discord.js").Collection<
+          string,
+          string
+        >,
+      participantsBannersCollection:
+        participantsBannersCollection as import("discord.js").Collection<
+          string,
+          string
+        >,
+      participantsCollection:
+        participantsCollection as unknown as import("discord.js").Collection<
+          string,
+          GuildMember | User | { id: string }
+        >,
+      participantsMembersCollection,
+      participantsUsersCollection,
+      queuedDatum,
+      userMentionsCollection,
+      localMongo,
+    });
 
   const generatedTextResponse = generatedText;
   const generatedImage = image;
@@ -277,7 +280,10 @@ ${combinedGuildInformation && combinedChannelInformation ? `URL: ${utilities.get
       message,
       generatedTextResponse,
       generatedImage as string | Buffer | null,
-      null,
+      // The generate_image prompt (when one exists) becomes the attachment's
+      // filename/description, so future context rebuilds can describe the
+      // image instead of falling back to the meaningless "lupos.png".
+      imagePrompt ?? null,
       generatedAudioRef,
     );
   } catch (error: unknown) {
@@ -581,7 +587,7 @@ async function luposOnReady(
     }
 
     if (config.ROLE_ID_BIRTHDAY_MONTH) {
-      BirthdayJob.startJob(client);
+      BirthdayJob.startJob(client, mongo);
     }
 
     // RemindersJob.startJob(client, mongo);
@@ -854,6 +860,12 @@ async function processMessage(
   }
 
   if (config.USER_IDS_DISALLOWED.includes(message.author.id)) {
+    return;
+  }
+
+  // Lupos never converses over DMs — the birthday onboarding prompt
+  // (button interactions) is the only DM surface.
+  if (isDirectMessage) {
     return;
   }
 
@@ -1206,6 +1218,9 @@ async function luposOnGuildMemberAdd(
       config.ROLE_ID_POLITICS_MUTE,
     );
   }
+
+  // DM the birthday month picker (skips bots, rejoins, closed DMs)
+  await BirthdayOnboarding.sendBirthdayPrompt(client, member);
 }
 
 // Whenever a member is updated
