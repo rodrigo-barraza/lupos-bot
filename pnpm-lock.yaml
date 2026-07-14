@@ -17,12 +17,9 @@ importers:
       '@distube/ytdl-core':
         specifier: ^4.16.12
         version: 4.16.12
-      '@rodrigo-barraza/service-library':
-        specifier: github:rodrigo-barraza/service-library
-        version: https://codeload.github.com/rodrigo-barraza/service-library/tar.gz/541aade9c96ea829e96c8d21d796144954e42059(express@5.2.1)(mongodb@7.3.0)
       '@rodrigo-barraza/utilities-library':
         specifier: github:rodrigo-barraza/utilities-library
-        version: https://codeload.github.com/rodrigo-barraza/utilities-library/tar.gz/64033259e22c16505b876795189f85680769bda5
+        version: https://codeload.github.com/rodrigo-barraza/utilities-library/tar.gz/c27b5796b79d8fe763253b9271bfaaec97a2e9df(express@5.2.1)
       discord.js:
         specifier: ^14.26.4
         version: 14.26.4
@@ -560,19 +557,14 @@ packages:
   '@oxc-project/types@0.133.0':
     resolution: {integrity: sha512-KzkdCd6Uxqnf6l3HOw1xfatAlUURA0g14cvBYFyJ5SaNOQbOUvBr9PKArcPcrNIeRsBdgcUzOGrhKveVpvOIGA==}
 
-  '@rodrigo-barraza/service-library@https://codeload.github.com/rodrigo-barraza/service-library/tar.gz/541aade9c96ea829e96c8d21d796144954e42059':
-    resolution: {gitHosted: true, tarball: https://codeload.github.com/rodrigo-barraza/service-library/tar.gz/541aade9c96ea829e96c8d21d796144954e42059}
+  '@rodrigo-barraza/utilities-library@https://codeload.github.com/rodrigo-barraza/utilities-library/tar.gz/c27b5796b79d8fe763253b9271bfaaec97a2e9df':
+    resolution: {gitHosted: true, tarball: https://codeload.github.com/rodrigo-barraza/utilities-library/tar.gz/c27b5796b79d8fe763253b9271bfaaec97a2e9df}
     version: 0.4.0
     peerDependencies:
       express: '>=5.0.0'
-      mongodb: '>=7.0.0'
     peerDependenciesMeta:
-      mongodb:
+      express:
         optional: true
-
-  '@rodrigo-barraza/utilities-library@https://codeload.github.com/rodrigo-barraza/utilities-library/tar.gz/64033259e22c16505b876795189f85680769bda5':
-    resolution: {gitHosted: true, tarball: https://codeload.github.com/rodrigo-barraza/utilities-library/tar.gz/64033259e22c16505b876795189f85680769bda5}
-    version: 0.3.2
 
   '@rolldown/binding-android-arm64@1.0.3':
     resolution: {integrity: sha512-454rs7jHngixp/NMxd5srYD57OnzSlZ/eFTETjORQHLwJG1lRtmNOJcBerZlfu4GjKqeq8aCCIQrMdHyhI51Hw==}
@@ -2644,26 +2636,13 @@ snapshots:
 
   '@oxc-project/types@0.133.0': {}
 
-  '@rodrigo-barraza/service-library@https://codeload.github.com/rodrigo-barraza/service-library/tar.gz/541aade9c96ea829e96c8d21d796144954e42059(express@5.2.1)(mongodb@7.3.0)':
-    dependencies:
-      '@rodrigo-barraza/utilities-library': https://codeload.github.com/rodrigo-barraza/utilities-library/tar.gz/64033259e22c16505b876795189f85680769bda5
-      express: 5.2.1
-    optionalDependencies:
-      mongodb: 7.3.0
-    transitivePeerDependencies:
-      - '@aws-sdk/credential-providers'
-      - '@mongodb-js/zstd'
-      - gcp-metadata
-      - kerberos
-      - mongodb-client-encryption
-      - snappy
-      - socks
-
-  '@rodrigo-barraza/utilities-library@https://codeload.github.com/rodrigo-barraza/utilities-library/tar.gz/64033259e22c16505b876795189f85680769bda5':
+  '@rodrigo-barraza/utilities-library@https://codeload.github.com/rodrigo-barraza/utilities-library/tar.gz/c27b5796b79d8fe763253b9271bfaaec97a2e9df(express@5.2.1)':
     dependencies:
       mongodb: 7.3.0
       nanoid: 5.1.16
       zod: 4.4.3
+    optionalDependencies:
+      express: 5.2.1
     transitivePeerDependencies:
       - '@aws-sdk/credential-providers'
       - '@mongodb-js/zstd'

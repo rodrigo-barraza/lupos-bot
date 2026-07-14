@@ -1,5 +1,5 @@
 import config from "#root/config.js";
-import { PrismApiClient } from "@rodrigo-barraza/service-library";
+import { PrismApiClient } from "@rodrigo-barraza/utilities-library/service";
 import type {
   GenerateTextParams,
   AgentResponseParams,

@@ -1,10 +1,10 @@
 // ─── MinIO Wrapper ──────────────────────────────────────────
-// Delegates to @rodrigo-barraza/service-library/minio.
+// Delegates to @rodrigo-barraza/utilities-library/service/minio.
 // Preserves the MinioWrapper.init(endpoint, ak, sk, bucket)
 // positional-arg interface that lupos-bot consumers expect.
 // ─────────────────────────────────────────────────────────────
 
-import { MinioManager } from "@rodrigo-barraza/service-library/minio";
+import { MinioManager } from "@rodrigo-barraza/utilities-library/service/minio";
 import type { BucketItemStat } from "minio";
 import type { Readable } from "stream";
 
