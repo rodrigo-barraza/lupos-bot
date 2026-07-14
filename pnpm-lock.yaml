@@ -19,10 +19,10 @@ importers:
         version: 4.16.12
       '@rodrigo-barraza/service-library':
         specifier: github:rodrigo-barraza/service-library
-        version: https://codeload.github.com/rodrigo-barraza/service-library/tar.gz/a8ce2b97e3d4d4f1c99fc383648ab7d615f95c98(express@5.2.1)(mongodb@7.3.0)
+        version: https://codeload.github.com/rodrigo-barraza/service-library/tar.gz/541aade9c96ea829e96c8d21d796144954e42059(express@5.2.1)(mongodb@7.3.0)
       '@rodrigo-barraza/utilities-library':
         specifier: github:rodrigo-barraza/utilities-library
-        version: https://codeload.github.com/rodrigo-barraza/utilities-library/tar.gz/3edad15ee7d9894e464501a07e4cff1f931206c9
+        version: https://codeload.github.com/rodrigo-barraza/utilities-library/tar.gz/64033259e22c16505b876795189f85680769bda5
       discord.js:
         specifier: ^14.26.4
         version: 14.26.4
@@ -560,8 +560,8 @@ packages:
   '@oxc-project/types@0.133.0':
     resolution: {integrity: sha512-KzkdCd6Uxqnf6l3HOw1xfatAlUURA0g14cvBYFyJ5SaNOQbOUvBr9PKArcPcrNIeRsBdgcUzOGrhKveVpvOIGA==}
 
-  '@rodrigo-barraza/service-library@https://codeload.github.com/rodrigo-barraza/service-library/tar.gz/a8ce2b97e3d4d4f1c99fc383648ab7d615f95c98':
-    resolution: {gitHosted: true, tarball: https://codeload.github.com/rodrigo-barraza/service-library/tar.gz/a8ce2b97e3d4d4f1c99fc383648ab7d615f95c98}
+  '@rodrigo-barraza/service-library@https://codeload.github.com/rodrigo-barraza/service-library/tar.gz/541aade9c96ea829e96c8d21d796144954e42059':
+    resolution: {gitHosted: true, tarball: https://codeload.github.com/rodrigo-barraza/service-library/tar.gz/541aade9c96ea829e96c8d21d796144954e42059}
     version: 0.4.0
     peerDependencies:
       express: '>=5.0.0'
@@ -570,8 +570,8 @@ packages:
       mongodb:
         optional: true
 
-  '@rodrigo-barraza/utilities-library@https://codeload.github.com/rodrigo-barraza/utilities-library/tar.gz/3edad15ee7d9894e464501a07e4cff1f931206c9':
-    resolution: {gitHosted: true, tarball: https://codeload.github.com/rodrigo-barraza/utilities-library/tar.gz/3edad15ee7d9894e464501a07e4cff1f931206c9}
+  '@rodrigo-barraza/utilities-library@https://codeload.github.com/rodrigo-barraza/utilities-library/tar.gz/64033259e22c16505b876795189f85680769bda5':
+    resolution: {gitHosted: true, tarball: https://codeload.github.com/rodrigo-barraza/utilities-library/tar.gz/64033259e22c16505b876795189f85680769bda5}
     version: 0.3.2
 
   '@rolldown/binding-android-arm64@1.0.3':
@@ -1796,8 +1796,8 @@ packages:
     engines: {node: '>=18'}
     hasBin: true
 
-  postcss@8.5.18:
-    resolution: {integrity: sha512-xdB1oSLHbz1vRWgCDalrCqEFTWzFlhqFC5tIHLMOSUIjhm3XXQ1qrFy8S/ESr1JYRRXqM3c1QFiMZUJdUTqyMQ==}
+  postcss@8.5.19:
+    resolution: {integrity: sha512-Mz8SaolMd8nB+G13WkORcxQKHZ/NE4xXevtkJHVuG+guo9/wYKlIMTKAqGdEmYOXR2ijPjTYNHssizdaVSUNdQ==}
     engines: {node: ^10 || ^12 || >=14}
 
   prelude-ls@1.2.1:
@@ -2644,9 +2644,9 @@ snapshots:
 
   '@oxc-project/types@0.133.0': {}
 
-  '@rodrigo-barraza/service-library@https://codeload.github.com/rodrigo-barraza/service-library/tar.gz/a8ce2b97e3d4d4f1c99fc383648ab7d615f95c98(express@5.2.1)(mongodb@7.3.0)':
+  '@rodrigo-barraza/service-library@https://codeload.github.com/rodrigo-barraza/service-library/tar.gz/541aade9c96ea829e96c8d21d796144954e42059(express@5.2.1)(mongodb@7.3.0)':
     dependencies:
-      '@rodrigo-barraza/utilities-library': https://codeload.github.com/rodrigo-barraza/utilities-library/tar.gz/3edad15ee7d9894e464501a07e4cff1f931206c9
+      '@rodrigo-barraza/utilities-library': https://codeload.github.com/rodrigo-barraza/utilities-library/tar.gz/64033259e22c16505b876795189f85680769bda5
       express: 5.2.1
     optionalDependencies:
       mongodb: 7.3.0
@@ -2659,7 +2659,7 @@ snapshots:
       - snappy
       - socks
 
-  '@rodrigo-barraza/utilities-library@https://codeload.github.com/rodrigo-barraza/utilities-library/tar.gz/3edad15ee7d9894e464501a07e4cff1f931206c9':
+  '@rodrigo-barraza/utilities-library@https://codeload.github.com/rodrigo-barraza/utilities-library/tar.gz/64033259e22c16505b876795189f85680769bda5':
     dependencies:
       mongodb: 7.3.0
       nanoid: 5.1.16
@@ -3829,7 +3829,7 @@ snapshots:
     optionalDependencies:
       fsevents: 2.3.2
 
-  postcss@8.5.18:
+  postcss@8.5.19:
     dependencies:
       nanoid: 3.3.16
       picocolors: 1.1.1
@@ -4169,7 +4169,7 @@ snapshots:
     dependencies:
       lightningcss: 1.32.0
       picomatch: 4.0.5
-      postcss: 8.5.18
+      postcss: 8.5.19
       rolldown: 1.0.3
       tinyglobby: 0.2.17
     optionalDependencies:
