@@ -185,6 +185,10 @@ cleared **and resets its own value every 30 s, making the metric garbage** — d
    react as itself) are open. **Fix:** shared-secret header middleware for POSTs, CORS
    allowlist from config, param validation (years/days/limit are un-validated parseInts in 4+
    places).
+   ✅ **Done (2026-07, config-gated):** `src/middleware/corsAllowlist.ts` (set `ALLOWED_ORIGINS`,
+   comma-separated — unset preserves legacy reflect-any with a startup warning) and
+   `src/middleware/apiAuth.ts` (set `API_SHARED_SECRET` — mutating methods then require
+   `x-api-key`; unset = no-op with warning). Param validation still open.
 2. **Prompt injection surface**: nicknames, custom statuses, activity names, channel topics,
    guild description, emoji captions, and second-order per-user summaries are interpolated
    into the system-prompt block unfenced (`DiscordService.ts:347-390, :631-663, :1128-1136,
@@ -193,11 +197,17 @@ cleared **and resets its own value every 30 s, making the metric garbage** — d
 3. **Destructive sweeps run unconditionally at boot** (`DiscordService.ts:2797-2800`):
    `luposOnReadyDeleteNewAccounts` (mass-kick) and `revokeRoleFromAllMembers` (bulk role strip
    on hardcoded guild/role `:2966-2967`) run on every `services` start. Put behind config flags.
+   ✅ **Done (2026-07):** gated behind `ENABLE_BOOT_ACCOUNT_SWEEP` / `ENABLE_BOOT_ROLE_REVOKE`
+   (must be the literal `"true"`; default OFF — deliberate fail-safe behavior change, skips logged).
 4. **Secrets path**: `src/scripts/measure-performance.ts:8` reads an absolute-path secrets JSON
    outside the vault bootstrap.
+   ✅ **Done (2026-07):** path overridable via `VAULT_SECRETS_PATH`, falls back to the old path.
 5. **Config validation**: `src/config.ts` has zero required-var checking; missing
    `LUPOS_TOKEN`/`MONGO_URI`/`LUPOS_BOT_PORT` fail deep at use sites (`app.listen(NaN)`,
    `lupos.ts:92`). Add a fail-fast `validateConfig()`.
+   ✅ **Done (2026-07):** `validateConfig()` in `src/config.ts`, called at the top of `lupos.ts` —
+   requires `LUPOS_TOKEN`/`MONGO_URI`/`LUPOS_BOT_PORT` (must be numeric), notices for
+   optional `MINIO_*`/`PRISM_SERVICE_URL`.
 
 ---
 

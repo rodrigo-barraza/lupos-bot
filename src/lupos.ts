@@ -3,17 +3,27 @@
 // Environment setup
 process.env.NODE_NO_WARNINGS = "stream/web";
 
-import config from "./config.ts";
+import config, { validateConfig } from "./config.ts";
+import { createCorsMiddleware } from "./middleware/corsAllowlist.ts";
+import { createApiAuthMiddleware } from "./middleware/apiAuth.ts";
 import DiscordService from "./services/DiscordService.ts";
 import LogFormatter from "./formatters/LogFormatter.ts";
 import MinioWrapper from "./wrappers/MinioWrapper.ts";
 import MediaArchivalService from "./services/MediaArchivalService.ts";
 import DiscordWrapper from "./wrappers/DiscordWrapper.ts";
 
-import type { Request, Response, NextFunction } from "express";
+import type { Request, Response } from "express";
 import express from "express";
 const app = express();
 import services from "./services/services.ts";
+
+// ─── Config Validation (fail fast, before anything else) ────────
+try {
+  validateConfig();
+} catch (error: unknown) {
+  console.error(`❌ [lupos] ${(error as Error).message}`);
+  process.exit(1);
+}
 
 // Parse command line arguments
 let httpServer: import("node:http").Server | null = null;
@@ -97,17 +107,12 @@ async function main() {
     // API SERVER
     app.use(express.json());
     app.use(express.urlencoded({ extended: true }));
-    app.use((req: Request, res: Response, next: NextFunction) => {
-      const origin = req.headers.origin;
-      res.setHeader("Access-Control-Allow-Origin", origin || "*");
-      res.setHeader(
-        "Access-Control-Allow-Methods",
-        "GET, POST, OPTIONS, PUT, PATCH, DELETE",
-      );
-      res.setHeader("Access-Control-Allow-Headers", "*");
-      res.setHeader("Access-Control-Allow-Credentials", "true");
-      next();
-    });
+    // CORS — allowlist when ALLOWED_ORIGINS is set, legacy reflect-any
+    // behavior (with a warning) when it is not.
+    app.use(createCorsMiddleware(config.ALLOWED_ORIGINS));
+    // API auth — mutating endpoints require x-api-key when
+    // API_SHARED_SECRET is set; no-op (with a warning) when it is not.
+    app.use(createApiAuthMiddleware(config.API_SHARED_SECRET));
     app.get("/health", (_req: Request, res: Response) => {
       res.json({
         name: "Lupos",
