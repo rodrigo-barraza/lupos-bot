@@ -146,4 +146,3 @@ export interface TransformedPrismResponse {
   memories?: PrismMemoryItem[];
   count?: number;
 }
-

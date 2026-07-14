@@ -13,7 +13,8 @@ export default class MongoService {
       console.log(...LogFormatter.mongoConnectionSuccess(name));
       return client;
     } catch (error: unknown) {
-      const typedError = error instanceof Error ? error : new Error(String(error));
+      const typedError =
+        error instanceof Error ? error : new Error(String(error));
       console.error(...LogFormatter.mongoConnectionError(name, typedError));
       throw typedError;
     }
@@ -51,7 +52,9 @@ export default class MongoService {
         await client.close();
         console.log(`  ✓ MongoDB client "${name}" closed`);
       } catch (error: unknown) {
-        console.warn(`  ⚠️ Failed to close MongoDB client "${name}": ${(error as Error).message}`);
+        console.warn(
+          `  ⚠️ Failed to close MongoDB client "${name}": ${(error as Error).message}`,
+        );
       }
     }
     clients.clear();

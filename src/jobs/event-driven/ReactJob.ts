@@ -1,6 +1,13 @@
 import DiscordUtilityService from "#root/services/DiscordUtilityService.js";
 import config from "#root/config.js";
-import { Client, MessageReaction, User, Guild, Role, GuildMember } from "discord.js";
+import {
+  Client,
+  MessageReaction,
+  User,
+  Guild,
+  Role,
+  GuildMember,
+} from "discord.js";
 import { MongoClient } from "mongodb";
 
 interface Reactor {
@@ -20,8 +27,15 @@ const queue: QueueItem[] = [];
 
 let reactors: Reactor[] = [];
 
-async function generateReactors(client: Client, mongo: MongoClient, reaction: MessageReaction, user: User) {
-  const emojiId = reaction.emoji.id || (reaction as unknown as { _emoji?: { id?: string } })._emoji?.id;
+async function generateReactors(
+  client: Client,
+  mongo: MongoClient,
+  reaction: MessageReaction,
+  user: User,
+) {
+  const emojiId =
+    reaction.emoji.id ||
+    (reaction as unknown as { _emoji?: { id?: string } })._emoji?.id;
   // if reaction is flag emoji, give flag role
   if (emojiId === config.EMOJI_ID_FLAG) {
     const guild = DiscordUtilityService.getGuildById(
@@ -76,7 +90,9 @@ async function clearReactors(client: Client, _mongo: MongoClient) {
   }
 
   // Keep only reactors with recent timestamps
-  reactors = reactors.filter((reactor: Reactor) => reactor.timestamp >= oneMinuteAgo);
+  reactors = reactors.filter(
+    (reactor: Reactor) => reactor.timestamp >= oneMinuteAgo,
+  );
 }
 
 const ReactJob = {
@@ -88,7 +104,12 @@ const ReactJob = {
       });
     }, 1000 * 60); // every minute
   },
-  async processJob(client: Client, mongo: MongoClient, reaction: MessageReaction, user: User): Promise<void> {
+  async processJob(
+    client: Client,
+    mongo: MongoClient,
+    reaction: MessageReaction,
+    user: User,
+  ): Promise<void> {
     queue.push({ reaction, user });
     if (queueIsProcessing) return;
     queueIsProcessing = true;
@@ -99,7 +120,10 @@ const ReactJob = {
           try {
             await generateReactors(client, mongo, item.reaction, item.user);
           } catch (error: unknown) {
-            console.error("❌ [ReactJob] generateReactors failed — continuing queue:", error);
+            console.error(
+              "❌ [ReactJob] generateReactors failed — continuing queue:",
+              error,
+            );
           }
         }
       }

@@ -13,7 +13,10 @@ import BoundedMap from "#root/utilities/BoundedMap.js";
 
 export interface QueuedMessageData {
   message: import("discord.js").Message;
-  recentMessages: import("discord.js").Collection<string, import("discord.js").Message>;
+  recentMessages: import("discord.js").Collection<
+    string,
+    import("discord.js").Message
+  >;
   actionType: string;
 }
 
@@ -26,7 +29,9 @@ const DiscordState = {
   // ─── Reaction Highlights Queue ────────────────────────────────
   isProcessingOnReactionQueue: false,
   reactionQueue: [] as {
-    reaction: import("discord.js").MessageReaction | import("discord.js").PartialMessageReaction;
+    reaction:
+      | import("discord.js").MessageReaction
+      | import("discord.js").PartialMessageReaction;
     user: import("discord.js").User | import("discord.js").PartialUser;
   }[],
   // Bounded maps for reaction tracking — prevents memory leaks from
