@@ -41,6 +41,7 @@ import {
   extractEmojisFromAllMessage,
   splitEmojiNameAndId,
 } from "#root/services/discord/ConversationExtractor.js";
+import { buildReferenceImagesBlock } from "#root/services/discord/MessageEnvelope.js";
 
 import utilities from "#root/utilities.js";
 import LogFormatter from "#root/formatters/LogFormatter.js";
@@ -1327,13 +1328,17 @@ export async function buildAndGenerateReply({
       for (const mapObject of imagesMap.values()) {
         referenceCaptionsMap.set(mapObject.url, mapObject.caption);
       }
-      // Build [ATTACHED REFERENCE IMAGES] block with indexed descriptions
-      edittedMessageCleanContent += `\n[ATTACHED REFERENCE IMAGES]`;
-      imageUrls.forEach((imageUrl: string, index: number) => {
-        const label = imageLabels[index] || `Attachment ${index + 1}`;
-        const caption = referenceCaptionsMap.get(imageUrl);
-        edittedMessageCleanContent += `\n  ${index + 1}. ${label}${caption ? `: ${caption}` : ""}`;
-      });
+      // Build <attached-reference-images> block with indexed descriptions
+      const referenceEntries = imageUrls.map(
+        (imageUrl: string, index: number) => ({
+          label: imageLabels[index] || `Attachment ${index + 1}`,
+          caption: referenceCaptionsMap.get(imageUrl),
+        }),
+      );
+      const referenceBlock = buildReferenceImagesBlock(referenceEntries);
+      if (referenceBlock) {
+        edittedMessageCleanContent += `\n${referenceBlock}`;
+      }
     }
     // If it mentions a user with an avatar, use that avatar as the image
     // Track which user IDs have already had their avatar added to prevent
@@ -1571,17 +1576,17 @@ export async function buildAndGenerateReply({
         // images) come from referenceCaptionsMap; avatar/banner captions
         // come from captionsMap.
         if (imageLabels.length > 0) {
-          const labelLines = imageLabels
-            .map((label: string, i: number) => {
-              const caption =
+          const attachedBlock = buildReferenceImagesBlock(
+            imageLabels.map((label: string, i: number) => ({
+              label,
+              caption:
                 referenceCaptionsMap.get(imageUrls[i]) ||
-                captionsMap?.get(imageUrls[i]);
-              return caption
-                ? `  ${i + 1}. ${label}: ${caption}`
-                : `  ${i + 1}. ${label}`;
-            })
-            .join("\n");
-          lastUserMsg.content += `\n\n[ATTACHED REFERENCE IMAGES]\n${labelLines}`;
+                captionsMap?.get(imageUrls[i]),
+            })),
+          );
+          if (attachedBlock) {
+            lastUserMsg.content += `\n\n${attachedBlock}`;
+          }
         }
       }
     }

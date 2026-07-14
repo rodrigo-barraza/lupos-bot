@@ -393,8 +393,9 @@ describe("Bot Image Context", () => {
       });
     });
 
-    it("surfaces the vision caption in the bot's synthetic YOUR MESSAGE CONTEXT turn", async () => {
-      const { userReply, recentMessages } = buildReplyToBotImageScenario();
+    it("surfaces the vision caption in the bot's <message-annotation> turn", async () => {
+      const { botImageMessage, userReply, recentMessages } =
+        buildReplyToBotImageScenario();
 
       const { conversation } = await extractContentFromMessages(
         {
@@ -408,17 +409,18 @@ describe("Bot Image Context", () => {
         createFakeMongo(),
       );
 
-      const syntheticTurn = conversation.find(
+      const annotationTurn = conversation.find(
         (turn) =>
           turn.role === "user" &&
           typeof turn.content === "string" &&
-          turn.content.includes("=== YOUR MESSAGE CONTEXT ==="),
+          turn.content.includes(
+            `<message-annotation for="${botImageMessage.id}">`,
+          ),
       );
-      expect(syntheticTurn).toBeDefined();
-      expect(syntheticTurn!.content).toContain("[IMAGE ATTACHED]");
+      expect(annotationTurn).toBeDefined();
       // The vision caption — not just the meaningless filename
-      expect(syntheticTurn!.content).toContain(
-        `Image caption: caption-of(${BOT_IMAGE_URL})`,
+      expect(annotationTurn!.content).toContain(
+        `caption-of(${BOT_IMAGE_URL})</attachment>`,
       );
     });
 
@@ -439,24 +441,25 @@ describe("Bot Image Context", () => {
         createFakeMongo(),
       );
 
-      const syntheticTurn = conversation.find(
+      const annotationTurn = conversation.find(
         (turn) =>
           turn.role === "user" &&
           typeof turn.content === "string" &&
-          turn.content.includes("=== YOUR MESSAGE CONTEXT ==="),
+          turn.content.includes("<message-annotation for="),
       );
-      expect(syntheticTurn).toBeDefined();
-      expect(syntheticTurn!.content).toContain(
-        `Image description: ${generationPrompt}`,
+      expect(annotationTurn).toBeDefined();
+      expect(annotationTurn!.content).toContain(
+        `description="${generationPrompt}"`,
       );
       // Caption still included alongside the prompt
-      expect(syntheticTurn!.content).toContain(
-        `Image caption: caption-of(${BOT_IMAGE_URL})`,
+      expect(annotationTurn!.content).toContain(
+        `caption-of(${BOT_IMAGE_URL})</attachment>`,
       );
     });
 
-    it("includes the bot image caption in the reply's [REPLYING TO] block", async () => {
-      const { userReply, recentMessages } = buildReplyToBotImageScenario();
+    it("references the in-context bot message compactly and carries its caption via annotation", async () => {
+      const { botImageMessage, userReply, recentMessages } =
+        buildReplyToBotImageScenario();
 
       const { conversation } = await extractContentFromMessages(
         {
@@ -477,15 +480,27 @@ describe("Bot Image Context", () => {
           turn.content.includes("make it bigger"),
       );
       expect(replyTurn).toBeDefined();
-      expect(replyTurn!.content).toContain("[REPLYING TO]");
 
-      // The [REPLYING TO] section (everything before [CURRENT MESSAGE])
-      // must now reveal the replied-to bot image and its caption.
-      const replyingToSection = (replyTurn!.content as string).split(
-        "[CURRENT MESSAGE]",
-      )[0];
-      expect(replyingToSection).toContain("[ATTACHED REFERENCE IMAGES]");
-      expect(replyingToSection).toContain(`caption-of(${BOT_IMAGE_URL})`);
+      // The replied-to bot message is inside the fetched window, so the
+      // reply must reference it by id (in-context) instead of re-quoting.
+      expect(replyTurn!.content).toContain(
+        `<replying-to id="${botImageMessage.id}"`,
+      );
+      expect(replyTurn!.content).toContain(`in-context="true"`);
+
+      // The image semantics live in the bot message's annotation turn,
+      // which precedes the reply in the conversation.
+      const annotationIndex = conversation.findIndex(
+        (turn) =>
+          typeof turn.content === "string" &&
+          turn.content.includes(
+            `<message-annotation for="${botImageMessage.id}">`,
+          ) &&
+          turn.content.includes(`caption-of(${BOT_IMAGE_URL})`),
+      );
+      const replyIndex = conversation.indexOf(replyTurn!);
+      expect(annotationIndex).toBeGreaterThanOrEqual(0);
+      expect(annotationIndex).toBeLessThan(replyIndex);
     });
 
     it("does not regress user-message attachment captioning", async () => {
