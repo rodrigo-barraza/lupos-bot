@@ -8,7 +8,11 @@ const { LUPOS_TOKEN } = secrets;
 
 const commands: RESTPostAPIChatInputApplicationCommandsJSONBody[] = [];
 const foldersPath = path.join(import.meta.dirname, "..", "commands");
-const commandFolders = fs.readdirSync(foldersPath);
+// Only descend into directories — the folder also holds plain modules (types.js).
+const commandFolders = fs
+  .readdirSync(foldersPath, { withFileTypes: true })
+  .filter((entry) => entry.isDirectory())
+  .map((entry) => entry.name);
 
 for (const folder of commandFolders) {
   const commandsPath = path.join(foldersPath, folder);

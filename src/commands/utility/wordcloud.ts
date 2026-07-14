@@ -2,16 +2,13 @@ import { SlashCommandBuilder, AttachmentBuilder } from "discord.js";
 import type {
   ChatInputCommandInteraction,
   SlashCommandUserOption,
-  SlashCommandIntegerOption,
 } from "discord.js";
 import type { WithId, Document } from "mongodb";
-import { chromium } from "playwright";
 import {
   getMongoDb,
-  getServerAgeYears,
-  computeStartDate,
-  formatTimePeriod,
-  getPlaywrightOptions,
+  addTimePeriodOptions,
+  resolvePeriod,
+  renderHtmlToPng,
 } from "./commandUtils.ts";
 import { EXCLUDE_SOFT_DELETED } from "#root/constants.js";
 
@@ -121,39 +118,17 @@ const STOP_WORDS = new Set([
 ]);
 
 export default {
-  data: new SlashCommandBuilder()
-    .setName("wordcloud")
-    .setDescription("Generate a word cloud of most common words for a member")
-    .addUserOption((option: SlashCommandUserOption) =>
-      option
-        .setName("user")
-        .setDescription("The user to generate word cloud for")
-        .setRequired(true),
-    )
-    .addIntegerOption((option: SlashCommandIntegerOption) =>
-      option
-        .setName("years")
-        .setDescription("Number of years to look back")
-        .setRequired(false)
-        .setMinValue(0)
-        .setMaxValue(7),
-    )
-    .addIntegerOption((option: SlashCommandIntegerOption) =>
-      option
-        .setName("months")
-        .setDescription("Number of months to look back")
-        .setRequired(false)
-        .setMinValue(0)
-        .setMaxValue(12),
-    )
-    .addIntegerOption((option: SlashCommandIntegerOption) =>
-      option
-        .setName("days")
-        .setDescription("Number of days to look back")
-        .setRequired(false)
-        .setMinValue(0)
-        .setMaxValue(365),
-    ),
+  data: addTimePeriodOptions(
+    new SlashCommandBuilder()
+      .setName("wordcloud")
+      .setDescription("Generate a word cloud of most common words for a member")
+      .addUserOption((option: SlashCommandUserOption) =>
+        option
+          .setName("user")
+          .setDescription("The user to generate word cloud for")
+          .setRequired(true),
+      ),
+  ),
 
   async execute(interaction: ChatInputCommandInteraction) {
     const db = getMongoDb();
@@ -163,79 +138,64 @@ export default {
 
     const user = interaction.options.getUser("user");
     const limit = 150;
-    let years = interaction.options.getInteger("years") || 0;
-    const months = interaction.options.getInteger("months") || 0;
-    const days = interaction.options.getInteger("days") || 0;
 
-    if (years === 0 && months === 0 && days === 0) {
-      years = getServerAgeYears(interaction.guild!);
-    }
-
-    const { startDate, unixStartDate } = computeStartDate(years, months, days);
+    const { startDate, unixStartDate, label } = resolvePeriod(interaction);
     const endDate = new Date();
 
-    try {
-      const formattedStartDate = startDate.toLocaleDateString("en-US", {
-        month: "long",
-        day: "numeric",
-        year: "numeric",
-      });
-      const formattedEndDate = endDate.toLocaleDateString("en-US", {
-        month: "long",
-        day: "numeric",
-        year: "numeric",
-      });
+    const formattedStartDate = startDate.toLocaleDateString("en-US", {
+      month: "long",
+      day: "numeric",
+      year: "numeric",
+    });
+    const formattedEndDate = endDate.toLocaleDateString("en-US", {
+      month: "long",
+      day: "numeric",
+      year: "numeric",
+    });
 
-      // Fetch all messages from the user in this guild
-      const messages = await messagesCollection
-        .find({
-          ...EXCLUDE_SOFT_DELETED,
-          guildId: interaction.guildId,
-          "author.id": user!.id,
-          createdTimestamp: { $gte: unixStartDate },
-        })
-        .toArray();
+    // Fetch all messages from the user in this guild
+    const messages = await messagesCollection
+      .find({
+        ...EXCLUDE_SOFT_DELETED,
+        guildId: interaction.guildId,
+        "author.id": user!.id,
+        createdTimestamp: { $gte: unixStartDate },
+      })
+      .toArray();
 
-      if (messages.length === 0) {
-        await interaction.editReply({
-          content: `No messages found for ${user!.username} in the specified time period.`,
-        });
-        return;
-      }
-
-      // Process words
-      const wordFrequency = processWords(
-        messages,
-        limit,
-        interaction.client.user.id,
-      );
-
-      if (wordFrequency.length === 0) {
-        await interaction.editReply({
-          content: `No valid words found for <@${user!.id}>.`,
-        });
-        return;
-      }
-
-      // Generate word cloud image
-      const imageBuffer = await generateWordCloudImage(wordFrequency);
-
-      // Create attachment
-      const attachment = new AttachmentBuilder(imageBuffer, {
-        name: `wordcloud-${user!.username}.png`,
-      });
-
+    if (messages.length === 0) {
       await interaction.editReply({
-        content: `**Word Cloud for <@${user!.id}>**\nBased on ${messages.length} messages from the ${formatTimePeriod(years, months, days, "server lifetime (default)")} (From ${formattedStartDate} to ${formattedEndDate})`,
-        files: [attachment],
+        content: `No messages found for ${user!.username} in the specified time period.`,
       });
-    } catch (error: unknown) {
-      console.error("Error generating word cloud:", error);
-      await interaction.editReply({
-        content:
-          "An error occurred while generating the word cloud. Please try again later.",
-      });
+      return;
     }
+
+    // Process words
+    const wordFrequency = processWords(
+      messages,
+      limit,
+      interaction.client.user.id,
+    );
+
+    if (wordFrequency.length === 0) {
+      await interaction.editReply({
+        content: `No valid words found for <@${user!.id}>.`,
+      });
+      return;
+    }
+
+    // Generate word cloud image
+    const imageBuffer = await generateWordCloudImage(wordFrequency);
+
+    // Create attachment
+    const attachment = new AttachmentBuilder(imageBuffer, {
+      name: `wordcloud-${user!.username}.png`,
+    });
+
+    await interaction.editReply({
+      content: `**Word Cloud for <@${user!.id}>**\nBased on ${messages.length} messages from the ${label} (From ${formattedStartDate} to ${formattedEndDate})`,
+      files: [attachment],
+    });
   },
 };
 
@@ -318,35 +278,10 @@ function processWords(
     .slice(0, resultLimit);
 }
 
-// Generate word cloud image using Playwright
+// Generate word cloud image using the shared Playwright pipeline
 async function generateWordCloudImage(words: WordFrequency[]) {
-  const browser = await chromium.launch(getPlaywrightOptions());
-
-  try {
-    const page = await browser.newPage({
-      viewport: { width: 1200, height: 800 },
-    });
-
-    // Create HTML content with word cloud
-    const html = generateWordCloudHTML(words);
-
-    await page.setContent(html, { waitUntil: "networkidle" });
-
-    // Wait for layout to settle
-    await new Promise((resolve: (value: void) => void) =>
-      setTimeout(resolve, 500),
-    );
-
-    // Take screenshot
-    const screenshot = await page.screenshot({
-      type: "png",
-      fullPage: false,
-    });
-
-    return screenshot;
-  } finally {
-    await browser.close();
-  }
+  const html = generateWordCloudHTML(words);
+  return renderHtmlToPng(html, { width: 1200, height: 800 });
 }
 
 // Generate HTML with word cloud using d3-cloud

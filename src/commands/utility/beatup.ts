@@ -1,6 +1,10 @@
 import { SlashCommandBuilder, PermissionFlagsBits } from "discord.js";
-import type { ChatInputCommandInteraction, SlashCommandUserOption, GuildMember } from "discord.js";
-import { getMongoDb } from "./commandUtils.ts";
+import type {
+  ChatInputCommandInteraction,
+  SlashCommandUserOption,
+  GuildMember,
+} from "discord.js";
+import { getMongoDb, tryTimeoutMember } from "./commandUtils.ts";
 import type { BeatupVote } from "#root/types/index.js";
 
 // How many votes needed to trigger timeout
@@ -70,9 +74,14 @@ export default {
         .setRequired(true),
     ),
 
+  guildOnly: true,
+  botPermissions: [PermissionFlagsBits.ModerateMembers],
+
   async execute(interaction: ChatInputCommandInteraction) {
     const voterId = interaction.user.id;
-    const target = interaction.options.getMember("target") as GuildMember | null;
+    const target = interaction.options.getMember(
+      "target",
+    ) as GuildMember | null;
     const now = Date.now();
     const cooldownAmount = 1 * 60 * 60 * 1000; // 1 hours
 
@@ -80,235 +89,212 @@ export default {
     if (!target) {
       return interaction.reply({
         content: "❌ That user is not in this server!",
-        
       });
     }
 
     if (target.user.bot) {
       return interaction.reply({
         content: "❌ You can't beat up a bot!",
-        
       });
     }
 
     if (target.user.id === interaction.guild!.ownerId) {
       return interaction.reply({
         content: "❌ You can't beat up the server owner!",
-        
       });
     }
 
     if (target.user.id === voterId) {
       return interaction.reply({
         content: "❌ You can't beat yourself up! (Well, not like this anyway)",
-        
       });
     }
 
     if (!target.moderatable) {
       return interaction.reply({
         content: "❌ I don't have permission to timeout this user!",
-        
       });
     }
 
     await interaction.deferReply();
 
-    try {
-      const db = getMongoDb();
-      const beatupVotesCollection = db.collection("BeatUpGameVotes");
-      const beatupCooldownsCollection = db.collection("BeatUpGameCooldowns");
+    const db = getMongoDb();
+    const beatupVotesCollection = db.collection("BeatUpGameVotes");
+    const beatupCooldownsCollection = db.collection("BeatUpGameCooldowns");
 
-      // Check if voter is on cooldown
-      const voterCooldown = await beatupCooldownsCollection.findOne({
+    // Check if voter is on cooldown
+    const voterCooldown = await beatupCooldownsCollection.findOne({
+      userId: voterId,
+      guildId: interaction.guildId,
+      type: "voter",
+    });
+
+    if (voterCooldown && now - voterCooldown.lastVoteTime < cooldownAmount) {
+      const timeLeft = (
+        (cooldownAmount - (now - voterCooldown.lastVoteTime)) /
+        1000 /
+        60 /
+        60
+      ).toFixed(1);
+      return interaction.editReply({
+        content: `⏰ You can vote again in **${timeLeft}** hour(s)!`,
+      });
+    }
+
+    // Check if target is on cooldown (was recently timed out)
+    const targetCooldown = await beatupCooldownsCollection.findOne({
+      userId: target.user.id,
+      guildId: interaction.guildId,
+      type: "target",
+    });
+
+    if (
+      targetCooldown &&
+      now - targetCooldown.lastTimeoutTime < cooldownAmount
+    ) {
+      const timeLeft = (
+        (cooldownAmount - (now - targetCooldown.lastTimeoutTime)) /
+        1000 /
+        60 /
+        60
+      ).toFixed(1);
+      return interaction.editReply({
+        // There's no will to fight!
+        content: `🛡️ **${target.user.username}** was recently beaten up! They're safe for another **${timeLeft}** hour(s).`,
+      });
+    }
+
+    // Get current votes for target
+    const voteDoc = await beatupVotesCollection.findOne({
+      targetId: target.user.id,
+      guildId: interaction.guildId,
+    });
+
+    let currentVotes: BeatupVote[] = [];
+    if (voteDoc) {
+      // Filter out expired votes (older than 24 hours)
+      currentVotes = (voteDoc.votes as BeatupVote[]).filter(
+        (vote: BeatupVote) => now - vote.timestamp < cooldownAmount,
+      );
+    }
+
+    // Check if user already voted
+    if (currentVotes.some((vote: BeatupVote) => vote.voterId === voterId)) {
+      return interaction.editReply({
+        content: `❌ You've already voted to beat up **${target.user.username}**!`,
+      });
+    }
+
+    // Get random move
+    const move = getRandomMove();
+
+    // Add new vote
+    currentVotes.push({
+      voterId: voterId,
+      voterUsername: interaction.user.username,
+      timestamp: now,
+    });
+
+    // Update votes in database
+    await beatupVotesCollection.updateOne(
+      {
+        targetId: target.user.id,
+        guildId: interaction.guildId,
+      },
+      {
+        $set: {
+          targetUsername: target.user.username,
+          votes: currentVotes,
+          updatedAt: now,
+        },
+      },
+      { upsert: true },
+    );
+
+    // Update voter cooldown
+    await beatupCooldownsCollection.updateOne(
+      {
         userId: voterId,
         guildId: interaction.guildId,
         type: "voter",
-      });
+      },
+      {
+        $set: {
+          username: interaction.user.username,
+          lastVoteTime: now,
+        },
+      },
+      { upsert: true },
+    );
 
-      if (voterCooldown && now - voterCooldown.lastVoteTime < cooldownAmount) {
-        const timeLeft = (
-          (cooldownAmount - (now - voterCooldown.lastVoteTime)) /
-          1000 /
-          60 /
-          60
-        ).toFixed(1);
+    const votesNeeded = VOTES_REQUIRED - currentVotes.length;
+
+    // Check if we have enough votes
+    if (currentVotes.length >= VOTES_REQUIRED) {
+      // Timeout for 1 minute (60000 milliseconds)
+      const timeoutResult = await tryTimeoutMember(
+        target,
+        60000,
+        `Beat up by ${currentVotes.length} users via /beatup command`,
+      );
+
+      if (!timeoutResult.ok) {
         return interaction.editReply({
-          content: `⏰ You can vote again in **${timeLeft}** hour(s)!`,
-          
+          content:
+            timeoutResult.error === "missing permissions"
+              ? "❌ I don't have permission to timeout this member!"
+              : "❌ An error occurred while processing the vote.",
         });
       }
 
-      // Check if target is on cooldown (was recently timed out)
-      const targetCooldown = await beatupCooldownsCollection.findOne({
-        userId: target.user.id,
-        guildId: interaction.guildId,
-        type: "target",
-      });
+      // Record target cooldown
+      await beatupCooldownsCollection.updateOne(
+        {
+          userId: target.user.id,
+          guildId: interaction.guildId,
+          type: "target",
+        },
+        {
+          $set: {
+            username: target.user.username,
+            lastTimeoutTime: now,
+          },
+        },
+        { upsert: true },
+      );
 
-      if (
-        targetCooldown &&
-        now - targetCooldown.lastTimeoutTime < cooldownAmount
-      ) {
-        const timeLeft = (
-          (cooldownAmount - (now - targetCooldown.lastTimeoutTime)) /
-          1000 /
-          60 /
-          60
-        ).toFixed(1);
-        return interaction.editReply({
-          // There's no will to fight!
-          content: `🛡️ **${target.user.username}** was recently beaten up! They're safe for another **${timeLeft}** hour(s).`,
-          
-        });
-      }
-
-      // Get current votes for target
-      const voteDoc = await beatupVotesCollection.findOne({
+      // Clear votes for this target
+      await beatupVotesCollection.deleteOne({
         targetId: target.user.id,
         guildId: interaction.guildId,
       });
 
-      let currentVotes: BeatupVote[] = [];
-      if (voteDoc) {
-        // Filter out expired votes (older than 24 hours)
-        currentVotes = (voteDoc.votes as BeatupVote[]).filter(
-          (vote: BeatupVote) => now - vote.timestamp < cooldownAmount,
-        );
+      // Format battle message
+      let battleMessage = "";
+
+      // Show all previous voters' attacks (without specific moves)
+      if (currentVotes.length > 1) {
+        const previousAttacks = currentVotes
+          .slice(0, -1)
+          .map((vote: BeatupVote) => `<@${vote.voterId}>'s attack!`)
+          .join("\n");
+        battleMessage += previousAttacks + "\n";
       }
 
-      // Check if user already voted
-      if (currentVotes.some((vote: BeatupVote) => vote.voterId === voterId)) {
-        return interaction.editReply({
-          content: `❌ You've already voted to beat up **${target.user.username}**!`,
-          
-        });
-      }
+      // Show the last voter's specific move
+      battleMessage += `<@${voterId}> used **${move.name}** ${move.emoji}**!**\n`;
+      battleMessage += `Enemy ${target.user} has been ganged up on!\n`;
+      battleMessage += `It can't move for the next **1** minute!`;
 
-      // Get random move
-      const move = getRandomMove();
-
-      // Add new vote
-      currentVotes.push({
-        voterId: voterId,
-        voterUsername: interaction.user.username,
-        timestamp: now,
+      await interaction.editReply({ content: battleMessage });
+    } else {
+      // Not enough votes yet
+      await interaction.editReply({
+        content:
+          `${interaction.user} used **${move.name}** ${move.emoji}**!**\n` +
+          `Enemy ${target.user} is being ganged up on**!**\n` +
+          `**${votesNeeded}** more hit${votesNeeded === 1 ? "" : "s"} are required to knock enemy ${target.user} out**!**`,
       });
-
-      // Update votes in database
-      await beatupVotesCollection.updateOne(
-        {
-          targetId: target.user.id,
-          guildId: interaction.guildId,
-        },
-        {
-          $set: {
-            targetUsername: target.user.username,
-            votes: currentVotes,
-            updatedAt: now,
-          },
-        },
-        { upsert: true },
-      );
-
-      // Update voter cooldown
-      await beatupCooldownsCollection.updateOne(
-        {
-          userId: voterId,
-          guildId: interaction.guildId,
-          type: "voter",
-        },
-        {
-          $set: {
-            username: interaction.user.username,
-            lastVoteTime: now,
-          },
-        },
-        { upsert: true },
-      );
-
-      const votesNeeded = VOTES_REQUIRED - currentVotes.length;
-
-      // Check if we have enough votes
-      if (currentVotes.length >= VOTES_REQUIRED) {
-        // Check bot permissions one more time
-        if (
-          !interaction.guild!.members.me!.permissions.has(
-            PermissionFlagsBits.ModerateMembers,
-          )
-        ) {
-          return interaction.editReply({
-            content: "❌ I don't have permission to timeout members!",
-          });
-        }
-
-        // Timeout for 1 minute (60000 milliseconds)
-        await target.timeout(
-          60000,
-          `Beat up by ${currentVotes.length} users via /beatup command`,
-        );
-
-        // Record target cooldown
-        await beatupCooldownsCollection.updateOne(
-          {
-            userId: target.user.id,
-            guildId: interaction.guildId,
-            type: "target",
-          },
-          {
-            $set: {
-              username: target.user.username,
-              lastTimeoutTime: now,
-            },
-          },
-          { upsert: true },
-        );
-
-        // Clear votes for this target
-        await beatupVotesCollection.deleteOne({
-          targetId: target.user.id,
-          guildId: interaction.guildId,
-        });
-
-        // Format battle message
-        let battleMessage = "";
-
-        // Show all previous voters' attacks (without specific moves)
-        if (currentVotes.length > 1) {
-          const previousAttacks = currentVotes
-            .slice(0, -1)
-            .map((vote: BeatupVote) => `<@${vote.voterId}>'s attack!`)
-            .join("\n");
-          battleMessage += previousAttacks + "\n";
-        }
-
-        // Show the last voter's specific move
-        battleMessage += `<@${voterId}> used **${move.name}** ${move.emoji}**!**\n`;
-        battleMessage += `Enemy ${target.user} has been ganged up on!\n`;
-        battleMessage += `It can't move for the next **1** minute!`;
-
-        await interaction.editReply({ content: battleMessage });
-      } else {
-        // Not enough votes yet
-        await interaction.editReply({
-          content:
-            `${interaction.user} used **${move.name}** ${move.emoji}**!**\n` +
-            `Enemy ${target.user} is being ganged up on**!**\n` +
-            `**${votesNeeded}** more hit${votesNeeded === 1 ? "" : "s"} are required to knock enemy ${target.user} out**!**`,
-        });
-      }
-    } catch (error: unknown) {
-      console.error("Error executing beatup command:", error);
-
-      let errorMessage = "❌ An error occurred while processing the vote.";
-
-      if ((error as { code?: number }).code === 50013) {
-        errorMessage = "❌ I don't have permission to timeout this member!";
-      } else if ((error as { code?: number }).code === 10008) {
-        errorMessage = "❌ The selected user could not be found!";
-      }
-
-      await interaction.editReply({ content: errorMessage });
     }
   },
 };

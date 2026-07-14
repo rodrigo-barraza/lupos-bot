@@ -1,6 +1,14 @@
-import { SlashCommandBuilder, EmbedBuilder } from "discord.js";
-import type { ChatInputCommandInteraction, SlashCommandIntegerOption, SlashCommandChannelOption } from "discord.js";
-import { getMongoDb, formatTimePeriod, getMedal } from "./commandUtils.ts";
+import { SlashCommandBuilder } from "discord.js";
+import type {
+  ChatInputCommandInteraction,
+  SlashCommandChannelOption,
+} from "discord.js";
+import {
+  getMongoDb,
+  addTimePeriodOptions,
+  resolvePeriod,
+  buildLeaderboardEmbed,
+} from "./commandUtils.ts";
 import { EXCLUDE_SOFT_DELETED } from "#root/constants.js";
 
 interface LeaderboardUser {
@@ -10,39 +18,16 @@ interface LeaderboardUser {
 }
 
 export default {
-  data: new SlashCommandBuilder()
-    .setName("leaderboard")
-    .setDescription("Shows message leaderboard for a specified time period")
-    .addIntegerOption((option: SlashCommandIntegerOption) =>
-      option
-        .setName("years")
-        .setDescription("Number of years to look back")
-        .setRequired(false)
-        .setMinValue(0)
-        .setMaxValue(7),
-    )
-    .addIntegerOption((option: SlashCommandIntegerOption) =>
-      option
-        .setName("months")
-        .setDescription("Number of months to look back")
-        .setRequired(false)
-        .setMinValue(0)
-        .setMaxValue(12),
-    )
-    .addIntegerOption((option: SlashCommandIntegerOption) =>
-      option
-        .setName("days")
-        .setDescription("Number of days to look back")
-        .setRequired(false)
-        .setMinValue(0)
-        .setMaxValue(31),
-    )
-    .addChannelOption((option: SlashCommandChannelOption) =>
-      option
-        .setName("channel")
-        .setDescription("Channel to check (default: current channel)")
-        .setRequired(false),
-    ),
+  data: addTimePeriodOptions(
+    new SlashCommandBuilder()
+      .setName("leaderboard")
+      .setDescription("Shows message leaderboard for a specified time period"),
+  ).addChannelOption((option: SlashCommandChannelOption) =>
+    option
+      .setName("channel")
+      .setDescription("Channel to check (default: current channel)")
+      .setRequired(false),
+  ),
 
   async execute(interaction: ChatInputCommandInteraction) {
     const db = getMongoDb();
@@ -50,23 +35,12 @@ export default {
 
     await interaction.deferReply();
 
-    // Get time parameters
-    const years = interaction.options.getInteger("years") || 0;
-    const months = interaction.options.getInteger("months") || 0;
-    let days = interaction.options.getInteger("days") || 0;
     const channel = interaction.options.getChannel("channel");
-
-    if (years === 0 && months === 0 && days === 0) {
-      days = 7;
-    }
-
-    // Calculate start date
     const now = new Date();
-    const startDate = new Date();
-    startDate.setFullYear(startDate.getFullYear() - years);
-    startDate.setMonth(startDate.getMonth() - months);
-    startDate.setDate(startDate.getDate() - days);
-    const unixStartDate = Math.floor(startDate.getTime());
+    const { startDate, unixStartDate, label } = resolvePeriod(interaction, {
+      days: 7,
+      label: "Last 7 days (default)",
+    });
 
     const match: Record<string, unknown> = {
       ...EXCLUDE_SOFT_DELETED,
@@ -78,75 +52,58 @@ export default {
       match.channelId = channel.id;
     }
 
-    try {
-      // Run total count (including bots) and user grouping in parallel.
-      // The user pipeline does a single pass: filter bots → group → sort.
-      const [totalMessages, allUsers] = await Promise.all([
-        messagesCollection.countDocuments(match),
-        messagesCollection
-          .aggregate([
-            { $match: { ...match, "author.bot": { $ne: true } } },
-            {
-              $group: {
-                _id: "$author.id",
-                username: { $first: "$author.username" },
-                count: { $sum: 1 },
-              },
+    // Run total count (including bots) and user grouping in parallel.
+    // The user pipeline does a single pass: filter bots → group → sort.
+    const [totalMessages, allUsers] = await Promise.all([
+      messagesCollection.countDocuments(match),
+      messagesCollection
+        .aggregate([
+          { $match: { ...match, "author.bot": { $ne: true } } },
+          {
+            $group: {
+              _id: "$author.id",
+              username: { $first: "$author.username" },
+              count: { $sum: 1 },
             },
-            { $sort: { count: -1 } },
-          ])
-          .toArray() as unknown as Promise<LeaderboardUser[]>,
-      ]);
+          },
+          { $sort: { count: -1 } },
+        ])
+        .toArray() as unknown as Promise<LeaderboardUser[]>,
+    ]);
 
-      const sortedUsers = allUsers.slice(0, 10);
-      const totalUsers = allUsers.length;
-      const totalUserMessages = allUsers.reduce((s: number, u: LeaderboardUser) => s + u.count, 0);
-      const avgMessages = totalUsers > 0 ? totalUserMessages / totalUsers : 0;
+    const totalUsers = allUsers.length;
+    const totalUserMessages = allUsers.reduce(
+      (s: number, u: LeaderboardUser) => s + u.count,
+      0,
+    );
+    const avgMessages = totalUsers > 0 ? totalUserMessages / totalUsers : 0;
 
-      const description = `**Time Period:** ${formatTimePeriod(years, months, days, "Last 7 days (default)")}\n**Channel:** ${channel ? channel.toString() : "All Channels"}\n**Total Messages:** ${totalMessages}\n\n`;
+    const description = `**Time Period:** ${label}\n**Channel:** ${channel ? channel.toString() : "All Channels"}\n**Total Messages:** ${totalMessages}`;
 
-      // Create embed
-      const embed = new EmbedBuilder()
-        .setTitle(`📊 Message Leaderboard`)
-        .setDescription(description)
-        .setColor(0x00ae86)
-        .setTimestamp()
-        .setFooter({
-          text: `From ${startDate.toLocaleDateString()} to ${now.toLocaleDateString()}`,
-        });
+    const embed = buildLeaderboardEmbed({
+      title: "📊 Message Leaderboard",
+      color: 0x00ae86,
+      description,
+      entries: allUsers,
+      topN: 10,
+      topHeader: "Top Contributors",
+      formatLine: (user: LeaderboardUser, index: number, medal: string) =>
+        `${medal} **${index + 1}.** ${user.username} - **${user.count}** messages`,
+      footer: `From ${startDate.toLocaleDateString()} to ${now.toLocaleDateString()}`,
+    });
 
-      // Add leaderboard fields
-      if (sortedUsers.length === 0) {
-        embed.addFields({
-          name: "No Messages",
-          value: "No messages found in the specified time period.",
-        });
-      } else {
-        const leaderboardText = sortedUsers
-          .map((user: LeaderboardUser, index: number) => {
-            const medal = getMedal(index);
-            return `${medal} **${index + 1}.** ${user.username} - **${user.count}** messages`;
-          })
-          .join("\n");
-
-        embed.addFields({
-          name: "Top Contributors",
-          value: leaderboardText,
-        });
-
-        embed.addFields({
-          name: "📈 Statistics",
-          value: `**Active Users:** ${totalUsers}\n**Average Messages/User:** ${avgMessages.toFixed(1)}`,
-        });
-      }
-
-      await interaction.editReply({ embeds: [embed] });
-    } catch (error: unknown) {
-      console.error("Error fetching leaderboard:", error);
-      await interaction.editReply({
-        content:
-          "An error occurred while fetching the leaderboard. Please try again later.",
+    if (allUsers.length === 0) {
+      embed.addFields({
+        name: "No Messages",
+        value: "No messages found in the specified time period.",
+      });
+    } else {
+      embed.addFields({
+        name: "📈 Statistics",
+        value: `**Active Users:** ${totalUsers}\n**Average Messages/User:** ${avgMessages.toFixed(1)}`,
       });
     }
+
+    await interaction.editReply({ embeds: [embed] });
   },
 };

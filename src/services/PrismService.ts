@@ -1,7 +1,6 @@
 import config from "#root/config.js";
-import utilities from "#root/utilities.js";
+import { PrismApiClient } from "@rodrigo-barraza/service-library";
 import type {
-  PrismRequestOptions,
   GenerateTextParams,
   AgentResponseParams,
   GenerateImageParams,
@@ -10,10 +9,7 @@ import type {
   MemoryExtractParams,
   MemorySearchParams,
   EmbeddingParams,
-  TransformedPrismResponse,
 } from "#root/types/prism.js";
-
-const API_BASE = config.PRISM_API_URL;
 
 /** Map lupos provider types to Prism provider names */
 const PROVIDER_MAP = {
@@ -23,89 +19,39 @@ const PROVIDER_MAP = {
   GOOGLE: "google",
 };
 
-function getHeaders(username: string = "lupos") {
-  return {
-    "Content-Type": "application/json",
-    "x-project": "lupos",
-    "x-username": username,
-  };
+// Lazy so a missing PRISM_API_URL fails at call time (matching the old
+// fetch-time failure), not at module load — the bot must still boot for
+// Discord features that don't touch Prism.
+let client: PrismApiClient | null = null;
+function prism(): PrismApiClient {
+  if (!client) {
+    client = new PrismApiClient({
+      baseUrl: config.PRISM_API_URL as string,
+      project: "lupos",
+      defaultUsername: "lupos",
+      // A hung Prism call must never hang Lupos — replies drain through a
+      // serial queue, so an unbounded request freezes every channel.
+      defaultTimeoutMs: 120_000,
+    });
+  }
+  return client;
+}
+
+function resolveProvider(type: string): string {
+  const provider = PROVIDER_MAP[type as keyof typeof PROVIDER_MAP];
+  if (!provider) {
+    throw new Error(`Unknown provider type: ${type}`);
+  }
+  return provider;
 }
 
 export default class PrismService {
-  /**
-   * Shared fetch helper — centralises request / error handling.
-
-
-   */
-  static async _request(
-    endpoint: string,
-    {
-      method = "POST",
-      body,
-      username = "lupos",
-      timeoutMs = 120_000,
-    }: PrismRequestOptions = {},
-  ): Promise<TransformedPrismResponse> {
-    const doFetch = () =>
-      fetch(`${API_BASE}${endpoint}`, {
-        method,
-        headers: getHeaders(username),
-        ...(body && { body: JSON.stringify(body) }),
-        // A hung Prism call must never hang Lupos — replies drain through a
-        // serial queue, so an unbounded request freezes every channel.
-        signal: AbortSignal.timeout(timeoutMs),
-      });
-
-    let fetchResponse: Response;
-    try {
-      fetchResponse = await doFetch();
-    } catch (error: unknown) {
-      const isTimeout =
-        error instanceof DOMException && error.name === "TimeoutError";
-      if (isTimeout) {
-        console.error(
-          `[PrismService] Timeout after ${timeoutMs}ms on ${endpoint}`,
-        );
-        throw new Error(`Prism timeout: ${endpoint} exceeded ${timeoutMs}ms`);
-      }
-      // Transient network error (connection refused/reset before any response):
-      // retry once with jitter, then give up.
-      const errorMessage = utilities.errorMessage(error);
-      console.warn(
-        `[PrismService] Network error on ${endpoint}, retrying once:`,
-        errorMessage,
-      );
-      await new Promise((resolve) =>
-        setTimeout(resolve, 500 + Math.random() * 1000),
-      );
-      try {
-        fetchResponse = await doFetch();
-      } catch (retryError: unknown) {
-        const retryMessage = utilities.errorMessage(retryError);
-        console.error(
-          `[PrismService] Network error on ${endpoint} (after retry):`,
-          retryMessage,
-        );
-        throw new Error(`Prism unreachable: ${retryMessage}`);
-      }
-    }
-
-    if (!fetchResponse.ok) {
-      const errorText = await fetchResponse.text();
-      throw new Error(`Prism API error: ${fetchResponse.status} ${errorText}`);
-    }
-
-    return (await fetchResponse.json()) as TransformedPrismResponse;
-  }
-
   // ---------------------------------------------------------------------------
   // Chat
   // ---------------------------------------------------------------------------
 
   /**
    * Generate text via Prism's /chat endpoint.
-
-
    */
   static async generateText({
     messages,
@@ -117,27 +63,17 @@ export default class PrismService {
     username = "lupos",
     traceId,
   }: GenerateTextParams) {
-    const provider = PROVIDER_MAP[type as keyof typeof PROVIDER_MAP];
-    if (!provider) {
-      throw new Error(`Unknown provider type: ${type}`);
-    }
-
     const options: Record<string, unknown> = {};
     if (maxTokens) options.maxTokens = maxTokens;
     if (temperature !== undefined) options.temperature = temperature;
 
-    const body: Record<string, unknown> = {
-      provider,
+    const data = await prism().chat({
+      provider: resolveProvider(type),
       model,
       messages,
       options,
-      skipConversation: true,
-    };
-    if (systemPrompt) body.systemPrompt = systemPrompt;
-    if (traceId) body.traceId = traceId;
-
-    const data = await PrismService._request("/chat?stream=false", {
-      body,
+      systemPrompt,
+      traceId,
       username,
     });
 
@@ -160,10 +96,6 @@ export default class PrismService {
    * Prism assembles the personality system prompt server-side via
    * AgentPersonaRegistry — Lupos only sends structured runtime context
    * (Discord info, participants, trending data, etc.) via agentContext.
-   *
-
-
-   * }>}
    */
   static async generateAgentResponse({
     messages,
@@ -177,30 +109,19 @@ export default class PrismService {
     username = "lupos",
     traceId,
   }: AgentResponseParams) {
-    const provider = PROVIDER_MAP[type as keyof typeof PROVIDER_MAP];
-    if (!provider) {
-      throw new Error(`Unknown provider type: ${type}`);
-    }
-
-    const body: Record<string, unknown> = {
-      provider,
+    const data = await prism().agent({
+      provider: resolveProvider(type),
       model,
       messages,
       agent: "LUPOS",
-      skipConversation: true,
       autoApprove: true, // Discord bot can't wait for human approval
-      // enabledTools are now defined by the LUPOS persona in AgentPersonaRegistry
-    };
-
-    if (agentContext) body.agentContext = agentContext;
-    if (maxTokens) body.maxTokens = maxTokens;
-    if (temperature !== undefined) body.temperature = temperature;
-    if (thinkingEnabled !== undefined) body.thinkingEnabled = thinkingEnabled;
-    if (thinkingBudget) body.thinkingBudget = thinkingBudget;
-    if (traceId) body.traceId = traceId;
-
-    const data = await PrismService._request("/agent?stream=false", {
-      body,
+      // enabledTools are defined by the LUPOS persona in AgentPersonaRegistry
+      agentContext,
+      maxTokens,
+      temperature,
+      thinkingEnabled,
+      thinkingBudget,
+      traceId,
       username,
     });
 
@@ -217,8 +138,6 @@ export default class PrismService {
 
   /**
    * Generate an image via Prism's /chat endpoint.
-
-
    */
   static async generateImage({
     prompt,
@@ -234,7 +153,7 @@ export default class PrismService {
       return `data:${image.mimeType || "image/png"};base64,${image.imageData}`;
     });
 
-    const body: Record<string, unknown> = {
+    const result = await prism().chat({
       provider,
       model,
       messages: [
@@ -244,15 +163,9 @@ export default class PrismService {
           ...(imageDataUrls.length > 0 && { images: imageDataUrls }),
         },
       ],
-      skipConversation: true,
-    };
-
-    if (systemPrompt) body.systemPrompt = systemPrompt;
-    if (traceId) body.traceId = traceId;
-    body.forceImageGeneration = true;
-
-    const result = await PrismService._request("/chat?stream=false", {
-      body,
+      systemPrompt,
+      traceId,
+      forceImageGeneration: true,
       username,
     });
 
@@ -269,8 +182,6 @@ export default class PrismService {
 
   /**
    * Caption / describe an image via Prism's /chat endpoint.
-
-
    */
   static async captionImage({
     images,
@@ -283,23 +194,18 @@ export default class PrismService {
   }: CaptionImageParams) {
     const normalizedImages = Array.isArray(images) ? images : [images];
 
-    const body: Record<string, unknown> = {
+    return prism().chat({
       provider,
+      model,
       messages: [{ role: "user", content: prompt, images: normalizedImages }],
-      skipConversation: true,
-    };
-
-    if (model) body.model = model;
-    if (systemPrompt) body.systemPrompt = systemPrompt;
-    if (traceId) body.traceId = traceId;
-
-    return PrismService._request("/chat?stream=false", { body, username });
+      systemPrompt,
+      traceId,
+      username,
+    });
   }
 
   /**
    * Transcribe audio via Prism's /audio-to-text endpoint.
-
-
    */
   static async transcribeAudio({
     audio,
@@ -310,23 +216,13 @@ export default class PrismService {
     username = "lupos",
     traceId,
   }: TranscribeAudioParams) {
-    // Accept Buffer or base64 string
-    const base64Audio = Buffer.isBuffer(audio)
-      ? audio.toString("base64")
-      : audio;
-    const dataUrl = `data:${mimeType};base64,${base64Audio}`;
-
-    const body: Record<string, unknown> = {
+    const result = await prism().transcribeAudio({
+      audio,
+      mimeType,
       provider,
-      audio: dataUrl,
-      skipConversation: true,
-    };
-    if (model) body.model = model;
-    if (language) body.language = language;
-    if (traceId) body.traceId = traceId;
-
-    const result = await PrismService._request("/audio-to-text", {
-      body,
+      model,
+      language,
+      traceId,
       username,
     });
 
@@ -341,8 +237,6 @@ export default class PrismService {
 
   /**
    * Extract and store memories from a conversation chunk.
-
-
    */
   static async extractMemories({
     guildId,
@@ -352,22 +246,18 @@ export default class PrismService {
     sourceMessageId,
     traceId,
   }: MemoryExtractParams) {
-    const body: Record<string, unknown> = {
+    return prism().extractMemories({
       guildId,
       channelId,
       messages,
       participants,
-    };
-    if (sourceMessageId) body.sourceMessageId = sourceMessageId;
-    if (traceId) body.traceId = traceId;
-
-    return PrismService._request("/memory/extract", { body });
+      sourceMessageId,
+      traceId,
+    });
   }
 
   /**
    * Search for relevant memories using vector similarity.
-
-
    */
   static async searchMemories({
     guildId,
@@ -376,11 +266,13 @@ export default class PrismService {
     limit = 10,
     traceId,
   }: MemorySearchParams) {
-    const body: Record<string, unknown> = { guildId, queryText, limit };
-    if (userIds?.length && userIds.length > 0) body.userIds = userIds;
-    if (traceId) body.traceId = traceId;
-
-    return PrismService._request("/memory/search", { body });
+    return prism().searchMemories({
+      guildId,
+      userIds,
+      queryText,
+      limit,
+      traceId,
+    });
   }
 
   // ---------------------------------------------------------------------------
@@ -389,8 +281,6 @@ export default class PrismService {
 
   /**
    * Generate an embedding vector for text via Prism's /embed endpoint.
-
-
    */
   static async generateEmbedding({
     text,
@@ -398,10 +288,6 @@ export default class PrismService {
     model,
     traceId,
   }: EmbeddingParams) {
-    const body: Record<string, unknown> = { provider, text };
-    if (model) body.model = model;
-    if (traceId) body.traceId = traceId;
-
-    return PrismService._request("/embed", { body });
+    return prism().embed({ text, provider, model, traceId });
   }
 }

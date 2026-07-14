@@ -251,10 +251,15 @@ describe("deathroll formatting", () => {
 
   describe("getMedal", () => {
     it("awards medals to the podium and padding to the rest", () => {
+      // getMedal is now the shared commandUtils implementation, which also
+      // awards 🏅 to positions 4-5 (the deathroll leaderboard itself renders
+      // numbered lines, so this changes no user-visible output).
       expect(getMedal(0)).toBe("🥇");
       expect(getMedal(1)).toBe("🥈");
       expect(getMedal(2)).toBe("🥉");
-      expect(getMedal(3)).toBe("  ");
+      expect(getMedal(3)).toBe("🏅");
+      expect(getMedal(4)).toBe("🏅");
+      expect(getMedal(5)).toBe("  ");
     });
   });
 
