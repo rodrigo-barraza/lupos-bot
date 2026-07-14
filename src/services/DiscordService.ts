@@ -13,7 +13,6 @@ import type {
   Interaction,
   Guild,
   TextChannel,
-  GuildChannel,
   Collection as DiscordCollection,
 } from "discord.js";
 import { GetColorName } from "hex-color-to-color-name";
@@ -533,9 +532,9 @@ async function buildAndGenerateReply({
   const { message, recentMessages } = queuedDatum;
   const client = message.client;
   const bot = client.user;
-  let systemPrompt = newSystemPrompt;
+  let systemPrompt: string;
 
-  let generatedText: string = "";
+  let generatedText: string;
   const serverContext: {
     title?: string;
     keywords?: string | string[];
@@ -2361,7 +2360,6 @@ async function sendMaintenanceCountdown(message: Message) {
 async function processMessage(
   client: Client,
   {
-    mongo,
     localMongo,
   }: {
     mongo: import("mongodb").MongoClient;

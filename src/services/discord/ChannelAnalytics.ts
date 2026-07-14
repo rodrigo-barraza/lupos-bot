@@ -527,7 +527,7 @@ const ChannelAnalytics = {
       const category = stat.categoryName.substring(0, 20).padEnd(20, " ");
       const channelName = stat.channel.name.substring(0, 20).padEnd(20, " ");
 
-      let topUsersStr = "";
+      let topUsersStr: string;
       if (stat.topUsers.length > 0) {
         topUsersStr = stat.topUsers
           .slice(0, 3)

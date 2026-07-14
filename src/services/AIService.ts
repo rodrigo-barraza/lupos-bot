@@ -151,7 +151,7 @@ const AIService = {
     tokens,
     model = null,
   }: GenerateTextOptions): Promise<string | null> {
-    let textResponse: string | null = null;
+    let textResponse: string | null;
     let generateTextModel: string | undefined;
 
     const finalTemperature =

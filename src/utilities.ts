@@ -293,8 +293,7 @@ const utilities = {
     }
 
     if (logText.length) {
-      let finalOutput = "";
-      finalOutput = `${time} - `;
+      let finalOutput = `${time} - `;
       if (styleCodeList.length > 0) {
         const stylePrefix = `\x1b[${styleCodeList.join(";")}m`;
         finalOutput += `${stylePrefix}${logText}${resetStyle}`;

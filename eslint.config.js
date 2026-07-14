@@ -5,7 +5,12 @@ import globals from "globals";
 import { createServiceEslintConfig } from "@rodrigo-barraza/utilities-library/eslint";
 
 export default [
-  ...createServiceEslintConfig({ js, tseslint, prettierConfig, globals }),
+  ...createServiceEslintConfig({
+    javascript: js,
+    typescriptEslint: tseslint,
+    prettierConfig,
+    globals,
+  }),
   {
     files: [
       "src/wrappers/PuppeteerWrapper.ts",

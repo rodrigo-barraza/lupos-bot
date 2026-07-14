@@ -73,7 +73,6 @@ interface GlobalFormatterParams {
 const LogFormatter = {
   globalFormatter({
     // Required
-    functionName,
     logEmoji,
     logName,
     // Discord Info
