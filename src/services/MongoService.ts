@@ -33,11 +33,27 @@ export default class MongoService {
     return client.db(MONGO_DB_NAME);
   }
 
-  static closeClient(name: string): void {
+  static async closeClient(name: string): Promise<void> {
     const client = clients.get(name);
     if (client) {
-      client.close();
+      await client.close();
       clients.delete(name);
     }
+  }
+
+  /**
+   * Close every registered client. Used by graceful shutdown so no
+   * connection is missed regardless of what name it was registered under.
+   */
+  static async closeAll(): Promise<void> {
+    for (const [name, client] of clients) {
+      try {
+        await client.close();
+        console.log(`  ✓ MongoDB client "${name}" closed`);
+      } catch (error: unknown) {
+        console.warn(`  ⚠️ Failed to close MongoDB client "${name}": ${(error as Error).message}`);
+      }
+    }
+    clients.clear();
   }
 }

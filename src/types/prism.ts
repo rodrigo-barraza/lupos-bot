@@ -9,6 +9,8 @@ export interface PrismRequestOptions {
   method?: string;
   body?: Record<string, unknown>;
   username?: string;
+  /** Abort the request after this many milliseconds (default 120 000). */
+  timeoutMs?: number;
 }
 
 /** Params for PrismService.generateText(). */

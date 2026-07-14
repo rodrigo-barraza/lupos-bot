@@ -39,22 +39,39 @@ export default class PrismService {
    */
   static async _request(
     endpoint: string,
-    { method = "POST", body, username = "lupos" }: PrismRequestOptions = {},
+    { method = "POST", body, username = "lupos", timeoutMs = 120_000 }: PrismRequestOptions = {},
   ): Promise<TransformedPrismResponse> {
-    let fetchResponse: Response;
-    try {
-      fetchResponse = await fetch(`${API_BASE}${endpoint}`, {
+    const doFetch = () =>
+      fetch(`${API_BASE}${endpoint}`, {
         method,
         headers: getHeaders(username),
         ...(body && { body: JSON.stringify(body) }),
+        // A hung Prism call must never hang Lupos — replies drain through a
+        // serial queue, so an unbounded request freezes every channel.
+        signal: AbortSignal.timeout(timeoutMs),
       });
+
+    let fetchResponse: Response;
+    try {
+      fetchResponse = await doFetch();
     } catch (error: unknown) {
+      const isTimeout = error instanceof DOMException && error.name === "TimeoutError";
+      if (isTimeout) {
+        console.error(`[PrismService] Timeout after ${timeoutMs}ms on ${endpoint}`);
+        throw new Error(`Prism timeout: ${endpoint} exceeded ${timeoutMs}ms`);
+      }
+      // Transient network error (connection refused/reset before any response):
+      // retry once with jitter, then give up.
       const errorMessage = utilities.errorMessage(error);
-      console.error(
-        `[PrismService] Network error on ${endpoint}:`,
-        errorMessage,
-      );
-      throw new Error(`Prism unreachable: ${errorMessage}`);
+      console.warn(`[PrismService] Network error on ${endpoint}, retrying once:`, errorMessage);
+      await new Promise((resolve) => setTimeout(resolve, 500 + Math.random() * 1000));
+      try {
+        fetchResponse = await doFetch();
+      } catch (retryError: unknown) {
+        const retryMessage = utilities.errorMessage(retryError);
+        console.error(`[PrismService] Network error on ${endpoint} (after retry):`, retryMessage);
+        throw new Error(`Prism unreachable: ${retryMessage}`);
+      }
     }
 
     if (!fetchResponse.ok) {

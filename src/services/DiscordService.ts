@@ -39,10 +39,11 @@ import CountdownIconJob from "#root/jobs/scheduled/CountdownIconJob.js";
 import EventReactJob from "#root/jobs/event-driven/ReactJob.js";
 
 import utilities from "#root/utilities.js";
-import BoundedMap from "#root/utilities/BoundedMap.js";
 import type { TransformedPrismResponse } from "#root/types/prism.js";
 // EXTRACTED MODULES (Phase 1 decomposition)
 import DeletedMessageLogger from "#root/services/discord/DeletedMessageLogger.js";
+import DiscordState from "#root/services/discord/DiscordState.js";
+import type { QueuedMessageData } from "#root/services/discord/DiscordState.js";
 import ReactionHighlights from "#root/services/discord/ReactionHighlights.js";
 import PresenceTracker from "#root/services/discord/PresenceTracker.js";
 
@@ -96,12 +97,6 @@ async function fetchMembersWithRetry(guild: Guild, maxRetries: number = 3) {
 const args = process.argv.slice(2);
 const mode = args.find((arg: string) => arg.startsWith("mode="))?.split("=")[1];
 
-interface QueuedMessageData {
-  message: Message;
-  recentMessages: import("discord.js").Collection<string, Message>;
-  actionType: string;
-}
-
 interface MessageProcessingData {
   index: number;
   recentMessage: Message;
@@ -113,23 +108,6 @@ interface MessageProcessingData {
   sequentialUserMessages: number;
   dateIdFormat: string;
   repliedMessage?: Message;
-}
-
-let lastMessageSentTime = TemporalHelpers.nowISO();
-let isProcessingQueue = false;
-const queuedData: QueuedMessageData[] = [];
-const cancelledMessageIds = new Set();
-// Bounded maps prevent unbounded memory growth during long-running sessions.
-// TTL: 2 hours, max 5,000 entries — entries auto-evict when stale.
-const repliedMessagesCollection = new BoundedMap(5000, 2 * 60 * 60 * 1000);
-
-
-/**
- * Check if a message has been cancelled (deleted by user).
- * Also auto-cleans up expired entries.
- */
-function isMessageCancelled(messageId: string) {
-  return cancelledMessageIds.has(messageId);
 }
 
 /**
@@ -183,21 +161,6 @@ async function ensureMentionPopulated(userId: string, {
 function resolveAvatarUrl(source: User | GuildMember) {
   return source?.displayAvatarURL?.({ extension: "png", size: 512 }) || null;
 }
-const typingIntervals: Record<string, NodeJS.Timeout> = {};
-
-
-function updateLastMessageSentTime() {
-  setInterval(() => {
-    const currentTime = TemporalHelpers.now();
-    const lastMessageSentTimeObject = TemporalHelpers.fromISO(lastMessageSentTime);
-    const diffSeconds = TemporalHelpers.diffIn(currentTime, lastMessageSentTimeObject, "seconds");
-    if (diffSeconds >= 30) {
-      lastMessageSentTime = TemporalHelpers.nowISO();
-    }
-  }, 1000);
-  return lastMessageSentTime;
-}
-
 // function to split emoji name and id, example: <:monkaHmm:722280797025075271>
 async function splitEmojiNameAndId(emoji: string) {
   const match = emoji.match(/<(a)?:(.+):(\d+)>/);
@@ -1565,7 +1528,7 @@ Respond with ONLY "yes" or "no". Nothing else.`,
     }
 
     // Check if message was deleted before starting expensive agent call
-    if (isMessageCancelled((message as Message).id)) {
+    if (DiscordState.isMessageCancelled((message as Message).id)) {
       console.log(
         `🗑️ [DiscordService] Message ${(message as Message).id} was deleted before agent call, aborting.`,
       );
@@ -1666,11 +1629,11 @@ async function replyMessage(queuedDatum: { message: import("discord.js").Message
   CurrentService.clearTraceId();
 
   // Check if message was deleted before we start processing
-  if (isMessageCancelled((message as Message).id)) {
+  if (DiscordState.isMessageCancelled((message as Message).id)) {
     console.log(
       `🗑️ [DiscordService] Message ${(message as Message).id} was deleted before processing started, skipping.`,
     );
-    cancelledMessageIds.delete((message as Message).id);
+    DiscordState.cancelledMessageIds.delete((message as Message).id);
     return;
   }
 
@@ -1733,11 +1696,11 @@ async function replyMessage(queuedDatum: { message: import("discord.js").Message
 
 
   // Check if message was deleted during content extraction
-  if (isMessageCancelled((message as Message).id)) {
+  if (DiscordState.isMessageCancelled((message as Message).id)) {
     console.log(
       `🗑️ [DiscordService] Message ${(message as Message).id} was deleted during content extraction, aborting.`,
     );
-    cancelledMessageIds.delete((message as Message).id);
+    DiscordState.cancelledMessageIds.delete((message as Message).id);
     return;
   }
 
@@ -1775,7 +1738,7 @@ async function replyMessage(queuedDatum: { message: import("discord.js").Message
 
   if (!generatedTextResponse && !generatedImage && !generatedAudioRef) {
     await message.reply("...");
-    lastMessageSentTime = TemporalHelpers.nowISO();
+    DiscordState.lastMessageSentTime = TemporalHelpers.nowISO();
 
     console.error(`❌ [DiscordService:replyMessage] NO RESPONSE GENERATED
 ${member ? `Member: ${combinedNames}` : `User: ${combinedNames}`}
@@ -1787,16 +1750,16 @@ ${combinedGuildInformation && combinedChannelInformation ? `URL: ${utilities.get
   // SEND THE REPLY
   try {
     // Check if message was deleted during reply generation
-    if (isMessageCancelled((message as Message).id)) {
+    if (DiscordState.isMessageCancelled((message as Message).id)) {
       console.log(
         `🗑️ [DiscordService] Message ${(message as Message).id} was deleted during reply generation, not sending reply.`,
       );
-      cancelledMessageIds.delete((message as Message).id);
+      DiscordState.cancelledMessageIds.delete((message as Message).id);
       return;
     }
     await message.fetch();
 
-    const messageSent = await DiscordUtilityService.sendMessageInChunks(
+    await DiscordUtilityService.sendMessageInChunks(
       "reply",
       message,
       generatedTextResponse,
@@ -1804,7 +1767,6 @@ ${combinedGuildInformation && combinedChannelInformation ? `URL: ${utilities.get
       null,
       generatedAudioRef,
     );
-    repliedMessagesCollection.set((message as Message).id, messageSent.id);
 
   } catch (error: unknown) {
     console.warn(`❌ [DiscordService:replyMessage] MESSAGE NOT FOUND (OR DELETED)
@@ -1817,7 +1779,7 @@ ${combinedGuildInformation && combinedChannelInformation ? `URL: ${utilities.get
     return;
   }
 
-  lastMessageSentTime = TemporalHelpers.nowISO();
+  DiscordState.lastMessageSentTime = TemporalHelpers.nowISO();
   CurrentService.setEndTime(Date.now());
 
   // Fire-and-forget memory extraction from the conversation
@@ -3218,9 +3180,9 @@ URL: ${utilities.getDiscordMessageUrl((message as Message).guild?.id || "", (mes
 
 
   // START TYPING
-  if (!typingIntervals[(message as Message).channel.id]) {
+  if (!DiscordState.typingIntervals[(message as Message).channel.id]) {
     try {
-      typingIntervals[(message as Message).channel.id] =
+      DiscordState.typingIntervals[(message as Message).channel.id] =
         await DiscordUtilityService.startTypingInterval((message as Message).channel as TextChannel);
     } catch (error: unknown) {
       console.warn(`⚠️ [processMessage] Could not start typing: ${(error as Error).message}`);
@@ -3253,19 +3215,25 @@ URL: ${utilities.getDiscordMessageUrl((message as Message).guild?.id || "", (mes
   });
   if (!fetchedMessages) {
     console.error(`❌ [processMessage] fetchMessages returned null — channel not in cache`);
+    // Clear the typing indicator we started above so it doesn't spin forever
+    const typingChannelId = (message as Message).channel.id;
+    if (DiscordState.typingIntervals[typingChannelId]) {
+      DiscordUtilityService.clearTypingInterval(DiscordState.typingIntervals[typingChannelId]);
+      delete DiscordState.typingIntervals[typingChannelId];
+    }
     return;
   }
   const recentMessages = fetchedMessages.reverse();
   // ...and append the current message to the end
   recentMessages.set((message as Message).id, message);
 
-  queuedData.push({ message, recentMessages, actionType });
+  DiscordState.queuedData.push({ message: message as Message, recentMessages, actionType: actionType || "" });
 
-  if (!isProcessingQueue) {
-    isProcessingQueue = true;
+  if (!DiscordState.isProcessingQueue) {
+    DiscordState.isProcessingQueue = true;
     try {
-      while (queuedData.length > 0) {
-        const queuedDatum = queuedData.shift() as QueuedMessageData;
+      while (DiscordState.queuedData.length > 0) {
+        const queuedDatum = DiscordState.queuedData.shift() as QueuedMessageData;
         const currentChannelId = (queuedDatum.message as Message).channel.id;
         try {
           await replyMessage(queuedDatum, localMongo);
@@ -3275,28 +3243,28 @@ URL: ${utilities.getDiscordMessageUrl((message as Message).guild?.id || "", (mes
             error,
           );
           // Clear typing for the failed channel so it doesn't hang
-          if (typingIntervals[currentChannelId]) {
+          if (DiscordState.typingIntervals[currentChannelId]) {
             DiscordUtilityService.clearTypingInterval(
-              typingIntervals[currentChannelId],
+              DiscordState.typingIntervals[currentChannelId],
             );
-            delete typingIntervals[currentChannelId];
+            delete DiscordState.typingIntervals[currentChannelId];
           }
         }
         // No more queued messages for this channel — clear typing indicator
         if (
-          !queuedData.some((q: QueuedMessageData) => q.message?.channel?.id === currentChannelId)
+          !DiscordState.queuedData.some((q: QueuedMessageData) => q.message?.channel?.id === currentChannelId)
         ) {
           // Clear typing for this specific channel only
-          if (typingIntervals[currentChannelId]) {
+          if (DiscordState.typingIntervals[currentChannelId]) {
             DiscordUtilityService.clearTypingInterval(
-              typingIntervals[currentChannelId],
+              DiscordState.typingIntervals[currentChannelId],
             );
-            delete typingIntervals[currentChannelId];
+            delete DiscordState.typingIntervals[currentChannelId];
           }
         }
       }
     } finally {
-      isProcessingQueue = false;
+      DiscordState.isProcessingQueue = false;
     }
     return;
   }
@@ -3786,7 +3754,6 @@ const DiscordService = {
       console.log(...LogFormatter.readyToProcessMessages());
       console.log(...LogFormatter.readyToProcessMessageUpdates());
     }
-    updateLastMessageSentTime();
 
     // Create a collection to store your commands
     (luposClient as Client & { commands: DiscordCollection<string, unknown> }).commands = new Collection<string, unknown>();
@@ -3887,7 +3854,10 @@ const DiscordService = {
       luposOnReadyPurgeYoungAccounts as (...args: unknown[]) => void,
     );
   },
-  initializeBotLuposReports() {
+  async initializeBotLuposReports() {
+    // Create the Mongo client first — reports mode boots standalone, so no
+    // other initializer has registered "local" yet.
+    await MongoService.createClient("local", (config.DATABASE_URL as string));
     const mongo = MongoService.getClient("local") as import("mongodb").MongoClient;
     const luposClient = DiscordWrapper.createClient(
       "lupos",
