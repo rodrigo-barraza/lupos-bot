@@ -1219,8 +1219,9 @@ async function luposOnGuildMemberAdd(
     );
   }
 
-  // DM the birthday month picker (skips bots, rejoins, closed DMs)
-  await BirthdayOnboarding.sendBirthdayPrompt(client, member);
+  // Rejoin safety net: restore the birthday role for members who already
+  // picked a month. The DM prompt is sent after onboarding completes.
+  await BirthdayOnboarding.syncExistingBirthday(client, member);
 }
 
 // Whenever a member is updated
@@ -1280,8 +1281,13 @@ async function luposOnGuildMemberUpdate(
     // Re-check both guards after onboarding — the member now has all their chosen roles
     const freshMember = await newMember.guild.members.fetch(newMember.id);
     const kickedAge = await kickIfTooNew(freshMember, functionName);
-    if (!kickedAge) {
-      await kickIfForbiddenCombo(freshMember, functionName);
+    const kickedCombo = kickedAge
+      ? true
+      : await kickIfForbiddenCombo(freshMember, functionName);
+
+    // DM the birthday month picker (skips bots, rejoins, closed DMs)
+    if (!kickedAge && !kickedCombo) {
+      await BirthdayOnboarding.sendBirthdayPrompt(client, freshMember);
     }
   }
 }
