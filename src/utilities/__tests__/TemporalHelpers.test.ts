@@ -124,7 +124,10 @@ describe("TemporalHelpers", () => {
     });
 
     it("formats 'cccc, LLLL dd, yyyy at h:mm a' (full with weekday)", () => {
-      const result = TemporalHelpers.format(zdt, "cccc, LLLL dd, yyyy 'at' h:mm a");
+      const result = TemporalHelpers.format(
+        zdt,
+        "cccc, LLLL dd, yyyy 'at' h:mm a",
+      );
       expect(result).toContain("Thursday");
       expect(result).toContain("July");
       expect(result).toContain("2024");
@@ -147,7 +150,9 @@ describe("TemporalHelpers", () => {
 
   describe("toRelative()", () => {
     it("returns 'X hours ago' for a past ZonedDateTime", () => {
-      const threeHoursAgo = TemporalHelpers.fromMillis(Date.now() - 3 * 60 * 60 * 1000);
+      const threeHoursAgo = TemporalHelpers.fromMillis(
+        Date.now() - 3 * 60 * 60 * 1000,
+      );
       const result = TemporalHelpers.toRelative(threeHoursAgo);
       expect(result).toContain("hour");
       expect(result).toContain("ago");
@@ -160,14 +165,18 @@ describe("TemporalHelpers", () => {
     });
 
     it("returns relative time for timestamps days ago", () => {
-      const threeDaysAgo = TemporalHelpers.fromMillis(Date.now() - 3 * 24 * 60 * 60 * 1000);
+      const threeDaysAgo = TemporalHelpers.fromMillis(
+        Date.now() - 3 * 24 * 60 * 60 * 1000,
+      );
       const result = TemporalHelpers.toRelative(threeDaysAgo);
       expect(result).toContain("day");
       expect(result).toContain("ago");
     });
 
     it("handles months in the past", () => {
-      const twoMonthsAgo = TemporalHelpers.fromMillis(Date.now() - 60 * 24 * 60 * 60 * 1000);
+      const twoMonthsAgo = TemporalHelpers.fromMillis(
+        Date.now() - 60 * 24 * 60 * 60 * 1000,
+      );
       const result = TemporalHelpers.toRelative(twoMonthsAgo);
       expect(result).toContain("month");
     });
@@ -278,8 +287,13 @@ describe("TemporalHelpers", () => {
     beforeAll(() => {
       // Create a ZDT with known local-time fields
       zdt = Temporal.ZonedDateTime.from({
-        year: 2024, month: 3, day: 15,
-        hour: 14, minute: 25, second: 0, millisecond: 123,
+        year: 2024,
+        month: 3,
+        day: 15,
+        hour: 14,
+        minute: 25,
+        second: 0,
+        millisecond: 123,
         timeZone: "America/Los_Angeles",
       });
     });
@@ -340,8 +354,12 @@ describe("TemporalHelpers", () => {
 
     it("handles DST transition dates", () => {
       // March 10, 2024 — spring forward in US
-      const beforeDST = TemporalHelpers.fromMillis(Date.UTC(2024, 2, 10, 9, 0, 0)); // 1am PST
-      const afterDST = TemporalHelpers.fromMillis(Date.UTC(2024, 2, 10, 11, 0, 0)); // 4am PDT
+      const beforeDST = TemporalHelpers.fromMillis(
+        Date.UTC(2024, 2, 10, 9, 0, 0),
+      ); // 1am PST
+      const afterDST = TemporalHelpers.fromMillis(
+        Date.UTC(2024, 2, 10, 11, 0, 0),
+      ); // 4am PDT
       // Both should have valid timezone IDs
       expect(beforeDST.timeZoneId).toBe("America/Los_Angeles");
       expect(afterDST.timeZoneId).toBe("America/Los_Angeles");
