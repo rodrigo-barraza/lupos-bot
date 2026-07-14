@@ -1,7 +1,16 @@
 import TemporalHelpers from "#root/utilities/TemporalHelpers.js";
 import crypto from "crypto";
-import { errorMessage, capitalize as libraryCapitalize, fetchWithTimeout as libraryFetchWithTimeout } from "@rodrigo-barraza/utilities-library";
-import type { Guild, GuildMember, MessageReaction, Role, User } from "discord.js";
+import {
+  errorMessage,
+  capitalize as libraryCapitalize,
+} from "@rodrigo-barraza/utilities-library";
+import type {
+  Guild,
+  GuildMember,
+  MessageReaction,
+  Role,
+  User,
+} from "discord.js";
 
 interface UserOrMemberParam {
   user?: User | null;
@@ -66,9 +75,9 @@ const utilities = {
   fixBareMentions(string: string) {
     // Pass 1: Fix orphaned "DIGITS>" — missing <@ prefix (e.g. "166745313258897409>")
     // Negative lookbehind ensures we don't re-wrap already-valid <@ID> mentions
-    let result = string.replace(/(?<!<@!?)(?<!\d)(\d{17,20})>/g, '<@$1>');
+    let result = string.replace(/(?<!<@!?)(?<!\d)(\d{17,20})>/g, "<@$1>");
     // Pass 2: Fix bare "@DIGITS" — missing angle brackets (e.g. "@166745313258897409")
-    result = result.replace(/(?<!<)@(\d{17,20})(?!>)/g, '<@$1>');
+    result = result.replace(/(?<!<)@(\d{17,20})(?!>)/g, "<@$1>");
     return result;
   },
 
@@ -179,7 +188,11 @@ const utilities = {
   getMinutesAgo(date: Date) {
     return TemporalHelpers.toRelative(TemporalHelpers.fromJSDate(date));
   },
-  consoleLog(symbol: string, message: string | null | undefined, styleOptions: StyleOptions = {}) {
+  consoleLog(
+    symbol: string,
+    message: string | null | undefined,
+    styleOptions: StyleOptions = {},
+  ) {
     const debugLevel = 3;
     if (!symbol) {
       return;
@@ -321,7 +334,10 @@ const utilities = {
     return howl;
   },
   // Array utilities
-  areArraysEqual(array1: Record<string, unknown>[], array2: Record<string, unknown>[]) {
+  areArraysEqual(
+    array1: Record<string, unknown>[],
+    array2: Record<string, unknown>[],
+  ) {
     return (
       array1.length === array2.length &&
       array1.every((item1) =>
@@ -350,15 +366,22 @@ const utilities = {
   },
   // Console utilities
   ansiEscapeCodes(isConsoleLog: boolean = false) {
-    const bold = (text: string) => (isConsoleLog ? `\x1b[1m${text}\x1b[0m` : text);
-    const faint = (text: string) => (isConsoleLog ? `\x1b[2m${text}\x1b[0m` : text);
-    const italic = (text: string) => (isConsoleLog ? `\x1b[3m${text}\x1b[0m` : text);
-    const underline = (text: string) => (isConsoleLog ? `\x1b[4m${text}\x1b[0m` : text);
-    const slowBlink = (text: string) => (isConsoleLog ? `\x1b[5m${text}\x1b[0m` : text);
+    const bold = (text: string) =>
+      isConsoleLog ? `\x1b[1m${text}\x1b[0m` : text;
+    const faint = (text: string) =>
+      isConsoleLog ? `\x1b[2m${text}\x1b[0m` : text;
+    const italic = (text: string) =>
+      isConsoleLog ? `\x1b[3m${text}\x1b[0m` : text;
+    const underline = (text: string) =>
+      isConsoleLog ? `\x1b[4m${text}\x1b[0m` : text;
+    const slowBlink = (text: string) =>
+      isConsoleLog ? `\x1b[5m${text}\x1b[0m` : text;
     const rapidBlink = (text: string) =>
       isConsoleLog ? `\x1b[6m${text}\x1b[0m` : text;
-    const inverse = (text: string) => (isConsoleLog ? `\x1b[7m${text}\x1b[0m` : text);
-    const hidden = (text: string) => (isConsoleLog ? `\x1b[8m${text}\x1b[0m` : text);
+    const inverse = (text: string) =>
+      isConsoleLog ? `\x1b[7m${text}\x1b[0m` : text;
+    const hidden = (text: string) =>
+      isConsoleLog ? `\x1b[8m${text}\x1b[0m` : text;
     const strikethrough = (text: string) =>
       isConsoleLog ? `\x1b[9m${text}\x1b[0m` : text;
     return {
@@ -373,7 +396,10 @@ const utilities = {
       strikethrough,
     };
   },
-  getCombinedNamesFromUserOrMember({ user, member }: UserOrMemberParam, isConsoleLog: boolean = false) {
+  getCombinedNamesFromUserOrMember(
+    { user, member }: UserOrMemberParam,
+    isConsoleLog: boolean = false,
+  ) {
     const { bold, faint } = utilities.ansiEscapeCodes(isConsoleLog);
     const parts: string[] = [];
 
@@ -396,7 +422,10 @@ const utilities = {
 
     return parts.join(" • ");
   },
-  getCombinedGuildInformationFromGuild(guild: Guild | null, isConsoleLog: boolean = false) {
+  getCombinedGuildInformationFromGuild(
+    guild: Guild | null,
+    isConsoleLog: boolean = false,
+  ) {
     const { bold, faint } = utilities.ansiEscapeCodes(isConsoleLog);
     let combinedGuildInformation: string | undefined;
     if (guild) {
@@ -404,7 +433,10 @@ const utilities = {
     }
     return combinedGuildInformation;
   },
-  getCombinedChannelInformationFromChannel(channel: { name: string; id: string } | null, isConsoleLog: boolean = false) {
+  getCombinedChannelInformationFromChannel(
+    channel: { name: string; id: string } | null,
+    isConsoleLog: boolean = false,
+  ) {
     const { bold, faint } = utilities.ansiEscapeCodes(isConsoleLog);
     let combinedChannelInformation: string | undefined;
     if (channel) {
@@ -412,7 +444,10 @@ const utilities = {
     }
     return combinedChannelInformation;
   },
-  getCombinedEmojiInformationFromReaction(reaction: MessageReaction | null, isConsoleLog: boolean = false) {
+  getCombinedEmojiInformationFromReaction(
+    reaction: MessageReaction | null,
+    isConsoleLog: boolean = false,
+  ) {
     if (!reaction) return;
     const { bold, faint } = utilities.ansiEscapeCodes(isConsoleLog);
     const emoji = reaction.emoji;
@@ -425,7 +460,10 @@ const utilities = {
     }
     return parts.join(" • ");
   },
-  getCombinedRoleInformationFromRole(role: Role | null, isConsoleLog: boolean = false) {
+  getCombinedRoleInformationFromRole(
+    role: Role | null,
+    isConsoleLog: boolean = false,
+  ) {
     const { bold, faint } = utilities.ansiEscapeCodes(isConsoleLog);
     let combinedRoleInformation: string | undefined;
     if (role) {
@@ -433,7 +471,10 @@ const utilities = {
     }
     return combinedRoleInformation;
   },
-  getCombinedDateInformationFromDate(unixDate: number | null | undefined, isConsoleLog: boolean = false) {
+  getCombinedDateInformationFromDate(
+    unixDate: number | null | undefined,
+    isConsoleLog: boolean = false,
+  ) {
     const { bold, faint } = utilities.ansiEscapeCodes(isConsoleLog);
     const effectiveDate = unixDate || Date.now();
     const dateTime = TemporalHelpers.fromMillis(effectiveDate);
@@ -511,15 +552,6 @@ const utilities = {
     return Math.floor(Math.random() * (maxMs - minMs + 1)) + minMs;
   },
   /**
-   * Fetch a URL with an AbortController timeout.
-   * Returns parsed JSON on success, null on failure / timeout.
-
-
-   */
-  async fetchWithTimeout(url: string, timeoutMs: number = 3000) {
-    return libraryFetchWithTimeout(url, timeoutMs);
-  },
-  /**
    * Format a Discord.js reactions cache into a human-readable string.
 
 
@@ -527,7 +559,10 @@ const utilities = {
    *   - "inline": "emoji(by you, Lupos), emoji2"
    *   - "names":  "emoji, emoji2" (names only, no counts)
    */
-  formatReactions(reactionsCache: Map<string, MessageReaction> | null | undefined, format: "list" | "inline" | "names" = "list") {
+  formatReactions(
+    reactionsCache: Map<string, MessageReaction> | null | undefined,
+    format: "list" | "inline" | "names" = "list",
+  ) {
     if (!reactionsCache?.size) return "";
     const entries = [...reactionsCache.values()];
     switch (format) {
@@ -540,7 +575,10 @@ const utilities = {
       case "list":
       default:
         return entries
-          .map((r) => `- ${r.emoji.name} x ${r.count}${r.me ? " (by you, Lupos)" : ""}`)
+          .map(
+            (r) =>
+              `- ${r.emoji.name} x ${r.count}${r.me ? " (by you, Lupos)" : ""}`,
+          )
           .join("\n");
     }
   },

@@ -61,6 +61,14 @@ const StatService = {
       },
 
       setLevel(newLevel: number) {
+        // Guard against NaN/Infinity/undefined-as-number: Math.min/Math.max
+        // propagate NaN, which would poison the stat permanently.
+        if (!Number.isFinite(newLevel)) {
+          console.warn(
+            `[StatService] Ignoring invalid ${name} level: ${String(newLevel)} — keeping current level ${level}`,
+          );
+          return level;
+        }
         level = clamp(newLevel);
         if (onChange) onChange(level, name);
         return level;
@@ -70,9 +78,7 @@ const StatService = {
         const amount = step * multiplier;
         level = clamp(level + amount);
         const capitalized = utilities.capitalize(name);
-        console.log(
-          `${capitalized} level increased to: ${level}`,
-        );
+        console.log(`${capitalized} level increased to: ${level}`);
         if (onChange) onChange(level, name);
         return level;
       },
@@ -81,9 +87,7 @@ const StatService = {
         const amount = step * multiplier;
         level = clamp(level - amount);
         const capitalized = utilities.capitalize(name);
-        console.log(
-          `${capitalized} level decreased to: ${level}`,
-        );
+        console.log(`${capitalized} level decreased to: ${level}`);
         if (onChange) onChange(level, name);
         return level;
       },

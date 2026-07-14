@@ -457,12 +457,10 @@ router.get(
         (error as Error).message,
         (error as Error).stack,
       );
-      res
-        .status(500)
-        .json({
-          error: "Failed to fetch members",
-          detail: (error as Error).message,
-        });
+      res.status(500).json({
+        error: "Failed to fetch members",
+        detail: (error as Error).message,
+      });
     }
   }),
 );
@@ -584,12 +582,10 @@ router.post(
         (error as Error).message,
         (error as Error).stack,
       );
-      res
-        .status(500)
-        .json({
-          error: "Failed to start rescrape",
-          detail: (error as Error).message,
-        });
+      res.status(500).json({
+        error: "Failed to start rescrape",
+        detail: (error as Error).message,
+      });
     }
   }),
 );
@@ -671,12 +667,10 @@ router.post(
         (error as Error).message,
         (error as Error).stack,
       );
-      res
-        .status(500)
-        .json({
-          error: "Failed to start media backfill",
-          detail: (error as Error).message,
-        });
+      res.status(500).json({
+        error: "Failed to start media backfill",
+        detail: (error as Error).message,
+      });
     }
   }),
 );
@@ -748,12 +742,10 @@ router.get("/guild/emojis", (req: Request, res: Response) => {
       (error as Error).message,
       (error as Error).stack,
     );
-    res
-      .status(500)
-      .json({
-        error: "Failed to fetch emojis",
-        detail: (error as Error).message,
-      });
+    res.status(500).json({
+      error: "Failed to fetch emojis",
+      detail: (error as Error).message,
+    });
   }
 });
 
@@ -786,12 +778,10 @@ router.post(
       const now = Date.now();
       const lastReact = _reactCooldowns.get(guildId) || 0;
       if (now - lastReact < 2000) {
-        return res
-          .status(429)
-          .json({
-            error: "Rate limited",
-            retryAfterMs: 2000 - (now - lastReact),
-          });
+        return res.status(429).json({
+          error: "Rate limited",
+          retryAfterMs: 2000 - (now - lastReact),
+        });
       }
       _reactCooldowns.set(guildId, now);
 
@@ -1054,12 +1044,10 @@ router.get(
         (error as Error).message,
         (error as Error).stack,
       );
-      res
-        .status(500)
-        .json({
-          error: "Failed to fetch bot stats",
-          detail: (error as Error).message,
-        });
+      res.status(500).json({
+        error: "Failed to fetch bot stats",
+        detail: (error as Error).message,
+      });
     }
   }),
 );
@@ -1364,12 +1352,10 @@ router.get(
         (error as Error).message,
         (error as Error).stack,
       );
-      res
-        .status(500)
-        .json({
-          error: "Failed to fetch activity metrics",
-          detail: (error as Error).message,
-        });
+      res.status(500).json({
+        error: "Failed to fetch activity metrics",
+        detail: (error as Error).message,
+      });
     }
   }),
 );

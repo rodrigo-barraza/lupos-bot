@@ -470,7 +470,6 @@ async function buildAndGenerateReply({
   memberMentionsCollection,
   messagesEmojisCollection,
   messagesImagesCollection,
-  newSystemPrompt,
   participantsAvatarsCollection,
   participantsBannersCollection,
   participantsCollection,
@@ -3231,14 +3230,16 @@ const DiscordService = {
       luposOnReadyDeleteNewAccounts as (...args: unknown[]) => void,
     );
   },
-  async purgeYoungAccounts() {
+  async purgeYoungAccounts({ confirm = false }: { confirm?: boolean } = {}) {
     const luposClient = DiscordWrapper.createClient(
       "lupos",
       config.LUPOS_TOKEN as string,
     );
+    // Live purge only when the CLI explicitly passed confirm=true;
+    // everything else (including boot-time invocations) stays dry-run.
     DiscordUtilityService.onEventClientReady(
       luposClient,
-      {},
+      { dryRun: !confirm },
       luposOnReadyPurgeYoungAccounts as (...args: unknown[]) => void,
     );
   },

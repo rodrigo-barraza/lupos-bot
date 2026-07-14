@@ -468,6 +468,14 @@ const MessageArchive = {
 
       // Use checkpoint (auto or explicit) if available
       let lastId = resumeMap.get(channel.id) || null;
+      const startedFromCheckpoint = Boolean(lastId);
+
+      // Bounds (unix ms) of the window actually scanned this run — used to
+      // restrict the orphan-cleanup query below so messages outside the
+      // scanned window are never falsely soft-deleted.
+      let newestScannedTimestamp: number | null = null;
+      let oldestScannedTimestamp: number | null = null;
+      let reachedHistoryStart = false;
 
       if (lastId) {
         console.log(
@@ -519,6 +527,7 @@ const MessageArchive = {
 
           if (!messages || messages.size === 0) {
             hasMoreMessages = false;
+            reachedHistoryStart = true;
             break;
           }
 
@@ -529,11 +538,27 @@ const MessageArchive = {
             }
           }
 
+          // Track the scanned window bounds (fetches are newest → oldest)
+          const newestInBatch = messages.first();
+          if (
+            newestInBatch &&
+            (newestScannedTimestamp === null ||
+              newestInBatch.createdTimestamp > newestScannedTimestamp)
+          ) {
+            newestScannedTimestamp = newestInBatch.createdTimestamp;
+          }
+
           // Update pagination cursor immediately (sync — no waiting)
           const lastMessage = messages.last();
           if (lastMessage) {
             lastId = lastMessage.id;
             lastMessageDate = lastMessage.createdAt;
+            if (
+              oldestScannedTimestamp === null ||
+              lastMessage.createdTimestamp < oldestScannedTimestamp
+            ) {
+              oldestScannedTimestamp = lastMessage.createdTimestamp;
+            }
           }
 
           // Check date limit
@@ -547,6 +572,7 @@ const MessageArchive = {
           // End of channel history
           if (messages.size < batchSize) {
             hasMoreMessages = false;
+            reachedHistoryStart = true;
           }
 
           // Fire bulkWrite + checkpoint as a pipeline — next fetch starts immediately
@@ -615,15 +641,40 @@ const MessageArchive = {
 
       // ── Cleanup: soft-delete orphaned messages from target users ──
       // Compare MongoDB messages by these users in this channel against
-      // what was found on Discord — soft-delete any orphans.
-      if (discordUserMessageIds.size > 0 || !limitDate) {
+      // what was found on Discord — soft-delete any orphans. The comparison
+      // must be limited to the window actually scanned this run: when a
+      // dateLimit or resume checkpoint restricted the scan, messages outside
+      // the window were never fetched and must not be treated as orphans.
+      const needsLowerBound = !reachedHistoryStart;
+      const needsUpperBound = startedFromCheckpoint;
+      const scannedNothing =
+        newestScannedTimestamp === null || oldestScannedTimestamp === null;
+      if ((needsLowerBound || needsUpperBound) && scannedNothing) {
+        // The scanned window is empty or unknowable (e.g. checkpoint already
+        // at history start, or the very first fetch failed) — orphans cannot
+        // be detected safely, so skip cleanup for this channel.
+        console.log(
+          `  [CLEANUP] #${channel.name}: Skipped — no scanned window to compare against`,
+        );
+      } else if (discordUserMessageIds.size > 0 || !limitDate) {
         try {
+          const createdTimestampRange: Record<string, number> = {};
+          if (needsLowerBound && oldestScannedTimestamp !== null) {
+            createdTimestampRange.$gte = oldestScannedTimestamp;
+          }
+          if (needsUpperBound && newestScannedTimestamp !== null) {
+            createdTimestampRange.$lte = newestScannedTimestamp;
+          }
+
           const mongoUserMessages = await collection
             .find(
               {
                 ...EXCLUDE_SOFT_DELETED,
                 channelId: channel.id,
                 "author.id": { $in: CLEANUP_USER_IDS },
+                ...(Object.keys(createdTimestampRange).length > 0
+                  ? { createdTimestamp: createdTimestampRange }
+                  : {}),
               },
               { projection: { id: 1 } },
             )

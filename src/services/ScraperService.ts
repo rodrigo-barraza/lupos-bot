@@ -8,8 +8,9 @@
 // No local browser dependencies required.
 // ============================================================
 
+import { fetchWithTimeout } from "@rodrigo-barraza/utilities-library";
+
 import config from "#root/config.js";
-import utilities from "#root/utilities.js";
 
 const TOOLS_SERVICE_URL = config.TOOLS_SERVICE_URL;
 const SCRAPE_TIMEOUT_MS = 15_000;
@@ -27,7 +28,7 @@ interface ScrapedMetadata {
  */
 async function fetchMetadata(url: string): Promise<ScrapedMetadata> {
   const endpoint = `${TOOLS_SERVICE_URL}/utility/scrape/metadata?url=${encodeURIComponent(url)}`;
-  const result = await utilities.fetchWithTimeout(endpoint, SCRAPE_TIMEOUT_MS) as ScrapedMetadata | null;
+  const result = await fetchWithTimeout<ScrapedMetadata>(endpoint, SCRAPE_TIMEOUT_MS);
   return result ?? {};
 }
 

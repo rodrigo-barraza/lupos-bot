@@ -33,6 +33,11 @@ const guildIds = guildIdsArg ? guildIdsArg.split(",").filter(Boolean) : null;
 const dateLimit =
   args.find((arg: string) => arg.startsWith("dateLimit="))?.split("=")[1] ||
   null;
+// Explicit confirmation flag for destructive modes (e.g. purge:youngAccounts).
+// Only the literal "confirm=true" counts — anything else stays dry-run.
+const confirm =
+  args.find((arg: string) => arg.startsWith("confirm="))?.split("=")[1] ===
+  "true";
 
 async function main() {
   try {
@@ -75,7 +80,7 @@ async function main() {
       } else if (mode === "delete:newAccounts") {
         await DiscordService.deleteNewAccounts();
       } else if (mode === "purge:youngAccounts") {
-        await DiscordService.purgeYoungAccounts();
+        await DiscordService.purgeYoungAccounts({ confirm });
       } else if (mode === "reports") {
         await DiscordService.initializeBotLuposReports();
       } else {

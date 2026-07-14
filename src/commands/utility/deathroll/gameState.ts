@@ -130,29 +130,15 @@ export function createDoubleOrNothingCollector(
   });
 
   const agreed = new Set<string>();
-  let countdown = 10;
   const baseContent = message.content;
   const nextMultiplier = (timeoutMultiplier || 1) * 2;
   const multiplierName = getMultiplierName(nextMultiplier);
 
-  const countdownInterval = setInterval(async () => {
-    countdown--;
-    if (countdown > 0) {
-      const agreeLine =
-        agreed.size > 0
-          ? `\n-# ${[...agreed].map((id: string) => `<@${id}>`).join(", ")} agreed — waiting for the other player...`
-          : "";
-      await message
-        .edit({
-          content:
-            baseContent +
-            `\n-# ⏱️ **${countdown}** second${countdown !== 1 ? "s" : ""} remaining — both players must agree...${agreeLine}`,
-        })
-        .catch(() => {});
-    } else {
-      clearInterval(countdownInterval);
-    }
-  }, 1000);
+  // Single edit with Discord's relative timestamp markup — the client
+  // renders a live countdown, so no per-second edits (rate-limit safe).
+  const expiresAtUnix = Math.floor((Date.now() + DON_IDLE_TIMEOUT) / 1000);
+  const countdownLine = `\n-# ⏱️ Expires <t:${expiresAtUnix}:R> — both players must agree...`;
+  void message.edit({ content: baseContent + countdownLine }).catch(() => {});
 
   collector.on("collect", async (buttonInteraction: ButtonInteraction) => {
     try {
@@ -183,13 +169,13 @@ export function createDoubleOrNothingCollector(
         await buttonInteraction.update({
           content:
             baseContent +
-            `\n\n🎰 <@${userId}> wants **${multiplierName} or Nothing**! <@${otherId}>, click the button to agree.`,
+            `\n\n🎰 <@${userId}> wants **${multiplierName} or Nothing**! <@${otherId}>, click the button to agree.` +
+            countdownLine,
         });
         return;
       }
 
       // Both players agreed — start DoN!
-      clearInterval(countdownInterval);
       collector.stop("manually stopped");
 
       const challengerMember = await guild.members
@@ -345,7 +331,6 @@ export function createDoubleOrNothingCollector(
       collected: Collection<string, ButtonInteraction>,
       reason: string,
     ) => {
-      clearInterval(countdownInterval);
       if (reason !== "manually stopped") {
         const timeoutMinutes =
           (pendingTimeoutData?.timeoutDuration || BASE_TIMEOUT) / 60000;

@@ -4,7 +4,7 @@
 // Extracted from DiscordService (R1 decomposition). One-shot
 // moderation passes that run on bot ready:
 //   - luposOnReadyDeleteNewAccounts — kick too-new / forbidden-combo members
-//   - luposOnReadyPurgeYoungAccounts — one-off young-account purge (dry run)
+//   - luposOnReadyPurgeYoungAccounts — one-off young-account purge (dry-run unless confirmed)
 //   - revokeRoleFromAllMembers — bulk strip of a stale role
 //   - fetchMembersWithRetry — gateway-rate-limit-aware member fetch
 // ============================================================
@@ -108,7 +108,10 @@ const TWO_MONTHS_MS = 60 * MILLISECONDS_PER_DAY;
 const PURGE_TARGET_GUILD_ID = "609471635308937237";
 const REVOKE_ROLE_ID = "1353101921681936456";
 
-export async function luposOnReadyPurgeYoungAccounts(client: Client) {
+export async function luposOnReadyPurgeYoungAccounts(
+  client: Client,
+  options?: { dryRun?: boolean },
+) {
   const functionName = "luposOnReadyPurgeYoungAccounts";
   const guild = client.guilds.cache.get(PURGE_TARGET_GUILD_ID);
   if (!guild) {
@@ -118,8 +121,23 @@ export async function luposOnReadyPurgeYoungAccounts(client: Client) {
     return;
   }
 
+  // Dry-run unless the caller explicitly opted into a live purge
+  // (CLI mode purge:youngAccounts with confirm=true).
+  const dryRun = options?.dryRun !== false;
+  if (dryRun) {
+    console.warn(
+      `🔍 [${functionName}] DRY RUN mode — no members will be kicked. ` +
+        `Run with "confirm=true" to execute the purge.`,
+    );
+  } else {
+    console.warn(
+      `🚨 [${functionName}] LIVE PURGE mode — members with accounts younger ` +
+        `than 2 months WILL be kicked from guild ${PURGE_TARGET_GUILD_ID}.`,
+    );
+  }
+
   await purgeByAccountAge(guild, TWO_MONTHS_MS, {
-    dryRun: true,
+    dryRun,
     callerName: functionName,
   });
 }
