@@ -24,6 +24,7 @@ import type {
 
 import DiscordWrapper from "#root/wrappers/DiscordWrapper.js";
 import config from "#root/config.js";
+import utilities from "#root/utilities.js";
 import TraitRegistry from "#root/services/TraitRegistry.js";
 import { EXCLUDE_SOFT_DELETED } from "#root/constants.js";
 import { MILLISECONDS_PER_DAY } from "@rodrigo-barraza/utilities-library";

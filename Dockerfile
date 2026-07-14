@@ -71,7 +71,6 @@ COPY --from=build /app/dist ./dist
 COPY package.json ./
 
 # Copy static assets needed at runtime
-COPY clocks_data.json messages.json ./
 COPY images ./images
 COPY voices ./voices
 

@@ -1,5 +1,4 @@
 import DiscordUtilityService from "#root/services/DiscordUtilityService.js";
-import MessageService from "#root/services/MessageService.js";
 import AIService from "#root/services/AIService.js";
 import PrismService from "#root/services/PrismService.js";
 import { MessageConstant } from "#root/constants.js";
@@ -198,20 +197,14 @@ async function randomTag({ client, guildId, channelId }: RandomTagJobConfig) {
       .map((s: SelectedMember) => `${s.displayName} (<@${s.id}>)`)
       .join(", ");
 
-    // Build the system prompt using the existing personality
-    const assistantMessage = MessageService.assembleAssistantMessage(
-      false,
-      guildId,
-    );
-
-    const systemPrompt = `${assistantMessage}
-
-# SPECIAL TASK: INITIATE GROUP CONVERSATION
+    // Build the job-specific task description. The LUPOS persona
+    // (personality, capabilities, guild flavor) is assembled
+    // server-side by Prism's AgentPersonaRegistry — we only send
+    // the runtime task context.
+    const taskDescription = `# SPECIAL TASK: INITIATE GROUP CONVERSATION
 You are NOT replying to someone — YOU are starting the conversation.
 You are tagging MULTIPLE people and pulling ALL of them into whatever is being discussed.
 The people you are tagging are: ${namesList}
-
-## PEOPLE CONTEXT:${peopleContext || "\nNo specific info available."}
 
 ## RULES:
 - You MUST tag ALL of them in your message: ${tagsList}
@@ -223,27 +216,47 @@ The people you are tagging are: ${namesList}
 - Keep it to TWO to THREE sentences max
 - Be in-character: sassy, high, cat-cosplaying wolf energy
 - If you have memories or known info about them, USE IT to make the tags personal and specific
-- DO NOT explain why you're tagging them — just do it like it's the most natural thing in the world
+- DO NOT explain why you're tagging them — just do it like it's the most natural thing in the world`;
 
-${conversationContext ? `## RECENT CHAT CONTEXT (STAY ON THIS TOPIC):\n${conversationContext}` : "## No recent messages — just vibe and be chaotic."}`;
+    const agentContext: Record<string, unknown> = {
+      platform: "discord",
+      guildId,
+      channelId,
+      participantUserIds: selectedMembers.map((s: SelectedMember) => s.id),
+      platformContext: {
+        description: taskDescription,
+        ids: `# Discord IDs\n- Guild ID: ${guildId}\n- Channel ID: ${channelId}`,
+      },
+    };
+
+    // Memory/context strings travel in the user message
+    let userMessage = `Generate a message tagging ${namesList}. You're initiating a group conversation. Be chaotic and in-character. Make sure you involve all of them.`;
+    userMessage += `\n\n## PEOPLE CONTEXT:${peopleContext || "\nNo specific info available."}`;
+    userMessage += `\n\n${conversationContext ? `## RECENT CHAT CONTEXT (STAY ON THIS TOPIC):\n${conversationContext}` : "## No recent messages — just vibe and be chaotic."}`;
 
     // Start typing indicator while generating
     const typingInterval = await DiscordUtilityService.startTypingInterval(channel);
 
-    const generatedText = await AIService.generateText({
-      systemPrompt: systemPrompt,
-      conversation: [
-        {
-          role: "user",
-          content: `Generate a message tagging ${namesList}. You're initiating a group conversation. Be chaotic and in-character. Make sure you involve all of them.`,
-        },
-      ],
-      type: config.LANGUAGE_MODEL_TYPE,
-      modelPerformance: "POWERFUL",
-      tokens: 250,
+    const agentModel =
+      config.LANGUAGE_MODEL_TYPE === "GOOGLE"
+        ? config.GOOGLE_LANGUAGE_MODEL_FAST
+        : config.LANGUAGE_MODEL_TYPE === "OPENAI"
+          ? config.FAST_LANGUAGE_MODEL_OPENAI
+          : config.LANGUAGE_MODEL_TYPE === "LOCAL"
+            ? config.FAST_LANGUAGE_MODEL_LOCAL
+            : config.ANTHROPIC_LANGUAGE_MODEL_FAST;
+
+    const agentResponse = await PrismService.generateAgentResponse({
+      messages: [{ role: "user", content: userMessage }],
+      type: config.LANGUAGE_MODEL_TYPE || "",
+      model: agentModel || "",
+      agentContext,
+      maxTokens: 1024,
       temperature: 1.0,
-      label: "🎯 Random Tag",
+      ...AIService._getTraceParams(),
     });
+
+    const generatedText = agentResponse.text;
 
     if (!generatedText) {
       DiscordUtilityService.clearTypingInterval(typingInterval);

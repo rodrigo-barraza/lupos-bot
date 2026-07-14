@@ -288,6 +288,10 @@ Adopt pino behind a thin `logger.ts`; migrate by (1) re-pointing `consoleLog` in
 
 ### R8. Decide the trait-services question (biggest deletion opportunity)
 
+**DECIDED 2026-07: option (a) shipped** — the 8 wrapper services + `SomaticAdaptationService`
+and their tests were deleted; `src/services/TraitRegistry.ts` now feeds `GET /bot/stats`
+(same response shape) from the same `StatService` configs; root `bot_stats.json` removed.
+
 The somatic trait layer is **mostly dead code**: no production caller ever starts the decay
 timers (`instantiate()` is never invoked from boot), `MoodService.generateMoodMessage`,
 `AlcoholService.generateAlcoholSystemPrompt`, and `SomaticAdaptationService.adaptFromMessage`
