@@ -17,7 +17,6 @@ import type {
   Collection as DiscordCollection,
 } from "discord.js";
 
-import TemporalHelpers from "#root/utilities/TemporalHelpers.js";
 import AIService from "#root/services/AIService.js";
 import type {
   ChatMessage,
@@ -28,6 +27,18 @@ import DiscordUtilityService from "#root/services/DiscordUtilityService.js";
 import utilities from "#root/utilities.js";
 import LogFormatter from "#root/formatters/LogFormatter.js";
 import { MONGO_DB_NAME } from "#root/constants.js";
+import {
+  buildDiscordMessageEnvelope,
+  buildMessageAnnotation,
+  toIsoTime,
+} from "#root/services/discord/MessageEnvelope.js";
+import type {
+  AttachmentPart,
+  EmbedPart,
+  ReactionsPart,
+  ReplyToPart,
+  StickerPart,
+} from "#root/services/discord/MessageEnvelope.js";
 
 interface MessageProcessingData {
   index: number;
@@ -38,7 +49,6 @@ interface MessageProcessingData {
   isLastMessage: boolean;
   userMessageXofY: number;
   sequentialUserMessages: number;
-  dateIdFormat: string;
   repliedMessage?: Message;
 }
 // function to split emoji name and id, example: <:monkaHmm:722280797025075271>
@@ -249,34 +259,13 @@ export async function extractContentFromMessages(
 
   if ((message as Message).guild) {
     let index = 0;
-    const firstMessageDateTime = TemporalHelpers.fromMillis(
-      recentXMessages[0].createdTimestamp,
+
+    // Real Discord snowflake ids of every message in the fetched window —
+    // used to emit compact <replying-to in-context="true" /> references
+    // instead of re-quoting messages the model already has in full.
+    const inContextMessageIds = new Set(
+      recentXMessages.map((recentMessage: Message) => recentMessage.id),
     );
-    const lastMessageDateTime = TemporalHelpers.fromMillis(
-      recentXMessages[recentXMessages.length - 1].createdTimestamp,
-    );
-    let dateIdFormat = "yyMMddHHmmSSS";
-    if (
-      TemporalHelpers.hasSame(firstMessageDateTime, lastMessageDateTime, "hour")
-    ) {
-      dateIdFormat = "mSSS";
-    } else if (
-      TemporalHelpers.hasSame(firstMessageDateTime, lastMessageDateTime, "day")
-    ) {
-      dateIdFormat = "HmmSSS";
-    } else if (
-      TemporalHelpers.hasSame(
-        firstMessageDateTime,
-        lastMessageDateTime,
-        "month",
-      )
-    ) {
-      dateIdFormat = "dHHmmSSS";
-    } else if (
-      TemporalHelpers.hasSame(firstMessageDateTime, lastMessageDateTime, "year")
-    ) {
-      dateIdFormat = "MddHHmmSSS";
-    }
 
     // Pre-calculate message sequences
     const messageSequenceInfo = new Map();
@@ -379,7 +368,6 @@ export async function extractContentFromMessages(
         isLastMessage,
         userMessageXofY,
         sequentialUserMessages,
-        dateIdFormat,
       };
 
       if (isBot) {
@@ -672,93 +660,35 @@ export async function extractContentFromMessages(
     for (const messageData of messageProcessingData) {
       const {
         recentMessage,
+        user,
         isBot,
-        isLastMessage,
         userMessageXofY,
         sequentialUserMessages,
-        dateIdFormat,
       } = messageData;
 
       if (isBot) {
-        let imageDescription: string | null = null,
-          imageSize: number = 0,
-          imageWidth: number = 0,
-          imageHeight: number = 0;
-        let attachmentContext: string;
-
-        // Bot has attached an image to this message
-        if (recentMessage?.attachments?.size > 0) {
-          const imageAttached = recentMessage.attachments.find(
-            (attachment: import("discord.js").Attachment) =>
-              attachment.contentType &&
-              attachment.contentType.includes("image"),
-          );
-          if (imageAttached) {
-            if (imageAttached.description) {
-              imageDescription = imageAttached.description;
-            } else if (imageAttached.title) {
-              imageDescription = imageAttached.title;
-            } else {
-              imageDescription = imageAttached.name.replace(/[_-]/g, " ");
-            }
-
-            if (imageAttached.size) {
-              imageSize = imageAttached.size / 1024 / 1024;
-            }
-
-            if (imageAttached.width && imageAttached.height) {
-              imageWidth = imageAttached.width;
-              imageHeight = imageAttached.height;
-            }
-          }
-        }
-
-        // Append reactions to content
-        let reactionsContent = "";
-        if (recentMessage.reactions?.cache?.size > 0) {
-          reactionsContent = `\n[REACTIONS]\n${utilities.formatReactions(recentMessage.reactions.cache, "list")}`;
-        }
-
-        let _replyContent = "";
-        // Append reply context
-        if (recentMessage.reference) {
-          _replyContent = `\n[REPLYING TO]`;
-          const _repliedMessage =
-            messageData.repliedMessage || repliesMap[recentMessage.id];
-        }
-
-        // If recentMessage has embeds, add them to the content
-        let newContent = "";
-        if (recentMessage.embeds?.length > 0) {
-          for (const embed of recentMessage.embeds) {
-            newContent += `\n\n[MESSAGE EMBED]`;
-            if (embed.title) {
-              newContent += `\nTitle: ${embed.title}`;
-            }
-            if (embed.description) {
-              newContent += `\nDescription: ${embed.description}`;
-            }
-            if (embed.fields?.length > 0) {
-              for (const field of embed.fields) {
-                newContent += `\n${field.name}: ${field.value}`;
-              }
-            }
-            if (embed.footer) {
-              newContent += `\nFooter: ${embed.footer.text}`;
-            }
-            if (embed.url) {
-              newContent += `\nURL: ${embed.url}`;
-            }
-          }
-        } else {
-          newContent = recentMessage.content;
-        }
-
+        // Assistant turns carry exactly what the bot said. Platform-side
+        // context (embeds, reactions, vision captions of the bot's own
+        // attachments) goes into a separate <message-annotation> turn so
+        // the model never sees structure it didn't author in its own turns.
         conversation.push({
           role: "assistant",
           name: DiscordUtilityService.getUsernameNoSpaces(recentMessage),
-          content: newContent,
+          content: recentMessage.content || "",
         });
+
+        // Attachment metadata from the bot's own uploads
+        const imageAttached = recentMessage.attachments?.find(
+          (attachment: import("discord.js").Attachment) =>
+            attachment.contentType?.includes("image"),
+        );
+        const dimensions =
+          imageAttached?.width && imageAttached?.height
+            ? `${imageAttached.width}x${imageAttached.height}`
+            : undefined;
+        const sizeMb = imageAttached?.size
+          ? (imageAttached.size / 1024 / 1024).toFixed(2)
+          : undefined;
 
         // Vision captions for the bot's own attachments (populated by the
         // captioning queued in the first pass, keyed by message id).
@@ -771,137 +701,146 @@ export async function extractContentFromMessages(
             )
           : [];
 
-        if (imageDescription || reactionsContent || botImageCaptions.length) {
-          attachmentContext = `=== YOUR MESSAGE CONTEXT ===`;
-          attachmentContext += `\nThis is additional context for your message above. Do not respond to this context directly, but use it as information to enhance your understanding of the situation.`;
-          if (imageDescription) {
-            attachmentContext += `\n[IMAGE ATTACHED]`;
-            attachmentContext += `\nDimensions: ${imageWidth}x${imageHeight}`;
-            attachmentContext += `\nFile size: ${imageSize.toFixed(2)} MB`;
-            attachmentContext += `\nImage description: ${imageDescription}`;
-          }
-          if (botImageCaptions.length) {
-            if (!imageDescription) {
-              attachmentContext += `\n[IMAGE ATTACHED]`;
-            }
-            for (const caption of botImageCaptions) {
-              attachmentContext += `\nImage caption: ${caption}`;
-            }
-          }
-          if (reactionsContent) {
-            attachmentContext += `\n[REACTIONS]`;
-            attachmentContext += reactionsContent;
-          }
+        // Uploader-provided description — for the bot's own generated
+        // images this is the generate_image prompt set at upload time.
+        const imageDescription = imageAttached
+          ? imageAttached.description ||
+            imageAttached.title ||
+            imageAttached.name.replace(/[_-]/g, " ")
+          : undefined;
 
+        const annotationAttachments: AttachmentPart[] = [];
+        if (botImageCaptions.length) {
+          botImageCaptions.forEach((caption: string, captionIndex: number) => {
+            annotationAttachments.push({
+              kind: "image",
+              caption,
+              ...(captionIndex === 0
+                ? { description: imageDescription, dimensions, sizeMb }
+                : {}),
+            });
+          });
+        } else if (imageAttached) {
+          annotationAttachments.push({
+            kind: "image",
+            caption: imageDescription,
+            dimensions,
+            sizeMb,
+          });
+        }
+
+        const annotationEmbeds: EmbedPart[] = (recentMessage.embeds ?? []).map(
+          (embed: import("discord.js").Embed) => ({
+            title: embed.title || undefined,
+            description: embed.description || undefined,
+            url: embed.url || undefined,
+            fields: embed.fields?.length
+              ? embed.fields.map(
+                  (field: { name: string; value: string }) =>
+                    `${field.name}: ${field.value}`,
+                )
+              : undefined,
+            footer: embed.footer?.text || undefined,
+          }),
+        );
+
+        const annotation = buildMessageAnnotation({
+          forId: recentMessage.id,
+          attachments: annotationAttachments,
+          embeds: annotationEmbeds,
+          reactions: reactionsPartOf(recentMessage),
+        });
+        if (annotation) {
           conversation.push({
             role: "user",
             name: DiscordUtilityService.getUsernameNoSpaces(recentMessage),
-            content: attachmentContext,
+            content: annotation,
           });
         }
       } else {
-        // Build user message content with all collected data
-        const recentMessageDateTime = TemporalHelpers.fromMillis(
-          recentMessage.createdTimestamp,
-        );
-        const messageId = TemporalHelpers.toDateId(
-          recentMessageDateTime,
-          dateIdFormat,
-        );
-        const combinedNames = utilities.getCombinedNamesFromUserOrMember({
-          member: recentMessage.member,
-        });
-        let modifiedContent = `=== MESSAGE ${userMessageXofY} of ${sequentialUserMessages} ${userMessageXofY === sequentialUserMessages && isLastMessage ? "(MOST RECENT)" : ""} ===`;
-        modifiedContent += `\n[METADATA]`;
-        modifiedContent += `\nFrom: ${combinedNames}`;
-        modifiedContent += `\nMessage ID: ${messageId}`;
-
-        // Add reply information
+        // ── User message → <discord-message> envelope ─────────────
         const repliedMessage: Message | undefined =
           messageData.repliedMessage ||
           (repliesMap[recentMessage.id] as Message | undefined);
+
+        let replyTo: ReplyToPart | undefined;
         if (recentMessage.reference?.messageId) {
-          modifiedContent += `\n\n[REPLYING TO]`;
           if (!repliedMessage) {
-            modifiedContent += `\nAuthor: Unknown (DELETED MESSAGE)`;
-            modifiedContent += `\nMessage ID: ${recentMessage.reference.messageId}`;
+            replyTo = {
+              id: recentMessage.reference.messageId,
+              deleted: true,
+            };
+          } else if (inContextMessageIds.has(repliedMessage.id)) {
+            // The quoted message is already in this window verbatim —
+            // reference it by id instead of duplicating its content.
+            replyTo = {
+              id: repliedMessage.id,
+              author: displayNameOf(repliedMessage),
+              authorId: repliedMessage.author?.id,
+              inContext: true,
+            };
           } else {
-            const repliedMessageDateTime = TemporalHelpers.fromMillis(
-              repliedMessage.createdTimestamp,
-            );
-            const replyMessageId = TemporalHelpers.toDateId(
-              repliedMessageDateTime,
-              dateIdFormat,
-            );
-            const combinedRepliedNames =
-              utilities.getCombinedNamesFromUserOrMember({
-                member: repliedMessage.member,
-              });
-            modifiedContent += `\nAuthor: ${combinedRepliedNames}`;
-            modifiedContent += `\nTime: ${TemporalHelpers.format(repliedMessageDateTime, "LLLL dd, yyyy 'at' hh:mm:ss a")} (${TemporalHelpers.toRelative(repliedMessageDateTime)})`;
-            modifiedContent += `\nMessage ID: ${replyMessageId}`;
-
-            if (repliedMessage.cleanContent) {
-              modifiedContent += `\nType: Text Message`;
-              modifiedContent += `\nContent:`;
-              modifiedContent += `\n<message_content>`;
-              modifiedContent += `\n${repliedMessage.content}`;
-              modifiedContent += `\n</message_content>`;
-            }
-
-            const repliedAttachmentResult = await generateAttachmentsResponse(
+            const repliedParts = await collectMessageBodyParts(
               repliedMessage,
               messagesTranscriptionsCollection,
               messagesImagesCollection,
-              repliedMessage,
-              modifiedContent,
               localMongo,
             );
-            modifiedContent = repliedAttachmentResult.modifiedContent;
-            // Reply image URLs will be collected but not attached separately
-            // — they belong to context, not the current message
-
-            modifiedContent += await generateEmojiResponse(
-              repliedMessage,
-              true,
-            );
+            // Reply image URLs are context, not part of the current
+            // message — captions are included, images not re-attached.
+            replyTo = {
+              id: repliedMessage.id,
+              author: displayNameOf(repliedMessage),
+              authorId: repliedMessage.author?.id,
+              time: toIsoTime(repliedMessage.createdTimestamp),
+              content: repliedMessage.content || undefined,
+              transcription: repliedParts.transcription,
+              attachments: repliedParts.attachments,
+              sticker: repliedParts.sticker,
+              reactions: reactionsPartOf(repliedMessage),
+            };
           }
         }
 
-        modifiedContent += `\n\n[CURRENT MESSAGE]`;
-        if (recentMessage.content) {
-          modifiedContent += `\nType: Text Message`;
-          modifiedContent += `\nContent:`;
-          modifiedContent += `\n<message_content>`;
-          modifiedContent += `\n${recentMessage.content}`;
-          modifiedContent += `\n</message_content>`;
-        }
-
-        const attachmentResult = await generateAttachmentsResponse(
+        const bodyParts = await collectMessageBodyParts(
           recentMessage,
           messagesTranscriptionsCollection,
           messagesImagesCollection,
-          recentMessage,
-          modifiedContent,
           localMongo,
         );
-        modifiedContent = attachmentResult.modifiedContent;
 
-        // Add reactions
-        const isCurrentMessage = recentMessage.id !== (message as Message).id;
-        if (recentMessage.reactions?.cache?.size > 0 && !isCurrentMessage) {
-          modifiedContent += `\nNumber of reactions in this message: ${recentMessage.reactions.cache.size}`;
-          modifiedContent += `\nReaction list: ${utilities.formatReactions(recentMessage.reactions.cache, "inline")}`;
-        }
+        // The triggering message is the one the agent must answer; it is
+        // also the only one whose reactions matter (bribe detection).
+        const isTriggeringMessage =
+          recentMessage.id === (message as Message).id;
+
+        const envelopeContent = buildDiscordMessageEnvelope({
+          id: recentMessage.id,
+          author: displayNameOf(recentMessage) || user.username,
+          authorUsername: user.username,
+          authorId: user.id,
+          time: toIsoTime(recentMessage.createdTimestamp),
+          sequence: { index: userMessageXofY, total: sequentialUserMessages },
+          mostRecent: isTriggeringMessage,
+          edited: !!recentMessage.editedTimestamp,
+          replyTo,
+          content: recentMessage.content || undefined,
+          transcription: bodyParts.transcription,
+          attachments: bodyParts.attachments,
+          sticker: bodyParts.sticker,
+          reactions: isTriggeringMessage
+            ? reactionsPartOf(recentMessage)
+            : undefined,
+        });
 
         const msgEntry: ChatMessage = {
           role: "user",
           name: DiscordUtilityService.getUsernameNoSpaces(recentMessage),
-          content: modifiedContent,
+          content: envelopeContent,
         };
         // Attach image URLs to this specific message for multimodal vision
-        if (attachmentResult.messageImageUrls.length > 0) {
-          msgEntry.images = attachmentResult.messageImageUrls;
+        if (bodyParts.messageImageUrls.length > 0) {
+          msgEntry.images = bodyParts.messageImageUrls;
         }
         conversation.push(msgEntry);
       }
@@ -931,35 +870,52 @@ export async function extractContentFromMessages(
   };
 }
 
-export async function generateStickerResponse(
-  message: Message,
-  localMongo: import("mongodb").MongoClient,
-) {
-  // if sticker
-  let content = "";
-  if (message.stickers.size === 1) {
-    const sticker = message.stickers.first();
-    if (!sticker) return "";
-    const url = sticker.url;
-    const { images } = await AIService.captionImages(
-      [url],
-      localMongo,
-      "STICKER",
-    );
-    const imageCaption = images[0];
-    content += `\nType: Sticker Message`;
-    content += `\nSticker Name: ${sticker.name}`;
-    if (sticker.description) {
-      content += `\nSticker Description: ${sticker.description}`;
-    }
-    if (imageCaption) {
-      content += `\nSticker Caption: ${imageCaption}`;
-    }
-  }
-  return content;
+/** Display name of a message's author: server nickname > global name > username. */
+export function displayNameOf(message: Message): string | undefined {
+  return (
+    message.member?.displayName ||
+    message.author?.globalName ||
+    message.author?.username ||
+    undefined
+  );
 }
 
-export async function generateAttachmentsResponse(
+/** Reactions on a message as a ReactionsPart, or undefined when there are none. */
+export function reactionsPartOf(message: Message): ReactionsPart | undefined {
+  if (!message.reactions?.cache?.size) return undefined;
+  return {
+    count: message.reactions.cache.size,
+    list: utilities.formatReactions(message.reactions.cache, "inline"),
+  };
+}
+
+/** Sticker on a message as a StickerPart (vision-captioned), or undefined. */
+export async function collectStickerPart(
+  message: Message,
+  localMongo: import("mongodb").MongoClient,
+): Promise<StickerPart | undefined> {
+  if (message.stickers.size !== 1) return undefined;
+  const sticker = message.stickers.first();
+  if (!sticker) return undefined;
+  const { images } = await AIService.captionImages(
+    [sticker.url],
+    localMongo,
+    "STICKER",
+  );
+  return {
+    name: sticker.name,
+    description: sticker.description || undefined,
+    caption: images[0] || undefined,
+  };
+}
+
+/**
+ * Collect the structured body parts of a message — voice transcription,
+ * captioned image attachments, and sticker — from the pre-computed
+ * per-message collections. Also returns the raw image URLs so the
+ * caller can attach them to the ChatMessage for multimodal vision.
+ */
+export async function collectMessageBodyParts(
   message: Message,
   messagesTranscriptionsCollection: DiscordCollection<
     string,
@@ -969,63 +925,32 @@ export async function generateAttachmentsResponse(
     string,
     DiscordCollection<string, { url: string; caption: string }>
   >,
-  userMessage: Message,
-  modifiedContent: string,
   localMongo: import("mongodb").MongoClient,
-) {
+): Promise<{
+  transcription?: string;
+  attachments: AttachmentPart[];
+  sticker?: StickerPart;
+  messageImageUrls: string[];
+}> {
   const transcriptionsCollection = messagesTranscriptionsCollection.get(
-    userMessage.id,
+    message.id,
   );
-  const imagesCollection = messagesImagesCollection.get(userMessage.id);
-  const messageImageUrls: string[] = []; // Collect image URLs to attach to message
+  const imagesCollection = messagesImagesCollection.get(message.id);
 
-  if (!(message as Message).content) {
-    if ((transcriptionsCollection?.size ?? 0) > 0) {
-      // iterate through the first one only
-      const audioTranscriptions =
-        transcriptionsCollection!.values().next().value?.transcription || "";
-      modifiedContent += `\nType: Voice Message`;
-      modifiedContent += `\nAudio Content:`;
-      modifiedContent += `\n<audio_transcription>`;
-      modifiedContent += `\n${audioTranscriptions}`;
-      modifiedContent += `\n</audio_transcription>`;
-    }
-    if (!(transcriptionsCollection?.size ?? 0) && imagesCollection?.size) {
-      modifiedContent += `\nType: Image Message`;
-      modifiedContent += `\n\n[ATTACHED REFERENCE IMAGES]`;
-      let imgIndex = 0;
-      for (const [, image] of imagesCollection.entries()) {
-        imgIndex++;
-        modifiedContent += `\n  ${imgIndex}. Attachment: ${image.caption}`;
-        messageImageUrls.push(image.url);
-      }
-    }
-  } else {
-    if (transcriptionsCollection?.size ?? 0) {
-      const audioTranscriptions =
-        transcriptionsCollection!.values().next().value?.transcription || "";
-      modifiedContent += `\nAudio Transcription: ${audioTranscriptions}`;
-    }
-    if (imagesCollection?.size) {
-      modifiedContent += `\n\n[ATTACHED REFERENCE IMAGES]`;
-      let imgIndex = 0;
-      for (const [, image] of imagesCollection.entries()) {
-        imgIndex++;
-        modifiedContent += `\n  ${imgIndex}. Attachment: ${image.caption}`;
-        messageImageUrls.push(image.url);
-      }
+  const transcription = transcriptionsCollection?.size
+    ? transcriptionsCollection.values().next().value?.transcription ||
+      undefined
+    : undefined;
+
+  const attachments: AttachmentPart[] = [];
+  const messageImageUrls: string[] = [];
+  if (imagesCollection?.size) {
+    for (const [, image] of imagesCollection.entries()) {
+      attachments.push({ kind: "image", caption: image.caption });
+      messageImageUrls.push(image.url);
     }
   }
 
-  modifiedContent += await generateStickerResponse(userMessage, localMongo);
-  return { modifiedContent, messageImageUrls };
-}
-
-export async function generateEmojiResponse(
-  message: Message,
-  _isReply: boolean = false,
-) {
-  if (!message.reactions?.cache?.size) return "";
-  const names = utilities.formatReactions(message.reactions.cache, "names");
-  return `\nReactions (${message.reactions.cache.size}):\n  • ${names}`;
+  const sticker = await collectStickerPart(message, localMongo);
+  return { transcription, attachments, sticker, messageImageUrls };
 }
