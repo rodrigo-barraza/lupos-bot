@@ -383,7 +383,22 @@ export async function extractContentFromMessages(
       };
 
       if (isBot) {
-        // Process bot messages synchronously as they don't need API calls
+        // Queue image captioning for the bot's own attachments (generated
+        // images). Captions are hash-cached in Mongo, so each image is only
+        // vision-captioned once. Without this, the bot's generated images
+        // reach the model as bare filenames ("lupos.png") and replies to
+        // them carry no indication that an image exists at all.
+        const botImageUrls =
+          await DiscordUtilityService.extractImageUrlsFromMessage(
+            recentMessage,
+          );
+        if (botImageUrls.length) {
+          allPromises.images.push({
+            message: recentMessage,
+            promise: AIService.captionImages(botImageUrls, localMongo, "IMAGE"),
+          });
+        }
+
         messageProcessingData.push(messageData);
       } else {
         // Collect user data
@@ -745,7 +760,18 @@ export async function extractContentFromMessages(
           content: newContent,
         });
 
-        if (imageDescription || reactionsContent) {
+        // Vision captions for the bot's own attachments (populated by the
+        // captioning queued in the first pass, keyed by message id).
+        const botImagesCollection = messagesImagesCollection.get(
+          recentMessage.id,
+        );
+        const botImageCaptions: string[] = botImagesCollection?.size
+          ? [...botImagesCollection.values()].map(
+              (imageObject) => imageObject.caption,
+            )
+          : [];
+
+        if (imageDescription || reactionsContent || botImageCaptions.length) {
           attachmentContext = `=== YOUR MESSAGE CONTEXT ===`;
           attachmentContext += `\nThis is additional context for your message above. Do not respond to this context directly, but use it as information to enhance your understanding of the situation.`;
           if (imageDescription) {
@@ -753,6 +779,14 @@ export async function extractContentFromMessages(
             attachmentContext += `\nDimensions: ${imageWidth}x${imageHeight}`;
             attachmentContext += `\nFile size: ${imageSize.toFixed(2)} MB`;
             attachmentContext += `\nImage description: ${imageDescription}`;
+          }
+          if (botImageCaptions.length) {
+            if (!imageDescription) {
+              attachmentContext += `\n[IMAGE ATTACHED]`;
+            }
+            for (const caption of botImageCaptions) {
+              attachmentContext += `\nImage caption: ${caption}`;
+            }
           }
           if (reactionsContent) {
             attachmentContext += `\n[REACTIONS]`;

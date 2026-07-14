@@ -344,6 +344,13 @@ list is literally a Discord tool catalog — register `play_music`, `react_with_
 `get_avatar` (replaces the avatar pre-guessing at `:1400-1449`) as Prism tools and delete the
 heuristics as each tool proves out.
 
+> **Shipped 2026-07-14 — image-context repair:** bot-message attachments are now captioned
+> into the conversation (synthetic context turn + `[REPLYING TO]` block), the generate_image
+> prompt is propagated into the posted attachment's filename/description, replies to bot
+> images bind the replied-to image with its caption inline (labeled "THE IMAGE BEING
+> DISCUSSED"), and the self-reference avatar tier is suppressed when replying to a bot image
+> (fixes "make it bigger" latching onto a user's avatar).
+
 ### A2. Context compaction (Claude-Code-style)
 
 Nothing exists: fixed 5–100 message window, no token counting anywhere, dossiers for every

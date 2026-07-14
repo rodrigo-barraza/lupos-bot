@@ -130,6 +130,50 @@ function resolveAvatarUrl(source: User | GuildMember) {
   return source?.displayAvatarURL?.({ extension: "png", size: 512 }) || null;
 }
 
+/**
+ * Pull the generation prompt out of an agent response's generate_image tool
+ * call. Prism's /agent JSON path emits `{ name, args }` entries while the
+ * declared client type is OpenAI-style `{ function: { name, arguments } }`
+ * (JSON-encoded args) — accept both. Returns null when no generate_image
+ * call with a usable prompt exists.
+ */
+export function extractGenerateImagePrompt(
+  toolCalls: unknown[] | undefined,
+): string | null {
+  if (!toolCalls?.length) return null;
+  for (const rawToolCall of toolCalls) {
+    const toolCall = rawToolCall as {
+      name?: string;
+      args?: Record<string, unknown>;
+      function?: { name?: string; arguments?: string };
+    } | null;
+    if (!toolCall) continue;
+
+    // Prism /agent shape: { name, args }
+    if (toolCall.name === "generate_image") {
+      const promptArg = toolCall.args?.prompt;
+      if (typeof promptArg === "string" && promptArg.trim()) {
+        return promptArg.trim();
+      }
+    }
+
+    // OpenAI-style shape: { function: { name, arguments: "<json>" } }
+    if (toolCall.function?.name === "generate_image") {
+      try {
+        const parsedArgs = JSON.parse(toolCall.function.arguments || "{}") as {
+          prompt?: unknown;
+        };
+        if (typeof parsedArgs.prompt === "string" && parsedArgs.prompt.trim()) {
+          return parsedArgs.prompt.trim();
+        }
+      } catch {
+        /* malformed tool-call arguments — ignore */
+      }
+    }
+  }
+  return null;
+}
+
 export async function generateDescription(
   systemPrompt: string, // should stay the same
   message: Message, // should stay the same
@@ -489,6 +533,7 @@ export async function buildAndGenerateReply({
   }[] = [];
   let image: unknown = null;
   let audioRef: string | null = null;
+  let imagePrompt: string | null = null;
   try {
     if (
       (message as Message).guildId === config.GUILD_ID_PRIMARY ||
@@ -665,6 +710,33 @@ export async function buildAndGenerateReply({
     );
     const isLikelyImageRequest =
       hasImageAttachments || mightBeImageRequest(messageText);
+
+    // Cache the message reference once — reused by the self-reference
+    // suppression below, the replied-to image capture, and avatar filtering.
+    const cachedMessageReference = message.reference?.messageId
+      ? await DiscordUtilityService.retrieveMessageReferenceFromMessage(message)
+      : null;
+
+    // Is this a reply to one of the bot's own messages that carries media
+    // (i.e. a generated image the capture block below will pick up)? If so,
+    // the replied-to image is what the user is talking about — the
+    // self-reference tier must NOT hijack the request by attaching the
+    // author's avatar (dative phrasings like "make me a bigger version"
+    // false-positive as self-references and used to swap the subject from
+    // the generated image to the user's profile picture).
+    const repliedToBotImage: boolean =
+      cachedMessageReference?.author?.id === bot.id &&
+      Boolean(
+        cachedMessageReference.attachments?.some(
+          (attachment: import("discord.js").Attachment) =>
+            attachment.contentType?.startsWith("image/") ||
+            attachment.contentType?.startsWith("video/"),
+        ) ||
+        cachedMessageReference.embeds?.some(
+          (embed: import("discord.js").Embed) =>
+            embed.image || embed.thumbnail || embed.video,
+        ),
+      );
 
     // Detect untagged user names in image generation requests
     // e.g. "draw Rodrigo as a samurai" without @Rodrigo
@@ -848,9 +920,16 @@ export async function buildAndGenerateReply({
     //   2. Lightweight LLM fallback for everything regex can't cover:
     //      other languages, indirect refs, creative phrasings, slang
     //      (~200ms Haiku call — negligible against the ~50s total flow)
+    // When the message replies to a bot message that carries an image, the
+    // replied-to image is the subject — skip BOTH self-reference tiers so
+    // "make me a bigger version" edits the generated image instead of
+    // attaching the author's avatar. @mention and name-match attachment
+    // above are deliberately left untouched ("draw me next to @Rodrigo"
+    // still resolves Rodrigo's avatar).
     if (
       isLikelyImageRequest &&
-      !untaggedMatchedUserIds.has(message.author.id)
+      !untaggedMatchedUserIds.has(message.author.id) &&
+      !repliedToBotImage
     ) {
       const selfText =
         message.cleanContent || (message as Message).content || "";
@@ -1040,6 +1119,9 @@ export async function buildAndGenerateReply({
 
     const imageUrls: string[] = [];
     const imageLabels: string[] = []; // Tracks what each image in imageUrls represents
+    // url → caption for attached/replied reference images (filled by the
+    // caption step below; avatar captions live in captionsMap instead).
+    const referenceCaptionsMap = new Map<string, string>();
     const mentionsImageUrls: Record<string, unknown>[] = [];
     // This creates a shallow copy, which is no different than what we had before, can be changed back.
     let edittedMessageCleanContent = "";
@@ -1081,10 +1163,16 @@ export async function buildAndGenerateReply({
       }
     }
 
-    // Cache the message reference once — reused for avatar filtering below
-    const cachedMessageReference = message.reference?.messageId
-      ? await DiscordUtilityService.retrieveMessageReferenceFromMessage(message)
-      : null;
+    // (cachedMessageReference is computed above, before the image-intent
+    // detection blocks, so the self-reference tier can be suppressed for
+    // replies to the bot's own images.)
+
+    // Unambiguous label for the replied-to image so the model binds "it" /
+    // "this" to the right picture instead of a better-described avatar.
+    const repliedToImageLabel =
+      cachedMessageReference?.author?.id === bot.id
+        ? "THE IMAGE BEING DISCUSSED (from the replied-to message, posted by you)"
+        : "THE IMAGE BEING DISCUSSED (from the replied-to message)";
 
     // If it's replying to a message with an image
     if (message.reference && message.reference.messageId) {
@@ -1097,14 +1185,14 @@ export async function buildAndGenerateReply({
         Map<string, { url: string }>
       >;
       // If the referenced message has an image in the collection, use that
-      // (Only user messages are stored, not bot messages)
+      // (both user and bot messages are captioned into the collection)
       if (referencedMessageImages && referencedMessageImages.size > 0) {
         const firstImages = referencedMessageImages.first();
         const imageUrl = firstImages
           ? firstImages.values().next().value?.url
           : undefined;
         if (imageUrl) {
-          imageLabels.push("Replied-to message image");
+          imageLabels.push(repliedToImageLabel);
           imageUrls.push(imageUrl);
         }
       } else {
@@ -1130,7 +1218,7 @@ export async function buildAndGenerateReply({
             );
             if (imageAttachment) {
               const imageUrl = imageAttachment.proxyURL || imageAttachment.url;
-              imageLabels.push("Replied-to message image");
+              imageLabels.push(repliedToImageLabel);
               imageUrls.push(imageUrl);
               foundImage = true;
             }
@@ -1191,7 +1279,7 @@ export async function buildAndGenerateReply({
                         .toBuffer();
                       const firstFrameDataUrl = `data:image/png;base64,${firstFrameBuffer.toString("base64")}`;
                       imageLabels.push(
-                        "Replied-to message image (embedded, first frame)",
+                        `${repliedToImageLabel} (embedded, first frame)`,
                       );
                       imageUrls.push(firstFrameDataUrl);
                       foundImage = true;
@@ -1208,7 +1296,7 @@ export async function buildAndGenerateReply({
                 }
 
                 if (!foundImage) {
-                  imageLabels.push("Replied-to message image (embedded)");
+                  imageLabels.push(`${repliedToImageLabel} (embedded)`);
                   imageUrls.push(embedImageUrl);
                   foundImage = true;
                 }
@@ -1233,14 +1321,19 @@ export async function buildAndGenerateReply({
         localMongo,
         "SMALL",
       );
+      // Key captions by URL so labels stay aligned with their images even
+      // when captioning fails or deduplicates entries (the map is keyed by
+      // content hash, so index-based pairing is unreliable).
+      for (const mapObject of imagesMap.values()) {
+        referenceCaptionsMap.set(mapObject.url, mapObject.caption);
+      }
       // Build [ATTACHED REFERENCE IMAGES] block with indexed descriptions
       edittedMessageCleanContent += `\n[ATTACHED REFERENCE IMAGES]`;
-      let index = 0;
-      for (const mapObject of imagesMap.values()) {
+      imageUrls.forEach((imageUrl: string, index: number) => {
         const label = imageLabels[index] || `Attachment ${index + 1}`;
-        edittedMessageCleanContent += `\n  ${index + 1}. ${label}: ${mapObject.caption}`;
-        index++;
-      }
+        const caption = referenceCaptionsMap.get(imageUrl);
+        edittedMessageCleanContent += `\n  ${index + 1}. ${label}${caption ? `: ${caption}` : ""}`;
+      });
     }
     // If it mentions a user with an avatar, use that avatar as the image
     // Track which user IDs have already had their avatar added to prevent
@@ -1473,11 +1566,16 @@ export async function buildAndGenerateReply({
         lastUserMsg.images.push(...imageUrls);
 
         // Add image index with descriptions so the agent knows which
-        // image is which and what it looks like
+        // image is which and what it looks like. Reference-image captions
+        // (attached/replied-to images, including the bot's own generated
+        // images) come from referenceCaptionsMap; avatar/banner captions
+        // come from captionsMap.
         if (imageLabels.length > 0) {
           const labelLines = imageLabels
             .map((label: string, i: number) => {
-              const caption = captionsMap?.get(imageUrls[i]);
+              const caption =
+                referenceCaptionsMap.get(imageUrls[i]) ||
+                captionsMap?.get(imageUrls[i]);
               return caption
                 ? `  ${i + 1}. ${label}: ${caption}`
                 : `  ${i + 1}. ${label}`;
@@ -1497,6 +1595,7 @@ export async function buildAndGenerateReply({
         generatedText: null,
         image: null,
         audioRef: null,
+        imagePrompt: null,
         promptForImagePromptGeneration: null,
       };
     }
@@ -1537,6 +1636,17 @@ export async function buildAndGenerateReply({
         // If only minioRef, we can still use it
         image = firstImage.minioRef;
       }
+
+      // Recover the generation prompt from the generate_image tool call so
+      // the Discord attachment carries a meaningful filename/description.
+      // Future context rebuilds read attachment.description first — without
+      // this, the bot's own images surface as "lupos.png" with no semantics.
+      // The /agent JSON response emits { name, args } tool calls (Prism
+      // SseUtilities), while the declared client type is OpenAI-style
+      // { function: { name, arguments } } — handle both shapes.
+      imagePrompt = extractGenerateImagePrompt(
+        agentResponse.toolCalls as unknown[] | undefined,
+      );
     }
 
     // Extract any generated audio from the agent response
@@ -1570,5 +1680,6 @@ export async function buildAndGenerateReply({
     generatedText,
     image,
     audioRef: audioRef ?? null,
+    imagePrompt,
   };
 }
