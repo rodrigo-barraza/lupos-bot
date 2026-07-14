@@ -1,13 +1,5 @@
 import TemporalHelpers from "#root/utilities/TemporalHelpers.js";
-import crypto from "crypto";
-import {
-  Collection,
-  ChannelType,
-  EmbedBuilder,
-  ActionRowBuilder,
-  ButtonBuilder,
-  ButtonStyle,
-} from "discord.js";
+import { Collection, ChannelType, EmbedBuilder } from "discord.js";
 import type {
   Message,
   Client,
@@ -32,11 +24,6 @@ import { pathToFileURL } from "node:url";
 
 import config from "#root/config.js";
 
-import {
-  rolesVideogames,
-  warcraftClasses,
-  warcraftFactions,
-} from "#root/arrays/roles.js";
 import channels from "#root/arrays/channels.js";
 
 import DiscordWrapper from "#root/wrappers/DiscordWrapper.js";
@@ -45,11 +32,7 @@ import MongoService from "#root/services/MongoService.js";
 import PrismService from "#root/services/PrismService.js";
 import DiscordUtilityService from "#root/services/DiscordUtilityService.js";
 import AIService from "#root/services/AIService.js";
-import type {
-  ChatMessage,
-  CaptionMapObject,
-  TranscriptionMapObject,
-} from "#root/services/AIService.js";
+import type { ChatMessage } from "#root/services/AIService.js";
 import CurrentService from "#root/services/CurrentService.js";
 
 import BirthdayJob from "#root/jobs/scheduled/BirthdayJob.js";
@@ -69,6 +52,26 @@ import DeletedMessageLogger from "#root/services/discord/DeletedMessageLogger.js
 import DiscordState from "#root/services/discord/DiscordState.js";
 import type { QueuedMessageData } from "#root/services/discord/DiscordState.js";
 import ButtonRouter from "#root/services/discord/ButtonRouter.js";
+import {
+  mightBeImageRequest,
+  findUntaggedNameMatches,
+  detectGroupReference,
+  hasSelfReferenceRegex,
+  detectSelfReferenceViaLLM,
+} from "#root/services/discord/ImageIntent.js";
+import {
+  extractContentFromMessages,
+  extractEmojisFromAllMessage,
+  splitEmojiNameAndId,
+} from "#root/services/discord/ConversationExtractor.js";
+import {
+  luposOnReadyDeleteNewAccounts,
+  luposOnReadyPurgeYoungAccounts,
+  revokeRoleFromAllMembers,
+} from "#root/services/discord/ModerationSweeps.js";
+// Importing RolePicker also registers its "pick-role-" button handler
+// with ButtonRouter at module load.
+import { generateRolesEmbedMessage } from "#root/services/discord/RolePicker.js";
 import BoundedMap from "#root/utilities/BoundedMap.js";
 import type { Command } from "#root/commands/types.js";
 import ReactionHighlights from "#root/services/discord/ReactionHighlights.js";
@@ -81,81 +84,16 @@ import {
   APRIL_FOOLS_MODE,
   EXPLOSION_GIFS,
   YOUTUBE_BUTTON_ACTIONS,
-  MILLISECONDS_PER_DAY,
   MONGO_DB_NAME,
 } from "#root/constants.js";
 import CensorService from "#root/services/CensorService.js";
 import {
   kickIfTooNew,
   kickIfForbiddenCombo,
-  purgeByAccountAge,
 } from "#root/services/AccountGuardService.js";
-
-/**
- * Fetch guild members with automatic retry on Gateway rate limits (opcode 8).
- * Discord.js throws GatewayRateLimitError when the gateway rejects the
- * REQUEST_GUILD_MEMBERS payload — this is NOT a REST error and won't be
- * caught by the REST rate-limit handler. We catch it here and wait the
- * advertised retry_after duration before retrying.
-
-
- */
-async function fetchMembersWithRetry(guild: Guild, maxRetries: number = 3) {
-  for (let attempt = 1; attempt <= maxRetries; attempt++) {
-    try {
-      return await guild.members.fetch();
-    } catch (error: unknown) {
-      const isGatewayRateLimit =
-        (error as Error & { data?: { retry_after?: number; opcode?: number } })
-          .constructor?.name === "GatewayRateLimitError" ||
-        ((error as Error & { data?: { retry_after?: number; opcode?: number } })
-          .data?.retry_after &&
-          (
-            error as Error & {
-              data?: { retry_after?: number; opcode?: number };
-            }
-          ).data?.opcode === 8);
-
-      if (isGatewayRateLimit && attempt < maxRetries) {
-        const waitMs =
-          Math.ceil(
-            ((
-              error as Error & {
-                data?: { retry_after?: number; opcode?: number };
-              }
-            ).data?.retry_after || 30) * 1000,
-          ) + 1000;
-        console.warn(
-          `⏳ [fetchMembersWithRetry] Gateway rate-limited (attempt ${attempt}/${maxRetries}). ` +
-            `Retrying in ${(waitMs / 1000).toFixed(1)}s...`,
-        );
-        await new Promise(
-          (resolve: (value: void | PromiseLike<void>) => void) =>
-            setTimeout(resolve, waitMs),
-        );
-      } else {
-        throw error;
-      }
-    }
-  }
-  throw new Error("fetchMembersWithRetry failed");
-}
 
 const args = process.argv.slice(2);
 const mode = args.find((arg: string) => arg.startsWith("mode="))?.split("=")[1];
-
-interface MessageProcessingData {
-  index: number;
-  recentMessage: Message;
-  member: GuildMember | null;
-  user: User;
-  isBot: boolean;
-  isLastMessage: boolean;
-  userMessageXofY: number;
-  sequentialUserMessages: number;
-  dateIdFormat: string;
-  repliedMessage?: Message;
-}
 
 /**
  * Resolve a userId into memberMentionsCollection or userMentionsCollection.
@@ -225,65 +163,6 @@ async function ensureMentionPopulated(
  */
 function resolveAvatarUrl(source: User | GuildMember) {
   return source?.displayAvatarURL?.({ extension: "png", size: 512 }) || null;
-}
-// function to split emoji name and id, example: <:monkaHmm:722280797025075271>
-async function splitEmojiNameAndId(emoji: string) {
-  const match = emoji.match(/<(a)?:(.+):(\d+)>/);
-  if (match) {
-    return {
-      animated: !!match[1],
-      name: match[2],
-      id: match[3],
-    };
-  }
-  return null;
-}
-
-async function extractEmojisFromAllMessage(
-  message: Message,
-  localMongo: import("mongodb").MongoClient,
-  type: string = "EMOJI",
-) {
-  // Returns a Collection of emojis with their captions
-  const messageEmojisCollection = new Collection<string, unknown>();
-  const messageEmojis =
-    (message as Message).content
-      .split(" ")
-      .filter((part: string) => /<(a)?:.+:\d+>/g.test(part)) || [];
-
-  if (messageEmojis.length > 0) {
-    // Prepare all emoji URLs and create a mapping
-    const emojiUrls: string[] = [];
-    const emojiMapping = new Map(); // Map URL to original emoji string
-
-    for (const emoji of messageEmojis) {
-      const parsedEmoji = emoji.replace(/[\n#]/g, "");
-      const parts = parsedEmoji.split(":");
-      const lastPart = parts[parts.length - 1] || "";
-      const emojiId = lastPart.slice(0, -1);
-      const emojiUrl = `https://cdn.discordapp.com/emojis/${emojiId}.png`;
-
-      emojiUrls.push(emojiUrl);
-      emojiMapping.set(emojiUrl, emoji);
-    }
-
-    // Caption all images at once
-    const { imagesMap } = await AIService.captionImages(
-      emojiUrls,
-      localMongo,
-      type,
-    );
-
-    // Map the results back to the original emojis
-    for (const [_hash, emojiData] of imagesMap) {
-      const originalEmoji = emojiMapping.get(emojiData.url);
-      if (originalEmoji) {
-        messageEmojisCollection.set(originalEmoji, emojiData);
-      }
-    }
-  }
-
-  return messageEmojisCollection;
 }
 
 async function generateDescription(
@@ -838,17 +717,13 @@ async function buildAndGenerateReply({
       (a: import("discord.js").Attachment) =>
         a.contentType?.startsWith("image/"),
     );
-    const mightBeImageRequest =
-      hasImageAttachments ||
-      /\b(draw|paint|sketch|illustrate|render|generate|create|make|design|depict|redraw|reimagine)\b.*\b(image|picture|painting|illustration|art|artwork|portrait|scene|drawing|me|us|everyone|him|her|them)\b/i.test(
-        messageText,
-      ) ||
-      /\b(draw|paint|sketch|illustrate|render|depict)\b/i.test(messageText);
+    const isLikelyImageRequest =
+      hasImageAttachments || mightBeImageRequest(messageText);
 
     // Detect untagged user names in image generation requests
     // e.g. "draw Rodrigo as a samurai" without @Rodrigo
     const untaggedMatchedUserIds = new Set<string>();
-    if (mightBeImageRequest) {
+    if (isLikelyImageRequest) {
       // Build list of known participants (exclude bot, already-mentioned users, and message author)
       // The author is excluded because "draw your X" shouldn't match the author's name.
       // If the author wants to draw themselves, they should use "draw me" or @mention themselves.
@@ -931,33 +806,10 @@ async function buildAndGenerateReply({
         // Deterministic name matching — word-boundary check against the pre-filtered list.
         // knownParticipants already only contains names that appear in the message text,
         // so this is a refinement pass using word boundaries to avoid false positives.
-        const messageTextForMatch = (
-          message.cleanContent ||
-          (message as Message).content ||
-          ""
-        ).toLowerCase();
-        const matchedIds: string[] = [];
-        for (const participant of knownParticipants) {
-          const names = [participant.username, participant.displayName]
-            .filter((n: string) => n && n.length >= 3)
-            .map((n: string) => n.toLowerCase());
-          for (const name of names) {
-            // Use word-boundary-aware check: the name must not be inside another word
-            const index = messageTextForMatch.indexOf(name);
-            if (index === -1) continue;
-            const charBefore = index > 0 ? messageTextForMatch[index - 1] : " ";
-            const charAfter =
-              index + name.length < messageTextForMatch.length
-                ? messageTextForMatch[index + name.length]
-                : " ";
-            const isBoundaryBefore = !/\w/.test(charBefore);
-            const isBoundaryAfter = !/\w/.test(charAfter);
-            if (isBoundaryBefore && isBoundaryAfter) {
-              matchedIds.push(participant.id);
-              break; // One match per participant is enough
-            }
-          }
-        }
+        const matchedIds = findUntaggedNameMatches(
+          message.cleanContent || (message as Message).content || "",
+          knownParticipants,
+        );
 
         for (const matchedId of matchedIds) {
           untaggedMatchedUserIds.add(matchedId);
@@ -983,47 +835,11 @@ async function buildAndGenerateReply({
     // Detect GROUP references (e.g. "draw the top 5 people here", "draw everyone")
     // Deterministic keyword/regex matching replaces the old AI classification call.
     // This handles mixed cases like "draw @Rodrigo surrounded by everyone" correctly.
-    if (mightBeImageRequest) {
+    if (isLikelyImageRequest) {
       // Only detect group refs when image generation is likely
-      const groupText = (
-        message.cleanContent ||
-        (message as Message).content ||
-        ""
-      ).toLowerCase();
-
-      // Check for "top N" pattern first (returns the specific number)
-      const topNMatch = groupText.match(/\btop\s+(\d+)\b/);
-      // Check for "the N of us" pattern
-      const nOfUsMatch = groupText.match(/\bthe\s+(\d+)\s+of\s+us\b/);
-      // Check for "everyone" / "all" / "everybody" / group slang
-      const isEveryoneRef =
-        /\b(everyone|everybody|every\s*one|all\s+of\s+us|everyone\s+else|the\s+boys|the\s+squad|the\s+gang|the\s+server|us\s+all)\b/i.test(
-          groupText,
-        ) ||
-        // "all the chatters", "the chatters", "all chatters", "all the people", "all participants", etc.
-        (/\b(all\s+(?:the\s+)?)?(?:chatters|people|participants|members|peeps|folks|homies)\b/i.test(
-          groupText,
-        ) &&
-          /\b(draw|paint|sketch|illustrate|render|depict|generate|create|make|design)\b/i.test(
-            groupText,
-          )) ||
-        // "the chat" as a standalone group reference (word boundary prevents matching "chatters" above)
-        /\bthe\s+chat\b/i.test(groupText) ||
-        // "all of them" / "all of these people"
-        /\ball\s+of\s+(them|these)\b/i.test(groupText) ||
-        // bare "draw all" / "draw all ..." where "all" is the group quantifier
-        /\b(draw|paint|sketch|illustrate|render|depict)\s+all\b/i.test(
-          groupText,
-        );
-
-      let groupCount = 0;
-      if (topNMatch) {
-        groupCount = parseInt(topNMatch[1], 10);
-      } else if (nOfUsMatch) {
-        groupCount = parseInt(nOfUsMatch[1], 10);
-      } else if (isEveryoneRef) {
-        groupCount = 99; // Capped downstream
-      }
+      const groupCount = detectGroupReference(
+        message.cleanContent || (message as Message).content || "",
+      );
 
       if (groupCount > 0) {
         console.log(
@@ -1086,32 +902,15 @@ async function buildAndGenerateReply({
     //   2. Lightweight LLM fallback for everything regex can't cover:
     //      other languages, indirect refs, creative phrasings, slang
     //      (~200ms Haiku call — negligible against the ~50s total flow)
-    if (mightBeImageRequest && !untaggedMatchedUserIds.has(message.author.id)) {
-      const selfText = (
-        message.cleanContent ||
-        (message as Message).content ||
-        ""
-      ).toLowerCase();
+    if (
+      isLikelyImageRequest &&
+      !untaggedMatchedUserIds.has(message.author.id)
+    ) {
+      const selfText =
+        message.cleanContent || (message as Message).content || "";
 
       // ── Tier 1: Fast-path regex (English) ──────────────────────
-      const hasSelfRefRegex =
-        // "draw me", "paint myself", "create me as...", etc.
-        /\b(draw|paint|sketch|illustrate|render|depict|generate|create|make|design|reimagine|redraw|turn|put|do)\b.*\b(me|myself)\b/i.test(
-          selfText,
-        ) ||
-        // "my profile picture", "my pfp", "my cool avatar", etc.
-        // Allows up to 3 intermediate words between "my" and the visual noun
-        /\b(my)\s+(?:\w+\s+){0,3}(portrait|face|avatar|picture|photo|image|drawing|painting|illustration|likeness|selfie|caricature|pfp|dp|pic|profile)\b/i.test(
-          selfText,
-        ) ||
-        // "how would I look as...", "what would I look like..."
-        /\b(how|what)\s+would\s+I\s+look\b/i.test(selfText) ||
-        // "a portrait/painting/picture of me"
-        /\b(portrait|painting|picture|photo|image|illustration|drawing|version|rendition|interpretation)\s+of\s+me\b/i.test(
-          selfText,
-        );
-
-      if (hasSelfRefRegex) {
+      if (hasSelfReferenceRegex(selfText)) {
         untaggedMatchedUserIds.add(message.author.id);
         console.log(
           `🪞 [DiscordService] Self-referential detected (regex fast-path) — adding author ${message.author.id} to image references`,
@@ -1120,42 +919,11 @@ async function buildAndGenerateReply({
         // ── Tier 2: LLM fallback (multilingual, indirect refs) ───
         // Only runs when regex didn't match but image request is likely.
         // Uses the fastest model (~200ms) with a simple yes/no classification.
-        try {
-          const classificationResult = await AIService.generateText({
-            systemPrompt: `You are a classifier. Determine if the user's message is asking for an image that involves THEMSELVES — their own appearance, their own profile picture, their own avatar, or any visual depiction of themselves.
-
-This includes:
-- Direct self-references in ANY language: "draw me", "dibújame", "dessine-moi", "画我", "나를 그려줘", "нарисуй меня", etc.
-- Possessive references to their own image: "my profile picture", "mi foto de perfil", "mein Profilbild", etc.
-- Indirect self-references: "how would I look as...", "turn my pic into...", "make that a renaissance version" (when referring to their own image)
-- Hypothetical self-references: "what would I look like as a knight"
-- Shorthand: "my pfp", "my dp", "my avi"
-
-Respond with ONLY "yes" or "no". Nothing else.`,
-            conversation: [
-              {
-                role: "user",
-                content:
-                  message.cleanContent || (message as Message).content || "",
-              },
-            ],
-            type: "ANTHROPIC",
-            model: config.ANTHROPIC_LANGUAGE_MODEL_FAST,
-            temperature: 0,
-            tokens: 4,
-          });
-
-          const isSelfRef =
-            classificationResult?.trim().toLowerCase() === "yes";
-          if (isSelfRef) {
-            untaggedMatchedUserIds.add(message.author.id);
-            console.log(
-              `🪞 [DiscordService] Self-referential detected (LLM fallback) — adding author ${message.author.id} to image references`,
-            );
-          }
-        } catch (classifyErr: unknown) {
-          console.warn(
-            `🪞 [DiscordService] Self-referential LLM classification failed: ${(classifyErr as Error).message}`,
+        const isSelfRef = await detectSelfReferenceViaLLM(selfText);
+        if (isSelfRef) {
+          untaggedMatchedUserIds.add(message.author.id);
+          console.log(
+            `🪞 [DiscordService] Self-referential detected (LLM fallback) — adding author ${message.author.id} to image references`,
           );
         }
       }
@@ -2188,945 +1956,6 @@ ${combinedGuildInformation && combinedChannelInformation ? `URL: ${utilities.get
   return;
 }
 
-async function generateUserConversationAndHash(
-  queuedDatum: {
-    message: import("discord.js").Message;
-    recentMessages: import("discord.js").Collection<
-      string,
-      import("discord.js").Message
-    >;
-    actionType?: string;
-  },
-  recentMessage: Message,
-  localMongo: import("mongodb").MongoClient,
-) {
-  // Create a hash of all the this specific user's recent messages
-  const { message, recentMessages } = queuedDatum;
-  const userMessages = recentMessages.filter(
-    (message: Message) =>
-      message.author.id === (recentMessage as Message).author.id,
-  );
-  const userMessagesAsText = userMessages
-    .map((message: Message) => (message as Message).content)
-    .join("\n\n");
-  const hash = crypto
-    .createHash("sha256")
-    .update(userMessagesAsText)
-    .digest("hex");
-  // Check if we already have a conversation for this hash
-  const db = localMongo.db(MONGO_DB_NAME);
-  const collection = db.collection("UserConversationSummaries");
-  const existingConversation = await collection.findOne({ hash });
-  if (existingConversation) {
-    return existingConversation.conversation;
-  }
-  // If not, generate a new conversation
-  const userName =
-    DiscordUtilityService.getNameFromItem(recentMessage) || "Unknown";
-  const cleanUserName = DiscordUtilityService.getCleanUsernameFromUser(
-    message.author,
-  );
-  const conversation = await AIService.generateTextFromUserConversation(
-    userName,
-    cleanUserName,
-    userMessagesAsText,
-  );
-  // Store the conversation and hash in the database
-  await collection.insertOne({
-    hash,
-    userId: message.author.id,
-    conversation,
-    createdAt: new Date(),
-  });
-  return conversation;
-}
-
-async function extractContentFromMessages(
-  queuedDatum: {
-    message: import("discord.js").Message;
-    recentMessages: import("discord.js").Collection<
-      string,
-      import("discord.js").Message
-    >;
-    actionType?: string;
-  },
-  localMongo: import("mongodb").MongoClient,
-  _maxSimultaneous: number = 50,
-) {
-  const functionName = "extractContentFromMessages";
-
-  const { message, recentMessages } = queuedDatum;
-
-  // All messages are kept as conversation context — bot messages, other users'
-  // messages, and the current message. The agent needs the full channel history
-  // to understand the ongoing discussion.
-  const filteredRecentMessages = recentMessages;
-
-  const totalMessages = filteredRecentMessages.size;
-
-  // Determine how many messages to process — deterministic keyword heuristic
-  // (no longer needs timing data or hourly breakdowns)
-  const messagesToFetch =
-    await AIService.generateTextDetermineHowManyMessagesToFetch(
-      (message as Message).content,
-      message,
-      "",
-    );
-
-  console.log(
-    `PROCESSING ${messagesToFetch} MESSAGES (out of ${totalMessages} available)`,
-  );
-
-  const recentXMessages = filteredRecentMessages.last(messagesToFetch);
-  const client = message.client;
-
-  // Initialize collections
-  const participantsCollection = new Collection<
-    string,
-    { user: User; member: GuildMember | null; time?: number }
-  >();
-  const participantsAvatarsCollection = new Collection<string, string | null>();
-  const participantsBannersCollection = new Collection<string, string | null>();
-  const participantsUsersCollection = new Collection<string, User>();
-  const participantsMembersCollection = new Collection<string, GuildMember>();
-  let memberMentionsCollection = new Collection<string, GuildMember>();
-  let userMentionsCollection = new Collection<string, User>();
-  const messagesImagesCollection = new Collection<
-    string,
-    DiscordCollection<string, { url: string; caption: string }>
-  >();
-  const messagesTranscriptionsCollection = new Collection<
-    string,
-    DiscordCollection<string, { transcription: string }>
-  >();
-  const messagesEmojisCollection = new Collection<string, unknown>();
-  const conversationsCollection = new Collection<string, unknown>();
-  const conversation: ChatMessage[] = [];
-  const newSystemPrompt = "";
-
-  // Prepare all async operations
-  const allPromises = {
-    conversations: [] as { userId: string; promise: Promise<unknown> }[],
-    emojis: [] as {
-      messageId: string;
-      promise: Promise<Collection<string, unknown>>;
-    }[],
-    audio: [] as {
-      message: Message;
-      promise: Promise<{
-        transcriptionsMap: Map<string, TranscriptionMapObject>;
-      }>;
-    }[],
-    images: [] as {
-      message: Message;
-      promise: Promise<{
-        images: string[];
-        imagesMap: Map<string, CaptionMapObject>;
-      }>;
-    }[],
-    replies: [] as {
-      messageId: string;
-      referenceId: string;
-      promise: Promise<Message | void | null>;
-    }[],
-  };
-
-  // First pass: collect all async operations
-  const messageProcessingData: MessageProcessingData[] = [];
-
-  if ((message as Message).guild) {
-    let index = 0;
-    const firstMessageDateTime = TemporalHelpers.fromMillis(
-      recentXMessages[0].createdTimestamp,
-    );
-    const lastMessageDateTime = TemporalHelpers.fromMillis(
-      recentXMessages[recentXMessages.length - 1].createdTimestamp,
-    );
-    let dateIdFormat = "yyMMddHHmmSSS";
-    if (
-      TemporalHelpers.hasSame(firstMessageDateTime, lastMessageDateTime, "hour")
-    ) {
-      dateIdFormat = "mSSS";
-    } else if (
-      TemporalHelpers.hasSame(firstMessageDateTime, lastMessageDateTime, "day")
-    ) {
-      dateIdFormat = "HmmSSS";
-    } else if (
-      TemporalHelpers.hasSame(
-        firstMessageDateTime,
-        lastMessageDateTime,
-        "month",
-      )
-    ) {
-      dateIdFormat = "dHHmmSSS";
-    } else if (
-      TemporalHelpers.hasSame(firstMessageDateTime, lastMessageDateTime, "year")
-    ) {
-      dateIdFormat = "MddHHmmSSS";
-    }
-
-    // Pre-calculate message sequences
-    const messageSequenceInfo = new Map();
-    let currentSequenceAuthor = null;
-    let _currentSequenceStart = -1;
-    let currentSequenceMessages: number[] = [];
-
-    for (let i = 0; i < recentXMessages.length; i++) {
-      const message = recentXMessages[i];
-      const isBot = message.author.id === client.user!.id;
-
-      if (isBot) {
-        // If we had a sequence going, finalize it
-        if (currentSequenceMessages.length > 0) {
-          const total = currentSequenceMessages.length;
-          for (const [
-            position,
-            msgIndex,
-          ] of currentSequenceMessages.entries()) {
-            messageSequenceInfo.set(msgIndex, {
-              xOfY: position + 1,
-              total: total,
-            });
-          }
-        }
-        // Reset for bot message
-        currentSequenceAuthor = null;
-        _currentSequenceStart = -1;
-        currentSequenceMessages = [];
-        // Bot messages don't get sequence info
-        messageSequenceInfo.set(i, { xOfY: 0, total: 0 });
-      } else {
-        // User message
-        if (message.author.id !== currentSequenceAuthor) {
-          // New author - finalize previous sequence if exists
-          if (currentSequenceMessages.length > 0) {
-            const total = currentSequenceMessages.length;
-            for (const [
-              position,
-              msgIndex,
-            ] of currentSequenceMessages.entries()) {
-              messageSequenceInfo.set(msgIndex, {
-                xOfY: position + 1,
-                total: total,
-              });
-            }
-          }
-          // Start new sequence
-          currentSequenceAuthor = message.author.id;
-          _currentSequenceStart = i;
-          currentSequenceMessages = [i];
-        } else {
-          // Same author - continue sequence
-          currentSequenceMessages.push(i);
-        }
-      }
-    }
-
-    // Finalize the last sequence if it exists
-    if (currentSequenceMessages.length > 0) {
-      const total = currentSequenceMessages.length;
-      for (const [position, msgIndex] of currentSequenceMessages.entries()) {
-        messageSequenceInfo.set(msgIndex, {
-          xOfY: position + 1,
-          total: total,
-        });
-      }
-    }
-
-    // Now process messages with the correct counts
-    for (const recentMessage of recentXMessages) {
-      const member = recentMessage.member;
-      const user = (recentMessage as Message).author;
-
-      if (!user || !user.id) {
-        console.warn(
-          `❌ [DiscordService:getParticipants] User is null or missing ID in message: ${recentMessage.id}`,
-        );
-        index++;
-        continue;
-      }
-
-      const isBot = user.id === client.user!.id;
-      const isLastMessage = index === recentXMessages.length - 1;
-
-      // Get the sequence info for this message
-      const sequenceInfo = messageSequenceInfo.get(index) || {
-        xOfY: 0,
-        total: 0,
-      };
-      const userMessageXofY = sequenceInfo.xOfY;
-      const sequentialUserMessages = sequenceInfo.total;
-
-      const messageData: MessageProcessingData = {
-        index,
-        recentMessage,
-        member: member ?? null,
-        user,
-        isBot,
-        isLastMessage,
-        userMessageXofY,
-        sequentialUserMessages,
-        dateIdFormat,
-      };
-
-      if (isBot) {
-        // Process bot messages synchronously as they don't need API calls
-        messageProcessingData.push(messageData);
-      } else {
-        // Collect user data
-        const userExists = participantsCollection.get(user.id);
-        if (!userExists) {
-          participantsCollection.set(user.id, { user, member });
-
-          // Queue conversation generation
-          allPromises.conversations.push({
-            userId: user.id,
-            promise: generateUserConversationAndHash(
-              queuedDatum,
-              recentMessage,
-              localMongo,
-            ),
-          });
-
-          // Store avatar/banner URLs — the agent calls describe_image on-demand
-          // instead of pre-captioning every avatar on every message.
-          let avatarUrl: string | null = null,
-            bannerUrl: string | null = null;
-          if (user) {
-            avatarUrl = user.avatar
-              ? utilities.getDiscordAvatarUrl(user.id, user.avatar)
-              : null;
-            bannerUrl = user.banner
-              ? utilities.getDiscordBannerUrl(user.id, user.banner)
-              : null;
-          }
-          if (member) {
-            if (member.avatar) {
-              avatarUrl = utilities.getDiscordAvatarUrl(
-                member.id,
-                member.avatar,
-              );
-            }
-            if (member.banner) {
-              bannerUrl = utilities.getDiscordBannerUrl(
-                member.id,
-                member.banner,
-              );
-            }
-          }
-
-          if (avatarUrl) {
-            participantsAvatarsCollection.set(user.id, avatarUrl);
-          }
-          if (bannerUrl) {
-            participantsBannersCollection.set(user.id, bannerUrl);
-          }
-        } else if (
-          userExists.time !== undefined &&
-          userExists.time < recentMessage.createdTimestamp
-        ) {
-          userExists.time = recentMessage.createdTimestamp;
-        }
-
-        // Queue emoji extraction
-        allPromises.emojis.push({
-          messageId: recentMessage.id,
-          promise: extractEmojisFromAllMessage(recentMessage, localMongo),
-        });
-
-        // Queue audio transcription
-        const audioUrls =
-          await DiscordUtilityService.extractAudioUrlsFromMessage(
-            recentMessage,
-          );
-        if (audioUrls?.length) {
-          allPromises.audio.push({
-            message: recentMessage,
-            promise: AIService.transcribeAudioUrls(
-              audioUrls,
-              recentMessage.id,
-              localMongo,
-            ),
-          });
-        }
-
-        // Queue image captioning
-        const imageUrls =
-          await DiscordUtilityService.extractImageUrlsFromMessage(
-            recentMessage,
-          );
-        if (imageUrls.length) {
-          allPromises.images.push({
-            message: recentMessage,
-            promise: AIService.captionImages(imageUrls, localMongo, "IMAGE"),
-          });
-        }
-
-        // Queue reply fetching
-        if (recentMessage.reference?.messageId) {
-          const channel = recentMessage.channel || (message as Message).channel;
-          const repliedMessage = channel?.messages.cache.get(
-            recentMessage.reference.messageId,
-          );
-          if (!repliedMessage) {
-            allPromises.replies.push({
-              messageId: recentMessage.id,
-              referenceId: recentMessage.reference!.messageId,
-              promise: channel?.messages
-                .fetch(recentMessage.reference!.messageId as string)
-                .catch((error: Error) => {
-                  console.log(
-                    `Could not fetch replied message ${recentMessage.reference?.messageId}:`,
-                    error.message,
-                  );
-                  return null;
-                }),
-            });
-          } else {
-            messageData.repliedMessage = repliedMessage;
-          }
-        }
-
-        // Store participants
-        participantsUsersCollection.set(user.id, user);
-        if (member) {
-          participantsMembersCollection.set(member.id, member);
-        }
-
-        // Store mentions
-        const userMentions = recentMessage.mentions.users;
-        const memberMentions = recentMessage.mentions.members;
-        if (userMentions?.size) {
-          userMentionsCollection = new Collection([
-            ...userMentionsCollection,
-            ...userMentions,
-          ]);
-        }
-        if (memberMentions?.size) {
-          memberMentionsCollection = new Collection([
-            ...memberMentionsCollection,
-            ...memberMentions,
-          ]);
-        }
-
-        messageProcessingData.push(messageData);
-      }
-
-      index++;
-    }
-
-    // Rest of your code remains the same...
-    // Execute all promises in parallel
-    const results = await Promise.allSettled([
-      ...allPromises.conversations.map(
-        (item: { userId: string; promise: Promise<unknown> }) => item.promise,
-      ),
-      ...allPromises.emojis.map(
-        (item: {
-          messageId: string;
-          promise: Promise<Collection<string, unknown>>;
-        }) => item.promise,
-      ),
-      ...allPromises.audio.map(
-        (item: {
-          message: Message;
-          promise: Promise<{
-            transcriptionsMap: Map<string, TranscriptionMapObject>;
-          }>;
-        }) => item.promise,
-      ),
-      ...allPromises.images.map(
-        (item: {
-          message: Message;
-          promise: Promise<{
-            images: string[];
-            imagesMap: Map<string, CaptionMapObject>;
-          }>;
-        }) => item.promise,
-      ),
-      ...allPromises.replies.map(
-        (item: {
-          messageId: string;
-          referenceId: string;
-          promise: Promise<Message | void | null>;
-        }) => item.promise,
-      ),
-    ]);
-
-    // Process results
-    let resultIndex = 0;
-
-    // Process conversations
-    for (const item of allPromises.conversations) {
-      const result = results[resultIndex++];
-      if (result.status === "fulfilled") {
-        conversationsCollection.set(
-          item.userId,
-          (result as PromiseFulfilledResult<unknown>).value,
-        );
-      }
-    }
-
-    // Process emojis
-    for (const _item of allPromises.emojis) {
-      const result = results[resultIndex++] as PromiseSettledResult<
-        Collection<string, unknown>
-      >;
-      if (result.status === "fulfilled" && result.value?.size) {
-        for (const [emoji, emojiObject] of result.value.entries()) {
-          messagesEmojisCollection.set(emoji, emojiObject);
-        }
-      }
-    }
-
-    // Process audio
-    for (const item of allPromises.audio) {
-      const result = results[resultIndex++] as PromiseSettledResult<{
-        transcriptionsMap: Map<string, TranscriptionMapObject>;
-      }>;
-      if (result.status === "fulfilled") {
-        const { transcriptionsMap } = result.value;
-        messagesTranscriptionsCollection.set(
-          item.message.id,
-          new Collection(transcriptionsMap),
-        );
-        for (const [hash, transcriptionObject] of transcriptionsMap.entries()) {
-          console.log(
-            ...LogFormatter.transcribeSuccess({
-              functionName,
-              message: item.message,
-              audioUrl: transcriptionObject.url,
-              transcription: transcriptionObject.transcription,
-              cached: transcriptionObject.cached,
-            }),
-          );
-        }
-      }
-    }
-
-    // Process images
-    for (const item of allPromises.images) {
-      const result = results[resultIndex++] as PromiseSettledResult<{
-        images: string[];
-        imagesMap: Map<string, CaptionMapObject>;
-      }>;
-      if (result.status === "fulfilled") {
-        const { imagesMap } = result.value;
-        messagesImagesCollection.set(
-          item.message.id,
-          new Collection(imagesMap),
-        );
-        for (const [hash, mapObject] of imagesMap.entries()) {
-          console.log(
-            ...LogFormatter.captionSuccess({
-              functionName,
-              hash,
-              message: item.message,
-              imageUrl: mapObject.url,
-              caption: mapObject.caption,
-              cached: mapObject.cached,
-            }),
-          );
-        }
-      }
-    }
-
-    // Process replies
-    const repliesMap: Record<string, Message> = {};
-    for (const item of allPromises.replies) {
-      const result = results[resultIndex++];
-      if (result.status === "fulfilled" && result.value) {
-        repliesMap[item.messageId] = result.value as Message;
-      }
-    }
-
-    // Build conversation with all collected data
-    for (const messageData of messageProcessingData) {
-      const {
-        recentMessage,
-        isBot,
-        isLastMessage,
-        userMessageXofY,
-        sequentialUserMessages,
-        dateIdFormat,
-      } = messageData;
-
-      if (isBot) {
-        let imageDescription: string | null = null,
-          imageSize: number = 0,
-          imageWidth: number = 0,
-          imageHeight: number = 0;
-        let attachmentContext: string | null = null;
-
-        // Bot has attached an image to this message
-        if (recentMessage?.attachments?.size > 0) {
-          const imageAttached = recentMessage.attachments.find(
-            (attachment: import("discord.js").Attachment) =>
-              attachment.contentType &&
-              attachment.contentType.includes("image"),
-          );
-          if (imageAttached) {
-            if (imageAttached.description) {
-              imageDescription = imageAttached.description;
-            } else if (imageAttached.title) {
-              imageDescription = imageAttached.title;
-            } else {
-              imageDescription = imageAttached.name.replace(/[_-]/g, " ");
-            }
-
-            if (imageAttached.size) {
-              imageSize = imageAttached.size / 1024 / 1024;
-            }
-
-            if (imageAttached.width && imageAttached.height) {
-              imageWidth = imageAttached.width;
-              imageHeight = imageAttached.height;
-            }
-          }
-        }
-
-        // Append reactions to content
-        let reactionsContent = "";
-        if (recentMessage.reactions?.cache?.size > 0) {
-          reactionsContent = `\n[REACTIONS]\n${utilities.formatReactions(recentMessage.reactions.cache, "list")}`;
-        }
-
-        let _replyContent = "";
-        // Append reply context
-        if (recentMessage.reference) {
-          _replyContent = `\n[REPLYING TO]`;
-          const _repliedMessage =
-            messageData.repliedMessage || repliesMap[recentMessage.id];
-        }
-
-        // If recentMessage has embeds, add them to the content
-        let newContent = "";
-        if (recentMessage.embeds?.length > 0) {
-          for (const embed of recentMessage.embeds) {
-            newContent += `\n\n[MESSAGE EMBED]`;
-            if (embed.title) {
-              newContent += `\nTitle: ${embed.title}`;
-            }
-            if (embed.description) {
-              newContent += `\nDescription: ${embed.description}`;
-            }
-            if (embed.fields?.length > 0) {
-              for (const field of embed.fields) {
-                newContent += `\n${field.name}: ${field.value}`;
-              }
-            }
-            if (embed.footer) {
-              newContent += `\nFooter: ${embed.footer.text}`;
-            }
-            if (embed.url) {
-              newContent += `\nURL: ${embed.url}`;
-            }
-          }
-        } else {
-          newContent = recentMessage.content;
-        }
-
-        conversation.push({
-          role: "assistant",
-          name: DiscordUtilityService.getUsernameNoSpaces(recentMessage),
-          content: newContent,
-        });
-
-        if (imageDescription || reactionsContent) {
-          attachmentContext = `=== YOUR MESSAGE CONTEXT ===`;
-          attachmentContext += `\nThis is additional context for your message above. Do not respond to this context directly, but use it as information to enhance your understanding of the situation.`;
-          if (imageDescription) {
-            attachmentContext += `\n[IMAGE ATTACHED]`;
-            attachmentContext += `\nDimensions: ${imageWidth}x${imageHeight}`;
-            attachmentContext += `\nFile size: ${imageSize.toFixed(2)} MB`;
-            attachmentContext += `\nImage description: ${imageDescription}`;
-          }
-          if (reactionsContent) {
-            attachmentContext += `\n[REACTIONS]`;
-            attachmentContext += reactionsContent;
-          }
-
-          conversation.push({
-            role: "user",
-            name: DiscordUtilityService.getUsernameNoSpaces(recentMessage),
-            content: attachmentContext,
-          });
-        }
-      } else {
-        // Build user message content with all collected data
-        const recentMessageDateTime = TemporalHelpers.fromMillis(
-          recentMessage.createdTimestamp,
-        );
-        const messageId = TemporalHelpers.toDateId(
-          recentMessageDateTime,
-          dateIdFormat,
-        );
-        const combinedNames = utilities.getCombinedNamesFromUserOrMember({
-          member: recentMessage.member,
-        });
-        let modifiedContent = `=== MESSAGE ${userMessageXofY} of ${sequentialUserMessages} ${userMessageXofY === sequentialUserMessages && isLastMessage ? "(MOST RECENT)" : ""} ===`;
-        modifiedContent += `\n[METADATA]`;
-        modifiedContent += `\nFrom: ${combinedNames}`;
-        modifiedContent += `\nMessage ID: ${messageId}`;
-
-        // Add reply information
-        const repliedMessage: Message | undefined =
-          messageData.repliedMessage ||
-          (repliesMap[recentMessage.id] as Message | undefined);
-        if (recentMessage.reference?.messageId) {
-          modifiedContent += `\n\n[REPLYING TO]`;
-          if (!repliedMessage) {
-            modifiedContent += `\nAuthor: Unknown (DELETED MESSAGE)`;
-            modifiedContent += `\nMessage ID: ${recentMessage.reference.messageId}`;
-          } else {
-            const repliedMessageDateTime = TemporalHelpers.fromMillis(
-              repliedMessage.createdTimestamp,
-            );
-            const replyMessageId = TemporalHelpers.toDateId(
-              repliedMessageDateTime,
-              dateIdFormat,
-            );
-            const combinedRepliedNames =
-              utilities.getCombinedNamesFromUserOrMember({
-                member: repliedMessage.member,
-              });
-            modifiedContent += `\nAuthor: ${combinedRepliedNames}`;
-            modifiedContent += `\nTime: ${TemporalHelpers.format(repliedMessageDateTime, "LLLL dd, yyyy 'at' hh:mm:ss a")} (${TemporalHelpers.toRelative(repliedMessageDateTime)})`;
-            modifiedContent += `\nMessage ID: ${replyMessageId}`;
-
-            if (repliedMessage.cleanContent) {
-              modifiedContent += `\nType: Text Message`;
-              modifiedContent += `\nContent:`;
-              modifiedContent += `\n<message_content>`;
-              modifiedContent += `\n${repliedMessage.content}`;
-              modifiedContent += `\n</message_content>`;
-            }
-
-            const repliedAttachmentResult = await generateAttachmentsResponse(
-              repliedMessage,
-              messagesTranscriptionsCollection,
-              messagesImagesCollection,
-              repliedMessage,
-              modifiedContent,
-              localMongo,
-            );
-            modifiedContent = repliedAttachmentResult.modifiedContent;
-            // Reply image URLs will be collected but not attached separately
-            // — they belong to context, not the current message
-
-            modifiedContent += await generateEmojiResponse(
-              repliedMessage,
-              true,
-            );
-          }
-        }
-
-        modifiedContent += `\n\n[CURRENT MESSAGE]`;
-        if (recentMessage.content) {
-          modifiedContent += `\nType: Text Message`;
-          modifiedContent += `\nContent:`;
-          modifiedContent += `\n<message_content>`;
-          modifiedContent += `\n${recentMessage.content}`;
-          modifiedContent += `\n</message_content>`;
-        }
-
-        const attachmentResult = await generateAttachmentsResponse(
-          recentMessage,
-          messagesTranscriptionsCollection,
-          messagesImagesCollection,
-          recentMessage,
-          modifiedContent,
-          localMongo,
-        );
-        modifiedContent = attachmentResult.modifiedContent;
-
-        // Add reactions
-        const isCurrentMessage = recentMessage.id !== (message as Message).id;
-        if (recentMessage.reactions?.cache?.size > 0 && !isCurrentMessage) {
-          modifiedContent += `\nNumber of reactions in this message: ${recentMessage.reactions.cache.size}`;
-          modifiedContent += `\nReaction list: ${utilities.formatReactions(recentMessage.reactions.cache, "inline")}`;
-        }
-
-        const msgEntry: ChatMessage = {
-          role: "user",
-          name: DiscordUtilityService.getUsernameNoSpaces(recentMessage),
-          content: modifiedContent,
-        };
-        // Attach image URLs to this specific message for multimodal vision
-        if (attachmentResult.messageImageUrls.length > 0) {
-          msgEntry.images = attachmentResult.messageImageUrls;
-        }
-        conversation.push(msgEntry);
-      }
-    }
-  }
-
-  // Clean up collections
-  userMentionsCollection = userMentionsCollection.filter(
-    (user: User) => !memberMentionsCollection.has(user.id),
-  );
-  memberMentionsCollection.delete(client.user!.id);
-
-  return {
-    conversation,
-    conversationsCollection,
-    memberMentionsCollection,
-    messagesEmojisCollection,
-    messagesImagesCollection,
-    messagesTranscriptionsCollection,
-    newSystemPrompt,
-    participantsAvatarsCollection,
-    participantsBannersCollection,
-    participantsCollection,
-    participantsMembersCollection,
-    participantsUsersCollection,
-    userMentionsCollection,
-  };
-}
-
-async function generateRolesEmbedMessage(client: Client) {
-  // get the original message and edit it to show the new role count on the button
-  // re-render the buttons with the new role count
-  const guildId = config.GUILD_ID_PRIMARY;
-  if (!guildId) return;
-  const guild = client.guilds.cache.get(guildId);
-  if (!guild) return;
-  const roles = guild.roles.cache
-    .sort(
-      (a: import("discord.js").Role, b: import("discord.js").Role) =>
-        a.rawPosition - b.rawPosition,
-    )
-    .reverse();
-
-  /**
-   * Build a role-picker embed + button rows for a given role source array.
-
-
-   */
-  function buildRolePickerSection(
-    title: string,
-    description: string,
-    sourceArray: { id: string; emojiId?: string }[],
-    options: Record<string, unknown> = {},
-  ) {
-    const maxButtonsPerRow = 5;
-    const embed = new EmbedBuilder()
-      .setTitle(title)
-      .setDescription(description)
-      .setColor("#00FF00");
-
-    let filtered = roles.filter((role: import("discord.js").Role) =>
-      sourceArray.some((src: { id: string }) => src.id === role.id),
-    );
-    if (options.sort) {
-      filtered = filtered.sort(
-        (a: import("discord.js").Role, b: import("discord.js").Role) =>
-          a.name.localeCompare(b.name),
-      );
-    }
-    const rolesArray = filtered.map((role: import("discord.js").Role) => role);
-
-    const rows: import("discord.js").ActionRowBuilder<
-      import("discord.js").ButtonBuilder
-    >[] = [];
-    for (let i = 0; i < rolesArray.length; i += maxButtonsPerRow) {
-      const row = new ActionRowBuilder<import("discord.js").ButtonBuilder>();
-      const currentRoles = rolesArray.slice(i, i + maxButtonsPerRow);
-      for (const role of currentRoles) {
-        const emoji =
-          sourceArray.find((src: { id: string }) => src.id === role.id)
-            ?.emojiId || null;
-        const button = new ButtonBuilder()
-          .setLabel(`${role.name} (${role.members.size})`)
-          .setStyle(ButtonStyle.Secondary)
-          .setCustomId(`pick-role-${role.id}`);
-        if (emoji) button.setEmoji(emoji);
-        row.addComponents(button);
-      }
-      rows.push(row);
-    }
-    return { embed, rows };
-  }
-
-  const classes = buildRolePickerSection(
-    "Pick Your WoW Classes",
-    "Which classes do you play as?",
-    warcraftClasses,
-  );
-  const factions = buildRolePickerSection(
-    "Pick Your WoW Faction",
-    "Which faction do you play as?",
-    warcraftFactions,
-  );
-  const videogames = buildRolePickerSection(
-    "Pick Your Videogames",
-    "Which videogames do you play?",
-    rolesVideogames,
-    { sort: true },
-  );
-
-  // if the channel is empty, create a new message
-  const channelId = config.CHANNEL_ID_SELF_ROLES;
-  if (!channelId) return;
-  const channel = DiscordUtilityService.getChannelById(
-    client,
-    channelId,
-  ) as TextChannel | null;
-  if (!channel) {
-    return;
-  }
-  const messagesCacheSize =
-    channel.messages.cache.size ||
-    (await channel.messages
-      .fetch({ limit: 10 })
-      .then((messages: DiscordCollection<string, Message>) => messages.size));
-  // if the channel is empty, post message, otherwise edit the first message
-  if (messagesCacheSize === 0) {
-    await channel.send({ embeds: [factions.embed], components: factions.rows });
-    await channel.send({ embeds: [classes.embed], components: classes.rows });
-    await channel.send({
-      embeds: [videogames.embed],
-      components: videogames.rows,
-    });
-
-    const guildMastersEmbed = new EmbedBuilder()
-      .setTitle("Guild Masters / Officers")
-      .setDescription(
-        `If you would like access to post in our guild recruitment channel and other guild leadership channels, please post on the <#966457267417411614> channel:
-
-- Include a screenshot of your guild tab showing you as GM or officer, as well as the name and faction of the guild.
-- Put your guild tag in your Discord nickname <Like This>.
-            `,
-      )
-      .setColor("#00FF00");
-
-    await channel.send({ embeds: [guildMastersEmbed] });
-
-    return;
-  } else {
-    const allMessages = await channel.messages.fetch({ limit: 20 });
-    const message1 = allMessages.at(allMessages.size - 1);
-    const message2 = allMessages.at(allMessages.size - 2);
-    const message3 = allMessages.at(allMessages.size - 3);
-    if (message1)
-      await message1.edit({
-        embeds: [factions.embed],
-        components: factions.rows,
-      });
-    if (message2)
-      await message2.edit({
-        embeds: [classes.embed],
-        components: classes.rows,
-      });
-    if (message3)
-      await message3.edit({
-        embeds: [videogames.embed],
-        components: videogames.rows,
-      });
-    return;
-  }
-}
-
 async function luposOnReady(
   client: Client,
   { mongo }: { mongo: import("mongodb").MongoClient },
@@ -3437,122 +2266,6 @@ async function luposOnReadyDeleteDuplicateMessages(
   { localMongo }: { localMongo: import("mongodb").MongoClient },
 ) {
   await DiscordUtilityService.deleteDuplicateMessagesByID(localMongo);
-}
-
-async function luposOnReadyDeleteNewAccounts(client: Client) {
-  const functionName = "luposOnReadyDeleteNewAccounts";
-  const guild = client.guilds.cache.get(config.GUILD_ID_PRIMARY as string);
-  if (!guild) {
-    console.error(`[${functionName}] Primary guild not found`);
-    return;
-  }
-
-  console.log(`[${functionName}] Fetching all members...`);
-  const members = await fetchMembersWithRetry(guild);
-  let kickedAge = 0;
-  let kickedCombo = 0;
-
-  for (const [, member] of members) {
-    const wasTooNew = await kickIfTooNew(member, functionName);
-    if (wasTooNew) {
-      kickedAge++;
-      continue;
-    }
-    const wasForbidden = await kickIfForbiddenCombo(member, functionName);
-    if (wasForbidden) kickedCombo++;
-  }
-
-  console.log(
-    `[${functionName}] Done. Kicked — age: ${kickedAge}, forbidden combo: ${kickedCombo}`,
-  );
-}
-
-/**
- * One-off purge: kick all members with accounts < 2 months old
- * in a specific guild.
- */
-const TWO_MONTHS_MS = 60 * MILLISECONDS_PER_DAY;
-const PURGE_TARGET_GUILD_ID = "609471635308937237";
-const REVOKE_ROLE_ID = "1353101921681936456";
-
-async function luposOnReadyPurgeYoungAccounts(client: Client) {
-  const functionName = "luposOnReadyPurgeYoungAccounts";
-  const guild = client.guilds.cache.get(PURGE_TARGET_GUILD_ID);
-  if (!guild) {
-    console.error(
-      `[${functionName}] Guild ${PURGE_TARGET_GUILD_ID} not found in cache`,
-    );
-    return;
-  }
-
-  await purgeByAccountAge(guild, TWO_MONTHS_MS, {
-    dryRun: true,
-    callerName: functionName,
-  });
-}
-
-/**
- * Bulk role revocation — strips a specific role from every member who has it
- * in the target guild. Runs once on bot startup to clean up stale roles.
- */
-async function revokeRoleFromAllMembers(client: Client) {
-  const functionName = "revokeRoleFromAllMembers";
-  const guild = client.guilds.cache.get(PURGE_TARGET_GUILD_ID);
-  if (!guild) {
-    console.error(
-      `[${functionName}] Guild ${PURGE_TARGET_GUILD_ID} not found in cache`,
-    );
-    return;
-  }
-
-  const role = guild.roles.cache.get(REVOKE_ROLE_ID);
-  if (!role) {
-    console.error(
-      `[${functionName}] Role ${REVOKE_ROLE_ID} not found in guild ${guild.name}`,
-    );
-    return;
-  }
-
-  console.log(
-    `[${functionName}] Fetching members with role "${role.name}" (${REVOKE_ROLE_ID})...`,
-  );
-  const members = await fetchMembersWithRetry(guild);
-  const membersWithRole = members.filter(
-    (m: import("discord.js").GuildMember) => m.roles.cache.has(REVOKE_ROLE_ID),
-  );
-
-  if (membersWithRole.size === 0) {
-    console.log(
-      `[${functionName}] No members found with role "${role.name}" — nothing to do.`,
-    );
-    return;
-  }
-
-  console.log(
-    `[${functionName}] Revoking role "${role.name}" from ${membersWithRole.size} member(s)...`,
-  );
-  let revoked = 0;
-  let failed = 0;
-
-  for (const [, member] of membersWithRole) {
-    try {
-      await member.roles.remove(
-        REVOKE_ROLE_ID,
-        `[${functionName}] Startup bulk role revocation`,
-      );
-      revoked++;
-      console.log(
-        `[${functionName}] ✅ Removed role from ${member.user.tag} (${member.id})`,
-      );
-    } catch (error: unknown) {
-      failed++;
-      console.error(
-        `[${functionName}] ❌ Failed to remove role from ${member.user.tag} (${member.id}): ${(error as Error).message}`,
-      );
-    }
-  }
-
-  console.log(`[${functionName}] Done. Revoked: ${revoked}, Failed: ${failed}`);
 }
 
 /**
@@ -4090,74 +2803,6 @@ async function luposOnGuildMemberUpdate(
 
 // ─── Button handlers (registered with ButtonRouter below) ───────
 
-async function handleRolePickerButton(
-  client: Client,
-  interaction: import("discord.js").ButtonInteraction,
-) {
-  const functionName = "handleRolePickerButton";
-  if (!interaction.guild || !interaction.member) return;
-  const roleId = interaction.customId.split("pick-role-")[1];
-  const role = interaction.guild.roles.cache.get(roleId);
-  const member = interaction.member as GuildMember;
-  if (!role) {
-    console.error(
-      ...LogFormatter.roleNotFound(functionName, interaction, roleId),
-    );
-    return;
-  }
-  if (member.roles.cache.has(roleId)) {
-    console.log(
-      ...LogFormatter.roleSelfRemoved(functionName, interaction, role),
-    );
-    await interaction.reply({
-      content: `Removing <@&${roleId}>...`,
-      ephemeral: true,
-    });
-    await DiscordUtilityService.removeRoleFromMember(member, roleId);
-    await interaction.editReply({
-      content: `Removed <@&${roleId}>!`,
-    });
-    // wait 5 seconds before deleting the reply
-    await new Promise((resolve: (value: void | PromiseLike<void>) => void) =>
-      setTimeout(resolve, 5000),
-    );
-    await interaction.deleteReply().catch(() => {
-      /* user dismissed the ephemeral */
-    });
-    await generateRolesEmbedMessage(client);
-  } else {
-    console.log(...LogFormatter.roleSelfAdded(functionName, interaction, role));
-    await interaction.reply({
-      content: `Adding <@&${roleId}>...`,
-      ephemeral: true,
-    });
-    await DiscordUtilityService.addRoleToMember(member, roleId);
-
-    // Re-fetch member so role cache reflects the newly added role
-    const freshMember = await interaction.guild!.members.fetch(member.id);
-    const wasKicked = await kickIfForbiddenCombo(freshMember, functionName);
-    if (wasKicked) {
-      await interaction.editReply({
-        content:
-          "Forbidden role combination detected. You have been removed from the server.",
-      });
-      return;
-    }
-
-    await interaction.editReply({
-      content: `Added <@&${roleId}>!`,
-    });
-    // wait 5 seconds before deleting the reply
-    await new Promise((resolve: (value: void | PromiseLike<void>) => void) =>
-      setTimeout(resolve, 5000),
-    );
-    await interaction.deleteReply().catch(() => {
-      /* user dismissed the ephemeral */
-    });
-    await generateRolesEmbedMessage(client);
-  }
-}
-
 async function handleYouTubeButton(
   _client: Client,
   interaction: import("discord.js").ButtonInteraction,
@@ -4174,7 +2819,6 @@ async function handleYouTubeButton(
   await reply.delete();
 }
 
-ButtonRouter.register("pick-role-", handleRolePickerButton);
 for (const youtubeButtonId of Object.keys(YOUTUBE_BUTTON_ACTIONS)) {
   ButtonRouter.register(youtubeButtonId, handleYouTubeButton);
 }
@@ -4360,105 +3004,6 @@ async function consoleLogAllGuilds(client: Client) {
     client,
   ) as unknown as DiscordCollection<string, Guild>;
   console.log(...LogFormatter.displayAllGuilds(guilds));
-}
-
-async function generateStickerResponse(
-  message: Message,
-  localMongo: import("mongodb").MongoClient,
-) {
-  // if sticker
-  let content = "";
-  if (message.stickers.size === 1) {
-    const sticker = message.stickers.first();
-    if (!sticker) return "";
-    const url = sticker.url;
-    const { images } = await AIService.captionImages(
-      [url],
-      localMongo,
-      "STICKER",
-    );
-    const imageCaption = images[0];
-    content += `\nType: Sticker Message`;
-    content += `\nSticker Name: ${sticker.name}`;
-    if (sticker.description) {
-      content += `\nSticker Description: ${sticker.description}`;
-    }
-    if (imageCaption) {
-      content += `\nSticker Caption: ${imageCaption}`;
-    }
-  }
-  return content;
-}
-
-async function generateAttachmentsResponse(
-  message: Message,
-  messagesTranscriptionsCollection: DiscordCollection<
-    string,
-    DiscordCollection<string, { transcription: string }>
-  >,
-  messagesImagesCollection: DiscordCollection<
-    string,
-    DiscordCollection<string, { url: string; caption: string }>
-  >,
-  userMessage: Message,
-  modifiedContent: string,
-  localMongo: import("mongodb").MongoClient,
-) {
-  const transcriptionsCollection = messagesTranscriptionsCollection.get(
-    userMessage.id,
-  );
-  const imagesCollection = messagesImagesCollection.get(userMessage.id);
-  const messageImageUrls: string[] = []; // Collect image URLs to attach to message
-
-  if (!(message as Message).content) {
-    if ((transcriptionsCollection?.size ?? 0) > 0) {
-      // iterate through the first one only
-      const audioTranscriptions =
-        transcriptionsCollection!.values().next().value?.transcription || "";
-      modifiedContent += `\nType: Voice Message`;
-      modifiedContent += `\nAudio Content:`;
-      modifiedContent += `\n<audio_transcription>`;
-      modifiedContent += `\n${audioTranscriptions}`;
-      modifiedContent += `\n</audio_transcription>`;
-    }
-    if (!(transcriptionsCollection?.size ?? 0) && imagesCollection?.size) {
-      modifiedContent += `\nType: Image Message`;
-      modifiedContent += `\n\n[ATTACHED REFERENCE IMAGES]`;
-      let imgIndex = 0;
-      for (const [, image] of imagesCollection.entries()) {
-        imgIndex++;
-        modifiedContent += `\n  ${imgIndex}. Attachment: ${image.caption}`;
-        messageImageUrls.push(image.url);
-      }
-    }
-  } else {
-    if (transcriptionsCollection?.size ?? 0) {
-      const audioTranscriptions =
-        transcriptionsCollection!.values().next().value?.transcription || "";
-      modifiedContent += `\nAudio Transcription: ${audioTranscriptions}`;
-    }
-    if (imagesCollection?.size) {
-      modifiedContent += `\n\n[ATTACHED REFERENCE IMAGES]`;
-      let imgIndex = 0;
-      for (const [, image] of imagesCollection.entries()) {
-        imgIndex++;
-        modifiedContent += `\n  ${imgIndex}. Attachment: ${image.caption}`;
-        messageImageUrls.push(image.url);
-      }
-    }
-  }
-
-  modifiedContent += await generateStickerResponse(userMessage, localMongo);
-  return { modifiedContent, messageImageUrls };
-}
-
-async function generateEmojiResponse(
-  message: Message,
-  _isReply: boolean = false,
-) {
-  if (!message.reactions?.cache?.size) return "";
-  const names = utilities.formatReactions(message.reactions.cache, "names");
-  return `\nReactions (${message.reactions.cache.size}):\n  • ${names}`;
 }
 
 const DiscordService = {

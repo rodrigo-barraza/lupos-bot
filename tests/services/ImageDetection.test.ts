@@ -1,57 +1,24 @@
 /**
- * ImageDetection.test.js
+ * ImageDetection.test.ts
  *
- * Comprehensive tests for the image detection pipeline regex logic
- * extracted from DiscordService.buildAndGenerateReply:
+ * Comprehensive tests for the image detection pipeline regex logic,
+ * now imported directly from the real source module
+ * (src/services/discord/ImageIntent.ts — extracted from
+ * DiscordService.buildAndGenerateReply):
  *
- *   1. mightBeImageRequest  — gate that activates the entire pipeline
- *   2. Self-referential      — detects "draw me" / "my pfp" (regex tier 1)
- *   3. Group reference       — detects "draw everyone" / "top 5"
+ *   1. mightBeImageRequest    — gate that activates the entire pipeline
+ *   2. hasSelfReferenceRegex  — detects "draw me" / "my pfp" (regex tier 1)
+ *   3. detectGroupReference   — detects "draw everyone" / "top 5"
  *
  * NOTE: Tier 2 (LLM fallback) for self-ref is tested by documenting which
  * inputs fall through to it — actual LLM classification is integration-level.
  */
 
-// ═══════════════════════════════════════════════════════════════════
-// Extracted regexes — must be kept in sync with DiscordService.js
-// ═══════════════════════════════════════════════════════════════════
-
-// mightBeImageRequest (line ~684-687)
-function mightBeImageRequest(text) {
-  const t = text.toLowerCase();
-  return (
-    /\b(draw|paint|sketch|illustrate|render|generate|create|make|design|depict|redraw|reimagine)\b.*\b(image|picture|painting|illustration|art|artwork|portrait|scene|drawing|me|us|everyone|him|her|them)\b/i.test(t) ||
-    /\b(draw|paint|sketch|illustrate|render|depict)\b/i.test(t)
-  );
-}
-
-// Self-referential regex — Tier 1 fast-path (line ~939-948)
-function hasSelfRefRegex(text) {
-  const t = text.toLowerCase();
-  return (
-    // "draw me", "paint myself", "create me as...", "turn me into..."
-    /\b(draw|paint|sketch|illustrate|render|depict|generate|create|make|design|reimagine|redraw|turn|put|do)\b.*\b(me|myself)\b/i.test(t) ||
-    // "my profile picture", "my pfp", "my cool avatar"
-    /\b(my)\s+(?:\w+\s+){0,3}(portrait|face|avatar|picture|photo|image|drawing|painting|illustration|likeness|selfie|caricature|pfp|dp|pic|profile)\b/i.test(t) ||
-    // "how would I look as...", "what would I look like..."
-    /\b(how|what)\s+would\s+I\s+look\b/i.test(t) ||
-    // "a portrait/painting/picture of me"
-    /\b(portrait|painting|picture|photo|image|illustration|drawing|version|rendition|interpretation)\s+of\s+me\b/i.test(t)
-  );
-}
-
-// Group reference regexes (line ~841-845)
-function detectGroupRef(text) {
-  const t = text.toLowerCase();
-  const topNMatch = t.match(/\btop\s+(\d+)\b/);
-  const nOfUsMatch = t.match(/\bthe\s+(\d+)\s+of\s+us\b/);
-  const isEveryoneRef = /\b(everyone|everybody|every\s*one|all\s+of\s+us|everyone\s+else|the\s+boys|the\s+squad|the\s+gang|the\s+chat|the\s+server|us\s+all)\b/i.test(t);
-
-  if (topNMatch) return parseInt(topNMatch[1], 10);
-  if (nOfUsMatch) return parseInt(nOfUsMatch[1], 10);
-  if (isEveryoneRef) return 99;
-  return 0;
-}
+import {
+  mightBeImageRequest,
+  hasSelfReferenceRegex,
+  detectGroupReference,
+} from "../../src/services/discord/ImageIntent.js";
 
 // ═══════════════════════════════════════════════════════════════════
 // 1. mightBeImageRequest — the pipeline gate
@@ -162,7 +129,7 @@ describe("Self-referential detection (Tier 1 regex)", () => {
     ];
 
     test.each(cases)("%s → true (%s)", (input) => {
-      expect(hasSelfRefRegex(input)).toBe(true);
+      expect(hasSelfReferenceRegex(input)).toBe(true);
     });
   });
 
@@ -189,7 +156,10 @@ describe("Self-referential detection (Tier 1 regex)", () => {
       ["draw my cool avatar", "1 intermediate: adjective"],
       ["draw my really awesome pfp", "2 intermediate words"],
       ["draw my super cool profile picture", "3 intermediate words"],
-      ["Draw a renaissance painting version of my profile picture", "the Quark case"],
+      [
+        "Draw a renaissance painting version of my profile picture",
+        "the Quark case",
+      ],
 
       // Mixed with other patterns
       ["make my avatar into a painting", "make + my avatar"],
@@ -198,7 +168,7 @@ describe("Self-referential detection (Tier 1 regex)", () => {
     ];
 
     test.each(cases)("%s → true (%s)", (input) => {
-      expect(hasSelfRefRegex(input)).toBe(true);
+      expect(hasSelfReferenceRegex(input)).toBe(true);
     });
   });
 
@@ -211,7 +181,7 @@ describe("Self-referential detection (Tier 1 regex)", () => {
     ];
 
     test.each(cases)("%s → true (%s)", (input) => {
-      expect(hasSelfRefRegex(input)).toBe(true);
+      expect(hasSelfReferenceRegex(input)).toBe(true);
     });
   });
 
@@ -230,7 +200,7 @@ describe("Self-referential detection (Tier 1 regex)", () => {
     ];
 
     test.each(cases)("%s → true (%s)", (input) => {
-      expect(hasSelfRefRegex(input)).toBe(true);
+      expect(hasSelfReferenceRegex(input)).toBe(true);
     });
   });
 
@@ -253,7 +223,7 @@ describe("Self-referential detection (Tier 1 regex)", () => {
     ];
 
     test.each(negatives)("%s → false (%s)", (input) => {
-      expect(hasSelfRefRegex(input)).toBe(false);
+      expect(hasSelfReferenceRegex(input)).toBe(false);
     });
   });
 
@@ -311,34 +281,33 @@ describe("Self-referential detection (Tier 1 regex)", () => {
 
       // Indirect / creative English (regex can't reliably catch)
       ["give me advice", "non-visual give — falls to LLM"],
-      ["give that cat pic the renaissance treatment", "indirect ref to own avatar"],
-
+      [
+        "give that cat pic the renaissance treatment",
+        "indirect ref to own avatar",
+      ],
     ];
 
-    test.each(multilingualCases)(
-      "%s → false (falls to LLM) (%s)",
-      (input) => {
-        expect(hasSelfRefRegex(input)).toBe(false);
-      },
-    );
+    test.each(multilingualCases)("%s → false (falls to LLM) (%s)", (input) => {
+      expect(hasSelfReferenceRegex(input)).toBe(false);
+    });
   });
 
   describe("edge cases — intermediate word limit", () => {
     test("4+ intermediate words should NOT match regex", () => {
       // 4 words between "my" and "picture" — exceeds {0,3} limit
       expect(
-        hasSelfRefRegex("draw my very extremely long winded picture"),
+        hasSelfReferenceRegex("draw my very extremely long winded picture"),
       ).toBe(false);
     });
 
     test("3 intermediate words SHOULD match", () => {
-      expect(
-        hasSelfRefRegex("draw my super duper cool picture"),
-      ).toBe(true);
+      expect(hasSelfReferenceRegex("draw my super duper cool picture")).toBe(
+        true,
+      );
     });
 
     test("0 intermediate words SHOULD match", () => {
-      expect(hasSelfRefRegex("my picture")).toBe(true);
+      expect(hasSelfReferenceRegex("my picture")).toBe(true);
     });
   });
 });
@@ -364,7 +333,7 @@ describe("Group reference detection", () => {
     ];
 
     test.each(cases)("%s → 99 (%s)", (input) => {
-      expect(detectGroupRef(input)).toBe(99);
+      expect(detectGroupReference(input)).toBe(99);
     });
   });
 
@@ -376,7 +345,7 @@ describe("Group reference detection", () => {
     ];
 
     test.each(cases)("%s → %d", (input, expected) => {
-      expect(detectGroupRef(input)).toBe(expected);
+      expect(detectGroupReference(input as string)).toBe(expected);
     });
   });
 
@@ -388,7 +357,7 @@ describe("Group reference detection", () => {
     ];
 
     test.each(cases)("%s → %d", (input, expected) => {
-      expect(detectGroupRef(input)).toBe(expected);
+      expect(detectGroupReference(input as string)).toBe(expected);
     });
   });
 
@@ -403,7 +372,7 @@ describe("Group reference detection", () => {
     ];
 
     test.each(negatives)("%s → 0 (%s)", (input) => {
-      expect(detectGroupRef(input)).toBe(0);
+      expect(detectGroupReference(input)).toBe(0);
     });
   });
 });
@@ -417,7 +386,7 @@ describe("Pipeline integration", () => {
     test("'draw me' — both gate and self-ref fire", () => {
       const text = "draw me as a samurai";
       expect(mightBeImageRequest(text)).toBe(true);
-      expect(hasSelfRefRegex(text)).toBe(true);
+      expect(hasSelfReferenceRegex(text)).toBe(true);
     });
 
     test("'my pfp' alone — self-ref matches but gate may not fire", () => {
@@ -426,20 +395,20 @@ describe("Pipeline integration", () => {
       const text = "my pfp looks cool";
       expect(mightBeImageRequest(text)).toBe(false);
       // Even though regex matches the possessive pattern
-      expect(hasSelfRefRegex(text)).toBe(true);
+      expect(hasSelfReferenceRegex(text)).toBe(true);
     });
 
     test("'draw my profile picture' — both fire", () => {
       const text = "Draw a renaissance painting version of my profile picture";
       expect(mightBeImageRequest(text)).toBe(true);
-      expect(hasSelfRefRegex(text)).toBe(true);
+      expect(hasSelfReferenceRegex(text)).toBe(true);
     });
 
     test("'draw everyone' — gate fires but self-ref does not", () => {
       const text = "draw everyone here";
       expect(mightBeImageRequest(text)).toBe(true);
-      expect(hasSelfRefRegex(text)).toBe(false);
-      expect(detectGroupRef(text)).toBe(99);
+      expect(hasSelfReferenceRegex(text)).toBe(false);
+      expect(detectGroupReference(text)).toBe(99);
     });
   });
 });
