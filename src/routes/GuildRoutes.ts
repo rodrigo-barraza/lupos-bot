@@ -24,16 +24,9 @@ import type {
 
 import DiscordWrapper from "#root/wrappers/DiscordWrapper.js";
 import config from "#root/config.js";
-import MoodService from "#root/services/MoodService.js";
-import HungerService from "#root/services/HungerService.js";
-import ThirstService from "#root/services/ThirstService.js";
-import EnergyService from "#root/services/EnergyService.js";
-import SicknessService from "#root/services/SicknessService.js";
-import AlcoholService from "#root/services/AlcoholService.js";
-import BathroomService from "#root/services/BathroomService.js";
-import SubstanceService from "#root/services/SubstanceService.js";
-import { MOODS, EXCLUDE_SOFT_DELETED } from "#root/constants.js";
-import type { MoodEntry } from "#root/types/index.js";
+import TraitRegistry from "#root/services/TraitRegistry.js";
+import { EXCLUDE_SOFT_DELETED } from "#root/constants.js";
+import { MILLISECONDS_PER_DAY } from "@rodrigo-barraza/utilities-library";
 import {
   getMongoDb,
   getServerAgeYears,
@@ -108,18 +101,22 @@ router.use((req: Request, res: Response, next: NextFunction) => {
 
 /**
  * Build a Discord CDN avatar URL from a User or GuildMember.
+ * Guild-specific avatars take precedence; falls back to the
+ * default avatar when the user has no custom avatar.
  */
 function buildAvatarUrl(user: User, member: GuildMember) {
-  // Guild-specific avatar takes precedence
-  if (member?.avatar && user?.id) {
-    const ext = member.avatar.startsWith("a_") ? "gif" : "png";
-    return `https://cdn.discordapp.com/guilds/${member.guild.id}/users/${user.id}/avatars/${member.avatar}.${ext}?size=128`;
-  }
-  if (user?.avatar) {
-    const ext = user.avatar.startsWith("a_") ? "gif" : "png";
-    return `https://cdn.discordapp.com/avatars/${user.id}/${user.avatar}.${ext}?size=128`;
-  }
-  return user?.defaultAvatarURL || null;
+  return (
+    utilities.getDiscordAvatarUrl(
+      user?.id,
+      user?.avatar,
+      128,
+      member?.avatar && member.guild
+        ? { guildId: member.guild.id, avatarHash: member.avatar }
+        : null,
+    ) ||
+    user?.defaultAvatarURL ||
+    null
+  );
 }
 
 // ─── GET /guild/channels ────────────────────────────────────────
@@ -901,28 +898,7 @@ router.get(
       const db = localMongo ? localMongo.db("lupos") : null;
 
       // 1. Somatic Status
-      const moodLevel = MoodService.getMoodLevel();
-      const currentMood = MOODS.find(
-        (m: MoodEntry) => m.level === moodLevel,
-      ) || {
-        name: "Unknown",
-        emoji: "😐",
-      };
-
-      const somatic = {
-        mood: {
-          level: moodLevel,
-          name: currentMood.name,
-          emoji: currentMood.emoji,
-        },
-        hunger: HungerService.getHungerLevel(),
-        thirst: ThirstService.getThirstLevel(),
-        energy: EnergyService.getEnergyLevel(),
-        sickness: SicknessService.getSicknessLevel(),
-        alcohol: AlcoholService.getAlcoholLevel(),
-        bathroom: BathroomService.getBathroomLevel(),
-        substance: SubstanceService.getSubstanceLevel(),
-      };
+      const somatic = TraitRegistry.toStatsObject();
 
       // 2. Database Stats
       let database = {
@@ -1106,7 +1082,7 @@ router.get(
       const db = localMongo.db("lupos");
       const prismDb = localMongo.db("prism");
       const now = new Date();
-      const twentyFourHoursAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+      const twentyFourHoursAgo = new Date(now.getTime() - MILLISECONDS_PER_DAY);
 
       // MetricsMessageGeneration uses MongoDB ObjectId for timestamps
       // (no explicit createdAt field), so we filter by _id >= ObjectId(24h ago)
@@ -1393,7 +1369,7 @@ router.get(
     const now = new Date();
     const { startDate, unixStartDate } = computeStartDate(years, months, days);
     const actualDays = Math.ceil(
-      (now.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24),
+      (now.getTime() - startDate.getTime()) / MILLISECONDS_PER_DAY,
     );
 
     const matchQuery: Record<string, unknown> = {

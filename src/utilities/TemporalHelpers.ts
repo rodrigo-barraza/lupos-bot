@@ -1,3 +1,4 @@
+import { MILLISECONDS_PER_DAY } from "@rodrigo-barraza/utilities-library";
 // ============================================================
 // TemporalHelpers — Native Temporal API Utilities
 // ============================================================
@@ -210,7 +211,7 @@ const TemporalHelpers = {
     const bMs = b.toInstant().epochMilliseconds;
     const diffMs = aMs - bMs;
     switch (unit) {
-      case "days":    return diffMs / (24 * 60 * 60 * 1000);
+      case "days":    return diffMs / MILLISECONDS_PER_DAY;
       case "hours":   return diffMs / (60 * 60 * 1000);
       case "minutes": return diffMs / (60 * 1000);
       case "seconds": return diffMs / 1000;
