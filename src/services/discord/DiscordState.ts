@@ -11,16 +11,17 @@
 import TemporalHelpers from "#root/utilities/TemporalHelpers.js";
 import BoundedMap from "#root/utilities/BoundedMap.js";
 
+export interface QueuedMessageData {
+  message: import("discord.js").Message;
+  recentMessages: import("discord.js").Collection<string, import("discord.js").Message>;
+  actionType: string;
+}
+
 const DiscordState = {
   // ─── Message Processing Queue ─────────────────────────────────
   isProcessingQueue: false,
-  queuedData: [] as Record<string, unknown>[],
+  queuedData: [] as QueuedMessageData[],
   cancelledMessageIds: new Set<string>(),
-
-  // Bounded maps prevent unbounded memory growth during long-running sessions.
-  // TTL: 2 hours, max 5,000 entries — entries auto-evict when stale.
-  repliedMessagesCollection: new BoundedMap<string, boolean>(5000, 2 * 60 * 60 * 1000),
-  botRepliedMessages: new BoundedMap<string, boolean>(5000, 2 * 60 * 60 * 1000),
 
   // ─── Reaction Highlights Queue ────────────────────────────────
   isProcessingOnReactionQueue: false,

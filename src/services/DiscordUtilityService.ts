@@ -981,6 +981,23 @@ const transformMessageRoot = (message: Message): Record<string, unknown> => {
   };
 };
 
+/**
+ * Run an event handler, awaiting it and containing any error so a rejection
+ * in one handler can never become an unhandled promise rejection that kills
+ * the process. Used by all onEvent* registration wrappers below.
+ */
+async function runEventHandler(
+  eventName: string,
+  handler: (...args: unknown[]) => void | Promise<void>,
+  ...args: unknown[]
+) {
+  try {
+    await handler(...args);
+  } catch (error: unknown) {
+    console.error(`❌ [DiscordUtilityService:${eventName}] Unhandled error in event handler:`, error);
+  }
+}
+
 const DiscordUtilityService = {
   // Fetches and saves all messages from a Discord server to MongoDB.
   // Supports category filtering, date limits, auto-resume via checkpoints,
@@ -2158,71 +2175,71 @@ const DiscordUtilityService = {
   },
   // Event Handlers
   onEventClientReady(client: Client, options: Record<string, unknown>, customFunction: (...args: unknown[]) => void) {
-    return client.on(Events.ClientReady, async () => {
-      customFunction(client, options);
+    return client.on(Events.ClientReady, () => {
+      void runEventHandler("clientReady", customFunction, client, options);
     });
   },
   onEventMessageCreate(client: Client, { mongo, localMongo }: MongoConnections, customFunction: (...args: unknown[]) => void) {
-    return client.on(Events.MessageCreate, async (message: Message) => {
-      customFunction(client, { mongo, localMongo }, message);
+    return client.on(Events.MessageCreate, (message: Message) => {
+      void runEventHandler("messageCreate", customFunction, client, { mongo, localMongo }, message);
     });
   },
   onEventMessageUpdate(client: Client, { mongo, localMongo }: MongoConnections, customFunction: (...args: unknown[]) => void) {
-    return client.on(Events.MessageUpdate, async (oldMessage: Message | PartialMessage, newMessage: Message | PartialMessage) => {
-      customFunction(client, { mongo, localMongo }, oldMessage, newMessage);
+    return client.on(Events.MessageUpdate, (oldMessage: Message | PartialMessage, newMessage: Message | PartialMessage) => {
+      void runEventHandler("messageUpdate", customFunction, client, { mongo, localMongo }, oldMessage, newMessage);
     });
   },
   onEventMessageDelete(client: Client, mongo: import("mongodb").MongoClient, customFunction: (...args: unknown[]) => void) {
-    return client.on(Events.MessageDelete, async (message) => {
-      customFunction(client, mongo, message);
+    return client.on(Events.MessageDelete, (message) => {
+      void runEventHandler("messageDelete", customFunction, client, mongo, message);
     });
   },
   onEventMessageReactionAdd(client: Client, mongo: import("mongodb").MongoClient, customFunction: (...args: unknown[]) => void) {
-    return client.on(Events.MessageReactionAdd, async (reaction, user) => {
-      customFunction(client, mongo, reaction, user);
+    return client.on(Events.MessageReactionAdd, (reaction, user) => {
+      void runEventHandler("messageReactionAdd", customFunction, client, mongo, reaction, user);
     });
   },
   onEventMessageReactionRemove(client: Client, mongo: import("mongodb").MongoClient, customFunction: (...args: unknown[]) => void) {
-    return client.on(Events.MessageReactionRemove, async (reaction, user) => {
-      customFunction(client, mongo, reaction, user);
+    return client.on(Events.MessageReactionRemove, (reaction, user) => {
+      void runEventHandler("messageReactionRemove", customFunction, client, mongo, reaction, user);
     });
   },
   onEventGuildMemberAdd(client: Client, mongo: import("mongodb").MongoClient, customFunction: (...args: unknown[]) => void) {
-    return client.on(Events.GuildMemberAdd, async (member: GuildMember) => {
-      customFunction(client, mongo, member);
+    return client.on(Events.GuildMemberAdd, (member: GuildMember) => {
+      void runEventHandler("guildMemberAdd", customFunction, client, mongo, member);
     });
   },
   onEventGuildMemberAvailable(client: Client, mongo: import("mongodb").MongoClient, customFunction: (...args: unknown[]) => void) {
-    return client.on(Events.GuildMemberAvailable, async (member) => {
-      customFunction(client, mongo, member);
+    return client.on(Events.GuildMemberAvailable, (member) => {
+      void runEventHandler("guildMemberAvailable", customFunction, client, mongo, member);
     });
   },
   onEventInteractionCreate(client: Client, mongo: import("mongodb").MongoClient, customFunction: (...args: unknown[]) => void) {
-    return client.on(Events.InteractionCreate, async (interaction: Interaction) => {
-      customFunction(client, mongo, interaction);
+    return client.on(Events.InteractionCreate, (interaction: Interaction) => {
+      void runEventHandler("interactionCreate", customFunction, client, mongo, interaction);
     });
   },
   onEventPresenceUpdate(client: Client, customFunction: (...args: unknown[]) => void) {
     return client.on(
       Events.PresenceUpdate,
-      async (oldPresence: Presence | null, newPresence: Presence) => {
-        customFunction(client, oldPresence, newPresence);
+      (oldPresence: Presence | null, newPresence: Presence) => {
+        void runEventHandler("presenceUpdate", customFunction, client, oldPresence, newPresence);
       },
     );
   },
   onEventVoiceStateUpdate(client: Client, mongo: import("mongodb").MongoClient, customFunction: (...args: unknown[]) => void) {
-    return client.on(Events.VoiceStateUpdate, async (oldState: VoiceState, newState: VoiceState) => {
-      customFunction(client, mongo, oldState, newState);
+    return client.on(Events.VoiceStateUpdate, (oldState: VoiceState, newState: VoiceState) => {
+      void runEventHandler("voiceStateUpdate", customFunction, client, mongo, oldState, newState);
     });
   },
   onEventGuildMemberRemove(client: Client, mongo: import("mongodb").MongoClient, customFunction: (...args: unknown[]) => void) {
-    return client.on(Events.GuildMemberRemove, async (member) => {
-      customFunction(client, mongo, member);
+    return client.on(Events.GuildMemberRemove, (member) => {
+      void runEventHandler("guildMemberRemove", customFunction, client, mongo, member);
     });
   },
   onEventGuildMemberUpdate(client: Client, mongo: import("mongodb").MongoClient, customFunction: (...args: unknown[]) => void) {
-    return client.on(Events.GuildMemberUpdate, async (oldMember: GuildMember | PartialGuildMember, newMember: GuildMember) => {
-      customFunction(client, mongo, oldMember, newMember);
+    return client.on(Events.GuildMemberUpdate, (oldMember: GuildMember | PartialGuildMember, newMember: GuildMember) => {
+      void runEventHandler("guildMemberUpdate", customFunction, client, mongo, oldMember, newMember);
     });
   },
   async getAllServerEmojisFromMessage(message: Message, format: "string" | "array" = "string") {

@@ -112,7 +112,11 @@ const AIService = {
   ): Promise<Array<{ imageData: string; mimeType: string }>> {
     const imageObjects: Array<{ imageData: string; mimeType: string }> = [];
     for (const url of urls) {
-      const response = await fetch(url);
+      const response = await fetch(url, { signal: AbortSignal.timeout(15_000) });
+      if (!response.ok) {
+        console.warn(`⚠️ [AIService] Skipping image ${url}: HTTP ${response.status}`);
+        continue;
+      }
       const bytes = await response.bytes();
       const buffer = Buffer.from(bytes);
       const mimeType = response.headers.get("content-type") || "image/png";
@@ -366,7 +370,10 @@ const AIService = {
     const filename = path.basename(url.pathname);
 
     // Download the audio file into memory (no disk write needed)
-    const audioFile = await fetch(audioUrl);
+    const audioFile = await fetch(audioUrl, { signal: AbortSignal.timeout(30_000) });
+    if (!audioFile.ok) {
+      throw new Error(`Failed to download audio ${audioUrl}: HTTP ${audioFile.status}`);
+    }
     const audioBuffer = Buffer.from(await audioFile.bytes());
 
     // Determine MIME type from file extension

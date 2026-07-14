@@ -83,20 +83,29 @@ const ReactJob = {
   async startJob(client: Client, mongo: MongoClient): Promise<void> {
     await clearReactors(client, mongo); // Execute immediately
     setInterval(() => {
-      clearReactors(client, mongo);
+      clearReactors(client, mongo).catch((error: unknown) => {
+        console.error("❌ [ReactJob] clearReactors failed:", error);
+      });
     }, 1000 * 60); // every minute
   },
   async processJob(client: Client, mongo: MongoClient, reaction: MessageReaction, user: User): Promise<void> {
     queue.push({ reaction, user });
     if (queueIsProcessing) return;
     queueIsProcessing = true;
-    while (queue.length > 0) {
-      const item = queue.shift();
-      if (item) {
-        await generateReactors(client, mongo, item.reaction, item.user);
+    try {
+      while (queue.length > 0) {
+        const item = queue.shift();
+        if (item) {
+          try {
+            await generateReactors(client, mongo, item.reaction, item.user);
+          } catch (error: unknown) {
+            console.error("❌ [ReactJob] generateReactors failed — continuing queue:", error);
+          }
+        }
       }
+    } finally {
+      queueIsProcessing = false;
     }
-    queueIsProcessing = false;
   },
 };
 

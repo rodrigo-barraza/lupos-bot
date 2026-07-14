@@ -16,6 +16,8 @@ const app = express();
 import services from "./services/services.ts";
 
 // Parse command line arguments
+let httpServer: import("node:http").Server | null = null;
+
 const args = process.argv.slice(2);
 const mode = args.find((arg: string) => arg.startsWith("mode="))?.split("=")[1];
 const channelIdsArg = args.find((arg: string) => arg.startsWith("channels="))?.split("=")[1];
@@ -48,21 +50,29 @@ async function main() {
       console.log("📦 MinIO not configured — media archival disabled");
     }
 
-    if (mode === "clone:messages") {
-      DiscordService.cloneMessages();
-    } else if (mode === "rescrape:channels") {
-      DiscordService.rescrapeChannels({ channelIds, guildIds, dateLimit });
-    } else if (mode === "delete:duplicates") {
-      DiscordService.deleteDuplicateMessages();
-    } else if (mode === "delete:newAccounts") {
-      DiscordService.deleteNewAccounts();
-    } else if (mode === "purge:youngAccounts") {
-      DiscordService.purgeYoungAccounts();
-    } else if (mode === "reports") {
-      DiscordService.initializeBotLuposReports();
-    } else {
-      DiscordService.initializeBotLupos();
-    }
+    // Mode initializers run concurrently with the API server below (some run
+    // for hours and are monitored via the status routes), but their rejections
+    // must be contained — an escaped rejection would kill the process.
+    const runMode = async () => {
+      if (mode === "clone:messages") {
+        await DiscordService.cloneMessages();
+      } else if (mode === "rescrape:channels") {
+        await DiscordService.rescrapeChannels({ channelIds, guildIds, dateLimit });
+      } else if (mode === "delete:duplicates") {
+        await DiscordService.deleteDuplicateMessages();
+      } else if (mode === "delete:newAccounts") {
+        await DiscordService.deleteNewAccounts();
+      } else if (mode === "purge:youngAccounts") {
+        await DiscordService.purgeYoungAccounts();
+      } else if (mode === "reports") {
+        await DiscordService.initializeBotLuposReports();
+      } else {
+        await DiscordService.initializeBotLupos();
+      }
+    };
+    runMode().catch((error: unknown) => {
+      console.error(`❌ [lupos] Initialization failed for mode "${mode ?? "default"}":`, error);
+    });
 
 
     // API SERVER
@@ -89,7 +99,7 @@ async function main() {
       });
     });
     app.use("/", services());
-    app.listen(Number(config.SERVER_PORT), "0.0.0.0", () => {
+    httpServer = app.listen(Number(config.SERVER_PORT), "0.0.0.0", () => {
       console.log(`Server listening on 0.0.0.0:${config.SERVER_PORT}`);
     });
 
@@ -104,25 +114,41 @@ main();
 // ─── Graceful Shutdown ──────────────────────────────────────────
 // Prevents data loss during Docker SIGTERM / redeployments.
 // Ensures MongoDB writes complete and Discord sessions close cleanly.
-const shutdown = async (signal: string) => {
+const shutdown = async (signal: string, exitCode = 0) => {
   console.log(`\n🛑 ${signal} received — shutting down gracefully…`);
   try {
+    // Stop accepting new HTTP requests
+    if (httpServer) {
+      httpServer.close();
+      console.log("  ✓ HTTP server closed");
+    }
     // Destroy all Discord client connections
     for (const { client, name } of DiscordWrapper.clients) {
       try {
-        client.destroy();
+        await client.destroy();
         console.log(`  ✓ Discord client "${name}" destroyed`);
       } catch { /* already closed */ }
     }
-    // Close MongoDB connections
+    // Close all MongoDB connections (whatever names they were registered under)
     const MongoService = (await import("./services/MongoService.ts")).default;
-    MongoService.closeClient("lupos");
+    await MongoService.closeAll();
     console.log("  ✓ MongoDB connections closed");
   } catch (error: unknown) {
     console.error("  ⚠️ Error during shutdown:", (error as Error).message);
   }
-  process.exit(0);
+  process.exit(exitCode);
 };
 
 process.on("SIGTERM", () => shutdown("SIGTERM"));
 process.on("SIGINT", () => shutdown("SIGINT"));
+
+// ─── Global Safety Nets ─────────────────────────────────────────
+// Event handlers contain their own errors (see runEventHandler), but any
+// rejection that still escapes must not silently kill the process.
+process.on("unhandledRejection", (reason) => {
+  console.error("❌ [lupos] Unhandled promise rejection:", reason);
+});
+process.on("uncaughtException", (error) => {
+  console.error("❌ [lupos] Uncaught exception — shutting down:", error);
+  void shutdown("uncaughtException", 1);
+});

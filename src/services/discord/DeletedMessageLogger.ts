@@ -41,7 +41,7 @@ async function handleMessageDelete(client: Client, mongo: MongoClient, message: 
   // Remove from pending queue
   const removedCount = DiscordState.queuedData.length;
   for (let i = DiscordState.queuedData.length - 1; i >= 0; i--) {
-    if ((DiscordState.queuedData[i] as Record<string, unknown> & { message?: { id?: string } }).message?.id === deletedMessageId) {
+    if (DiscordState.queuedData[i].message?.id === deletedMessageId) {
       DiscordState.queuedData.splice(i, 1);
     }
   }
