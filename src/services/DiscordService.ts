@@ -2101,11 +2101,27 @@ async function luposOnReady(
 
     await generateRolesEmbedMessage(client);
 
-    // Sweep existing members: kick accounts < 4 weeks old that joined while bot was offline
-    await luposOnReadyDeleteNewAccounts(client);
+    // ─── Boot sweeps (config-gated, default OFF) ──────────────────
+    // These used to run unconditionally on every `services` boot. They are
+    // destructive (mass kick / bulk role strip), so they now fail safe and
+    // must be explicitly opted into via env flags set to the literal "true".
+    if (config.ENABLE_BOOT_ACCOUNT_SWEEP) {
+      // Sweep existing members: kick accounts < 4 weeks old that joined while bot was offline
+      await luposOnReadyDeleteNewAccounts(client);
+    } else {
+      console.log(
+        "⏭️ [luposOnReady] Boot account sweep skipped — set ENABLE_BOOT_ACCOUNT_SWEEP=true to enable.",
+      );
+    }
 
-    // Bulk role revocation — strip target role from all members in the specified guild
-    await revokeRoleFromAllMembers(client);
+    if (config.ENABLE_BOOT_ROLE_REVOKE) {
+      // Bulk role revocation — strip target role from all members in the specified guild
+      await revokeRoleFromAllMembers(client);
+    } else {
+      console.log(
+        "⏭️ [luposOnReady] Boot role revoke skipped — set ENABLE_BOOT_ROLE_REVOKE=true to enable.",
+      );
+    }
 
     if (config.ROLE_ID_BIRTHDAY_MONTH) {
       BirthdayJob.startJob(client);

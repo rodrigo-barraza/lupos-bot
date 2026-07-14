@@ -15,13 +15,27 @@
  */
 function parseCommaSeparated(envKey: string) {
   const raw = process.env[envKey];
-  return raw ? raw.split(",").map((segment) => segment.trim()).filter(Boolean) : [];
+  return raw
+    ? raw
+        .split(",")
+        .map((segment) => segment.trim())
+        .filter(Boolean)
+    : [];
 }
-
 
 const config = {
   // ─── Server ────────────────────────────────────────────────────
   SERVER_PORT: process.env.LUPOS_BOT_PORT,
+
+  // ─── API Security (opt-in — unset preserves legacy behavior) ───
+  // Comma-separated CORS allowlist. Unset ⇒ reflect any origin (legacy).
+  ALLOWED_ORIGINS: parseCommaSeparated("ALLOWED_ORIGINS"),
+  // Shared secret for mutating endpoints (x-api-key header). Unset ⇒ open.
+  API_SHARED_SECRET: process.env.API_SHARED_SECRET,
+
+  // ─── Boot Sweeps (fail-safe — must be explicitly "true") ───────
+  ENABLE_BOOT_ACCOUNT_SWEEP: process.env.ENABLE_BOOT_ACCOUNT_SWEEP === "true",
+  ENABLE_BOOT_ROLE_REVOKE: process.env.ENABLE_BOOT_ROLE_REVOKE === "true",
 
   // ─── Maintenance ───────────────────────────────────────────────
   UNDER_MAINTENANCE: process.env.UNDER_MAINTENANCE === "true",
@@ -44,7 +58,9 @@ const config = {
   MINIO_ENDPOINT: process.env.MINIO_ENDPOINT,
   MINIO_ACCESS_KEY: process.env.MINIO_ACCESS_KEY,
   MINIO_SECRET_KEY: process.env.MINIO_SECRET_KEY,
-  MINIO_BUCKET_NAME: process.env.LUPOS_BOT_MINIO_BUCKET_NAME || process.env.LUPOS_MINIO_BUCKET_NAME,
+  MINIO_BUCKET_NAME:
+    process.env.LUPOS_BOT_MINIO_BUCKET_NAME ||
+    process.env.LUPOS_MINIO_BUCKET_NAME,
 
   // ─── Discord IDs — Ignore Lists ────────────────────────────────
   ROLES_IDS_IGNORE: parseCommaSeparated("ROLES_IDS_IGNORE"),
@@ -86,7 +102,9 @@ const config = {
   USER_IDS_DISALLOWED: parseCommaSeparated("USER_IDS_DISALLOWED"),
   USER_IDS_TIMED_OUT: parseCommaSeparated("USER_IDS_TIMED_OUT"),
   USER_IDS_POLITICS_MUTED: parseCommaSeparated("USER_IDS_POLITICS_MUTED"),
-  USER_IDS_NEW_ACCOUNT_WHITELIST: parseCommaSeparated("USER_IDS_NEW_ACCOUNT_WHITELIST"),
+  USER_IDS_NEW_ACCOUNT_WHITELIST: parseCommaSeparated(
+    "USER_IDS_NEW_ACCOUNT_WHITELIST",
+  ),
 
   // ─── Countdown Icon ────────────────────────────────────────────
   COUNTDOWN_ICON_TARGET_DATE: process.env.COUNTDOWN_ICON_TARGET_DATE,
@@ -108,7 +126,8 @@ const config = {
   GOOGLE_LANGUAGE_MODEL_FAST: process.env.GOOGLE_LANGUAGE_MODEL_FAST,
   GOOGLE_LANGUAGE_MODEL_SMART: process.env.GOOGLE_LANGUAGE_MODEL_SMART,
 
-  OPENAI_LANGUAGE_MODEL_GPT4_1_NANO: process.env.OPENAI_LANGUAGE_MODEL_GPT4_1_NANO,
+  OPENAI_LANGUAGE_MODEL_GPT4_1_NANO:
+    process.env.OPENAI_LANGUAGE_MODEL_GPT4_1_NANO,
 
   LANGUAGE_MODEL_OPENAI: process.env.LANGUAGE_MODEL_OPENAI,
   LANGUAGE_MODEL_LOCAL: process.env.LANGUAGE_MODEL_LOCAL,
@@ -121,5 +140,59 @@ const config = {
   FAST_LANGUAGE_MODEL_OPENAI: process.env.FAST_LANGUAGE_MODEL_OPENAI,
   FAST_LANGUAGE_MODEL_LOCAL: process.env.FAST_LANGUAGE_MODEL_LOCAL,
 };
+
+/**
+ * Fail-fast startup validation. Call before anything else boots.
+ *
+ * Throws a clear error naming the missing/invalid env var(s) instead of
+ * letting the process fail deep at a use site (e.g. `app.listen(NaN)`).
+ * Only vars the bot cannot run without are required — everything that is
+ * optional today stays optional.
+ */
+export function validateConfig(cfg: typeof config = config): void {
+  // config key → env var it maps from (error messages name the env var)
+  const required: Array<{
+    key: "LUPOS_TOKEN" | "DATABASE_URL" | "SERVER_PORT";
+    envVar: string;
+  }> = [
+    { key: "LUPOS_TOKEN", envVar: "LUPOS_TOKEN" },
+    { key: "DATABASE_URL", envVar: "MONGO_URI" },
+    { key: "SERVER_PORT", envVar: "LUPOS_BOT_PORT" },
+  ];
+
+  const missing = required
+    .filter(({ key }) => !cfg[key])
+    .map(({ key, envVar }) =>
+      key === envVar ? envVar : `${envVar} (config.${key})`,
+    );
+  if (missing.length > 0) {
+    throw new Error(
+      `[config] Missing required environment variable(s): ${missing.join(", ")}`,
+    );
+  }
+
+  if (Number.isNaN(Number(cfg.SERVER_PORT))) {
+    throw new Error(
+      `[config] LUPOS_BOT_PORT (config.SERVER_PORT) must be a number — got "${cfg.SERVER_PORT}"`,
+    );
+  }
+
+  // Notable optional vars — one-line notice when absent, never fatal.
+  if (
+    !cfg.MINIO_ENDPOINT ||
+    !cfg.MINIO_ACCESS_KEY ||
+    !cfg.MINIO_SECRET_KEY ||
+    !cfg.MINIO_BUCKET_NAME
+  ) {
+    console.log(
+      "[config] MINIO_* not fully configured — media archival disabled.",
+    );
+  }
+  if (!cfg.PRISM_API_URL) {
+    console.log(
+      "[config] PRISM_SERVICE_URL not set — Prism integration disabled.",
+    );
+  }
+}
 
 export default config;
