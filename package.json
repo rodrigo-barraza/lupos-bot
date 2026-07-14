@@ -30,7 +30,6 @@
     "@discordjs/opus": "^0.10.0",
     "@discordjs/voice": "^0.19.2",
     "@distube/ytdl-core": "^4.16.12",
-    "@rodrigo-barraza/service-library": "github:rodrigo-barraza/service-library",
     "@rodrigo-barraza/utilities-library": "github:rodrigo-barraza/utilities-library",
     "discord.js": "^14.26.4",
     "express": "^5.2.1",
