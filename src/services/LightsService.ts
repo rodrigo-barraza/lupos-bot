@@ -29,7 +29,11 @@ export default class LightsService {
    * Shared HTTP helper — mirrors PrismService._request().
    * Returns parsed JSON on success, null on any failure.
    */
-  static async _request(method: string, path: string, body: unknown = null): Promise<unknown> {
+  static async _request(
+    method: string,
+    path: string,
+    body: unknown = null,
+  ): Promise<unknown> {
     try {
       const options: RequestInit = { method };
       if (body) {
@@ -48,40 +52,64 @@ export default class LightsService {
   }
 
   static async validateColor(color: string): Promise<unknown> {
-    return this._request("GET", `/color/validate?color=${encodeURIComponent(color)}`);
+    return this._request(
+      "GET",
+      `/color/validate?color=${encodeURIComponent(color)}`,
+    );
   }
 
-  static async setState(state: LightState, lightId: string = "all"): Promise<unknown> {
+  static async setState(
+    state: LightState,
+    lightId: string = "all",
+  ): Promise<unknown> {
     return this._request("PUT", `/lights/${lightId}/state`, {
-      power: state?.power || "on",
-      color: state?.color || "white",
-      brightness: state?.brightness || 1,
-      duration: state?.duration || 1,
-      fast: state?.fast || true,
+      power: state?.power ?? "on",
+      color: state?.color ?? "white",
+      brightness: state?.brightness ?? 1,
+      duration: state?.duration ?? 1,
+      fast: state?.fast ?? true,
     });
   }
 
-  static async setStateDelta(state: LightStateDelta, lightId: string = "all"): Promise<unknown> {
+  static async setStateDelta(
+    state: LightStateDelta,
+    lightId: string = "all",
+  ): Promise<unknown> {
     return this._request("POST", `/lights/${lightId}/state/delta`, {
-      power: state?.power || "on",
-      duration: state?.duration || 1,
-      hue: state?.hue || 0,
-      saturation: state?.saturation || 1,
-      brightness: state?.brightness || 1,
-      kelvin: state?.kelvin || 2500,
-      fast: state?.fast || false,
+      power: state?.power ?? "on",
+      duration: state?.duration ?? 1,
+      hue: state?.hue ?? 0,
+      saturation: state?.saturation ?? 1,
+      brightness: state?.brightness ?? 1,
+      kelvin: state?.kelvin ?? 2500,
+      fast: state?.fast ?? false,
     });
   }
 
-  static async togglePower(lightId: string = "all", duration: number = 1): Promise<unknown> {
+  static async togglePower(
+    lightId: string = "all",
+    duration: number = 1,
+  ): Promise<unknown> {
     return this._request("POST", `/lights/${lightId}/toggle`, { duration });
   }
 
-  static async randomizeColor(lightId: string = "all", duration: number = 1): Promise<unknown> {
-    return this._request("POST", `/lights/${lightId}/color/randomize`, { duration });
+  static async randomizeColor(
+    lightId: string = "all",
+    duration: number = 1,
+  ): Promise<unknown> {
+    return this._request("POST", `/lights/${lightId}/color/randomize`, {
+      duration,
+    });
   }
 
-  static async cycleColor(lightId: string = "all", style: string = "rainbow", duration: number = 0.3): Promise<unknown> {
-    return this._request("POST", `/lights/${lightId}/color/cycle`, { style, duration });
+  static async cycleColor(
+    lightId: string = "all",
+    style: string = "rainbow",
+    duration: number = 0.3,
+  ): Promise<unknown> {
+    return this._request("POST", `/lights/${lightId}/color/cycle`, {
+      style,
+      duration,
+    });
   }
 }

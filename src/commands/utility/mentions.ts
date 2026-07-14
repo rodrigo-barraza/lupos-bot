@@ -1,4 +1,8 @@
-import { SlashCommandBuilder, EmbedBuilder, ChatInputCommandInteraction } from "discord.js";
+import {
+  SlashCommandBuilder,
+  EmbedBuilder,
+  ChatInputCommandInteraction,
+} from "discord.js";
 import {
   getMongoDb,
   getServerAgeYears,
@@ -156,7 +160,7 @@ export default {
         uniqueMentioners: 0,
       }) as { totalMentions: number; uniqueMentioners: number };
 
-      const description = `**User:** ${targetUser.toString()}\n**Time Period:** ${formatTimePeriod(years, months, days, "Last 30 days (default)")}\n**Channel:** ${channel ? channel.toString() : "All Channels"}\n**Total Mentions:** ${stats.totalMentions}\n\n`;
+      const description = `**User:** ${targetUser.toString()}\n**Time Period:** ${formatTimePeriod(years, months, days, "Server lifetime (default)")}\n**Channel:** ${channel ? channel.toString() : "All Channels"}\n**Total Mentions:** ${stats.totalMentions}\n\n`;
 
       // Create embed
       const embed = new EmbedBuilder()

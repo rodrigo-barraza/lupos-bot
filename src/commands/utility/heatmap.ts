@@ -128,15 +128,22 @@ export default {
           {
             $group: {
               _id: {
+                // $dayOfWeek is 1 (Sunday) … 7 (Saturday); remap to
+                // 0 (Monday) … 6 (Sunday) to match the DAYS label array.
                 dayOfWeek: {
-                  $subtract: [
+                  $mod: [
                     {
-                      $dayOfWeek: {
-                        date: "$date",
-                        timezone: "America/Los_Angeles",
-                      },
+                      $add: [
+                        {
+                          $dayOfWeek: {
+                            date: "$date",
+                            timezone: "America/Los_Angeles",
+                          },
+                        },
+                        5,
+                      ],
                     },
-                    1,
+                    7,
                   ],
                 },
                 hour: {
@@ -234,7 +241,8 @@ export default {
 
       const hourlyMessages = hourlyResult.messages as HourlyMessageEntry[];
       const totalMessages = hourlyResult.totalMessages as number;
-      const monthlyMessages = (monthlyResult?.messages || []) as MonthlyMessageEntry[];
+      const monthlyMessages = (monthlyResult?.messages ||
+        []) as MonthlyMessageEntry[];
 
       // Create 7x48 grid (days x 30-minute blocks)
       const heatmapData = Array(7)

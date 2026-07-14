@@ -63,14 +63,16 @@ const MULTIPLIER_NAMES = {
 };
 
 function getMultiplierName(multiplier: number) {
-  return MULTIPLIER_NAMES[multiplier as keyof typeof MULTIPLIER_NAMES] || `${multiplier}x`;
+  return (
+    MULTIPLIER_NAMES[multiplier as keyof typeof MULTIPLIER_NAMES] ||
+    `${multiplier}x`
+  );
 }
 
 // Store active games (gameId -> game state)
 const activeGames = new Map();
 // Store active collectors
 const activeCollectors = new Map();
-
 
 export interface GameRoll {
   userId: string;
@@ -240,7 +242,9 @@ function getSeasonMMR(userStats: Partial<UserStats> | null) {
  * Returns { title, emoji } for the given MMR value.
  */
 function getRankTitle(mmr: number) {
-  const tier = RANK_TIERS.find((t: { min: number; title: string; emoji: string }) => mmr >= t.min);
+  const tier = RANK_TIERS.find(
+    (t: { min: number; title: string; emoji: string }) => mmr >= t.min,
+  );
   return tier || RANK_TIERS[RANK_TIERS.length - 1];
 }
 
@@ -274,7 +278,9 @@ function formatStreak(currentStreak: number) {
  * Computes a full player profile.
  * MMR and RD are stored state (passed in), not derived.
  */
-function computePlayerProfile(playerStats: Partial<AggregatedStats> & Partial<UserStats> | null): PlayerProfile {
+function computePlayerProfile(
+  playerStats: (Partial<AggregatedStats> & Partial<UserStats>) | null,
+): PlayerProfile {
   const wins = playerStats?.wins || 0;
   const losses = playerStats?.losses || 0;
   const totalGames = playerStats?.totalGames || (wins || 0) + (losses || 0);
@@ -336,7 +342,8 @@ let deathrollIndexesEnsured = false;
 
 function getDeathrollCollections() {
   const localMongo = MongoService.getClient("local");
-  if (!localMongo) throw new Error("MongoService: local client not initialized");
+  if (!localMongo)
+    throw new Error("MongoService: local client not initialized");
   const db = localMongo.db(MONGO_DB_NAME);
   const collections = {
     statsCollection: db.collection("DeathRollUserStats"),
@@ -347,7 +354,10 @@ function getDeathrollCollections() {
   if (!deathrollIndexesEnsured) {
     deathrollIndexesEnsured = true;
     ensureDeathrollIndexes(collections).catch((err: unknown) =>
-      console.error("Failed to ensure deathroll indexes:", utilities.errorMessage(err)),
+      console.error(
+        "Failed to ensure deathroll indexes:",
+        utilities.errorMessage(err),
+      ),
     );
   }
 
@@ -359,7 +369,13 @@ function getDeathrollCollections() {
  * Prevents full collection scans on findOne({ userId, guildId }),
  * aggregate({ guildId, season }), and leaderboard queries.
  */
-async function ensureDeathrollIndexes({ statsCollection, gamesCollection }: { statsCollection: import("mongodb").Collection; gamesCollection: import("mongodb").Collection }) {
+async function ensureDeathrollIndexes({
+  statsCollection,
+  gamesCollection,
+}: {
+  statsCollection: import("mongodb").Collection;
+  gamesCollection: import("mongodb").Collection;
+}) {
   await Promise.all([
     // DeathRollUserStats — primary lookup pattern
     statsCollection.createIndex({ userId: 1, guildId: 1 }, { unique: true }),
@@ -368,7 +384,12 @@ async function ensureDeathrollIndexes({ statsCollection, gamesCollection }: { st
 
     // DeathRollGameHistory — aggregation + H2H queries
     gamesCollection.createIndex({ guildId: 1, season: 1 }),
-    gamesCollection.createIndex({ guildId: 1, season: 1, winnerId: 1, loserId: 1 }),
+    gamesCollection.createIndex({
+      guildId: 1,
+      season: 1,
+      winnerId: 1,
+      loserId: 1,
+    }),
     gamesCollection.createIndex({ guildId: 1, season: 1, loserId: 1 }),
     gamesCollection.createIndex({ endedAt: -1 }),
   ]);
@@ -488,7 +509,7 @@ interface AggregatedPlayerDoc {
 async function aggregateAllPlayerStats(guildId: string) {
   const { gamesCollection } = getDeathrollCollections();
   const season = config.DEATHROLL_SEASON;
-  const results = await gamesCollection
+  const results = (await gamesCollection
     .aggregate([
       { $match: { guildId, season } },
       {
@@ -574,7 +595,7 @@ async function aggregateAllPlayerStats(guildId: string) {
         },
       },
     ])
-    .toArray() as unknown as AggregatedPlayerDoc[];
+    .toArray()) as unknown as AggregatedPlayerDoc[];
 
   return results.map((r: AggregatedPlayerDoc) => ({
     userId: r._id,
@@ -598,7 +619,10 @@ async function fetchSinglePlayerStats(guildId: string, userId: string) {
     const { statsCollection } = getDeathrollCollections();
     const [historyStats, userStats] = await Promise.all([
       aggregatePlayerStats(guildId, userId),
-      statsCollection.findOne({ userId, guildId }) as unknown as Partial<UserStats> | null,
+      statsCollection.findOne({
+        userId,
+        guildId,
+      }) as unknown as Partial<UserStats> | null,
     ]);
 
     if (!historyStats) return computePlayerProfile(null);
@@ -619,7 +643,11 @@ async function fetchSinglePlayerStats(guildId: string, userId: string) {
   }
 }
 
-async function fetchMidGameStats(guildId: string, initiatorId: string, opponentId: string) {
+async function fetchMidGameStats(
+  guildId: string,
+  initiatorId: string,
+  opponentId: string,
+) {
   try {
     const { statsCollection } = getDeathrollCollections();
     const [
@@ -630,8 +658,14 @@ async function fetchMidGameStats(guildId: string, initiatorId: string, opponentI
     ] = await Promise.all([
       aggregatePlayerStats(guildId, initiatorId),
       aggregatePlayerStats(guildId, opponentId),
-      statsCollection.findOne({ userId: initiatorId, guildId }) as unknown as Promise<Partial<UserStats> | null>,
-      statsCollection.findOne({ userId: opponentId, guildId }) as unknown as Promise<Partial<UserStats> | null>,
+      statsCollection.findOne({
+        userId: initiatorId,
+        guildId,
+      }) as unknown as Promise<Partial<UserStats> | null>,
+      statsCollection.findOne({
+        userId: opponentId,
+        guildId,
+      }) as unknown as Promise<Partial<UserStats> | null>,
     ]);
 
     const initiatorMMR = getSeasonMMR(initiatorUserStats);
@@ -659,7 +693,11 @@ async function fetchMidGameStats(guildId: string, initiatorId: string, opponentI
   }
 }
 
-async function fetchHeadToHead(guildId: string, player1Id: string, player2Id: string) {
+async function fetchHeadToHead(
+  guildId: string,
+  player1Id: string,
+  player2Id: string,
+) {
   try {
     const { gamesCollection } = getDeathrollCollections();
     const season = config.DEATHROLL_SEASON;
@@ -684,15 +722,26 @@ async function fetchHeadToHead(guildId: string, player1Id: string, player2Id: st
   }
 }
 
-async function buildEndGameData(guildId: string, game: GameState, winnerId: string, loserId: string) {
+async function buildEndGameData(
+  guildId: string,
+  game: GameState,
+  winnerId: string,
+  loserId: string,
+) {
   try {
     const { statsCollection } = getDeathrollCollections();
     const [winnerHistory, loserHistory, winnerUserStats, loserUserStats] =
       await Promise.all([
         aggregatePlayerStats(guildId, winnerId),
         aggregatePlayerStats(guildId, loserId),
-        statsCollection.findOne({ userId: winnerId, guildId }) as unknown as Promise<Partial<UserStats> | null>,
-        statsCollection.findOne({ userId: loserId, guildId }) as unknown as Promise<Partial<UserStats> | null>,
+        statsCollection.findOne({
+          userId: winnerId,
+          guildId,
+        }) as unknown as Promise<Partial<UserStats> | null>,
+        statsCollection.findOne({
+          userId: loserId,
+          guildId,
+        }) as unknown as Promise<Partial<UserStats> | null>,
       ]);
 
     const multiplier = game.timeoutMultiplier || 1;
@@ -803,8 +852,14 @@ async function saveGameResult(
   const multiplier = game.timeoutMultiplier || 1;
 
   const [currentLoserStats, currentWinnerStats] = await Promise.all([
-    statsCollection.findOne({ userId: loserId, guildId }) as unknown as Promise<Partial<UserStats> | null>,
-    statsCollection.findOne({ userId: winnerId, guildId }) as unknown as Promise<Partial<UserStats> | null>,
+    statsCollection.findOne({
+      userId: loserId,
+      guildId,
+    }) as unknown as Promise<Partial<UserStats> | null>,
+    statsCollection.findOne({
+      userId: winnerId,
+      guildId,
+    }) as unknown as Promise<Partial<UserStats> | null>,
   ]);
 
   // Get season-aware MMR/RD, apply time decay
@@ -890,9 +945,9 @@ async function saveGameResult(
     gameId: `${guildId}_${game.messageId}`,
     guildId,
     channelId: game.channelId,
-    initiatorId: (game.initiator as string),
+    initiatorId: game.initiator as string,
     initiatorName: game.initiatorName,
-    opponentId: (game.opponent as string),
+    opponentId: game.opponent as string,
     opponentName: game.opponentName,
     startingNumber: game.startingNumber,
     winnerId,
@@ -913,7 +968,11 @@ async function saveGameResult(
   await gamesCollection.insertOne(gameRecord);
 }
 
-async function fetchTopRivals(guildId: string, userId: string, limit: number = 3) {
+async function fetchTopRivals(
+  guildId: string,
+  userId: string,
+  limit: number = 3,
+) {
   try {
     const { gamesCollection } = getDeathrollCollections();
     const season = config.DEATHROLL_SEASON;
@@ -997,7 +1056,10 @@ async function fetchLeaderboard(guildId: string, limit: number = 20) {
     }
 
     const userStatsMap = new Map<string, Partial<UserStats>>(
-      userStatsList.map((s) => [s.userId as string, s as unknown as Partial<UserStats>]),
+      userStatsList.map((s) => [
+        s.userId as string,
+        s as unknown as Partial<UserStats>,
+      ]),
     );
 
     let ranked: RankedPlayer[] = historyStats
@@ -1015,14 +1077,19 @@ async function fetchLeaderboard(guildId: string, limit: number = 20) {
           }),
         };
       })
-      .sort((a: RankedPlayer, b: RankedPlayer) => b.profile.mmr - a.profile.mmr);
+      .sort(
+        (a: RankedPlayer, b: RankedPlayer) => b.profile.mmr - a.profile.mmr,
+      );
 
     if (limit && limit > 0) {
       ranked = ranked.slice(0, limit);
     }
 
     // Each game has exactly one winner, so sum of wins = total games
-    const totalGamesPlayed = historyStats.reduce((sum: number, p: LeaderboardPlayer) => sum + p.wins, 0);
+    const totalGamesPlayed = historyStats.reduce(
+      (sum: number, p: LeaderboardPlayer) => sum + p.wins,
+      0,
+    );
     return { players: historyStats, ranked, totalGamesPlayed };
   } catch (error: unknown) {
     console.error("Error fetching leaderboard:", error);
@@ -1038,7 +1105,16 @@ function formatGameMessage(
   lastRoller: string | null | undefined,
   lastRollerId: string,
   isGameOver: boolean,
-  stats: { initiator?: PlayerProfile, opponent?: PlayerProfile, winnerRank?: string, loserRank?: string, winnerMmrChange?: string, loserMmrChange?: string, winnerStreak?: number, loserStreak?: number } | null,
+  stats: {
+    initiator?: PlayerProfile;
+    opponent?: PlayerProfile;
+    winnerRank?: string;
+    loserRank?: string;
+    winnerMmrChange?: string;
+    loserMmrChange?: string;
+    winnerStreak?: number;
+    loserStreak?: number;
+  } | null,
 ) {
   const timeoutMinutes = (game.timeoutMultiplier || 1) * BASE_TIMEOUT_MINUTES;
   let content = `🎲 **Deathroll Game**${game.timeoutMultiplier > 1 ? ` 🎰 **${getMultiplierName(game.timeoutMultiplier).toUpperCase()} OR NOTHING (${timeoutMinutes}min timeout)**` : ""}\n`;
@@ -1050,13 +1126,13 @@ function formatGameMessage(
     const opponentRecord = stats.opponent
       ? formatStatsString(stats.opponent as Partial<PlayerProfile>)
       : "";
-    content += `<@${(game.initiator as string)}>${initiatorRecord}\nvs\n<@${(game.opponent as string)}>${opponentRecord}\n`;
+    content += `<@${game.initiator as string}>${initiatorRecord}\nvs\n<@${game.opponent as string}>${opponentRecord}\n`;
   } else {
-    content += `<@${(game.initiator as string)}>\nvs\n<@${(game.opponent as string)}>\n`;
+    content += `<@${game.initiator as string}>\nvs\n<@${game.opponent as string}>\n`;
   }
 
   if (game.h2h && (game.h2h.player1Wins > 0 || game.h2h.player2Wins > 0)) {
-    content += `-# H2H: <@${(game.initiator as string)}> ${game.h2h.player1Wins} - ${game.h2h.player2Wins} <@${(game.opponent as string)}>\n`;
+    content += `-# H2H: <@${game.initiator as string}> ${game.h2h.player1Wins} - ${game.h2h.player2Wins} <@${game.opponent as string}>\n`;
   }
 
   content += `Starting number: **${game.startingNumber}**\n\n`;
@@ -1071,7 +1147,9 @@ function formatGameMessage(
 
   if (isGameOver) {
     const winnerId =
-      lastRollerId === (game.initiator as string) ? (game.opponent as string) : (game.initiator as string);
+      lastRollerId === (game.initiator as string)
+        ? (game.opponent as string)
+        : (game.initiator as string);
 
     if (stats) {
       content += `📊 **Game Stats**\n`;
@@ -1105,7 +1183,11 @@ function formatGameMessage(
 
 // ─── Double or Nothing ────────────────────────────────────────────────
 
-function buildDoubleOrNothingRow(game: GameState, winnerId: string, loserId: string) {
+function buildDoubleOrNothingRow(
+  game: GameState,
+  winnerId: string,
+  loserId: string,
+) {
   const nextMultiplier = (game.timeoutMultiplier || 1) * 2;
   const nextTimeout = nextMultiplier * BASE_TIMEOUT_MINUTES;
   const multiplierName = getMultiplierName(nextMultiplier);
@@ -1118,7 +1200,9 @@ function buildDoubleOrNothingRow(game: GameState, winnerId: string, loserId: str
     .setStyle(ButtonStyle.Danger)
     .setEmoji("🎰");
 
-  const row = new ActionRowBuilder<import("discord.js").ButtonBuilder>().addComponents(donButton);
+  const row = new ActionRowBuilder<
+    import("discord.js").ButtonBuilder
+  >().addComponents(donButton);
   return [row];
 }
 
@@ -1161,225 +1245,256 @@ function createDoubleOrNothingCollector(
     }
   }, 1000);
 
-  collector.on("collect", async (buttonInteraction: import("discord.js").ButtonInteraction) => {
-    try {
-      const userId = buttonInteraction.user.id;
+  collector.on(
+    "collect",
+    async (buttonInteraction: import("discord.js").ButtonInteraction) => {
+      try {
+        const userId = buttonInteraction.user.id;
 
-      if (!buttonInteraction.customId.startsWith("deathroll_don_agree_"))
-        return;
+        if (!buttonInteraction.customId.startsWith("deathroll_don_agree_"))
+          return;
 
-      if (userId !== winnerId && userId !== loserId) {
-        return buttonInteraction.reply({
-          content: "🎲 Only the two players can agree to Double or Nothing!",
-          
+        if (userId !== winnerId && userId !== loserId) {
+          return buttonInteraction.reply({
+            content: "🎲 Only the two players can agree to Double or Nothing!",
+            ephemeral: true,
+          });
+        }
+
+        if (agreed.has(userId)) {
+          return buttonInteraction.reply({
+            content: "🎲 You already agreed! Waiting for the other player.",
+            ephemeral: true,
+          });
+        }
+
+        agreed.add(userId);
+
+        // If only one player has agreed, update the message and wait
+        if (agreed.size < 2) {
+          const otherId = userId === winnerId ? loserId : winnerId;
+          await buttonInteraction.update({
+            content:
+              baseContent +
+              `\n\n🎰 <@${userId}> wants **${multiplierName} or Nothing**! <@${otherId}>, click the button to agree.`,
+          });
+          return;
+        }
+
+        // Both players agreed — start DoN!
+        clearInterval(countdownInterval);
+        collector.stop("manually stopped");
+
+        const challengerMember = await guild.members
+          .fetch(loserId)
+          .catch(() => null);
+        const opponentMember = await guild.members
+          .fetch(winnerId)
+          .catch(() => null);
+
+        if (!challengerMember?.moderatable || !opponentMember?.moderatable) {
+          await buttonInteraction.update({ components: [] });
+          return buttonInteraction.followUp({
+            content: "🎲 One of the players can't be timed out anymore!",
+            ephemeral: true,
+          });
+        }
+
+        await removePendingTimeout(guild, loserId);
+
+        const h2h = await fetchHeadToHead(guild.id, loserId, winnerId);
+
+        const gameId = `${buttonInteraction.channelId}_${buttonInteraction.id}`;
+        const now = Date.now();
+
+        activeGames.set(gameId, {
+          initiator: loserId,
+          initiatorName: challengerMember.user.username,
+          opponent: winnerId,
+          opponentName: opponentMember.user.username,
+          targetUserId: winnerId,
+          currentNumber: startingNumber,
+          currentTurn: winnerId,
+          messageId: buttonInteraction.message.id,
+          channelId: buttonInteraction.channelId,
+          startingNumber: startingNumber,
+          rolls: [],
+          startedAt: now,
+          currentMessageId: null,
+          timeoutMultiplier: nextMultiplier,
+          h2h: h2h,
         });
-      }
 
-      if (agreed.has(userId)) {
-        return buttonInteraction.reply({
-          content: "🎲 You already agreed! Waiting for the other player.",
-          
+        const roll = Math.floor(Math.random() * (startingNumber + 1));
+        activeGames.get(gameId).rolls.push({
+          userId: winnerId,
+          username: opponentMember.user.username,
+          roll,
+          maxNumber: startingNumber,
         });
-      }
 
-      agreed.add(userId);
-
-      // If only one player has agreed, update the message and wait
-      if (agreed.size < 2) {
-        const otherId = userId === winnerId ? loserId : winnerId;
         await buttonInteraction.update({
           content:
             baseContent +
-            `\n\n🎰 <@${userId}> wants **${multiplierName} or Nothing**! <@${otherId}>, click the button to agree.`,
+            `\n\n✅ Both players agreed to **${multiplierName} or Nothing**! 🎰`,
+          components: [],
         });
-        return;
-      }
 
-      // Both players agreed — start DoN!
-      clearInterval(countdownInterval);
-      collector.stop("manually stopped");
+        if (roll === 0) {
+          const game = activeGames.get(gameId);
+          if (!game) return;
+          const endGameData = await buildEndGameData(
+            guild.id,
+            game,
+            loserId,
+            winnerId,
+          );
+          const gameOverMsg = await buttonInteraction.followUp({
+            content: formatGameMessage(
+              game,
+              roll,
+              opponentMember.user.username,
+              winnerId,
+              true,
+              endGameData,
+            ),
+            components: buildDoubleOrNothingRow(game, loserId, winnerId),
+          });
+          await handleLoss(
+            buttonInteraction,
+            game,
+            winnerId,
+            roll,
+            gameOverMsg,
+          );
+          activeGames.delete(gameId);
+          return;
+        }
 
-      const challengerMember = await guild.members
-        .fetch(loserId)
-        .catch(() => null);
-      const opponentMember = await guild.members
-        .fetch(winnerId)
-        .catch(() => null);
-
-      if (!challengerMember?.moderatable || !opponentMember?.moderatable) {
-        await buttonInteraction.update({ components: [] });
-        return buttonInteraction.followUp({
-          content: "🎲 One of the players can't be timed out anymore!",
-          
-        });
-      }
-
-      await removePendingTimeout(guild, loserId);
-
-      const h2h = await fetchHeadToHead(guild.id, loserId, winnerId);
-
-      const gameId = `${buttonInteraction.channelId}_${buttonInteraction.id}`;
-      const now = Date.now();
-
-      activeGames.set(gameId, {
-        initiator: loserId,
-        initiatorName: challengerMember.user.username,
-        opponent: winnerId,
-        opponentName: opponentMember.user.username,
-        targetUserId: winnerId,
-        currentNumber: startingNumber,
-        currentTurn: winnerId,
-        messageId: buttonInteraction.message.id,
-        channelId: buttonInteraction.channelId,
-        startingNumber: startingNumber,
-        rolls: [],
-        startedAt: now,
-        currentMessageId: null,
-        timeoutMultiplier: nextMultiplier,
-        h2h: h2h,
-      });
-
-      const roll = Math.floor(Math.random() * (startingNumber + 1));
-      activeGames.get(gameId).rolls.push({
-        userId: winnerId,
-        username: opponentMember.user.username,
-        roll,
-        maxNumber: startingNumber,
-      });
-
-      await buttonInteraction.update({
-        content:
-          baseContent +
-          `\n\n✅ Both players agreed to **${multiplierName} or Nothing**! 🎰`,
-        components: [],
-      });
-
-      if (roll === 0) {
         const game = activeGames.get(gameId);
         if (!game) return;
-        const endGameData = await buildEndGameData(
+        game.currentNumber = roll;
+        game.currentTurn = loserId;
+
+        const rollButton = new ButtonBuilder()
+          .setCustomId(`deathroll_roll_${gameId}`)
+          .setLabel(`Roll (0-${roll})`)
+          .setStyle(ButtonStyle.Primary)
+          .setEmoji("🎲");
+
+        const row = new ActionRowBuilder<
+          import("discord.js").ButtonBuilder
+        >().addComponents(rollButton);
+        const midGameStats = await fetchMidGameStats(
           guild.id,
-          game,
           loserId,
           winnerId,
         );
-        const gameOverMsg = await buttonInteraction.followUp({
+
+        const newMessage = await buttonInteraction.followUp({
           content: formatGameMessage(
             game,
             roll,
             opponentMember.user.username,
             winnerId,
-            true,
-            endGameData,
+            false,
+            midGameStats,
           ),
-          components: buildDoubleOrNothingRow(game, loserId, winnerId),
+          components: [row],
         });
-        await handleLoss(buttonInteraction, game, winnerId, roll, gameOverMsg);
-        activeGames.delete(gameId);
-        return;
-      }
 
-      const game = activeGames.get(gameId);
-      if (!game) return;
-      game.currentNumber = roll;
-      game.currentTurn = loserId;
-
-      const rollButton = new ButtonBuilder()
-        .setCustomId(`deathroll_roll_${gameId}`)
-        .setLabel(`Roll (0-${roll})`)
-        .setStyle(ButtonStyle.Primary)
-        .setEmoji("🎲");
-
-      const row = new ActionRowBuilder<import("discord.js").ButtonBuilder>().addComponents(rollButton);
-      const midGameStats = await fetchMidGameStats(guild.id, loserId, winnerId);
-
-      const newMessage = await buttonInteraction.followUp({
-        content: formatGameMessage(
-          game,
-          roll,
-          opponentMember.user.username,
-          winnerId,
-          false,
-          midGameStats,
-        ),
-        components: [row],
-      });
-
-      game.currentMessageId = newMessage.id;
-      createRollCollector(newMessage, gameId, guild);
-    } catch (error: unknown) {
-      console.error("Error in Double or Nothing agreement collector:", error);
-      try {
-        const channel = buttonInteraction.channel as import("discord.js").TextChannel | null;
-        if (channel) {
-          const recoveryMultiplierName = getMultiplierName(nextMultiplier);
-          const donButton = new ButtonBuilder()
-            .setCustomId(
-              `deathroll_don_agree_${winnerId}_${loserId}_${startingNumber}_${nextMultiplier}`,
-            )
-            .setLabel(
-              `${recoveryMultiplierName} or Nothing (${nextMultiplier * BASE_TIMEOUT_MINUTES}min timeout)`,
-            )
-            .setStyle(ButtonStyle.Danger)
-            .setEmoji("🎰");
-          const row = new ActionRowBuilder<import("discord.js").ButtonBuilder>().addComponents(donButton);
-          const recoveryMsg = await channel.send({
-            content: `⚠️ Something went wrong! <@${winnerId}> / <@${loserId}>, click below to agree to ${recoveryMultiplierName} or Nothing.`,
-            components: [row],
-          });
-          createDoubleOrNothingCollector(
-            recoveryMsg,
-            guild,
-            winnerId,
-            loserId,
-            startingNumber,
-            timeoutMultiplier,
-            pendingTimeoutData,
-            pendingGameData,
+        game.currentMessageId = newMessage.id;
+        createRollCollector(newMessage, gameId, guild);
+      } catch (error: unknown) {
+        console.error("Error in Double or Nothing agreement collector:", error);
+        try {
+          const channel = buttonInteraction.channel as
+            | import("discord.js").TextChannel
+            | null;
+          if (channel) {
+            const recoveryMultiplierName = getMultiplierName(nextMultiplier);
+            const donButton = new ButtonBuilder()
+              .setCustomId(
+                `deathroll_don_agree_${winnerId}_${loserId}_${startingNumber}_${nextMultiplier}`,
+              )
+              .setLabel(
+                `${recoveryMultiplierName} or Nothing (${nextMultiplier * BASE_TIMEOUT_MINUTES}min timeout)`,
+              )
+              .setStyle(ButtonStyle.Danger)
+              .setEmoji("🎰");
+            const row = new ActionRowBuilder<
+              import("discord.js").ButtonBuilder
+            >().addComponents(donButton);
+            const recoveryMsg = await channel.send({
+              content: `⚠️ Something went wrong! <@${winnerId}> / <@${loserId}>, click below to agree to ${recoveryMultiplierName} or Nothing.`,
+              components: [row],
+            });
+            createDoubleOrNothingCollector(
+              recoveryMsg,
+              guild,
+              winnerId,
+              loserId,
+              startingNumber,
+              timeoutMultiplier,
+              pendingTimeoutData,
+              pendingGameData,
+            );
+          }
+        } catch (recoveryError: unknown) {
+          console.error(
+            "Failed to recover from DoN agreement error:",
+            recoveryError,
           );
         }
-      } catch (recoveryError: unknown) {
-        console.error(
-          "Failed to recover from DoN agreement error:",
-          recoveryError,
-        );
       }
-    }
-  });
+    },
+  );
 
-  collector.on("end", async (collected: import("discord.js").Collection<string, import("discord.js").ButtonInteraction>, reason: string) => {
-    clearInterval(countdownInterval);
-    if (reason !== "manually stopped") {
-      const timeoutMinutes =
-        (pendingTimeoutData?.timeoutDuration || BASE_TIMEOUT) / 60000;
-      await message
-        .edit({
-          content:
-            baseContent +
-            `\n-# ⏱️ Time's up! <@${loserId}> has been timed out for ${timeoutMinutes} minutes.`,
-          components: [],
-        })
-        .catch(() => {});
-      if (pendingTimeoutData) {
-        await applyPendingTimeout(guild, pendingTimeoutData);
+  collector.on(
+    "end",
+    async (
+      collected: import("discord.js").Collection<
+        string,
+        import("discord.js").ButtonInteraction
+      >,
+      reason: string,
+    ) => {
+      clearInterval(countdownInterval);
+      if (reason !== "manually stopped") {
+        const timeoutMinutes =
+          (pendingTimeoutData?.timeoutDuration || BASE_TIMEOUT) / 60000;
+        await message
+          .edit({
+            content:
+              baseContent +
+              `\n-# ⏱️ Time's up! <@${loserId}> has been timed out for ${timeoutMinutes} minutes.`,
+            components: [],
+          })
+          .catch(() => {});
+        if (pendingTimeoutData) {
+          await applyPendingTimeout(guild, pendingTimeoutData);
+        }
+        // DoN not agreed — save the final game result now
+        if (pendingGameData) {
+          await saveGameResult(
+            guild.id,
+            pendingGameData.game,
+            pendingGameData.winnerId,
+            pendingGameData.loserId,
+            pendingGameData.winnerInfo,
+            pendingGameData.loserInfo,
+            null,
+          );
+        }
       }
-      // DoN not agreed — save the final game result now
-      if (pendingGameData) {
-        await saveGameResult(
-          guild.id,
-          pendingGameData.game,
-          pendingGameData.winnerId,
-          pendingGameData.loserId,
-          pendingGameData.winnerInfo,
-          pendingGameData.loserInfo,
-          null,
-        );
-      }
-    }
-  });
+    },
+  );
 }
 
-async function applyPendingTimeout(guild: import("discord.js").Guild, pendingTimeoutData: PendingTimeoutData) {
+async function applyPendingTimeout(
+  guild: import("discord.js").Guild,
+  pendingTimeoutData: PendingTimeoutData,
+) {
   if (!pendingTimeoutData) return;
   const { loserId, timeoutDuration } = pendingTimeoutData;
   try {
@@ -1396,7 +1511,10 @@ async function applyPendingTimeout(guild: import("discord.js").Guild, pendingTim
   }
 }
 
-async function removePendingTimeout(guild: import("discord.js").Guild, userId: string) {
+async function removePendingTimeout(
+  guild: import("discord.js").Guild,
+  userId: string,
+) {
   try {
     const member = await guild.members.fetch(userId).catch(() => null);
     if (member && member.communicationDisabledUntil) {
@@ -1412,139 +1530,176 @@ async function removePendingTimeout(guild: import("discord.js").Guild, userId: s
 
 // ─── Collectors ───────────────────────────────────────────────────────
 
-function createRollCollector(message: import("discord.js").Message, gameId: string, guild: import("discord.js").Guild) {
+function createRollCollector(
+  message: import("discord.js").Message,
+  gameId: string,
+  guild: import("discord.js").Guild,
+) {
   const collector = message.createMessageComponentCollector({
     idle: 5 * 60 * 1000,
   });
 
   activeCollectors.set(gameId, collector);
 
-  collector.on("collect", async (buttonInteraction: import("discord.js").ButtonInteraction) => {
-    try {
-      await handleRollButton(buttonInteraction, gameId);
-    } catch (error: unknown) {
-      console.error("Error in roll collector:", error);
+  collector.on(
+    "collect",
+    async (buttonInteraction: import("discord.js").ButtonInteraction) => {
       try {
-        const game = activeGames.get(gameId);
-        if (!game) return;
+        await handleRollButton(buttonInteraction, gameId);
+      } catch (error: unknown) {
+        console.error("Error in roll collector:", error);
+        try {
+          const game = activeGames.get(gameId);
+          if (!game) return;
 
-        const channel = buttonInteraction.channel as import("discord.js").TextChannel | null;
-        if (channel) {
-          const lastRoll =
-            game.rolls.length > 0 ? game.rolls[game.rolls.length - 1] : null;
-          const rollWasGenerated =
-            lastRoll && lastRoll.userId === buttonInteraction.user.id;
+          const channel = buttonInteraction.channel as
+            | import("discord.js").TextChannel
+            | null;
+          if (channel) {
+            const lastRoll =
+              game.rolls.length > 0 ? game.rolls[game.rolls.length - 1] : null;
+            const rollWasGenerated =
+              lastRoll && lastRoll.userId === buttonInteraction.user.id;
 
-          if (!rollWasGenerated) {
-            // Error before roll — re-post the existing roll button
-            const rollButton = new ButtonBuilder()
-              .setCustomId(`deathroll_roll_${gameId}`)
-              .setLabel(`Roll (0-${game.currentNumber})`)
-              .setStyle(ButtonStyle.Primary)
-              .setEmoji("🎲");
-            const row = new ActionRowBuilder<import("discord.js").ButtonBuilder>().addComponents(rollButton);
-            const newMessage = await channel.send({
-              content: `⚠️ Something went wrong! <@${game.currentTurn}>, click below to roll again.`,
-              components: [row],
-            });
-            game.currentMessageId = newMessage.id;
-            createRollCollector(newMessage, gameId, guild);
-          } else if (lastRoll.roll === 0) {
-            // Roll was 0 (game over) but display failed — recover via channel
-            const winnerId =
-              lastRoll.userId === (game.initiator as string) ? (game.opponent as string) : (game.initiator as string);
-            const endGameData = await buildEndGameData(
-              guild.id,
-              game,
-              winnerId,
-              lastRoll.userId,
-            );
-            const gameOverMsg = await channel.send({
-              content: formatGameMessage(
-                game,
-                lastRoll.roll,
-                lastRoll.username,
-                lastRoll.userId,
-                true,
-                endGameData,
-              ),
-              components: buildDoubleOrNothingRow(
+            if (!rollWasGenerated) {
+              // Error before roll — re-post the existing roll button
+              const rollButton = new ButtonBuilder()
+                .setCustomId(`deathroll_roll_${gameId}`)
+                .setLabel(`Roll (0-${game.currentNumber})`)
+                .setStyle(ButtonStyle.Primary)
+                .setEmoji("🎲");
+              const row = new ActionRowBuilder<
+                import("discord.js").ButtonBuilder
+              >().addComponents(rollButton);
+              const newMessage = await channel.send({
+                content: `⚠️ Something went wrong! <@${game.currentTurn}>, click below to roll again.`,
+                components: [row],
+              });
+              game.currentMessageId = newMessage.id;
+              createRollCollector(newMessage, gameId, guild);
+            } else if (lastRoll.roll === 0) {
+              // Roll was 0 (game over) but display failed — recover via channel
+              const winnerId =
+                lastRoll.userId === (game.initiator as string)
+                  ? (game.opponent as string)
+                  : (game.initiator as string);
+              const endGameData = await buildEndGameData(
+                guild.id,
                 game,
                 winnerId,
                 lastRoll.userId,
-              ),
-            });
-            await handleLoss(
-              buttonInteraction,
-              game,
-              lastRoll.userId,
-              lastRoll.roll,
-              gameOverMsg,
-            );
-            activeGames.delete(gameId);
-            activeCollectors.delete(gameId);
-          } else {
-            // Roll was generated but display failed — update state and re-post
-            game.currentNumber = lastRoll.roll;
-            game.currentTurn =
-              lastRoll.userId === (game.initiator as string) ? (game.opponent as string) : (game.initiator as string);
-
-            const rollButton = new ButtonBuilder()
-              .setCustomId(`deathroll_roll_${gameId}`)
-              .setLabel(`Roll (0-${lastRoll.roll})`)
-              .setStyle(ButtonStyle.Primary)
-              .setEmoji("🎲");
-            const row = new ActionRowBuilder<import("discord.js").ButtonBuilder>().addComponents(rollButton);
-            const midGameStats = await fetchMidGameStats(
-              guild.id,
-              (game.initiator as string),
-              (game.opponent as string),
-            );
-            const newMessage = await channel.send({
-              content: formatGameMessage(
+              );
+              const gameOverMsg = await channel.send({
+                content: formatGameMessage(
+                  game,
+                  lastRoll.roll,
+                  lastRoll.username,
+                  lastRoll.userId,
+                  true,
+                  endGameData,
+                ),
+                components: buildDoubleOrNothingRow(
+                  game,
+                  winnerId,
+                  lastRoll.userId,
+                ),
+              });
+              await handleLoss(
+                buttonInteraction,
                 game,
-                lastRoll.roll,
-                lastRoll.username,
                 lastRoll.userId,
-                false,
-                midGameStats,
-              ),
-              components: [row],
-            });
-            game.currentMessageId = newMessage.id;
-            createRollCollector(newMessage, gameId, guild);
+                lastRoll.roll,
+                gameOverMsg,
+              );
+              activeGames.delete(gameId);
+              activeCollectors.delete(gameId);
+            } else {
+              // Roll was generated but display failed — update state and re-post
+              game.currentNumber = lastRoll.roll;
+              game.currentTurn =
+                lastRoll.userId === (game.initiator as string)
+                  ? (game.opponent as string)
+                  : (game.initiator as string);
+
+              const rollButton = new ButtonBuilder()
+                .setCustomId(`deathroll_roll_${gameId}`)
+                .setLabel(`Roll (0-${lastRoll.roll})`)
+                .setStyle(ButtonStyle.Primary)
+                .setEmoji("🎲");
+              const row = new ActionRowBuilder<
+                import("discord.js").ButtonBuilder
+              >().addComponents(rollButton);
+              const midGameStats = await fetchMidGameStats(
+                guild.id,
+                game.initiator as string,
+                game.opponent as string,
+              );
+              const newMessage = await channel.send({
+                content: formatGameMessage(
+                  game,
+                  lastRoll.roll,
+                  lastRoll.username,
+                  lastRoll.userId,
+                  false,
+                  midGameStats,
+                ),
+                components: [row],
+              });
+              game.currentMessageId = newMessage.id;
+              createRollCollector(newMessage, gameId, guild);
+            }
           }
+        } catch (recoveryError: unknown) {
+          console.error("Failed to recover from roll error:", recoveryError);
         }
-      } catch (recoveryError: unknown) {
-        console.error("Failed to recover from roll error:", recoveryError);
       }
-    }
-  });
+    },
+  );
 
-  collector.on("end", async (collected: import("discord.js").Collection<string, import("discord.js").ButtonInteraction>, reason: string) => {
-    if (reason !== "manually stopped" && activeGames.has(gameId)) {
-      const game = activeGames.get(gameId);
+  collector.on(
+    "end",
+    async (
+      collected: import("discord.js").Collection<
+        string,
+        import("discord.js").ButtonInteraction
+      >,
+      reason: string,
+    ) => {
+      if (reason !== "manually stopped" && activeGames.has(gameId)) {
+        const game = activeGames.get(gameId);
 
-      if (!game) return;
+        if (!game) return;
 
-      if ((game.opponent as string) && game.currentTurn) {
-        const loserId = game.currentTurn;
-        const winnerId =
-          loserId === (game.initiator as string) ? (game.opponent as string) : (game.initiator as string);
+        if ((game.opponent as string) && game.currentTurn) {
+          const loserId = game.currentTurn;
+          const winnerId =
+            loserId === (game.initiator as string)
+              ? (game.opponent as string)
+              : (game.initiator as string);
 
-        try {
-          await handleTimeoutLoss(guild, game, winnerId, loserId);
-          const timeoutMinutes = (game.timeoutMultiplier || 1) * 15;
-          await message
-            .edit({
-              content:
-                message.content +
-                `\n\n⏱️ Game timed out! <@${loserId}> took too long to roll.\n💀 <@${loserId}> loses and has been timed out for ${timeoutMinutes} minutes!\n🎉 <@${winnerId}> wins!`,
-              components: [],
-            })
-            .catch(() => {});
-        } catch (error: unknown) {
-          console.error("Error handling timeout loss:", error);
+          try {
+            await handleTimeoutLoss(guild, game, winnerId, loserId);
+            const timeoutMinutes =
+              (game.timeoutMultiplier || 1) * BASE_TIMEOUT_MINUTES;
+            await message
+              .edit({
+                content:
+                  message.content +
+                  `\n\n⏱️ Game timed out! <@${loserId}> took too long to roll.\n💀 <@${loserId}> loses and has been timed out for ${timeoutMinutes} minutes!\n🎉 <@${winnerId}> wins!`,
+                components: [],
+              })
+              .catch(() => {});
+          } catch (error: unknown) {
+            console.error("Error handling timeout loss:", error);
+            await message
+              .edit({
+                content:
+                  message.content + "\n\n⏱️ Game timed out due to inactivity.",
+                components: [],
+              })
+              .catch(() => {});
+          }
+        } else {
           await message
             .edit({
               content:
@@ -1553,30 +1708,25 @@ function createRollCollector(message: import("discord.js").Message, gameId: stri
             })
             .catch(() => {});
         }
-      } else {
-        await message
-          .edit({
-            content:
-              message.content + "\n\n⏱️ Game timed out due to inactivity.",
-            components: [],
-          })
-          .catch(() => {});
-      }
 
-      activeGames.delete(gameId);
-      activeCollectors.delete(gameId);
-    }
-  });
+        activeGames.delete(gameId);
+        activeCollectors.delete(gameId);
+      }
+    },
+  );
 }
 
 // ─── Button Handlers ──────────────────────────────────────────────────
 
-async function handleDeclineButton(buttonInteraction: import("discord.js").ButtonInteraction, gameId: string) {
+async function handleDeclineButton(
+  buttonInteraction: import("discord.js").ButtonInteraction,
+  gameId: string,
+) {
   const game = activeGames.get(gameId);
   if (!game) {
     return buttonInteraction.reply({
       content: "🎲 This game is no longer active!",
-      
+      ephemeral: true,
     });
   }
 
@@ -1585,14 +1735,14 @@ async function handleDeclineButton(buttonInteraction: import("discord.js").Butto
   if (game.targetUserId && userId !== game.targetUserId) {
     return buttonInteraction.reply({
       content: "🎲 This challenge is not for you!",
-      
+      ephemeral: true,
     });
   }
 
-  if ((game.opponent as string)) {
+  if (game.opponent as string) {
     return buttonInteraction.reply({
       content: "🎲 This game is already in progress!",
-      
+      ephemeral: true,
     });
   }
 
@@ -1602,19 +1752,22 @@ async function handleDeclineButton(buttonInteraction: import("discord.js").Butto
   }
 
   await buttonInteraction.update({
-    content: `🎲 <@${(game.initiator as string)}>'s deathroll from **${game.startingNumber}** was denied by <@${buttonInteraction.user.id}>!`,
+    content: `🎲 <@${game.initiator as string}>'s deathroll from **${game.startingNumber}** was denied by <@${buttonInteraction.user.id}>!`,
     components: [],
   });
 
   activeGames.delete(gameId);
 }
 
-async function handleEngageButton(buttonInteraction: import("discord.js").ButtonInteraction, gameId: string) {
+async function handleEngageButton(
+  buttonInteraction: import("discord.js").ButtonInteraction,
+  gameId: string,
+) {
   const game = activeGames.get(gameId);
   if (!game) {
     return buttonInteraction.reply({
       content: "🎲 This game is no longer active!",
-      
+      ephemeral: true,
     });
   }
 
@@ -1623,53 +1776,52 @@ async function handleEngageButton(buttonInteraction: import("discord.js").Button
   if (userId === (game.initiator as string)) {
     return buttonInteraction.reply({
       content: "🎲 You can't play against yourself!",
-      
+      ephemeral: true,
     });
   }
 
   if (game.targetUserId && userId !== game.targetUserId) {
     return buttonInteraction.reply({
       content: "🎲 This challenge is not for you!",
-      
+      ephemeral: true,
     });
   }
 
-  if ((game.opponent as string)) {
+  if (game.opponent as string) {
     return buttonInteraction.reply({
       content: "🎲 This game is already in progress!",
-      
+      ephemeral: true,
     });
   }
 
   const guild = buttonInteraction.guild!;
   const initiatorMember = await guild.members
-    .fetch((game.initiator as string))
+    .fetch(game.initiator as string)
     .catch(() => null);
 
   if (!initiatorMember) {
     await buttonInteraction.update({
-      content: `🎲 <@${(game.initiator as string)}>'s deathroll has ended - they left the server!`,
+      content: `🎲 <@${game.initiator as string}>'s deathroll has ended - they left the server!`,
       components: [],
     });
     activeGames.delete(gameId);
     return;
   }
 
-  const opponentMember = buttonInteraction.member as import("discord.js").GuildMember;
+  const opponentMember =
+    buttonInteraction.member as import("discord.js").GuildMember;
 
   if (!opponentMember) return;
 
   if (!initiatorMember.moderatable) {
     return buttonInteraction.reply({
       content: `🎲 The game initiator can't be timed out (they have higher permissions)!`,
-      
     });
   }
 
   if (!opponentMember.moderatable) {
     return buttonInteraction.reply({
       content: `🎲 You can't deathroll (you have higher permissions)!`,
-      
     });
   }
 
@@ -1682,7 +1834,7 @@ async function handleEngageButton(buttonInteraction: import("discord.js").Button
   game.opponentName = buttonInteraction.user.username;
   game.currentTurn = userId;
 
-  const h2h = await fetchHeadToHead(guild.id, (game.initiator as string), userId);
+  const h2h = await fetchHeadToHead(guild.id, game.initiator as string, userId);
   game.h2h = h2h;
 
   const roll = Math.floor(Math.random() * (game.currentNumber + 1));
@@ -1697,7 +1849,7 @@ async function handleEngageButton(buttonInteraction: import("discord.js").Button
   await buttonInteraction.message.delete().catch(() => {});
 
   if (roll === 0) {
-    const winnerId = (game.initiator as string);
+    const winnerId = game.initiator as string;
     const endGameData = await buildEndGameData(
       guild.id,
       game,
@@ -1721,7 +1873,7 @@ async function handleEngageButton(buttonInteraction: import("discord.js").Button
   }
 
   game.currentNumber = roll;
-  game.currentTurn = (game.initiator as string);
+  game.currentTurn = game.initiator as string;
 
   const rollButton = new ButtonBuilder()
     .setCustomId(`deathroll_roll_${gameId}`)
@@ -1729,11 +1881,13 @@ async function handleEngageButton(buttonInteraction: import("discord.js").Button
     .setStyle(ButtonStyle.Primary)
     .setEmoji("🎲");
 
-  const row = new ActionRowBuilder<import("discord.js").ButtonBuilder>().addComponents(rollButton);
+  const row = new ActionRowBuilder<
+    import("discord.js").ButtonBuilder
+  >().addComponents(rollButton);
   const midGameStats = await fetchMidGameStats(
     guild.id,
-    (game.initiator as string),
-    (game.opponent as string),
+    game.initiator as string,
+    game.opponent as string,
   );
 
   const newMessage = await buttonInteraction.followUp({
@@ -1752,12 +1906,15 @@ async function handleEngageButton(buttonInteraction: import("discord.js").Button
   createRollCollector(newMessage, gameId, guild);
 }
 
-async function handleRollButton(buttonInteraction: import("discord.js").ButtonInteraction, gameId: string) {
+async function handleRollButton(
+  buttonInteraction: import("discord.js").ButtonInteraction,
+  gameId: string,
+) {
   const game = activeGames.get(gameId);
   if (!game) {
     return buttonInteraction.reply({
       content: "🎲 This game is no longer active!",
-      
+      ephemeral: true,
     });
   }
 
@@ -1767,7 +1924,7 @@ async function handleRollButton(buttonInteraction: import("discord.js").ButtonIn
   if (userId !== game.currentTurn) {
     return buttonInteraction.reply({
       content: "🎲 It's not your turn!",
-      
+      ephemeral: true,
     });
   }
 
@@ -1792,7 +1949,10 @@ async function handleRollButton(buttonInteraction: import("discord.js").ButtonIn
   }, 500);
 
   if (roll === 0) {
-    const winnerId = userId === (game.initiator as string) ? (game.opponent as string) : (game.initiator as string);
+    const winnerId =
+      userId === (game.initiator as string)
+        ? (game.opponent as string)
+        : (game.initiator as string);
     const endGameData = await buildEndGameData(
       guild.id,
       game,
@@ -1817,7 +1977,10 @@ async function handleRollButton(buttonInteraction: import("discord.js").ButtonIn
   }
 
   game.currentNumber = roll;
-  const nextPlayer = userId === (game.initiator as string) ? (game.opponent as string) : (game.initiator as string);
+  const nextPlayer =
+    userId === (game.initiator as string)
+      ? (game.opponent as string)
+      : (game.initiator as string);
   game.currentTurn = nextPlayer;
 
   const rollButton = new ButtonBuilder()
@@ -1826,11 +1989,13 @@ async function handleRollButton(buttonInteraction: import("discord.js").ButtonIn
     .setStyle(ButtonStyle.Primary)
     .setEmoji("🎲");
 
-  const row = new ActionRowBuilder<import("discord.js").ButtonBuilder>().addComponents(rollButton);
+  const row = new ActionRowBuilder<
+    import("discord.js").ButtonBuilder
+  >().addComponents(rollButton);
   const midGameStats = await fetchMidGameStats(
     guild.id,
-    (game.initiator as string),
-    (game.opponent as string),
+    game.initiator as string,
+    game.opponent as string,
   );
 
   const newMessage = await buttonInteraction.followUp({
@@ -1859,10 +2024,15 @@ async function handleLoss(
   gameOverMessage: import("discord.js").Message | null,
 ) {
   const guild = buttonInteraction.guild!;
-  const loser = await guild.members.fetch(loserId);
   const timeoutDuration = BASE_TIMEOUT * (game.timeoutMultiplier || 1);
-  const winnerId = loserId === (game.initiator as string) ? (game.opponent as string) : (game.initiator as string);
-  const winnerMember = await guild.members.fetch(winnerId);
+  const winnerId =
+    loserId === (game.initiator as string)
+      ? (game.opponent as string)
+      : (game.initiator as string);
+  // Either player may have left the server mid-game — the result must
+  // still be saved, so degrade to id-based info instead of throwing.
+  const loser = await guild.members.fetch(loserId).catch(() => null);
+  const winnerMember = await guild.members.fetch(winnerId).catch(() => null);
 
   try {
     // Build pending game data — save is deferred until DoN chain resolves
@@ -1871,12 +2041,12 @@ async function handleLoss(
       winnerId,
       loserId,
       winnerInfo: {
-        username: winnerMember.user.username,
-        displayName: winnerMember.displayName,
+        username: winnerMember?.user.username ?? winnerId,
+        displayName: winnerMember?.displayName ?? winnerId,
       },
       loserInfo: {
-        username: loser.user.username,
-        displayName: loser.displayName,
+        username: loser?.user.username ?? loserId,
+        displayName: loser?.displayName ?? loserId,
       },
     };
 
@@ -1905,10 +2075,16 @@ async function handleLoss(
       );
       try {
         const timeoutMinutes = timeoutDuration / 60000;
-        await loser.timeout(
-          timeoutDuration,
-          `Lost a deathroll game (${timeoutMinutes}min)`,
-        );
+        if (loser) {
+          await loser.timeout(
+            timeoutDuration,
+            `Lost a deathroll game (${timeoutMinutes}min)`,
+          );
+        } else {
+          console.warn(
+            `[deathroll] Loser ${loserId} left the server — timeout skipped`,
+          );
+        }
       } catch (error: unknown) {
         console.error("Error timing out user:", error);
       }
@@ -1918,17 +2094,30 @@ async function handleLoss(
   }
 }
 
-async function handleTimeoutLoss(guild: import("discord.js").Guild, game: GameState, winnerId: string, loserId: string) {
-  const loser = await guild.members.fetch(loserId);
-  const winnerMember = await guild.members.fetch(winnerId);
+async function handleTimeoutLoss(
+  guild: import("discord.js").Guild,
+  game: GameState,
+  winnerId: string,
+  loserId: string,
+) {
+  // Either player may have left the server mid-game — the result must
+  // still be saved, so degrade to id-based info instead of throwing.
+  const loser = await guild.members.fetch(loserId).catch(() => null);
+  const winnerMember = await guild.members.fetch(winnerId).catch(() => null);
   const timeoutDuration = BASE_TIMEOUT * (game.timeoutMultiplier || 1);
 
   try {
     const timeoutMinutes = timeoutDuration / 60000;
-    await loser.timeout(
-      timeoutDuration,
-      `Lost a deathroll game on timeout (${timeoutMinutes}min)`,
-    );
+    if (loser) {
+      await loser.timeout(
+        timeoutDuration,
+        `Lost a deathroll game on timeout (${timeoutMinutes}min)`,
+      );
+    } else {
+      console.warn(
+        `[deathroll] Loser ${loserId} left the server — timeout skipped`,
+      );
+    }
   } catch (error: unknown) {
     console.error("Error timing out user on timeout:", error);
   }
@@ -1939,10 +2128,13 @@ async function handleTimeoutLoss(guild: import("discord.js").Guild, game: GameSt
     winnerId,
     loserId,
     {
-      username: winnerMember.user.username,
-      displayName: winnerMember.displayName,
+      username: winnerMember?.user.username ?? winnerId,
+      displayName: winnerMember?.displayName ?? winnerId,
     },
-    { username: loser.user.username, displayName: loser.displayName },
+    {
+      username: loser?.user.username ?? loserId,
+      displayName: loser?.displayName ?? loserId,
+    },
     "timeout",
   );
 }
@@ -1954,7 +2146,9 @@ async function handleTimeoutLoss(guild: import("discord.js").Guild, game: GameSt
 /**
  * /deathroll command handler
  */
-export async function executeDeathroll(interaction: import("discord.js").ChatInputCommandInteraction) {
+export async function executeDeathroll(
+  interaction: import("discord.js").ChatInputCommandInteraction,
+) {
   const userId = interaction.user.id;
   const now = Date.now();
   const startingNumber = interaction.options.getInteger("number") || 100;
@@ -1985,31 +2179,27 @@ export async function executeDeathroll(interaction: import("discord.js").ChatInp
     if (targetUser.id === userId) {
       return interaction.editReply({
         content: "🎲 You can't challenge yourself!",
-        
       });
     }
     if (targetUser.bot) {
       return interaction.editReply({
         content: "🎲 You can't challenge a bot!",
-        
       });
     }
 
-    targetMember = await interaction.guild!.members
-      .fetch(targetUser.id)
+    targetMember = await interaction
+      .guild!.members.fetch(targetUser.id)
       .catch(() => null);
 
     if (!targetMember) {
       return interaction.editReply({
         content: "🎲 That user is not in this server!",
-        
       });
     }
     if (!targetMember.moderatable) {
       return interaction.editReply({
         content:
           "🎲 That user can't be timed out (they have higher permissions)!",
-        
       });
     }
   }
@@ -2037,7 +2227,9 @@ export async function executeDeathroll(interaction: import("discord.js").ChatInp
     .setStyle(ButtonStyle.Secondary)
     .setEmoji("❌");
 
-  const row = new ActionRowBuilder<import("discord.js").ButtonBuilder>().addComponents(engageButton, declineButton);
+  const row = new ActionRowBuilder<
+    import("discord.js").ButtonBuilder
+  >().addComponents(engageButton, declineButton);
 
   const initiatorRecord = formatStatsString(initiatorStats || {});
   let content = `🎲 <@${interaction.user.id}>${initiatorRecord} has started a deathroll from **${startingNumber}**!\n\n`;
@@ -2076,177 +2268,211 @@ export async function executeDeathroll(interaction: import("discord.js").ChatInp
   });
   activeCollectors.set(gameId, collector);
 
-  collector.on("collect", async (buttonInteraction: import("discord.js").ButtonInteraction) => {
-    try {
-      if (buttonInteraction.customId.startsWith("deathroll_engage_")) {
-        await handleEngageButton(buttonInteraction, gameId);
-      } else if (buttonInteraction.customId.startsWith("deathroll_decline_")) {
-        await handleDeclineButton(buttonInteraction, gameId);
-      }
-    } catch (error: unknown) {
-      console.error("Error in deathroll engage/decline collector:", error);
+  collector.on(
+    "collect",
+    async (buttonInteraction: import("discord.js").ButtonInteraction) => {
       try {
-        const game = activeGames.get(gameId);
-        if (!game) return;
+        if (buttonInteraction.customId.startsWith("deathroll_engage_")) {
+          await handleEngageButton(buttonInteraction, gameId);
+        } else if (
+          buttonInteraction.customId.startsWith("deathroll_decline_")
+        ) {
+          await handleDeclineButton(buttonInteraction, gameId);
+        }
+      } catch (error: unknown) {
+        console.error("Error in deathroll engage/decline collector:", error);
+        try {
+          const game = activeGames.get(gameId);
+          if (!game) return;
 
-        const channel = buttonInteraction.channel as import("discord.js").TextChannel | null;
-        if (!channel) return;
-        const lastRoll =
-          game.rolls.length > 0 ? game.rolls[game.rolls.length - 1] : null;
+          const channel = buttonInteraction.channel as
+            | import("discord.js").TextChannel
+            | null;
+          if (!channel) return;
+          const lastRoll =
+            game.rolls.length > 0 ? game.rolls[game.rolls.length - 1] : null;
 
-        if ((game.opponent as string) && lastRoll) {
-          // Engage happened, roll was generated but display failed — recover via channel
-          if (lastRoll.roll === 0) {
-            const winnerId = (game.initiator as string);
-            const endGameData = await buildEndGameData(
-              buttonInteraction.guild!.id,
-              game,
-              winnerId,
-              lastRoll.userId,
-            );
-            const gameOverMsg = await channel.send({
-              content: formatGameMessage(
-                game,
-                lastRoll.roll,
-                lastRoll.username,
-                lastRoll.userId,
-                true,
-                endGameData,
-              ),
-              components: buildDoubleOrNothingRow(
+          if ((game.opponent as string) && lastRoll) {
+            // Engage happened, roll was generated but display failed — recover via channel
+            if (lastRoll.roll === 0) {
+              const winnerId = game.initiator as string;
+              const endGameData = await buildEndGameData(
+                buttonInteraction.guild!.id,
                 game,
                 winnerId,
                 lastRoll.userId,
-              ),
-            });
-            await handleLoss(
-              buttonInteraction,
-              game,
-              lastRoll.userId,
-              lastRoll.roll,
-              gameOverMsg,
-            );
-            activeGames.delete(gameId);
-          } else {
-            game.currentNumber = lastRoll.roll;
-            game.currentTurn = (game.initiator as string);
-
-            const rollButton = new ButtonBuilder()
-              .setCustomId(`deathroll_roll_${gameId}`)
-              .setLabel(`Roll (0-${lastRoll.roll})`)
-              .setStyle(ButtonStyle.Primary)
-              .setEmoji("🎲");
-            const row = new ActionRowBuilder<import("discord.js").ButtonBuilder>().addComponents(rollButton);
-            const midGameStats = await fetchMidGameStats(
-              buttonInteraction.guild!.id,
-              (game.initiator as string),
-              (game.opponent as string),
-            );
-            const newMessage = await channel.send({
-              content: formatGameMessage(
+              );
+              const gameOverMsg = await channel.send({
+                content: formatGameMessage(
+                  game,
+                  lastRoll.roll,
+                  lastRoll.username,
+                  lastRoll.userId,
+                  true,
+                  endGameData,
+                ),
+                components: buildDoubleOrNothingRow(
+                  game,
+                  winnerId,
+                  lastRoll.userId,
+                ),
+              });
+              await handleLoss(
+                buttonInteraction,
                 game,
-                lastRoll.roll,
-                lastRoll.username,
                 lastRoll.userId,
-                false,
-                midGameStats,
-              ),
+                lastRoll.roll,
+                gameOverMsg,
+              );
+              activeGames.delete(gameId);
+            } else {
+              game.currentNumber = lastRoll.roll;
+              game.currentTurn = game.initiator as string;
+
+              const rollButton = new ButtonBuilder()
+                .setCustomId(`deathroll_roll_${gameId}`)
+                .setLabel(`Roll (0-${lastRoll.roll})`)
+                .setStyle(ButtonStyle.Primary)
+                .setEmoji("🎲");
+              const row = new ActionRowBuilder<
+                import("discord.js").ButtonBuilder
+              >().addComponents(rollButton);
+              const midGameStats = await fetchMidGameStats(
+                buttonInteraction.guild!.id,
+                game.initiator as string,
+                game.opponent as string,
+              );
+              const newMessage = await channel.send({
+                content: formatGameMessage(
+                  game,
+                  lastRoll.roll,
+                  lastRoll.username,
+                  lastRoll.userId,
+                  false,
+                  midGameStats,
+                ),
+                components: [row],
+              });
+              game.currentMessageId = newMessage.id;
+              createRollCollector(newMessage, gameId, buttonInteraction.guild!);
+            }
+          } else {
+            // Error before game started — re-post engage/decline buttons
+            const buttonLabel = game.targetUserId
+              ? `Accept Deathroll (0-${game.startingNumber})`
+              : `Accept Deathroll (0-${game.startingNumber})`;
+            const engageButton = new ButtonBuilder()
+              .setCustomId(`deathroll_engage_${gameId.split("_")[1]}`)
+              .setLabel(buttonLabel)
+              .setStyle(ButtonStyle.Danger)
+              .setEmoji("🎲");
+            const declineButton = new ButtonBuilder()
+              .setCustomId(`deathroll_decline_${gameId.split("_")[1]}`)
+              .setLabel("Decline")
+              .setStyle(ButtonStyle.Secondary)
+              .setEmoji("❌");
+            const row = new ActionRowBuilder<
+              import("discord.js").ButtonBuilder
+            >().addComponents(engageButton, declineButton);
+            const recoveryChannel = buttonInteraction.channel;
+            if (!recoveryChannel || !("send" in recoveryChannel)) return;
+            const recoveryMsg = await recoveryChannel.send({
+              content: `⚠️ Something went wrong! Click below to accept or decline the deathroll challenge from <@${game.initiator as string}>.`,
               components: [row],
             });
-            game.currentMessageId = newMessage.id;
-            createRollCollector(newMessage, gameId, buttonInteraction.guild!);
+            game.currentMessageId = recoveryMsg.id;
+            const newCollector = recoveryMsg.createMessageComponentCollector({
+              idle: 5 * 60 * 1000,
+            });
+            activeCollectors.set(gameId, newCollector);
+            newCollector.on(
+              "collect",
+              async (bi: import("discord.js").ButtonInteraction) => {
+                try {
+                  if (bi.customId.startsWith("deathroll_engage_")) {
+                    await handleEngageButton(bi, gameId);
+                  } else if (bi.customId.startsWith("deathroll_decline_")) {
+                    await handleDeclineButton(bi, gameId);
+                  }
+                } catch (error: unknown) {
+                  console.error(
+                    "Error in recovery engage/decline collector:",
+                    error,
+                  );
+                }
+              },
+            );
+            newCollector.on(
+              "end",
+              (
+                _collected: import("discord.js").Collection<
+                  string,
+                  import("discord.js").ButtonInteraction
+                >,
+                reason: string,
+              ) => {
+                if (reason !== "manually stopped" && activeGames.has(gameId)) {
+                  const game = activeGames.get(gameId);
+                  if (!game) return;
+                  if (!game.opponent) {
+                    recoveryMsg
+                      .edit({
+                        content: `🎲 <@${game.initiator}>'s deathroll expired - no one engaged!`,
+                        components: [],
+                      })
+                      .catch(() => {});
+                  }
+                  activeGames.delete(gameId);
+                  activeCollectors.delete(gameId);
+                }
+              },
+            );
           }
-        } else {
-          // Error before game started — re-post engage/decline buttons
-          const buttonLabel = game.targetUserId
-            ? `Accept Deathroll (0-${game.startingNumber})`
-            : `Accept Deathroll (0-${game.startingNumber})`;
-          const engageButton = new ButtonBuilder()
-            .setCustomId(`deathroll_engage_${gameId.split("_")[1]}`)
-            .setLabel(buttonLabel)
-            .setStyle(ButtonStyle.Danger)
-            .setEmoji("🎲");
-          const declineButton = new ButtonBuilder()
-            .setCustomId(`deathroll_decline_${gameId.split("_")[1]}`)
-            .setLabel("Decline")
-            .setStyle(ButtonStyle.Secondary)
-            .setEmoji("❌");
-          const row = new ActionRowBuilder<import("discord.js").ButtonBuilder>().addComponents(
-            engageButton,
-            declineButton,
+        } catch (recoveryError: unknown) {
+          console.error(
+            "Failed to recover from engage/decline error:",
+            recoveryError,
           );
-          const recoveryChannel = buttonInteraction.channel;
-          if (!recoveryChannel || !('send' in recoveryChannel)) return;
-          const recoveryMsg = await recoveryChannel.send({
-            content: `⚠️ Something went wrong! Click below to accept or decline the deathroll challenge from <@${(game.initiator as string)}>.`,
-            components: [row],
-          });
-          game.currentMessageId = recoveryMsg.id;
-          const newCollector = recoveryMsg.createMessageComponentCollector({
-            idle: 5 * 60 * 1000,
-          });
-          activeCollectors.set(gameId, newCollector);
-          newCollector.on("collect", async (bi: import("discord.js").ButtonInteraction) => {
-            try {
-              if (bi.customId.startsWith("deathroll_engage_")) {
-                await handleEngageButton(bi, gameId);
-              } else if (bi.customId.startsWith("deathroll_decline_")) {
-                await handleDeclineButton(bi, gameId);
-              }
-            } catch (error: unknown) {
-              console.error("Error in recovery engage/decline collector:",  error);
-            }
-          });
-          newCollector.on("end", (_collected: import("discord.js").Collection<string, import("discord.js").ButtonInteraction>, reason: string) => {
-            if (reason !== "manually stopped" && activeGames.has(gameId)) {
-              const game = activeGames.get(gameId);
-              if (!game) return;
-              if (!game.opponent) {
-                recoveryMsg
-                  .edit({
-                    content: `🎲 <@${game.initiator}>'s deathroll expired - no one engaged!`,
-                    components: [],
-                  })
-                  .catch(() => {});
-              }
-              activeGames.delete(gameId);
-              activeCollectors.delete(gameId);
-            }
-          });
         }
-      } catch (recoveryError: unknown) {
-        console.error(
-          "Failed to recover from engage/decline error:",
-          recoveryError,
-        );
       }
-    }
-  });
+    },
+  );
 
-  collector.on("end", (_collected: import("discord.js").Collection<string, import("discord.js").ButtonInteraction>, reason: string) => {
-    if (reason !== "manually stopped") {
-      if (activeGames.has(gameId)) {
-        const game = activeGames.get(gameId);
-        if (!game) return;
-        if (!(game.opponent as string)) {
-          interaction
-            .editReply({
-              content: `🎲 <@${(game.initiator as string)}>'s deathroll expired - no one engaged!`,
-              components: [],
-            })
-            .catch(() => {});
+  collector.on(
+    "end",
+    (
+      _collected: import("discord.js").Collection<
+        string,
+        import("discord.js").ButtonInteraction
+      >,
+      reason: string,
+    ) => {
+      if (reason !== "manually stopped") {
+        if (activeGames.has(gameId)) {
+          const game = activeGames.get(gameId);
+          if (!game) return;
+          if (!(game.opponent as string)) {
+            interaction
+              .editReply({
+                content: `🎲 <@${game.initiator as string}>'s deathroll expired - no one engaged!`,
+                components: [],
+              })
+              .catch(() => {});
+          }
+          activeGames.delete(gameId);
         }
-        activeGames.delete(gameId);
+        activeCollectors.delete(gameId);
       }
-      activeCollectors.delete(gameId);
-    }
-  });
+    },
+  );
 }
 
 /**
  * /deathrollstats command handler
  */
-export async function executeDeathrollStats(interaction: import("discord.js").ChatInputCommandInteraction) {
+export async function executeDeathrollStats(
+  interaction: import("discord.js").ChatInputCommandInteraction,
+) {
   const targetUser = interaction.options.getUser("user") || interaction.user;
   const guildId = interaction.guildId;
 
@@ -2297,7 +2523,7 @@ export async function executeDeathrollStats(interaction: import("discord.js").Ch
     description += `**Best Win Streak:** ${profile.bestStreak > 0 ? `🔥×${profile.bestStreak}` : "None"}\n`;
 
     if ((profile.multiplierGames || 0) > 0) {
-      description += `**Double or Nothing:** ${(profile.multiplierWins || 0)}W / ${(profile.multiplierLosses || 0)}L\n`;
+      description += `**Double or Nothing:** ${profile.multiplierWins || 0}W / ${profile.multiplierLosses || 0}L\n`;
     }
 
     if (profile.lastPlayedAt) {
@@ -2310,7 +2536,14 @@ export async function executeDeathrollStats(interaction: import("discord.js").Ch
     embed.setDescription(description);
 
     if (mostPlayed.length > 0) {
-      const rivalLines = (mostPlayed as unknown as { _id: string; name: string; games: number; winsAgainst: number }[]).map((opp, i) => {
+      const rivalLines = (
+        mostPlayed as unknown as {
+          _id: string;
+          name: string;
+          games: number;
+          winsAgainst: number;
+        }[]
+      ).map((opp, i) => {
         const lossesAgainst = opp.games - opp.winsAgainst;
         return `**${i + 1}.** <@${opp._id}> — ${opp.games} games (${opp.winsAgainst}W / ${lossesAgainst}L)`;
       });
@@ -2330,7 +2563,9 @@ export async function executeDeathrollStats(interaction: import("discord.js").Ch
 /**
  * /deathrollleaderboard command handler
  */
-export async function executeDeathrollLeaderboard(interaction: import("discord.js").ChatInputCommandInteraction) {
+export async function executeDeathrollLeaderboard(
+  interaction: import("discord.js").ChatInputCommandInteraction,
+) {
   await interaction.deferReply();
 
   try {
@@ -2350,8 +2585,12 @@ export async function executeDeathrollLeaderboard(interaction: import("discord.j
     }
 
     // Separate ranked (completed placement) from unranked (still placing)
-    const rankedPlayers = ranked.filter((p: RankedPlayer) => !p.profile.isPlacement);
-    const unrankedPlayers = ranked.filter((p: RankedPlayer) => p.profile.isPlacement);
+    const rankedPlayers = ranked.filter(
+      (p: RankedPlayer) => !p.profile.isPlacement,
+    );
+    const unrankedPlayers = ranked.filter(
+      (p: RankedPlayer) => p.profile.isPlacement,
+    );
 
     // Top 10: ranked players only
     const topPlayers = rankedPlayers.slice(0, 10);
@@ -2386,7 +2625,9 @@ export async function executeDeathrollLeaderboard(interaction: import("discord.j
       return `   ${UNRANKED_DISPLAY.emoji} <@${player.userId}> — **${profile.totalGames}/${PLACEMENT_GAMES}** placement games\n-# ${profile.wins}W / ${profile.losses}L${streak ? " · " + streak : ""} · ${lastPlayed}`;
     };
 
-    const topLines = topPlayers.map((p: RankedPlayer, i: number) => formatRankedLine(p, i));
+    const topLines = topPlayers.map((p: RankedPlayer, i: number) =>
+      formatRankedLine(p, i),
+    );
 
     let finalDescription = `**Ranked Players:** ${rankedPlayers.length}${unrankedPlayers.length > 0 ? ` · **Placing:** ${unrankedPlayers.length}` : ""} · **Total Games:** ${totalGamesPlayed}\nRanked by MMR.\n\n`;
     finalDescription += `**🏆 Top 10**\n` + topLines.join("\n");
@@ -2401,7 +2642,8 @@ export async function executeDeathrollLeaderboard(interaction: import("discord.j
 
     if (unrankedPlayers.length > 0) {
       unrankedPlayers.sort(
-        (a: RankedPlayer, b: RankedPlayer) => b.profile.totalGames - a.profile.totalGames,
+        (a: RankedPlayer, b: RankedPlayer) =>
+          b.profile.totalGames - a.profile.totalGames,
       );
       const unrankedLines = unrankedPlayers.map(formatUnrankedLine);
       finalDescription +=
