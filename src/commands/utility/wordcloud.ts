@@ -1,5 +1,9 @@
 import { SlashCommandBuilder, AttachmentBuilder } from "discord.js";
-import type { ChatInputCommandInteraction, SlashCommandUserOption, SlashCommandIntegerOption } from "discord.js";
+import type {
+  ChatInputCommandInteraction,
+  SlashCommandUserOption,
+  SlashCommandIntegerOption,
+} from "discord.js";
 import type { WithId, Document } from "mongodb";
 import { chromium } from "playwright";
 import {
@@ -18,17 +22,102 @@ interface WordFrequency {
 
 // Common stop words to filter out
 const STOP_WORDS = new Set([
-  "the", "be", "to", "of", "and", "a", "in", "that", "have", "i",
-  "it", "for", "not", "on", "with", "he", "as", "you", "do", "at",
-  "this", "but", "his", "by", "from", "they", "we", "say", "her",
-  "she", "or", "an", "will", "my", "one", "all", "would", "there",
-  "their", "what", "so", "up", "out", "if", "about", "who", "get",
-  "which", "go", "me", "when", "make", "can", "like", "time", "no",
-  "just", "him", "know", "take", "into", "year", "your", "some",
-  "could", "them", "than", "then", "now", "only", "its", "also",
-  "back", "after", "use", "how", "our", "even", "want", "any",
-  "these", "give", "most", "us", "is", "was", "are", "been", "has",
-  "had", "were", "did", "am", "im", "youre", "dont",
+  "the",
+  "be",
+  "to",
+  "of",
+  "and",
+  "a",
+  "in",
+  "that",
+  "have",
+  "i",
+  "it",
+  "for",
+  "not",
+  "on",
+  "with",
+  "he",
+  "as",
+  "you",
+  "do",
+  "at",
+  "this",
+  "but",
+  "his",
+  "by",
+  "from",
+  "they",
+  "we",
+  "say",
+  "her",
+  "she",
+  "or",
+  "an",
+  "will",
+  "my",
+  "one",
+  "all",
+  "would",
+  "there",
+  "their",
+  "what",
+  "so",
+  "up",
+  "out",
+  "if",
+  "about",
+  "who",
+  "get",
+  "which",
+  "go",
+  "me",
+  "when",
+  "make",
+  "can",
+  "like",
+  "time",
+  "no",
+  "just",
+  "him",
+  "know",
+  "take",
+  "into",
+  "year",
+  "your",
+  "some",
+  "could",
+  "them",
+  "than",
+  "then",
+  "now",
+  "only",
+  "its",
+  "also",
+  "back",
+  "after",
+  "use",
+  "how",
+  "our",
+  "even",
+  "want",
+  "any",
+  "these",
+  "give",
+  "most",
+  "us",
+  "is",
+  "was",
+  "are",
+  "been",
+  "has",
+  "had",
+  "were",
+  "did",
+  "am",
+  "im",
+  "youre",
+  "dont",
 ]);
 
 export default {
@@ -115,7 +204,11 @@ export default {
       }
 
       // Process words
-      const wordFrequency = processWords(messages, limit, interaction.client.user.id);
+      const wordFrequency = processWords(
+        messages,
+        limit,
+        interaction.client.user.id,
+      );
 
       if (wordFrequency.length === 0) {
         await interaction.editReply({
@@ -133,7 +226,7 @@ export default {
       });
 
       await interaction.editReply({
-        content: `**Word Cloud for <@${user!.id}>**\nBased on ${messages.length} messages from the ${formatTimePeriod(years, months, days, "last 1 year (default)")} (From ${formattedStartDate} to ${formattedEndDate})`,
+        content: `**Word Cloud for <@${user!.id}>**\nBased on ${messages.length} messages from the ${formatTimePeriod(years, months, days, "server lifetime (default)")} (From ${formattedStartDate} to ${formattedEndDate})`,
         files: [attachment],
       });
     } catch (error: unknown) {
@@ -173,7 +266,10 @@ function processWords(
     }
 
     // Skip messages starting with command verbs
-    if (/^(draw|redraw|paint|generate|image|play)\b/i.test(trimmedMessageContent)) continue;
+    if (
+      /^(draw|redraw|paint|generate|image|play)\b/i.test(trimmedMessageContent)
+    )
+      continue;
 
     // Skip messages containing common command keywords or style prompt patterns
     if (
@@ -194,15 +290,17 @@ function processWords(
       .replace(/[^\w\s'-]/g, " ") // Remove punctuation except hyphens and apostrophes
       .toLowerCase();
 
-    const extractedWords = cleanedMessageContent.split(/\s+/).filter((wordText: string) => {
-      const trimmedWord = wordText.trim();
-      return (
-        trimmedWord.length > 2 && // At least 3 characters
-        !STOP_WORDS.has(trimmedWord) &&
-        !/^\d+$/.test(trimmedWord) && // Not just numbers
-        /[a-z]/.test(trimmedWord)
-      ); // Contains at least one letter
-    });
+    const extractedWords = cleanedMessageContent
+      .split(/\s+/)
+      .filter((wordText: string) => {
+        const trimmedWord = wordText.trim();
+        return (
+          trimmedWord.length > 2 && // At least 3 characters
+          !STOP_WORDS.has(trimmedWord) &&
+          !/^\d+$/.test(trimmedWord) && // Not just numbers
+          /[a-z]/.test(trimmedWord)
+        ); // Contains at least one letter
+      });
 
     for (const wordText of extractedWords) {
       const trimmedWord = wordText.trim();
@@ -214,7 +312,8 @@ function processWords(
   return Object.entries(wordFrequencyMap)
     .map(([text, value]: [string, number]) => ({ text, value }))
     .sort(
-      (firstItem: WordFrequency, secondItem: WordFrequency) => secondItem.value - firstItem.value,
+      (firstItem: WordFrequency, secondItem: WordFrequency) =>
+        secondItem.value - firstItem.value,
     )
     .slice(0, resultLimit);
 }
@@ -224,7 +323,9 @@ async function generateWordCloudImage(words: WordFrequency[]) {
   const browser = await chromium.launch(getPlaywrightOptions());
 
   try {
-    const page = await browser.newPage({ viewport: { width: 1200, height: 800 } });
+    const page = await browser.newPage({
+      viewport: { width: 1200, height: 800 },
+    });
 
     // Create HTML content with word cloud
     const html = generateWordCloudHTML(words);
@@ -232,7 +333,9 @@ async function generateWordCloudImage(words: WordFrequency[]) {
     await page.setContent(html, { waitUntil: "networkidle" });
 
     // Wait for layout to settle
-    await new Promise((resolve: (value: void) => void) => setTimeout(resolve, 500));
+    await new Promise((resolve: (value: void) => void) =>
+      setTimeout(resolve, 500),
+    );
 
     // Take screenshot
     const screenshot = await page.screenshot({
