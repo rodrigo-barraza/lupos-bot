@@ -1,9 +1,9 @@
 import { SlashCommandBuilder, PermissionFlagsBits } from "discord.js";
 import type { ChatInputCommandInteraction, GuildMember } from "discord.js";
-import { getMongoDb } from "./commandUtils.ts";
+import { getMongoDb, tryTimeoutMember } from "./commandUtils.ts";
 
-// Store cooldowns in memory (userId -> timestamp)
-const cooldowns = new Map<string, number>();
+// Per-user cooldown, enforced centrally by the dispatcher via cooldownSeconds
+const COOLDOWN_SECONDS = 5 * 60; // 5 minutes
 
 const newParalysisMoves = {
   "BODY SLAM": { emoji: "💥", power: 85, accuracy: 100 },
@@ -40,7 +40,10 @@ const newParalysisMoves = {
 };
 
 // Calculate timeout duration based on move power (1-10 seconds)
-function calculateTimeoutDuration(power: number | string, isCritical: boolean = false) {
+function calculateTimeoutDuration(
+  power: number | string,
+  isCritical: boolean = false,
+) {
   if (power === "Varies") {
     return isCritical ? 7500 : 5000; // 7.5 or 5 seconds for variable power moves
   }
@@ -59,7 +62,8 @@ function calculateTimeoutDuration(power: number | string, isCritical: boolean = 
 
   const scaledTimeout =
     minTimeout +
-    ((numericPower - minPower) / (maxPower - minPower)) * (maxTimeout - minTimeout);
+    ((numericPower - minPower) / (maxPower - minPower)) *
+      (maxTimeout - minTimeout);
   const timeoutSeconds = Math.min(
     maxTimeout,
     Math.max(minTimeout, Math.round(scaledTimeout)),
@@ -87,210 +91,175 @@ export default {
     .setName("shock")
     .setDescription("Paralyzes a random person from the recent conversation"),
 
-  async execute(interaction: ChatInputCommandInteraction) {
-    const guild = interaction.guild;
-    if (!guild) {
-      return interaction.reply({
-        content: "⚡ This command can only be used in a server!",
-        ephemeral: true,
-      });
-    }
+  guildOnly: true,
+  botPermissions: [PermissionFlagsBits.ModerateMembers],
+  cooldownSeconds: COOLDOWN_SECONDS,
 
-    // Check cooldown
+  async execute(interaction: ChatInputCommandInteraction) {
+    const guild = interaction.guild!;
     const userId = interaction.user.id;
     const now = Date.now();
-    const cooldownAmount = 5 * 60 * 1000; // 5 minutes in milliseconds
-
-    if (cooldowns.has(userId)) {
-      const expirationTime = (cooldowns.get(userId) as number) + cooldownAmount;
-
-      if (now < expirationTime) {
-        const timeLeft = ((expirationTime - now) / 1000).toFixed(1);
-        return interaction.reply({
-          content: `⚡ Please wait **${timeLeft}** more second(s) before using \`/shock\` again.`,
-          ephemeral: true,
-        });
-      }
-    }
 
     await interaction.deferReply();
 
-    try {
-      // Check if bot has permission to timeout members
-      if (
-        !guild.members.me!.permissions.has(
-          PermissionFlagsBits.ModerateMembers,
-        )
-      ) {
-        return interaction.editReply({
-          content: "⚡ I don't have permission to timeout members!",
-        });
-      }
-
-      if (!interaction.channel) {
-        return interaction.editReply({
-          content: "⚡ This command can only be used in a text channel!",
-        });
-      }
-
-      // Fetch last 25 messages from the channel
-      const messages = await interaction.channel.messages.fetch({ limit: 25 });
-
-      // Get unique users from messages (exclude bots)
-      const uniqueUsers = new Map<string, GuildMember>();
-
-      for (const message of messages.values()) {
-        const member = message.member;
-
-        // Skip if:
-        // - No member object
-        // - User is a bot
-        // - User is the guild owner
-        // - User is already timed out
-        if (
-          !member ||
-          message.author.bot ||
-          message.author.id === guild.ownerId
-        ) {
-          continue;
-        }
-
-        // Skip if user is already timed out
-        if (
-          member.communicationDisabledUntil &&
-          member.communicationDisabledUntil.getTime() > now
-        ) {
-          continue;
-        }
-
-        // Check if member can be timed out by the bot
-        if (member.moderatable) {
-          uniqueUsers.set(message.author.id, member);
-        }
-      }
-
-      if (uniqueUsers.size === 0) {
-        return interaction.editReply({
-          content:
-            "⚡ No eligible users found in the last 25 messages to shock!",
-        });
-      }
-
-      // Pick a random user
-      const usersArray = Array.from(uniqueUsers.values());
-      const randomMember =
-        usersArray[Math.floor(Math.random() * usersArray.length)];
-
-      // Check if user shocked themselves
-      const isSelfShock = randomMember.user.id === userId;
-
-      // Pick a random move
-      const moveNames = Object.keys(newParalysisMoves);
-      const randomMoveName =
-        moveNames[Math.floor(Math.random() * moveNames.length)];
-      const moveData = newParalysisMoves[randomMoveName as keyof typeof newParalysisMoves];
-
-      // Set cooldown (do this before checking if move hits)
-      cooldowns.set(userId, now);
-      setTimeout(() => cooldowns.delete(userId), cooldownAmount);
-
-      // Check if the move hits
-      if (!doesMoveHit(moveData.accuracy)) {
-        // Move missed - Pokemon-style miss message
-        const missMessages = [
-          `**${interaction.user}** used **${randomMoveName}** ${moveData.emoji}**!**\nBut it failed!`,
-          `**${interaction.user}** used **${randomMoveName}** ${moveData.emoji}**!**\n**${interaction.user}**'s attack missed!`,
-          `**${interaction.user}** used **${randomMoveName}** ${moveData.emoji}**!**\nBut **${randomMember.user}** avoided the attack!`,
-        ];
-
-        const randomMissMessage =
-          missMessages[Math.floor(Math.random() * missMessages.length)];
-
-        return interaction.editReply({
-          content: randomMissMessage,
-        });
-      }
-
-      // Check for critical hit
-      const isCrit = isCriticalHit();
-
-      // Calculate timeout duration based on power (and critical hit)
-      const timeoutDuration = calculateTimeoutDuration(moveData.power, isCrit);
-      const timeoutSeconds = timeoutDuration / 1000;
-
-      // Timeout the user
-      await randomMember.timeout(
-        timeoutDuration,
-        `Shocked by ${interaction.user.tag} using /shock command with ${randomMoveName}${isCrit ? " (Critical Hit!)" : ""}`,
-      );
-
-      // Save shock to MongoDB and get updated count
-      const db = getMongoDb();
-      const shocksCollection = db.collection("ShockGameStatistics");
-
-      await shocksCollection.findOneAndUpdate(
-        {
-          userId: randomMember.user.id,
-          guildId: interaction.guildId,
-        },
-        {
-          $inc: { shockCount: 1 },
-          $set: {
-            username: randomMember.user.username,
-            displayName: randomMember.displayName,
-            lastShockedAt: now,
-            lastShockedBy: userId,
-            lastShockedByUsername: interaction.user.username,
-            lastShockedByDisplayName: (interaction.member as GuildMember).displayName,
-            lastMove: randomMoveName,
-            lastMovePower: moveData.power,
-            lastTimeoutDuration: timeoutSeconds,
-            lastWasCritical: isCrit,
-          },
-          $setOnInsert: {
-            createdAt: now,
-          },
-        },
-        {
-          upsert: true,
-          returnDocument: "after",
-        },
-      );
-
-      // Format message differently for self-shock (like confusion self-damage)
-      let battleMessage: string;
-
-      if (isSelfShock) {
-        battleMessage =
-          `**${interaction.user}** used **${randomMoveName}** ${moveData.emoji}**!**\n` +
-          (isCrit ? `A critical hit!\n` : "") +
-          `**${interaction.user}** is confused**!**\n` +
-          `It hurt itself in its confusion**!**\n` +
-          `**${interaction.user}** is paralyzed**!** It can't move for the next ${timeoutSeconds} second${timeoutSeconds !== 1 ? "s" : ""}**!**\n\n`;
-      } else {
-        battleMessage =
-          `**${interaction.user}** used **${randomMoveName}** ${moveData.emoji}**!**\n` +
-          (isCrit ? `A critical hit!\n` : "") +
-          `Enemy **${randomMember.user}** is paralyzed**!** It may not attack**!**\n` +
-          `The wild **${randomMember.user}** is paralyzed**!**\n` +
-          `It can't move for the next ${timeoutSeconds} second${timeoutSeconds !== 1 ? "s" : ""}**!**\n\n`;
-      }
-
-      await interaction.editReply({
-        content: battleMessage,
+    if (!interaction.channel) {
+      return interaction.editReply({
+        content: "⚡ This command can only be used in a text channel!",
       });
-    } catch (error: unknown) {
-      console.error("Error executing shock command:", error);
+    }
 
-      let errorMessage = "⚡ An error occurred while trying to shock someone.";
+    // Fetch last 25 messages from the channel
+    const messages = await interaction.channel.messages.fetch({ limit: 25 });
 
-      if ((error as { code?: number }).code === 50013) {
-        errorMessage = "⚡ I don't have permission to timeout this member!";
-      } else if ((error as { code?: number }).code === 10008) {
-        errorMessage = "⚡ The selected user could not be found!";
+    // Get unique users from messages (exclude bots)
+    const uniqueUsers = new Map<string, GuildMember>();
+
+    for (const message of messages.values()) {
+      const member = message.member;
+
+      // Skip if:
+      // - No member object
+      // - User is a bot
+      // - User is the guild owner
+      // - User is already timed out
+      if (
+        !member ||
+        message.author.bot ||
+        message.author.id === guild.ownerId
+      ) {
+        continue;
       }
 
-      await interaction.editReply({ content: errorMessage });
+      // Skip if user is already timed out
+      if (
+        member.communicationDisabledUntil &&
+        member.communicationDisabledUntil.getTime() > now
+      ) {
+        continue;
+      }
+
+      // Check if member can be timed out by the bot
+      if (member.moderatable) {
+        uniqueUsers.set(message.author.id, member);
+      }
     }
+
+    if (uniqueUsers.size === 0) {
+      return interaction.editReply({
+        content: "⚡ No eligible users found in the last 25 messages to shock!",
+      });
+    }
+
+    // Pick a random user
+    const usersArray = Array.from(uniqueUsers.values());
+    const randomMember =
+      usersArray[Math.floor(Math.random() * usersArray.length)];
+
+    // Check if user shocked themselves
+    const isSelfShock = randomMember.user.id === userId;
+
+    // Pick a random move
+    const moveNames = Object.keys(newParalysisMoves);
+    const randomMoveName =
+      moveNames[Math.floor(Math.random() * moveNames.length)];
+    const moveData =
+      newParalysisMoves[randomMoveName as keyof typeof newParalysisMoves];
+
+    // Check if the move hits
+    if (!doesMoveHit(moveData.accuracy)) {
+      // Move missed - Pokemon-style miss message
+      const missMessages = [
+        `**${interaction.user}** used **${randomMoveName}** ${moveData.emoji}**!**\nBut it failed!`,
+        `**${interaction.user}** used **${randomMoveName}** ${moveData.emoji}**!**\n**${interaction.user}**'s attack missed!`,
+        `**${interaction.user}** used **${randomMoveName}** ${moveData.emoji}**!**\nBut **${randomMember.user}** avoided the attack!`,
+      ];
+
+      const randomMissMessage =
+        missMessages[Math.floor(Math.random() * missMessages.length)];
+
+      return interaction.editReply({
+        content: randomMissMessage,
+      });
+    }
+
+    // Check for critical hit
+    const isCrit = isCriticalHit();
+
+    // Calculate timeout duration based on power (and critical hit)
+    const timeoutDuration = calculateTimeoutDuration(moveData.power, isCrit);
+    const timeoutSeconds = timeoutDuration / 1000;
+
+    // Timeout the user
+    const timeoutResult = await tryTimeoutMember(
+      randomMember,
+      timeoutDuration,
+      `Shocked by ${interaction.user.tag} using /shock command with ${randomMoveName}${isCrit ? " (Critical Hit!)" : ""}`,
+    );
+
+    if (!timeoutResult.ok) {
+      return interaction.editReply({
+        content:
+          timeoutResult.error === "missing permissions"
+            ? "⚡ I don't have permission to timeout this member!"
+            : "⚡ An error occurred while trying to shock someone.",
+      });
+    }
+
+    // Save shock to MongoDB and get updated count
+    const db = getMongoDb();
+    const shocksCollection = db.collection("ShockGameStatistics");
+
+    await shocksCollection.findOneAndUpdate(
+      {
+        userId: randomMember.user.id,
+        guildId: interaction.guildId,
+      },
+      {
+        $inc: { shockCount: 1 },
+        $set: {
+          username: randomMember.user.username,
+          displayName: randomMember.displayName,
+          lastShockedAt: now,
+          lastShockedBy: userId,
+          lastShockedByUsername: interaction.user.username,
+          lastShockedByDisplayName: (interaction.member as GuildMember)
+            .displayName,
+          lastMove: randomMoveName,
+          lastMovePower: moveData.power,
+          lastTimeoutDuration: timeoutSeconds,
+          lastWasCritical: isCrit,
+        },
+        $setOnInsert: {
+          createdAt: now,
+        },
+      },
+      {
+        upsert: true,
+        returnDocument: "after",
+      },
+    );
+
+    // Format message differently for self-shock (like confusion self-damage)
+    let battleMessage: string;
+
+    if (isSelfShock) {
+      battleMessage =
+        `**${interaction.user}** used **${randomMoveName}** ${moveData.emoji}**!**\n` +
+        (isCrit ? `A critical hit!\n` : "") +
+        `**${interaction.user}** is confused**!**\n` +
+        `It hurt itself in its confusion**!**\n` +
+        `**${interaction.user}** is paralyzed**!** It can't move for the next ${timeoutSeconds} second${timeoutSeconds !== 1 ? "s" : ""}**!**\n\n`;
+    } else {
+      battleMessage =
+        `**${interaction.user}** used **${randomMoveName}** ${moveData.emoji}**!**\n` +
+        (isCrit ? `A critical hit!\n` : "") +
+        `Enemy **${randomMember.user}** is paralyzed**!** It may not attack**!**\n` +
+        `The wild **${randomMember.user}** is paralyzed**!**\n` +
+        `It can't move for the next ${timeoutSeconds} second${timeoutSeconds !== 1 ? "s" : ""}**!**\n\n`;
+    }
+
+    await interaction.editReply({
+      content: battleMessage,
+    });
   },
 };

@@ -4,12 +4,11 @@ import {
   EmbedBuilder,
   ChatInputCommandInteraction,
 } from "discord.js";
-import { chromium } from "playwright";
 import {
   getMongoDb,
-  getServerAgeYears,
-  computeStartDate,
-  getPlaywrightOptions,
+  addTimePeriodOptions,
+  resolvePeriod,
+  renderHtmlToPng,
 } from "./commandUtils.ts";
 import { EXCLUDE_SOFT_DELETED } from "#root/constants.js";
 
@@ -31,45 +30,23 @@ interface MonthlyYearData {
 }
 
 export default {
-  data: new SlashCommandBuilder()
-    .setName("heatmap")
-    .setDescription("Shows activity heatmap by day/hour for a user")
-    .addUserOption((option) =>
-      option
-        .setName("user")
-        .setDescription("User to analyze (default: you)")
-        .setRequired(false),
-    )
-    .addChannelOption((option) =>
-      option
-        .setName("channel")
-        .setDescription("Channel to check (default: all channels)")
-        .setRequired(false),
-    )
-    .addIntegerOption((option) =>
-      option
-        .setName("years")
-        .setDescription("Number of years to look back")
-        .setRequired(false)
-        .setMinValue(0)
-        .setMaxValue(7),
-    )
-    .addIntegerOption((option) =>
-      option
-        .setName("months")
-        .setDescription("Number of months to look back")
-        .setRequired(false)
-        .setMinValue(0)
-        .setMaxValue(12),
-    )
-    .addIntegerOption((option) =>
-      option
-        .setName("days")
-        .setDescription("Number of days to look back")
-        .setRequired(false)
-        .setMinValue(7)
-        .setMaxValue(31),
-    ),
+  data: addTimePeriodOptions(
+    new SlashCommandBuilder()
+      .setName("heatmap")
+      .setDescription("Shows activity heatmap by day/hour for a user")
+      .addUserOption((option) =>
+        option
+          .setName("user")
+          .setDescription("User to analyze (default: you)")
+          .setRequired(false),
+      )
+      .addChannelOption((option) =>
+        option
+          .setName("channel")
+          .setDescription("Channel to check (default: all channels)")
+          .setRequired(false),
+      ),
+  ),
 
   async execute(interaction: ChatInputCommandInteraction): Promise<void> {
     const db = getMongoDb();
@@ -80,20 +57,9 @@ export default {
     // Get parameters
     const user = interaction.options.getUser("user") || interaction.user;
     const channel = interaction.options.getChannel("channel");
-    let years = interaction.options.getInteger("years") || 0;
-    const months = interaction.options.getInteger("months") || 0;
-    const days = interaction.options.getInteger("days") || 0;
-
-    if (years === 0 && months === 0 && days === 0) {
-      if (interaction.guild) {
-        years = getServerAgeYears(interaction.guild) + 1;
-      } else {
-        years = 1;
-      }
-    }
 
     const now = new Date();
-    const { startDate, unixStartDate } = computeStartDate(years, months, days);
+    const { startDate, unixStartDate, label } = resolvePeriod(interaction);
 
     // Calculate actual days in the period
     const actualDays = Math.ceil(
@@ -112,305 +78,275 @@ export default {
       match.channelId = channel.id;
     }
 
-    try {
-      // Aggregate messages by day of week and 30-minute intervals (in PST)
-      const [hourlyResult] = await messagesCollection
-        .aggregate([
-          {
-            $match: match,
+    // Aggregate messages by day of week and 30-minute intervals (in PST)
+    const [hourlyResult] = await messagesCollection
+      .aggregate([
+        {
+          $match: match,
+        },
+        {
+          $project: {
+            date: { $toDate: "$createdTimestamp" },
+            author: 1,
           },
-          {
-            $project: {
-              date: { $toDate: "$createdTimestamp" },
-              author: 1,
-            },
-          },
-          {
-            $group: {
-              _id: {
-                // $dayOfWeek is 1 (Sunday) … 7 (Saturday); remap to
-                // 0 (Monday) … 6 (Sunday) to match the DAYS label array.
-                dayOfWeek: {
-                  $mod: [
-                    {
-                      $add: [
-                        {
-                          $dayOfWeek: {
-                            date: "$date",
-                            timezone: "America/Los_Angeles",
-                          },
+        },
+        {
+          $group: {
+            _id: {
+              // $dayOfWeek is 1 (Sunday) … 7 (Saturday); remap to
+              // 0 (Monday) … 6 (Sunday) to match the DAYS label array.
+              dayOfWeek: {
+                $mod: [
+                  {
+                    $add: [
+                      {
+                        $dayOfWeek: {
+                          date: "$date",
+                          timezone: "America/Los_Angeles",
                         },
-                        5,
-                      ],
-                    },
-                    7,
-                  ],
-                },
-                hour: {
-                  $hour: { date: "$date", timezone: "America/Los_Angeles" },
-                },
-                minute: {
-                  $minute: { date: "$date", timezone: "America/Los_Angeles" },
-                },
-              },
-              count: { $sum: 1 },
-            },
-          },
-          {
-            $project: {
-              dayOfWeek: "$_id.dayOfWeek",
-              block: {
-                $add: [
-                  { $multiply: ["$_id.hour", 2] },
-                  { $cond: [{ $gte: ["$_id.minute", 30] }, 1, 0] },
+                      },
+                      5,
+                    ],
+                  },
+                  7,
                 ],
               },
-              count: 1,
-            },
-          },
-          {
-            $group: {
-              _id: {
-                dayOfWeek: "$dayOfWeek",
-                block: "$block",
+              hour: {
+                $hour: { date: "$date", timezone: "America/Los_Angeles" },
               },
-              count: { $sum: "$count" },
-            },
-          },
-          {
-            $group: {
-              _id: null,
-              messages: {
-                $push: {
-                  day: "$_id.dayOfWeek",
-                  block: "$_id.block",
-                  count: "$count",
-                },
-              },
-              totalMessages: { $sum: "$count" },
-            },
-          },
-        ])
-        .toArray();
-
-      // Aggregate messages by year and month
-      const [monthlyResult] = await messagesCollection
-        .aggregate([
-          {
-            $match: match,
-          },
-          {
-            $project: {
-              date: { $toDate: "$createdTimestamp" },
-            },
-          },
-          {
-            $group: {
-              _id: {
-                year: {
-                  $year: { date: "$date", timezone: "America/Los_Angeles" },
-                },
-                month: {
-                  $month: { date: "$date", timezone: "America/Los_Angeles" },
-                },
-              },
-              count: { $sum: 1 },
-            },
-          },
-          {
-            $group: {
-              _id: null,
-              messages: {
-                $push: {
-                  year: "$_id.year",
-                  month: "$_id.month",
-                  count: "$count",
-                },
+              minute: {
+                $minute: { date: "$date", timezone: "America/Los_Angeles" },
               },
             },
+            count: { $sum: 1 },
           },
-        ])
-        .toArray();
-
-      if (!hourlyResult || hourlyResult.totalMessages === 0) {
-        await interaction.editReply({
-          content: `No messages found for ${user.username} in the specified period.`,
-        });
-        return;
-      }
-
-      const hourlyMessages = hourlyResult.messages as HourlyMessageEntry[];
-      const totalMessages = hourlyResult.totalMessages as number;
-      const monthlyMessages = (monthlyResult?.messages ||
-        []) as MonthlyMessageEntry[];
-
-      // Create 7x48 grid (days x 30-minute blocks)
-      const heatmapData = Array(7)
-        .fill(null)
-        .map(() => Array<number>(48).fill(0));
-
-      // Fill in the hourly data
-      hourlyMessages.forEach((message) => {
-        heatmapData[message.day][message.block] = message.count;
-      });
-
-      // Find max count for color scaling
-      let maxCount = 0;
-      let peakDay = 0;
-      let peakBlock = 0;
-
-      heatmapData.forEach((dayData, day) => {
-        dayData.forEach((count, block) => {
-          if (count > maxCount) {
-            maxCount = count;
-            peakDay = day;
-            peakBlock = block;
-          }
-        });
-      });
-
-      // Process monthly data
-      const yearSet = new Set<number>();
-      monthlyMessages.forEach((message) => yearSet.add(message.year));
-      const uniqueYears = Array.from(yearSet).sort();
-
-      // Create year x month grid (dynamic years x 12 months)
-      const monthlyHeatmapData: MonthlyYearData[] = [];
-      uniqueYears.forEach((year) => {
-        const yearData = Array<number>(12).fill(0);
-        monthlyMessages.forEach((message) => {
-          if (message.year === year) {
-            yearData[message.month - 1] = message.count;
-          }
-        });
-        monthlyHeatmapData.push({ year, data: yearData });
-      });
-
-      // Find max for monthly heatmap
-      let maxMonthlyCount = 0;
-      monthlyHeatmapData.forEach((yearData) => {
-        yearData.data.forEach((count) => {
-          if (count > maxMonthlyCount) {
-            maxMonthlyCount = count;
-          }
-        });
-      });
-
-      // Generate heatmap image
-      const imageBuffer = await generateHeatmapImage(
-        heatmapData,
-        maxCount,
-        monthlyHeatmapData,
-        maxMonthlyCount,
-      );
-
-      // Create attachment
-      const attachment = new AttachmentBuilder(imageBuffer, {
-        name: `heatmap-${user.username}.png`,
-      });
-
-      // Calculate statistics
-      const avgPerHour =
-        actualDays > 0
-          ? (totalMessages / (actualDays * 24)).toFixed(2)
-          : "0.00";
-      const mostActiveDay = getMostActiveDay(heatmapData);
-      const mostActiveBlocks = getMostActiveBlocks(heatmapData);
-
-      // Create embed
-      const embed = new EmbedBuilder()
-        .setColor("#5865F2")
-        .setTitle(`📊 Activity Heatmap - ${user.username}`)
-        .setDescription(
-          `*All times shown in Pacific Time (PST/PDT)*\n*Includes hourly activity pattern and monthly activity over time*`,
-        )
-        .addFields(
-          { name: "📅 Period", value: `Last ${actualDays} days`, inline: true },
-          {
-            name: "📝 Channel",
-            value: channel ? channel.toString() : "All Channels",
-            inline: true,
+        },
+        {
+          $project: {
+            dayOfWeek: "$_id.dayOfWeek",
+            block: {
+              $add: [
+                { $multiply: ["$_id.hour", 2] },
+                { $cond: [{ $gte: ["$_id.minute", 30] }, 1, 0] },
+              ],
+            },
+            count: 1,
           },
-          {
-            name: "💬 Total Messages",
-            value: totalMessages.toString(),
-            inline: true,
+        },
+        {
+          $group: {
+            _id: {
+              dayOfWeek: "$dayOfWeek",
+              block: "$block",
+            },
+            count: { $sum: "$count" },
           },
-          {
-            name: "🔥 Peak Activity",
-            value: `${getDayName(peakDay)} at ${formatTimeBlock(peakBlock)} (${maxCount} messages)`,
-            inline: false,
+        },
+        {
+          $group: {
+            _id: null,
+            messages: {
+              $push: {
+                day: "$_id.dayOfWeek",
+                block: "$_id.block",
+                count: "$count",
+              },
+            },
+            totalMessages: { $sum: "$count" },
           },
-          { name: "📊 Average Messages/Hour", value: avgPerHour, inline: true },
-          { name: "🌟 Most Active Day", value: mostActiveDay, inline: true },
-          {
-            name: "⏰ Most Active Times",
-            value: mostActiveBlocks,
-            inline: true,
-          },
-        )
-        .setImage(`attachment://heatmap-${user.username}.png`)
-        .setFooter({
-          text: `From ${startDate.toLocaleDateString()} to ${now.toLocaleDateString()}`,
-        })
-        .setTimestamp();
+        },
+      ])
+      .toArray();
 
+    // Aggregate messages by year and month
+    const [monthlyResult] = await messagesCollection
+      .aggregate([
+        {
+          $match: match,
+        },
+        {
+          $project: {
+            date: { $toDate: "$createdTimestamp" },
+          },
+        },
+        {
+          $group: {
+            _id: {
+              year: {
+                $year: { date: "$date", timezone: "America/Los_Angeles" },
+              },
+              month: {
+                $month: { date: "$date", timezone: "America/Los_Angeles" },
+              },
+            },
+            count: { $sum: 1 },
+          },
+        },
+        {
+          $group: {
+            _id: null,
+            messages: {
+              $push: {
+                year: "$_id.year",
+                month: "$_id.month",
+                count: "$count",
+              },
+            },
+          },
+        },
+      ])
+      .toArray();
+
+    if (!hourlyResult || hourlyResult.totalMessages === 0) {
       await interaction.editReply({
-        embeds: [embed],
-        files: [attachment],
+        content: `No messages found for ${user.username} in the specified period.`,
       });
-    } catch (error: unknown) {
-      console.error("Error fetching heatmap:", error);
-      await interaction.editReply({
-        content:
-          "An error occurred while generating the heatmap. Please try again later.",
-      });
+      return;
     }
+
+    const hourlyMessages = hourlyResult.messages as HourlyMessageEntry[];
+    const totalMessages = hourlyResult.totalMessages as number;
+    const monthlyMessages = (monthlyResult?.messages ||
+      []) as MonthlyMessageEntry[];
+
+    // Create 7x48 grid (days x 30-minute blocks)
+    const heatmapData = Array(7)
+      .fill(null)
+      .map(() => Array<number>(48).fill(0));
+
+    // Fill in the hourly data
+    hourlyMessages.forEach((message) => {
+      heatmapData[message.day][message.block] = message.count;
+    });
+
+    // Find max count for color scaling
+    let maxCount = 0;
+    let peakDay = 0;
+    let peakBlock = 0;
+
+    heatmapData.forEach((dayData, day) => {
+      dayData.forEach((count, block) => {
+        if (count > maxCount) {
+          maxCount = count;
+          peakDay = day;
+          peakBlock = block;
+        }
+      });
+    });
+
+    // Process monthly data
+    const yearSet = new Set<number>();
+    monthlyMessages.forEach((message) => yearSet.add(message.year));
+    const uniqueYears = Array.from(yearSet).sort();
+
+    // Create year x month grid (dynamic years x 12 months)
+    const monthlyHeatmapData: MonthlyYearData[] = [];
+    uniqueYears.forEach((year) => {
+      const yearData = Array<number>(12).fill(0);
+      monthlyMessages.forEach((message) => {
+        if (message.year === year) {
+          yearData[message.month - 1] = message.count;
+        }
+      });
+      monthlyHeatmapData.push({ year, data: yearData });
+    });
+
+    // Find max for monthly heatmap
+    let maxMonthlyCount = 0;
+    monthlyHeatmapData.forEach((yearData) => {
+      yearData.data.forEach((count) => {
+        if (count > maxMonthlyCount) {
+          maxMonthlyCount = count;
+        }
+      });
+    });
+
+    // Generate heatmap image
+    const imageBuffer = await generateHeatmapImage(
+      heatmapData,
+      maxCount,
+      monthlyHeatmapData,
+      maxMonthlyCount,
+    );
+
+    // Create attachment
+    const attachment = new AttachmentBuilder(imageBuffer, {
+      name: `heatmap-${user.username}.png`,
+    });
+
+    // Calculate statistics
+    const avgPerHour =
+      actualDays > 0 ? (totalMessages / (actualDays * 24)).toFixed(2) : "0.00";
+    const mostActiveDay = getMostActiveDay(heatmapData);
+    const mostActiveBlocks = getMostActiveBlocks(heatmapData);
+
+    // Create embed
+    const embed = new EmbedBuilder()
+      .setColor("#5865F2")
+      .setTitle(`📊 Activity Heatmap - ${user.username}`)
+      .setDescription(
+        `*All times shown in Pacific Time (PST/PDT)*\n*Includes hourly activity pattern and monthly activity over time*`,
+      )
+      .addFields(
+        { name: "📅 Period", value: label, inline: true },
+        {
+          name: "📝 Channel",
+          value: channel ? channel.toString() : "All Channels",
+          inline: true,
+        },
+        {
+          name: "💬 Total Messages",
+          value: totalMessages.toString(),
+          inline: true,
+        },
+        {
+          name: "🔥 Peak Activity",
+          value: `${getDayName(peakDay)} at ${formatTimeBlock(peakBlock)} (${maxCount} messages)`,
+          inline: false,
+        },
+        { name: "📊 Average Messages/Hour", value: avgPerHour, inline: true },
+        { name: "🌟 Most Active Day", value: mostActiveDay, inline: true },
+        {
+          name: "⏰ Most Active Times",
+          value: mostActiveBlocks,
+          inline: true,
+        },
+      )
+      .setImage(`attachment://heatmap-${user.username}.png`)
+      .setFooter({
+        text: `From ${startDate.toLocaleDateString()} to ${now.toLocaleDateString()}`,
+      })
+      .setTimestamp();
+
+    await interaction.editReply({
+      embeds: [embed],
+      files: [attachment],
+    });
   },
 };
 
-// Generate heatmap image using Playwright and D3
+// Generate heatmap image using the shared Playwright pipeline
 async function generateHeatmapImage(
   hourlyData: number[][],
   maxHourlyCount: number,
   monthlyData: MonthlyYearData[],
   maxMonthlyCount: number,
 ): Promise<Buffer> {
-  const browser = await chromium.launch(getPlaywrightOptions());
+  const estimatedHeight = 800 + monthlyData.length * 40;
 
-  try {
-    const estimatedHeight = 800 + monthlyData.length * 40;
-    const page = await browser.newPage({
-      viewport: {
-        width: 1600,
-        height: Math.max(1100, estimatedHeight),
-      },
-    });
+  // Create HTML content with both heatmaps
+  const html = generateHeatmapHTML(
+    hourlyData,
+    maxHourlyCount,
+    monthlyData,
+    maxMonthlyCount,
+  );
 
-    // Create HTML content with both heatmaps
-    const html = generateHeatmapHTML(
-      hourlyData,
-      maxHourlyCount,
-      monthlyData,
-      maxMonthlyCount,
-    );
-
-    await page.setContent(html, { waitUntil: "networkidle" });
-
-    // Wait for rendering
-    await new Promise((resolve) => setTimeout(resolve, 500));
-
-    // Take screenshot
-    const screenshot = await page.screenshot({
-      type: "png",
-      fullPage: false,
-      omitBackground: true,
-    });
-
-    return screenshot;
-  } finally {
-    await browser.close();
-  }
+  return renderHtmlToPng(html, {
+    width: 1600,
+    height: Math.max(1100, estimatedHeight),
+    omitBackground: true,
+  });
 }
 
 // Generate HTML with D3 heatmaps
