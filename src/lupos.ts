@@ -20,11 +20,19 @@ let httpServer: import("node:http").Server | null = null;
 
 const args = process.argv.slice(2);
 const mode = args.find((arg: string) => arg.startsWith("mode="))?.split("=")[1];
-const channelIdsArg = args.find((arg: string) => arg.startsWith("channels="))?.split("=")[1];
-const channelIds = channelIdsArg ? channelIdsArg.split(",").filter(Boolean) : null;
-const guildIdsArg = args.find((arg: string) => arg.startsWith("guilds="))?.split("=")[1];
+const channelIdsArg = args
+  .find((arg: string) => arg.startsWith("channels="))
+  ?.split("=")[1];
+const channelIds = channelIdsArg
+  ? channelIdsArg.split(",").filter(Boolean)
+  : null;
+const guildIdsArg = args
+  .find((arg: string) => arg.startsWith("guilds="))
+  ?.split("=")[1];
 const guildIds = guildIdsArg ? guildIdsArg.split(",").filter(Boolean) : null;
-const dateLimit = args.find((arg: string) => arg.startsWith("dateLimit="))?.split("=")[1] || null;
+const dateLimit =
+  args.find((arg: string) => arg.startsWith("dateLimit="))?.split("=")[1] ||
+  null;
 
 async function main() {
   try {
@@ -57,7 +65,11 @@ async function main() {
       if (mode === "clone:messages") {
         await DiscordService.cloneMessages();
       } else if (mode === "rescrape:channels") {
-        await DiscordService.rescrapeChannels({ channelIds, guildIds, dateLimit });
+        await DiscordService.rescrapeChannels({
+          channelIds,
+          guildIds,
+          dateLimit,
+        });
       } else if (mode === "delete:duplicates") {
         await DiscordService.deleteDuplicateMessages();
       } else if (mode === "delete:newAccounts") {
@@ -71,9 +83,11 @@ async function main() {
       }
     };
     runMode().catch((error: unknown) => {
-      console.error(`❌ [lupos] Initialization failed for mode "${mode ?? "default"}":`, error);
+      console.error(
+        `❌ [lupos] Initialization failed for mode "${mode ?? "default"}":`,
+        error,
+      );
     });
-
 
     // API SERVER
     app.use(express.json());
@@ -102,8 +116,6 @@ async function main() {
     httpServer = app.listen(Number(config.SERVER_PORT), "0.0.0.0", () => {
       console.log(`Server listening on 0.0.0.0:${config.SERVER_PORT}`);
     });
-
-
   } catch (error: unknown) {
     console.log(LogFormatter.errorInitialization(error));
   }
@@ -127,7 +139,9 @@ const shutdown = async (signal: string, exitCode = 0) => {
       try {
         await client.destroy();
         console.log(`  ✓ Discord client "${name}" destroyed`);
-      } catch { /* already closed */ }
+      } catch {
+        /* already closed */
+      }
     }
     // Close all MongoDB connections (whatever names they were registered under)
     const MongoService = (await import("./services/MongoService.ts")).default;

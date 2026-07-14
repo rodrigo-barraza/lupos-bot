@@ -9,7 +9,14 @@
 // 4. Posting a rich embed in the #deleted-messages audit channel
 // ============================================================
 
-import type { Client, Message, PartialMessage, Attachment, Sticker, TextChannel } from "discord.js";
+import type {
+  Client,
+  Message,
+  PartialMessage,
+  Attachment,
+  Sticker,
+  TextChannel,
+} from "discord.js";
 import type { MongoClient } from "mongodb";
 import { EmbedBuilder } from "discord.js";
 import config from "#root/config.js";
@@ -25,7 +32,11 @@ import { MONGO_DB_NAME } from "#root/constants.js";
  * - Soft-deletes in MongoDB (sets isDeleted + deletedAt)
  * - Posts audit embed in #deleted-messages
  */
-async function handleMessageDelete(client: Client, mongo: MongoClient, message: Message | PartialMessage) {
+async function handleMessageDelete(
+  client: Client,
+  mongo: MongoClient,
+  message: Message | PartialMessage,
+) {
   // Fetch partial messages
   if (message.partial) {
     try {
@@ -59,17 +70,21 @@ async function handleMessageDelete(client: Client, mongo: MongoClient, message: 
   // { isDeleted: { $ne: true } } via EXCLUDE_SOFT_DELETED.
   try {
     const db = mongo.db(MONGO_DB_NAME);
-    const result = await db.collection("Messages").updateOne(
-      { id: deletedMessageId },
-      { $set: { isDeleted: true, deletedAt: new Date() } },
-    );
+    const result = await db
+      .collection("Messages")
+      .updateOne(
+        { id: deletedMessageId },
+        { $set: { isDeleted: true, deletedAt: new Date() } },
+      );
     if (result.modifiedCount > 0) {
       console.log(
         `🗑️ [DeletedMessageLogger] Soft-deleted message ${deletedMessageId} in MongoDB (author: ${message.author?.id})`,
       );
     }
   } catch (dbError: unknown) {
-    console.warn(`🗑️ [DeletedMessageLogger] MongoDB soft-delete failed for ${deletedMessageId}: ${(dbError as Error).message}`);
+    console.warn(
+      `🗑️ [DeletedMessageLogger] MongoDB soft-delete failed for ${deletedMessageId}: ${(dbError as Error).message}`,
+    );
   }
 
   // Early returns for invalid cases
@@ -94,12 +109,19 @@ async function handleMessageDelete(client: Client, mongo: MongoClient, message: 
   });
   if (!name) return;
 
-  const avatarUrl = utilities.getDiscordAvatarUrl(message.author?.id || "", message.author?.avatar || "");
+  const avatarUrl = utilities.getDiscordAvatarUrl(
+    message.author?.id || "",
+    message.author?.avatar || "",
+  );
   const channelName = DiscordUtilityService.getChannelName(
     client,
     message.channelId,
   );
-  const messageURL = utilities.getDiscordMessageUrl(message.guildId, message.channelId, message.id);
+  const messageURL = utilities.getDiscordMessageUrl(
+    message.guildId,
+    message.channelId,
+    message.id,
+  );
 
   // Build main embed
   const embed = new EmbedBuilder()
@@ -163,7 +185,9 @@ async function handleMessageDelete(client: Client, mongo: MongoClient, message: 
 
   // Handle attachments
   if (message.attachments.size > 0) {
-    const attachmentArray: Attachment[] = Array.from(message.attachments.values());
+    const attachmentArray: Attachment[] = Array.from(
+      message.attachments.values(),
+    );
     const attachmentInfo: string[] = [];
 
     attachmentArray.forEach((attachment: Attachment, index: number) => {

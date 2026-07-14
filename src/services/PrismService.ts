@@ -39,7 +39,12 @@ export default class PrismService {
    */
   static async _request(
     endpoint: string,
-    { method = "POST", body, username = "lupos", timeoutMs = 120_000 }: PrismRequestOptions = {},
+    {
+      method = "POST",
+      body,
+      username = "lupos",
+      timeoutMs = 120_000,
+    }: PrismRequestOptions = {},
   ): Promise<TransformedPrismResponse> {
     const doFetch = () =>
       fetch(`${API_BASE}${endpoint}`, {
@@ -55,21 +60,32 @@ export default class PrismService {
     try {
       fetchResponse = await doFetch();
     } catch (error: unknown) {
-      const isTimeout = error instanceof DOMException && error.name === "TimeoutError";
+      const isTimeout =
+        error instanceof DOMException && error.name === "TimeoutError";
       if (isTimeout) {
-        console.error(`[PrismService] Timeout after ${timeoutMs}ms on ${endpoint}`);
+        console.error(
+          `[PrismService] Timeout after ${timeoutMs}ms on ${endpoint}`,
+        );
         throw new Error(`Prism timeout: ${endpoint} exceeded ${timeoutMs}ms`);
       }
       // Transient network error (connection refused/reset before any response):
       // retry once with jitter, then give up.
       const errorMessage = utilities.errorMessage(error);
-      console.warn(`[PrismService] Network error on ${endpoint}, retrying once:`, errorMessage);
-      await new Promise((resolve) => setTimeout(resolve, 500 + Math.random() * 1000));
+      console.warn(
+        `[PrismService] Network error on ${endpoint}, retrying once:`,
+        errorMessage,
+      );
+      await new Promise((resolve) =>
+        setTimeout(resolve, 500 + Math.random() * 1000),
+      );
       try {
         fetchResponse = await doFetch();
       } catch (retryError: unknown) {
         const retryMessage = utilities.errorMessage(retryError);
-        console.error(`[PrismService] Network error on ${endpoint} (after retry):`, retryMessage);
+        console.error(
+          `[PrismService] Network error on ${endpoint} (after retry):`,
+          retryMessage,
+        );
         throw new Error(`Prism unreachable: ${retryMessage}`);
       }
     }
@@ -79,7 +95,7 @@ export default class PrismService {
       throw new Error(`Prism API error: ${fetchResponse.status} ${errorText}`);
     }
 
-    return await fetchResponse.json() as TransformedPrismResponse;
+    return (await fetchResponse.json()) as TransformedPrismResponse;
   }
 
   // ---------------------------------------------------------------------------
@@ -120,7 +136,6 @@ export default class PrismService {
     if (systemPrompt) body.systemPrompt = systemPrompt;
     if (traceId) body.traceId = traceId;
 
-
     const data = await PrismService._request("/chat?stream=false", {
       body,
       username,
@@ -132,7 +147,6 @@ export default class PrismService {
       provider: data.provider,
     };
   }
-
 
   // ---------------------------------------------------------------------------
   // Agent — autonomous agentic loop with tool calling
@@ -237,7 +251,6 @@ export default class PrismService {
     if (traceId) body.traceId = traceId;
     body.forceImageGeneration = true;
 
-
     const result = await PrismService._request("/chat?stream=false", {
       body,
       username,
@@ -280,7 +293,6 @@ export default class PrismService {
     if (systemPrompt) body.systemPrompt = systemPrompt;
     if (traceId) body.traceId = traceId;
 
-
     return PrismService._request("/chat?stream=false", { body, username });
   }
 
@@ -304,7 +316,11 @@ export default class PrismService {
       : audio;
     const dataUrl = `data:${mimeType};base64,${base64Audio}`;
 
-    const body: Record<string, unknown> = { provider, audio: dataUrl, skipConversation: true };
+    const body: Record<string, unknown> = {
+      provider,
+      audio: dataUrl,
+      skipConversation: true,
+    };
     if (model) body.model = model;
     if (language) body.language = language;
     if (traceId) body.traceId = traceId;
@@ -336,7 +352,12 @@ export default class PrismService {
     sourceMessageId,
     traceId,
   }: MemoryExtractParams) {
-    const body: Record<string, unknown> = { guildId, channelId, messages, participants };
+    const body: Record<string, unknown> = {
+      guildId,
+      channelId,
+      messages,
+      participants,
+    };
     if (sourceMessageId) body.sourceMessageId = sourceMessageId;
     if (traceId) body.traceId = traceId;
 
@@ -348,7 +369,13 @@ export default class PrismService {
 
 
    */
-  static async searchMemories({ guildId, userIds, queryText, limit = 10, traceId }: MemorySearchParams) {
+  static async searchMemories({
+    guildId,
+    userIds,
+    queryText,
+    limit = 10,
+    traceId,
+  }: MemorySearchParams) {
     const body: Record<string, unknown> = { guildId, queryText, limit };
     if (userIds?.length && userIds.length > 0) body.userIds = userIds;
     if (traceId) body.traceId = traceId;
@@ -365,12 +392,16 @@ export default class PrismService {
 
 
    */
-  static async generateEmbedding({ text, provider = "openai", model, traceId }: EmbeddingParams) {
+  static async generateEmbedding({
+    text,
+    provider = "openai",
+    model,
+    traceId,
+  }: EmbeddingParams) {
     const body: Record<string, unknown> = { provider, text };
     if (model) body.model = model;
     if (traceId) body.traceId = traceId;
 
     return PrismService._request("/embed", { body });
   }
-
 }

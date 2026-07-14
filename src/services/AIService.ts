@@ -17,9 +17,7 @@ import { Message, Client } from "discord.js";
 import { MongoClient } from "mongodb";
 
 async function convertGifToPng(imageBuffer: Buffer): Promise<Buffer> {
-  return sharp(imageBuffer, { animated: false })
-    .png()
-    .toBuffer();
+  return sharp(imageBuffer, { animated: false }).png().toBuffer();
 }
 
 export interface CaptionMapObject {
@@ -71,13 +69,13 @@ export interface GenerateVisionOptions {
  * Adding a new type is a single-line addition.
  */
 const CAPTION_COLLECTION_MAP = {
-  IMAGE:   "ImageCaptions",
-  EMOJI:   "EmojiCaptions",
+  IMAGE: "ImageCaptions",
+  EMOJI: "EmojiCaptions",
   STICKER: "StickerCaptions",
-  VIDEO:   "VideoCaptions",
-  AVATAR:  "AvatarCaptions",
-  BANNER:  "BannerCaptions",
-  SMALL:   "SmallCaptions",
+  VIDEO: "VideoCaptions",
+  AVATAR: "AvatarCaptions",
+  BANNER: "BannerCaptions",
+  SMALL: "SmallCaptions",
 };
 
 const AIService = {
@@ -99,7 +97,10 @@ const AIService = {
    * Get the current Discord username from CurrentService, with "lupos" fallback.
    */
   _getDiscordUsername(): string {
-    const discordMessage = CurrentService.getMessage() as Message | null | undefined;
+    const discordMessage = CurrentService.getMessage() as
+      | Message
+      | null
+      | undefined;
     return discordMessage?.author?.username || "lupos";
   },
   /**
@@ -108,13 +109,17 @@ const AIService = {
    */
   async _convertImageUrlsToBase64(
     urls: string[],
-    { convertGifs = false }: { convertGifs?: boolean } = {}
+    { convertGifs = false }: { convertGifs?: boolean } = {},
   ): Promise<Array<{ imageData: string; mimeType: string }>> {
     const imageObjects: Array<{ imageData: string; mimeType: string }> = [];
     for (const url of urls) {
-      const response = await fetch(url, { signal: AbortSignal.timeout(15_000) });
+      const response = await fetch(url, {
+        signal: AbortSignal.timeout(15_000),
+      });
       if (!response.ok) {
-        console.warn(`⚠️ [AIService] Skipping image ${url}: HTTP ${response.status}`);
+        console.warn(
+          `⚠️ [AIService] Skipping image ${url}: HTTP ${response.status}`,
+        );
         continue;
       }
       const bytes = await response.bytes();
@@ -149,8 +154,18 @@ const AIService = {
     let textResponse: string | null = null;
     let generateTextModel: string | undefined;
 
-    const finalTemperature = temperature !== undefined ? temperature : (config.LANGUAGE_MODEL_TEMPERATURE ? parseFloat(config.LANGUAGE_MODEL_TEMPERATURE) : undefined);
-    const finalTokens = tokens !== undefined ? tokens : (config.LANGUAGE_MODEL_MAX_TOKENS ? parseInt(config.LANGUAGE_MODEL_MAX_TOKENS, 10) : undefined);
+    const finalTemperature =
+      temperature !== undefined
+        ? temperature
+        : config.LANGUAGE_MODEL_TEMPERATURE
+          ? parseFloat(config.LANGUAGE_MODEL_TEMPERATURE)
+          : undefined;
+    const finalTokens =
+      tokens !== undefined
+        ? tokens
+        : config.LANGUAGE_MODEL_MAX_TOKENS
+          ? parseInt(config.LANGUAGE_MODEL_MAX_TOKENS, 10)
+          : undefined;
 
     // Determine initial model based on type and performance
     if (type === "OPENAI") {
@@ -221,9 +236,11 @@ const AIService = {
       if (prismResult.model) {
         usedModel = prismResult.model;
       }
-
     } catch (prismError: unknown) {
-      const wrappedError = prismError instanceof Error ? prismError : new Error(String(prismError));
+      const wrappedError =
+        prismError instanceof Error
+          ? prismError
+          : new Error(String(prismError));
       console.error(
         `Prism API error for ${type}/${usedModel}:`,
         wrappedError.message,
@@ -239,7 +256,7 @@ const AIService = {
     prompt: string,
     client: Client,
     imageUrls: string[] = [],
-    username: string | null = null
+    username: string | null = null,
   ): Promise<string | null> {
     let generatedImage: string | null = null;
     let usedModel: string;
@@ -248,7 +265,9 @@ const AIService = {
       let hasError = false;
       try {
         const imageObjects = imageUrls.length
-          ? await AIService._convertImageUrlsToBase64(imageUrls, { convertGifs: true })
+          ? await AIService._convertImageUrlsToBase64(imageUrls, {
+              convertGifs: true,
+            })
           : [];
 
         usedModel = "gemini-3.1-flash-image-preview";
@@ -281,7 +300,8 @@ const AIService = {
           generatedImage = generatedImageResponseLocal;
         }
       } catch (error: unknown) {
-        const wrappedError = error instanceof Error ? error : new Error(String(error));
+        const wrappedError =
+          error instanceof Error ? error : new Error(String(error));
         console.error(...LogFormatter.error("generateImage", wrappedError));
         hasError = true;
       }
@@ -315,9 +335,9 @@ const AIService = {
         });
 
         generatedImage = prismResult.imageData;
-
       } catch (error: unknown) {
-        const wrappedError = error instanceof Error ? error : new Error(String(error));
+        const wrappedError =
+          error instanceof Error ? error : new Error(String(error));
         console.error(...LogFormatter.error("generateImage", wrappedError));
       }
     }
@@ -328,7 +348,7 @@ const AIService = {
   async generateVision(
     imageUrl: string,
     text: string,
-    { model, provider }: GenerateVisionOptions = {}
+    { model, provider }: GenerateVisionOptions = {},
   ): Promise<{
     response: { choices: Array<{ message: { content: string } }> } | null;
     model: string;
@@ -338,14 +358,14 @@ const AIService = {
     try {
       const discordUsername = AIService._getDiscordUsername();
 
-      const result = await PrismService.captionImage({
+      const result = (await PrismService.captionImage({
         images: imageUrl,
         prompt: text || "What's in this image?",
         provider: provider || "google",
         model: model || "gemini-3-flash-preview",
         username: discordUsername,
         ...AIService._getTraceParams(),
-      }) as { text?: string; model?: string; provider?: string };
+      })) as { text?: string; model?: string; provider?: string };
 
       return {
         response: { choices: [{ message: { content: result.text || "" } }] },
@@ -354,7 +374,8 @@ const AIService = {
         error: null,
       };
     } catch (error: unknown) {
-      const wrappedError = error instanceof Error ? error : new Error(String(error));
+      const wrappedError =
+        error instanceof Error ? error : new Error(String(error));
       return {
         response: null,
         model: model || "gemini-3-flash-preview",
@@ -364,15 +385,23 @@ const AIService = {
     }
   },
   // Base Speech-to-Text Generation (Transcription) — via Prism
-  async transcribeSpeech(audioUrl: string, _messageId: string, _index: number): Promise<string> {
+  async transcribeSpeech(
+    audioUrl: string,
+    _messageId: string,
+    _index: number,
+  ): Promise<string> {
     // Parse the URL to get just the filename without query parameters
     const url = new URL(audioUrl);
     const filename = path.basename(url.pathname);
 
     // Download the audio file into memory (no disk write needed)
-    const audioFile = await fetch(audioUrl, { signal: AbortSignal.timeout(30_000) });
+    const audioFile = await fetch(audioUrl, {
+      signal: AbortSignal.timeout(30_000),
+    });
     if (!audioFile.ok) {
-      throw new Error(`Failed to download audio ${audioUrl}: HTTP ${audioFile.status}`);
+      throw new Error(
+        `Failed to download audio ${audioUrl}: HTTP ${audioFile.status}`,
+      );
     }
     const audioBuffer = Buffer.from(await audioFile.bytes());
 
@@ -392,13 +421,13 @@ const AIService = {
     const discordUsername = AIService._getDiscordUsername();
 
     // Transcribe via Prism
-    const result = await PrismService.transcribeAudio({
+    const result = (await PrismService.transcribeAudio({
       audio: audioBuffer,
       mimeType,
       provider: "openai",
       username: discordUsername,
       ...AIService._getTraceParams(),
-    }) as { text?: string };
+    })) as { text?: string };
 
     const transcription = (result.text || "").trim().replace(/\n+/g, " ");
     return transcription;
@@ -407,33 +436,39 @@ const AIService = {
   async captionImages(
     imageUrls: Array<string | { url: string; userId: string | null }>,
     localMongo: MongoClient,
-    type: string
+    type: string,
   ): Promise<{
     images: string[];
     imagesMap: Map<string, CaptionMapObject>;
   }> {
     const images: string[] = [];
     const imagesMap = new Map<string, CaptionMapObject>();
-    const collectionName = CAPTION_COLLECTION_MAP[type as keyof typeof CAPTION_COLLECTION_MAP];
+    const collectionName =
+      CAPTION_COLLECTION_MAP[type as keyof typeof CAPTION_COLLECTION_MAP];
     if (collectionName) {
       const db = localMongo.db(MONGO_DB_NAME);
       const collection = db.collection(collectionName);
-      const prompt = type === "SMALL"
-        ? `Describe this image in a short sentence, 10 words or less. Make no mention about the quality, resolution, or pixelation.`
-        : `Describe this ${type.toLowerCase()}. Make no mention about the quality, resolution, or pixelation.`;
+      const prompt =
+        type === "SMALL"
+          ? `Describe this image in a short sentence, 10 words or less. Make no mention about the quality, resolution, or pixelation.`
+          : `Describe this ${type.toLowerCase()}. Make no mention about the quality, resolution, or pixelation.`;
 
       if (imageUrls?.length) {
         const first = imageUrls[0];
-        const isObject = typeof first === "object" && first !== null && "url" in first;
+        const isObject =
+          typeof first === "object" && first !== null && "url" in first;
 
         // Process all images in parallel — each checks cache first,
         // then fires vision call only for uncached images
         const captionPromises = imageUrls.map(async (imageUrl) => {
-          const realImageUrl = isObject ? (imageUrl as { url: string }).url : (imageUrl as string);
-          const userId = isObject ? (imageUrl as { userId: string | null }).userId : null;
+          const realImageUrl = isObject
+            ? (imageUrl as { url: string }).url
+            : (imageUrl as string);
+          const userId = isObject
+            ? (imageUrl as { userId: string | null }).userId
+            : null;
 
-          const hashResult =
-            await utilities.generateFileHash(realImageUrl);
+          const hashResult = await utilities.generateFileHash(realImageUrl);
           if (!hashResult) return null;
           const { hash, fileType } = hashResult;
           const existingImage = await collection.findOne({ hash });
@@ -449,12 +484,19 @@ const AIService = {
               provider: existingImage.provider || null,
               cached: true,
             };
-            return { caption: existingImage.caption as string, mapObject, hash };
+            return {
+              caption: existingImage.caption as string,
+              mapObject,
+              hash,
+            };
           }
 
           // Uncached — fire vision call
-          const { response, model: usedModel, provider: usedProvider } =
-            await AIService.generateVision(realImageUrl, prompt);
+          const {
+            response,
+            model: usedModel,
+            provider: usedProvider,
+          } = await AIService.generateVision(realImageUrl, prompt);
           if (response?.choices[0]?.message?.content) {
             const caption = response.choices[0].message.content;
             const mapObject = {
@@ -498,14 +540,16 @@ const AIService = {
   async transcribeAudioUrls(
     audioUrls: string[],
     messageId: string,
-    localMongo: MongoClient
+    localMongo: MongoClient,
   ): Promise<{
     transcriptionsMap: Map<string, TranscriptionMapObject>;
   }> {
     const transcriptionsMap = new Map<string, TranscriptionMapObject>();
     const db = localMongo.db(MONGO_DB_NAME);
     const collection = db.collection("AudioTranscriptions");
-    let existingAudio: import("mongodb").WithId<import("mongodb").Document> | null;
+    let existingAudio:
+      | import("mongodb").WithId<import("mongodb").Document>
+      | null;
     if (audioUrls?.length) {
       let index = 0;
       for (const audioUrl of audioUrls) {
@@ -552,7 +596,10 @@ const AIService = {
   },
 
   // "mini-brains" for specific tasks
-  async generateTextSummaryFromMessage(message: Message, messageContent: string): Promise<string> {
+  async generateTextSummaryFromMessage(
+    message: Message,
+    messageContent: string,
+  ): Promise<string> {
     const generatedText = await AIService.generateText({
       systemPrompt: `You are an expert at summarizing the text that is given to you in two to three words. Start with an emoji. Do not use any other formatting, just give the emoji and the two to three words.`,
       conversation: [
@@ -567,7 +614,10 @@ const AIService = {
     if (!generatedText) return "";
     return generatedText.substring(0, 128);
   },
-  async generateTextCustomEmojiReactFromMessage(message: Message, localMongo: MongoClient): Promise<string | null> {
+  async generateTextCustomEmojiReactFromMessage(
+    message: Message,
+    localMongo: MongoClient,
+  ): Promise<string | null> {
     const client = message.client;
     const guild = message.guild;
     const bot = client.user;
@@ -610,7 +660,9 @@ ${guildEmojiList}
       conversation: [
         {
           role: "user",
-          name: DiscordUtilityService.getUsernameNoSpaces(message as Message) || "Default",
+          name:
+            DiscordUtilityService.getUsernameNoSpaces(message as Message) ||
+            "Default",
           content: modifiedMessageContent,
         },
       ],
@@ -634,7 +686,7 @@ ${guildEmojiList}
         // <:blobreach:123456789012345678>
         // if its custom, wrap it in <:
         const found = serverEmojisArray.find(
-          (emoji) => (emoji as { name: string }).name === cleanedResponse
+          (emoji) => (emoji as { name: string }).name === cleanedResponse,
         ) as { id: string } | undefined;
         if (found) {
           cleanedResponse = found.id;
@@ -647,7 +699,7 @@ ${guildEmojiList}
   async generateTextDetermineHowManyMessagesToFetch(
     content: string,
     _message: Message,
-    _messageCountText: string
+    _messageCountText: string,
   ): Promise<number> {
     // Fully deterministic — the old AI prompt's decision rules were keyword-based,
     // so we replicate them exactly without an LLM call.
@@ -704,7 +756,7 @@ ${guildEmojiList}
   async generateTextFromUserConversation(
     userName: string,
     cleanUserName: string,
-    userMessagesAsText: string
+    userMessagesAsText: string,
   ): Promise<string | null> {
     const generatedText = await AIService.generateText({
       systemPrompt: `You are an expert at providing concise, accurate descriptions of messages. Analyze the content sent to you and create a detailed summary of what ${userName} is discussing. Focus on being precise and direct while capturing all key points and context from their message.

@@ -45,9 +45,16 @@ describe("DiscordState", () => {
 
   describe("queue", () => {
     it("removes a deleted message from the pending queue by id", () => {
-      const makeEntry = (id: string) =>
-        ({ message: { id } as Message, recentMessages: new Map() as never, actionType: "CREATE" });
-      DiscordState.queuedData.push(makeEntry("a"), makeEntry("b"), makeEntry("c"));
+      const makeEntry = (id: string) => ({
+        message: { id } as Message,
+        recentMessages: new Map() as never,
+        actionType: "CREATE",
+      });
+      DiscordState.queuedData.push(
+        makeEntry("a"),
+        makeEntry("b"),
+        makeEntry("c"),
+      );
 
       // Mirror of DeletedMessageLogger's queue-purge loop
       const deletedMessageId = "b";
@@ -57,7 +64,10 @@ describe("DiscordState", () => {
         }
       }
 
-      expect(DiscordState.queuedData.map((q) => q.message.id)).toEqual(["a", "c"]);
+      expect(DiscordState.queuedData.map((q) => q.message.id)).toEqual([
+        "a",
+        "c",
+      ]);
     });
   });
 });
