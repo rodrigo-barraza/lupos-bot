@@ -10,6 +10,7 @@
 // ============================================================
 
 import { timingSafeEqual } from "node:crypto";
+import { AUTH_HEADERS } from "@rodrigo-barraza/utilities-library/taxonomy";
 import type { Request, Response, NextFunction } from "express";
 
 const MUTATING_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
@@ -55,7 +56,7 @@ export function createApiAuthMiddleware(sharedSecret: string | undefined) {
       next();
       return;
     }
-    if (secretMatches(req.headers["x-api-key"], sharedSecret)) {
+    if (secretMatches(req.headers[AUTH_HEADERS.apiKey], sharedSecret)) {
       next();
       return;
     }
