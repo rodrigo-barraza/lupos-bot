@@ -411,7 +411,7 @@ describe("Bot Image Context", () => {
 
       const annotationTurn = conversation.find(
         (turn) =>
-          turn.role === "user" &&
+          turn.role === "system" &&
           typeof turn.content === "string" &&
           turn.content.includes(
             `<message-annotation for="${botImageMessage.id}">`,
@@ -443,7 +443,7 @@ describe("Bot Image Context", () => {
 
       const annotationTurn = conversation.find(
         (turn) =>
-          turn.role === "user" &&
+          turn.role === "system" &&
           typeof turn.content === "string" &&
           turn.content.includes("<message-annotation for="),
       );

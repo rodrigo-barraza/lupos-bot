@@ -751,9 +751,13 @@ export async function extractContentFromMessages(
           reactions: reactionsPartOf(recentMessage),
         });
         if (annotation) {
+          // Platform-generated context, not user input — system role, same
+          // as Prism's own mid-conversation injections. Providers without
+          // mid-turn system support demote it on the wire (the
+          // <message-annotation> tag remains the signal), and it stays
+          // out of user-facing paths like memory extraction.
           conversation.push({
-            role: "user",
-            name: DiscordUtilityService.getUsernameNoSpaces(recentMessage),
+            role: "system",
             content: annotation,
           });
         }
