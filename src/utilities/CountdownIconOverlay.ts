@@ -1,4 +1,5 @@
 import sharp from "sharp";
+import { MILLISECONDS_PER_DAY } from "@rodrigo-barraza/utilities-library";
 
 // ─── Types ──────────────────────────────────────────────────────
 
@@ -122,7 +123,7 @@ function calculateDaysUntilTarget(targetDate: Date): number {
   );
   const differenceMilliseconds =
     targetMidnight.getTime() - todayMidnight.getTime();
-  return Math.max(0, Math.ceil(differenceMilliseconds / (1000 * 60 * 60 * 24)));
+  return Math.max(0, Math.ceil(differenceMilliseconds / MILLISECONDS_PER_DAY));
 }
 
 /**

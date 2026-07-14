@@ -16,6 +16,7 @@ import type {
 } from "discord.js";
 import { Db } from "mongodb";
 import { chromium } from "playwright";
+import { MILLISECONDS_PER_DAY } from "@rodrigo-barraza/utilities-library";
 
 // ─── Database ─────────────────────────────────────────────────────────
 
@@ -36,7 +37,7 @@ export function getMongoDb(): Db {
  */
 export function getServerAgeYears(guild: Guild): number {
   const serverAgeInDays = Math.floor(
-    (Date.now() - guild.createdTimestamp) / (1000 * 60 * 60 * 24),
+    (Date.now() - guild.createdTimestamp) / MILLISECONDS_PER_DAY,
   );
   return Math.floor(serverAgeInDays / 365);
 }
@@ -305,7 +306,7 @@ export function buildLeaderboardEmbed<T>(
 // ─── Moderation Helpers ───────────────────────────────────────────────
 
 /** Discord's maximum timeout duration (28 days). */
-export const MAX_TIMEOUT_DURATION_MS = 28 * 24 * 60 * 60 * 1000;
+export const MAX_TIMEOUT_DURATION_MS = 28 * MILLISECONDS_PER_DAY;
 
 /**
  * Times out a guild member, clamping the duration to Discord's 28-day
