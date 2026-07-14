@@ -142,7 +142,10 @@ const LogFormatter = {
       theMember = interaction.member as GuildMember | undefined;
       theGuild = interaction.guild ?? undefined;
       theChannel = interaction.channel as { name: string; id: string } | null;
-      _theInteractionCustom = "customId" in interaction ? (interaction.customId as string) : undefined;
+      _theInteractionCustom =
+        "customId" in interaction
+          ? (interaction.customId as string)
+          : undefined;
       theClient = interaction.client;
     }
     if (message) {
@@ -193,7 +196,10 @@ const LogFormatter = {
     const combinedGuildInformation =
       utilities.getCombinedGuildInformationFromGuild(theGuild ?? null, true);
     const combinedChannelInformation =
-      utilities.getCombinedChannelInformationFromChannel(theChannel ?? null, true);
+      utilities.getCombinedChannelInformationFromChannel(
+        theChannel ?? null,
+        true,
+      );
     const combinedEmojiInformation =
       utilities.getCombinedEmojiInformationFromReaction(reaction ?? null, true);
     const combinedRoleInformation =
@@ -263,9 +269,7 @@ const LogFormatter = {
             log += `\n      - (Online Members: ${onlineMembers.size})`;
           }
           // bots
-          const botMembers = g.members.cache.filter(
-            (m) => m.user.bot,
-          );
+          const botMembers = g.members.cache.filter((m) => m.user.bot);
           if (botMembers.size) {
             log += `\n      - (Bots: ${botMembers.size})`;
           }
@@ -384,7 +388,15 @@ const LogFormatter = {
     });
   },
   // SCRAPE INFO
-  scrapeSuccess({ functionName, url, result }: { functionName: string; url: string; result: unknown }) {
+  scrapeSuccess({
+    functionName,
+    url,
+    result,
+  }: {
+    functionName: string;
+    url: string;
+    result: unknown;
+  }) {
     return LogFormatter.globalFormatter({
       functionName,
       logEmoji: "🌐",
@@ -409,7 +421,13 @@ const LogFormatter = {
     audioUrl,
     transcription,
     cached,
-  }: { functionName: string; message: Message; audioUrl: string; transcription: string; cached: boolean }) {
+  }: {
+    functionName: string;
+    message: Message;
+    audioUrl: string;
+    transcription: string;
+    cached: boolean;
+  }) {
     return LogFormatter.globalFormatter({
       functionName,
       logEmoji: "🎤",
@@ -420,7 +438,12 @@ const LogFormatter = {
       cached,
     });
   },
-  transcribeError(functionName: string, message: Message, audioUrl: string, error: Error) {
+  transcribeError(
+    functionName: string,
+    message: Message,
+    audioUrl: string,
+    error: Error,
+  ) {
     return LogFormatter.globalFormatter({
       functionName,
       logEmoji: "❌",
@@ -431,7 +454,21 @@ const LogFormatter = {
     });
   },
   // CAPTION INFO
-  captionSuccess({ functionName, hash, message, imageUrl, caption, cached }: { functionName: string; hash: string; message: Message; imageUrl: string; caption: string; cached: boolean }) {
+  captionSuccess({
+    functionName,
+    hash,
+    message,
+    imageUrl,
+    caption,
+    cached,
+  }: {
+    functionName: string;
+    hash: string;
+    message: Message;
+    imageUrl: string;
+    caption: string;
+    cached: boolean;
+  }) {
     return LogFormatter.globalFormatter({
       functionName,
       logEmoji: "🖼️",
@@ -443,7 +480,13 @@ const LogFormatter = {
       cached,
     });
   },
-  captionError(functionName: string, hash: string, message: Message, imageUrl: string, error: Error) {
+  captionError(
+    functionName: string,
+    hash: string,
+    message: Message,
+    imageUrl: string,
+    error: Error,
+  ) {
     return LogFormatter.globalFormatter({
       functionName,
       logEmoji: "❌",
@@ -513,7 +556,12 @@ const LogFormatter = {
       member,
     });
   },
-  memberTimedOut(functionName: string, member: GuildMember, guild: Guild, duration: number) {
+  memberTimedOut(
+    functionName: string,
+    member: GuildMember,
+    guild: Guild,
+    duration: number,
+  ) {
     return LogFormatter.globalFormatter({
       functionName,
       logEmoji: "⏰",
@@ -523,7 +571,12 @@ const LogFormatter = {
       totalTime: duration,
     });
   },
-  memberTimeOutError(functionName: string, member: GuildMember, guild: Guild, error: Error) {
+  memberTimeOutError(
+    functionName: string,
+    member: GuildMember,
+    guild: Guild,
+    error: Error,
+  ) {
     return LogFormatter.globalFormatter({
       functionName,
       logEmoji: "❌",
@@ -662,7 +715,11 @@ const LogFormatter = {
       roleId,
     });
   },
-  interactionMemberNotFound(functionName: string, interaction: Interaction, roleId: string) {
+  interactionMemberNotFound(
+    functionName: string,
+    interaction: Interaction,
+    roleId: string,
+  ) {
     return LogFormatter.globalFormatter({
       logEmoji: "❌",
       functionName,
@@ -672,7 +729,11 @@ const LogFormatter = {
     });
   },
   // LLM
-  replyGuildMessageSuccess(message: Message, generatedTextResponse: string, duration: number) {
+  replyGuildMessageSuccess(
+    message: Message,
+    generatedTextResponse: string,
+    duration: number,
+  ) {
     return LogFormatter.globalFormatter({
       logEmoji: "➕📡💬",
       logName: `${styles.blueBackground}GUILD MESSAGE SENT${styles.reset}`,
@@ -681,7 +742,11 @@ const LogFormatter = {
       duration,
     });
   },
-  replyDirectMessageSuccess(message: Message, generatedTextResponse: string, duration: number) {
+  replyDirectMessageSuccess(
+    message: Message,
+    generatedTextResponse: string,
+    duration: number,
+  ) {
     return LogFormatter.globalFormatter({
       logEmoji: "➕💬",
       logName: `${styles.blueBackground}DIRECT MESSAGE SENT${styles.reset}`,
@@ -707,9 +772,11 @@ const LogFormatter = {
   },
 
   luposInitializing() {
-    console.log('\x1b[36m🐺 Lupos\x1b[0m \x1b[2m— Discord Sentinel · v1.0\x1b[0m');
-    console.log('\x1b[2;33m   ► Initializing ...\x1b[0m');
-    return [''];
+    console.log(
+      "\x1b[36m🐺 Lupos\x1b[0m \x1b[2m— Discord Sentinel · v1.0\x1b[0m",
+    );
+    console.log("\x1b[2;33m   ► Initializing ...\x1b[0m");
+    return [""];
   },
   readyToProcessMessages() {
     return LogFormatter.globalFormatter({
@@ -762,7 +829,10 @@ const LogFormatter = {
       error,
     });
   },
-  isMessageAskingToGenerateImage(message: Message, isMessageAskingToGenerateImage: boolean) {
+  isMessageAskingToGenerateImage(
+    message: Message,
+    isMessageAskingToGenerateImage: boolean,
+  ) {
     return LogFormatter.globalFormatter({
       logEmoji: isMessageAskingToGenerateImage ? "🖼️" : "🖼️",
       logName: isMessageAskingToGenerateImage

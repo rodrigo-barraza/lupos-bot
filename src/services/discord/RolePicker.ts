@@ -157,9 +157,34 @@ export async function generateRolesEmbedMessage(client: Client) {
     return;
   } else {
     const allMessages = await channel.messages.fetch({ limit: 20 });
-    const message1 = allMessages.at(allMessages.size - 1);
-    const message2 = allMessages.at(allMessages.size - 2);
-    const message3 = allMessages.at(allMessages.size - 3);
+    // Only consider messages authored by the bot that actually carry
+    // role-picker buttons (customId "pick-role-..." — the stable marker this
+    // function creates). Anyone else posting in the channel (or the bot's own
+    // button-less messages, e.g. the Guild Masters embed) must not shift
+    // which messages get edited.
+    const botUserId = client.user?.id;
+    const rolePickerMessages = allMessages
+      .filter((message: Message) => {
+        if (message.author?.id !== botUserId) return false;
+        return message.components.some((row) => {
+          const rowComponents = (
+            row as { components?: { customId?: string | null }[] }
+          ).components;
+          return (
+            Array.isArray(rowComponents) &&
+            rowComponents.some((component) =>
+              component.customId?.startsWith("pick-role-"),
+            )
+          );
+        });
+      })
+      .sort(
+        (a: Message, b: Message) => a.createdTimestamp - b.createdTimestamp,
+      );
+    // Oldest-first: factions was posted first, then classes, then videogames.
+    const message1 = rolePickerMessages.at(0);
+    const message2 = rolePickerMessages.at(1);
+    const message3 = rolePickerMessages.at(2);
     if (message1)
       await message1.edit({
         embeds: [factions.embed],
