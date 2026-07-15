@@ -67,14 +67,14 @@ describe("Message Fetch Count Determination", () => {
     expect(result).toBe(5);
   });
 
-  it("simple question should return 20 (default)", async () => {
+  it("simple question should return 50 (default — enough ambient context to read the room)", async () => {
     const result =
       await AIService.generateTextDetermineHowManyMessagesToFetch(
         "Hey what's up?",
         mockMessage,
         sampleMessageCountText,
       );
-    expect(result).toBe(20);
+    expect(result).toBe(50);
   });
 
   it("conversation context request should return 75", async () => {
