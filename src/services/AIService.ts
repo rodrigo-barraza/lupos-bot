@@ -742,7 +742,7 @@ ${guildEmojiList}
 
     // LARGE: mentions earlier/before with conversation reference
     if (refersToConversation) {
-      return 50;
+      return 75;
     }
 
     // MODERATE: image with context, follow-ups, questions about recent topics
@@ -750,8 +750,9 @@ ${guildEmojiList}
       return 20; // Image with some context reference
     }
 
-    // DEFAULT: moderate fetch for general messages
-    return 20;
+    // DEFAULT: enough ambient channel context to read the room — who's
+    // talking, running bits, the current topic — not just the trigger.
+    return 50;
   },
   async generateTextFromUserConversation(
     userName: string,
