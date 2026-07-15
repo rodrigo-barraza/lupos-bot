@@ -32,7 +32,7 @@ async function timeOutUsers(client: Client) {
       );
     }
     if (!member) {
-      const user = await DiscordUtilityService.retrieveUserFromClientAndUserId(
+      const user = await DiscordUtilityService.getUserFromClientAndId(
         client,
         userId,
       );
