@@ -178,11 +178,10 @@ const DiscordUtilityService = {
       if (member) {
         displayName = member.displayName;
       } else {
-        const user =
-          await DiscordUtilityService.retrieveUserFromClientAndUserId(
-            message.client,
-            userId,
-          );
+        const user = await DiscordUtilityService.getUserFromClientAndId(
+          message.client,
+          userId,
+        );
         if (user) {
           displayName = user.displayName;
         }
@@ -274,11 +273,6 @@ const DiscordUtilityService = {
       }
     }
     return user;
-  },
-  // Deprecated: Use getUserFromClientAndId directly.
-  // Kept as alias for existing call sites (PermanentTimeOutJob, getDisplayName).
-  async retrieveUserFromClientAndUserId(client: Client, userId: string) {
-    return DiscordUtilityService.getUserFromClientAndId(client, userId);
   },
   // Sync cache-only lookup (no fetch)
   getUserByClientAndId(client: Client, userId: string) {
@@ -745,7 +739,7 @@ const DiscordUtilityService = {
     sendOrReply: "send" | "reply",
     message: Message,
     generatedTextResponse: string | null,
-    encodedImageDataBase64: Buffer | string | null,
+    encodedImageDataBase64: Buffer | null,
     imagePrompt: string | null,
     audioRef?: string | null,
   ) {
@@ -809,11 +803,8 @@ const DiscordUtilityService = {
     ) {
       const files: import("discord.js").AttachmentPayload[] = [];
       if (encodedImageDataBase64) {
-        const imageAttachment = Buffer.isBuffer(encodedImageDataBase64)
-          ? encodedImageDataBase64
-          : Buffer.from(encodedImageDataBase64, "base64");
         files.push({
-          attachment: imageAttachment,
+          attachment: encodedImageDataBase64,
           name: fileName,
           description: imageDescription,
         });
@@ -852,12 +843,8 @@ const DiscordUtilityService = {
         i + messageChunkSizeLimit >= generatedTextResponse!.length;
 
       if (encodedImageDataBase64 && isLastChunk) {
-        // encodedImageDataBase64 may be a Buffer (from agent) or a base64 string (legacy)
-        const imageAttachment = Buffer.isBuffer(encodedImageDataBase64)
-          ? encodedImageDataBase64
-          : Buffer.from(encodedImageDataBase64, "base64");
         files.push({
-          attachment: imageAttachment,
+          attachment: encodedImageDataBase64,
           name: fileName,
           description: imageDescription,
         });

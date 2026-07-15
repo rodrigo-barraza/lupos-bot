@@ -170,7 +170,7 @@ function snapshotToGameState(doc: DeathrollGameSnapshot): GameState {
     startingNumber: doc.startingNumber,
     rolls: doc.rolls || [],
     startedAt: doc.startedAt,
-    currentMessageId: doc.currentMessageId ?? null,
+    currentMessageId: doc.currentMessageId,
     timeoutMultiplier: doc.timeoutMultiplier || 1,
   };
 }
@@ -208,7 +208,7 @@ export async function reconcileInterruptedGames(client: Client) {
       const guild = await client.guilds.fetch(doc.guildId).catch(() => null);
 
       // 1. Mark the live game message as interrupted and remove buttons.
-      const liveMessageId = doc.currentMessageId || doc.messageId;
+      const liveMessageId = doc.currentMessageId;
       if (guild && doc.channelId && liveMessageId) {
         const channel = (await guild.channels
           .fetch(doc.channelId)

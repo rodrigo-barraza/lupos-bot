@@ -279,7 +279,7 @@ ${combinedGuildInformation && combinedChannelInformation ? `URL: ${utilities.get
       "reply",
       message,
       generatedTextResponse,
-      generatedImage as string | Buffer | null,
+      generatedImage as Buffer | null,
       // The generate_image prompt (when one exists) becomes the attachment's
       // filename/description, so future context rebuilds can describe the
       // image instead of falling back to the meaningless "lupos.png".

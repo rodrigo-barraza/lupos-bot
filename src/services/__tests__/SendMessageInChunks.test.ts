@@ -105,20 +105,6 @@ describe("sendMessageInChunks", () => {
     expect(replied[1].files![0].name).toBe("a cool drawing.png");
   });
 
-  it("decodes legacy base64 string images into a buffer", async () => {
-    const { message, replied } = makeFakeMessage();
-    const original = Buffer.from("image-bytes");
-    await DiscordUtilityService.sendMessageInChunks(
-      "reply",
-      message,
-      "look at this",
-      original.toString("base64"),
-      null,
-    );
-    expect(replied[0].files).toHaveLength(1);
-    expect(replied[0].files![0].attachment.equals(original)).toBe(true);
-  });
-
   it("sends a files-only message when there is an image but no text", async () => {
     const { message, replied } = makeFakeMessage();
     const imageBuffer = Buffer.from("only-image");
