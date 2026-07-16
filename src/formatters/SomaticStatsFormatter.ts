@@ -211,6 +211,20 @@ export function formatEmotionDetail(
   };
 }
 
+/**
+ * One-line presence status for Lupos's current mood — takes over the bot's
+ * Discord status a few seconds after a reply recap. Examples:
+ * "😤 Feeling very angry", "🥰 Feeling a bit loved", "😶 Feeling nothing much".
+ */
+export function formatMoodStatusLine(emotion: EmotionDetail): string {
+  if (!emotion.dominant || emotion.dominant === "neutral") {
+    return "😶 Feeling nothing much";
+  }
+  const qualifier =
+    emotion.intensity >= 70 ? "very " : emotion.intensity <= 30 ? "a bit " : "";
+  return `${emotion.emoji} Feeling ${qualifier}${emotion.label.toLowerCase()}`;
+}
+
 /** Pull prism's per-stat human labels ("Starving", "Tipsy", …) through. */
 export function formatSomaticLabels(
   snapshot: PrismSomaticSnapshot,

@@ -13,6 +13,9 @@ import type { PrismSseEvent } from "#root/types/prism.js";
 const THROTTLE_MS = 4000;
 /** Discord custom statuses cap at 128 characters. */
 const STATUS_MAX_CHARS = 128;
+/** How long the final recap/error status stays before the idle status
+ * (current mood) takes over. */
+const IDLE_STATUS_DELAY_MS = 10_000;
 
 const DISCOVERY_TOOLS = new Set([
   "discover_and_enable_tools",
@@ -51,7 +54,16 @@ type Phase =
   | { kind: "writing"; startedAt: number };
 
 export class AgentStatusTracker {
+  /**
+   * Monotonic id of the most recently constructed tracker. A finished
+   * tracker's delayed idle-status push only fires while it is still the
+   * newest one — a new reply takes presence ownership and cancels it.
+   */
+  private static currentEpoch = 0;
+
+  private readonly epoch: number;
   private readonly pushStatus: (status: string) => void;
+  private readonly fetchIdleStatus?: () => Promise<string | null>;
   private readonly username: string;
   private readonly startedAt: number;
 
@@ -74,12 +86,21 @@ export class AgentStatusTracker {
   constructor({
     pushStatus,
     username,
+    fetchIdleStatus,
   }: {
     /** Sink for status lines — wire to DiscordUtilityService.setUserActivity. */
     pushStatus: (status: string) => void;
     username: string;
+    /**
+     * Resolves the idle status (Lupos's current mood) shown
+     * IDLE_STATUS_DELAY_MS after the final recap/error status. Return
+     * null to keep the final status.
+     */
+    fetchIdleStatus?: () => Promise<string | null>;
   }) {
+    this.epoch = ++AgentStatusTracker.currentEpoch;
     this.pushStatus = pushStatus;
+    this.fetchIdleStatus = fetchIdleStatus;
     this.username = username;
     this.startedAt = Date.now();
     this.phase = { kind: "reading", startedAt: this.startedAt };
@@ -245,6 +266,26 @@ export class AgentStatusTracker {
       this.tickTimer = null;
     }
     this.push(status, true);
+    this.scheduleIdleStatus();
+  }
+
+  /** After the final status has had its moment, hand presence to the mood. */
+  private scheduleIdleStatus(): void {
+    if (!this.fetchIdleStatus) return;
+    const timer = setTimeout(async () => {
+      // A newer reply owns presence now — stand down.
+      if (AgentStatusTracker.currentEpoch !== this.epoch) return;
+      let idleStatus: string | null;
+      try {
+        idleStatus = await this.fetchIdleStatus!();
+      } catch {
+        return; // prism down — keep the recap.
+      }
+      if (!idleStatus) return;
+      if (AgentStatusTracker.currentEpoch !== this.epoch) return;
+      this.push(idleStatus, true);
+    }, IDLE_STATUS_DELAY_MS);
+    timer.unref?.();
   }
 
   private elapsedSeconds(since: number): number {
