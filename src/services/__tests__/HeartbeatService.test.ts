@@ -11,6 +11,7 @@
 import { describe, it, expect } from "vitest";
 import {
   evaluateLiveness,
+  buildPingRequest,
   QUEUE_WEDGE_THRESHOLD_MILLISECONDS,
 } from "../HeartbeatService.js";
 
@@ -63,5 +64,49 @@ describe("evaluateLiveness", () => {
     };
     expect(evaluateLiveness(snapshot, NOW, 60_000).alive).toBe(true);
     expect(evaluateLiveness(snapshot, NOW, 10_000).alive).toBe(false);
+  });
+});
+
+describe("buildPingRequest", () => {
+  const ALIVE = { alive: true, reason: "ok" };
+  const WEDGED = { alive: false, reason: "reply queue wedged: no progress" };
+
+  it("uses GET with status=up for Uptime Kuma push URLs", () => {
+    const ping = buildPingRequest(
+      "http://192.168.86.2:3999/api/push/abc123",
+      ALIVE,
+    );
+    expect(ping.method).toBe("GET");
+    expect(ping.url).toBe(
+      "http://192.168.86.2:3999/api/push/abc123?status=up&msg=ok",
+    );
+    expect(ping.body).toBeUndefined();
+  });
+
+  it("signals Kuma failures via status=down with the encoded reason", () => {
+    const ping = buildPingRequest(
+      "http://192.168.86.2:3999/api/push/abc123/",
+      WEDGED,
+    );
+    expect(ping.method).toBe("GET");
+    expect(ping.url).toBe(
+      "http://192.168.86.2:3999/api/push/abc123?status=down&msg=reply%20queue%20wedged%3A%20no%20progress",
+    );
+  });
+
+  it("uses POST to the base URL for Healthchecks-style monitors", () => {
+    const ping = buildPingRequest("https://hc-ping.com/uuid-here/", ALIVE);
+    expect(ping).toEqual({
+      url: "https://hc-ping.com/uuid-here",
+      method: "POST",
+      body: "ok",
+    });
+  });
+
+  it("signals Healthchecks failures via the /fail variant", () => {
+    const ping = buildPingRequest("https://hc-ping.com/uuid-here", WEDGED);
+    expect(ping.url).toBe("https://hc-ping.com/uuid-here/fail");
+    expect(ping.method).toBe("POST");
+    expect(ping.body).toContain("wedged");
   });
 });

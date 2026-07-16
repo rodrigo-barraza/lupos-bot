@@ -9,11 +9,13 @@
 // the switch the same way a crash does. The alert comes from the external
 // watcher by design — a wedged bot can't report its own silence.
 //
-// Ping semantics follow Healthchecks.io (https://healthchecks.io/docs/):
-// success pings HEARTBEAT_URL, detected failures ping <url>/fail so the
-// monitor alerts immediately instead of waiting out the grace period.
-// An Uptime Kuma push URL also works for the success path (missed-ping
-// alerting); its /fail variant is Healthchecks-specific.
+// Two monitor flavors are supported, detected from the URL shape:
+// - Uptime Kuma push URLs (…/api/push/<token>) — GET only, with
+//   status=up|down and msg query params
+//   (https://github.com/louislam/uptime-kuma — our self-hosted instance).
+// - Healthchecks.io semantics (https://healthchecks.io/docs/) — POST the
+//   reason to HEARTBEAT_URL, or to <url>/fail on a detected wedge so the
+//   monitor alerts immediately instead of waiting out the grace period.
 // ============================================================
 
 import config from "#root/config.js";
@@ -67,15 +69,45 @@ export function getLivenessSnapshot(): LivenessSnapshot {
   };
 }
 
+export interface PingRequest {
+  url: string;
+  method: "GET" | "POST";
+  body?: string;
+}
+
+/**
+ * Build the monitor ping from the verdict. Uptime Kuma push endpoints
+ * accept GET only (POST 404s — verified against our instance), signalling
+ * failure via status=down; Healthchecks-style monitors take a POST with
+ * the reason as body and signal failure via the /fail URL variant.
+ */
+export function buildPingRequest(
+  baseUrl: string,
+  verdict: LivenessVerdict,
+): PingRequest {
+  const trimmedUrl = baseUrl.replace(/\/+$/, "");
+  if (/\/api\/push\//.test(trimmedUrl)) {
+    const status = verdict.alive ? "up" : "down";
+    return {
+      url: `${trimmedUrl}?status=${status}&msg=${encodeURIComponent(verdict.reason)}`,
+      method: "GET",
+    };
+  }
+  return {
+    url: verdict.alive ? trimmedUrl : `${trimmedUrl}/fail`,
+    method: "POST",
+    body: verdict.reason,
+  };
+}
+
 async function sendPing(): Promise<void> {
   const verdict = evaluateLiveness(getLivenessSnapshot(), Date.now());
-  const baseUrl = (config.HEARTBEAT_URL as string).replace(/\/+$/, "");
-  const pingUrl = verdict.alive ? baseUrl : `${baseUrl}/fail`;
+  const ping = buildPingRequest(config.HEARTBEAT_URL as string, verdict);
 
   try {
-    await fetch(pingUrl, {
-      method: "POST",
-      body: verdict.reason,
+    await fetch(ping.url, {
+      method: ping.method,
+      body: ping.body,
       signal: AbortSignal.timeout(PING_TIMEOUT_MILLISECONDS),
     });
     if (!verdict.alive) {
@@ -121,6 +153,7 @@ const HeartbeatService = {
 
   evaluateLiveness,
   getLivenessSnapshot,
+  buildPingRequest,
 };
 
 export default HeartbeatService;
