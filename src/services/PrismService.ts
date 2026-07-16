@@ -3,6 +3,7 @@ import { PrismApiClient } from "@rodrigo-barraza/utilities-library/service";
 import type {
   GenerateTextParams,
   AgentResponseParams,
+  PrismSseEvent,
   GenerateImageParams,
   CaptionImageParams,
   TranscribeAudioParams,
@@ -43,6 +44,106 @@ function resolveProvider(type: string): string {
     throw new Error(`Unknown provider type: ${type}`);
   }
   return provider;
+}
+
+// Streaming agent turns can run far past the 120s default while tools
+// execute — the abort signal covers the whole SSE read, so give it the
+// same ceiling prism-service allows an agentic loop.
+const AGENT_STREAM_TIMEOUT_MS = 600_000;
+
+/**
+ * Parse a Prism SSE stream (`data: {json}\n\n` frames), invoking
+ * `onEvent` per event as it arrives and returning the full event list.
+ * Malformed frames (keep-alives, partial writes) are skipped; a throwing
+ * `onEvent` never breaks the read.
+ */
+export async function readSseEvents(
+  response: Response,
+  onEvent?: (event: PrismSseEvent) => void,
+): Promise<PrismSseEvent[]> {
+  if (!response.body) throw new Error("Prism SSE response has no body");
+  const events: PrismSseEvent[] = [];
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffered = "";
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffered += decoder.decode(value, { stream: true });
+    let frameEnd = buffered.indexOf("\n\n");
+    while (frameEnd !== -1) {
+      const frame = buffered.slice(0, frameEnd);
+      buffered = buffered.slice(frameEnd + 2);
+      for (const line of frame.split("\n")) {
+        if (!line.startsWith("data: ")) continue;
+        try {
+          const event = JSON.parse(line.slice(6)) as PrismSseEvent;
+          events.push(event);
+          try {
+            onEvent?.(event);
+          } catch {
+            // Status updates are cosmetic — never let them kill the reply.
+          }
+        } catch {
+          // Skip non-JSON frames.
+        }
+      }
+      frameEnd = buffered.indexOf("\n\n");
+    }
+  }
+  return events;
+}
+
+/**
+ * Rebuild the /agent?stream=false JSON shape from streamed events.
+ * Mirrors prism-service SseUtilities.buildJsonResponseFromEvents for the
+ * fields Lupos consumes, so both call paths return identical data.
+ * NOTE: streamed image events are lightweight — base64 `data` is stripped
+ * when a minioRef exists (createSseEmitter), so images usually arrive as
+ * minioRef-only here.
+ */
+export function aggregateAgentEvents(events: PrismSseEvent[]) {
+  const errorEvent = events.find((event) => event.type === "error");
+  if (errorEvent) {
+    throw new Error(errorEvent.message || "Prism agent stream error");
+  }
+  const doneEvent =
+    events.find((event) => event.type === "done") ?? ({} as PrismSseEvent);
+  return {
+    text:
+      events
+        .filter((event) => event.type === "chunk")
+        .map((event) => event.content ?? "")
+        .join("") || null,
+    images: events
+      .filter((event) => event.type === "image")
+      .map((event) => ({
+        data: event.data,
+        mimeType: event.mimeType,
+        minioRef: event.minioRef || null,
+      })),
+    toolCalls: events
+      .filter(
+        (event) =>
+          event.type === "tool_execution" && event.status === "calling",
+      )
+      .map((event) => ({ name: event.tool?.name, args: event.tool?.args })),
+    toolResults: events
+      .filter(
+        (event) =>
+          event.type === "tool_execution" &&
+          (event.status === "done" || event.status === "error"),
+      )
+      .map((event) => ({
+        name: event.tool?.name,
+        args: event.tool?.args,
+        result: event.tool?.result,
+        status: event.status,
+      })),
+    audioRef: doneEvent.audioRef || null,
+    model: doneEvent.model,
+    provider: doneEvent.provider,
+  };
 }
 
 export default class PrismService {
@@ -108,8 +209,9 @@ export default class PrismService {
     thinkingBudget,
     username = "lupos",
     traceId,
+    onEvent,
   }: AgentResponseParams) {
-    const data = await prism().agent({
+    const requestBody = {
       provider: resolveProvider(type),
       model,
       messages,
@@ -122,8 +224,23 @@ export default class PrismService {
       thinkingEnabled,
       thinkingBudget,
       traceId,
-      username,
-    });
+    };
+
+    let data;
+    if (onEvent) {
+      // Streaming path: consume /agent SSE so live events (thinking, tool
+      // calls) can drive presence statuses, then rebuild the same JSON
+      // shape the non-streaming path returns.
+      const response = await prism().requestRaw("/agent", {
+        body: { ...requestBody, skipConversation: true },
+        username,
+        timeoutMs: AGENT_STREAM_TIMEOUT_MS,
+      });
+      const events = await readSseEvents(response, onEvent);
+      data = aggregateAgentEvents(events);
+    } else {
+      data = await prism().agent({ ...requestBody, username });
+    }
 
     return {
       text: data.text || null,

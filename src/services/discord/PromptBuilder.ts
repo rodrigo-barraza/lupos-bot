@@ -34,6 +34,8 @@ import type { ChatMessage } from "#root/services/AIService.js";
 import PrismService from "#root/services/PrismService.js";
 import CensorService from "#root/services/CensorService.js";
 import DiscordState from "#root/services/discord/DiscordState.js";
+import type { AgentStatusTracker } from "#root/services/discord/AgentStatusTracker.js";
+import type { PrismSseEvent } from "#root/types/prism.js";
 import {
   mightBeImageRequest,
   findUntaggedNameMatches,
@@ -204,16 +206,18 @@ export function appendVerbatimCodeResults(
 }
 
 /**
- * Pull a video clip URL out of tool results tagged with a self-describing
- * `kind: "video"` display envelope (e.g. trim_video's MinIO downloadUrl).
- * First match wins — Discord replies carry at most one clip. The send path
- * downloads the URL and attaches it, falling back to posting the URL when
- * the file exceeds the guild's upload cap.
+ * Pull a media URL out of tool results tagged with a self-describing
+ * display envelope of the given kind — `video` (e.g. trim_video's MinIO
+ * downloadUrl) or `image` (e.g. emoji kitchen, QR codes, GIF conversions).
+ * First match wins — Discord replies carry at most one attachment per
+ * kind. The send path downloads the URL and attaches it, falling back to
+ * posting the URL when the file exceeds the guild's upload cap.
  */
-export function extractVideoDisplayUrl(
+export function extractDisplayMediaUrl(
   toolResults:
     | Array<{ name?: string; result?: unknown; status?: string }>
     | undefined,
+  kind: "video" | "image",
 ): string | null {
   if (!toolResults?.length) return null;
   for (const toolResult of toolResults) {
@@ -224,7 +228,7 @@ export function extractVideoDisplayUrl(
     const display = resultObject?.display as
       | { kind?: string; url?: string }
       | undefined;
-    if (display?.kind === "video" && typeof display.url === "string") {
+    if (display?.kind === kind && typeof display.url === "string") {
       return display.url;
     }
   }
@@ -571,6 +575,7 @@ export async function buildAndGenerateReply({
   queuedDatum,
   userMentionsCollection,
   localMongo,
+  statusTracker,
 }: {
   conversation: Record<string, unknown>[];
   conversationsCollection: import("discord.js").Collection<
@@ -619,6 +624,8 @@ export async function buildAndGenerateReply({
     import("discord.js").User
   >;
   localMongo: import("mongodb").MongoClient;
+  /** Live presence-status sink for /agent SSE events (optional). */
+  statusTracker?: AgentStatusTracker;
 }) {
   // Build the system prompt
   const { message, recentMessages } = queuedDatum;
@@ -635,6 +642,7 @@ export async function buildAndGenerateReply({
   let image: unknown = null;
   let audioRef: string | null = null;
   let videoUrl: string | null = null;
+  let imageUrl: string | null = null;
   let imagePrompt: string | null = null;
   try {
     if (
@@ -1733,6 +1741,7 @@ export async function buildAndGenerateReply({
         image: null,
         audioRef: null,
         videoUrl: null,
+        imageUrl: null,
         imagePrompt: null,
         promptForImagePromptGeneration: null,
       };
@@ -1761,6 +1770,11 @@ export async function buildAndGenerateReply({
       thinkingBudget: 10_000,
       username: message.author?.username || "unknown",
       ...AIService._getTraceParams(),
+      // Stream the agent SSE when a status tracker is watching so presence
+      // shows live thinking/tool progress; the return shape is identical.
+      ...(statusTracker && {
+        onEvent: (event: PrismSseEvent) => statusTracker.handleEvent(event),
+      }),
     });
 
     generatedText = agentResponse.text || "";
@@ -1771,8 +1785,10 @@ export async function buildAndGenerateReply({
       if (firstImage.data) {
         image = Buffer.from(firstImage.data, "base64");
       } else if (firstImage.minioRef) {
-        // If only minioRef, we can still use it
-        image = firstImage.minioRef;
+        // Streamed image events are lightweight (base64 stripped when a
+        // minioRef exists) — route the ref through the send path's media
+        // fetcher, which resolves minio:// via Prism's file endpoint.
+        imageUrl = firstImage.minioRef;
       }
 
       // Recover the generation prompt from the generate_image tool call so
@@ -1805,7 +1821,15 @@ export async function buildAndGenerateReply({
     }
 
     // Extract a video clip URL (display.kind === "video", e.g. trim_video)
-    videoUrl = extractVideoDisplayUrl(agentResponse.toolResults);
+    videoUrl = extractDisplayMediaUrl(agentResponse.toolResults, "video");
+
+    // Extract an image display URL (emoji kitchen, QR codes, charts, GIF
+    // conversions, …) — but only when no image arrived via images[].
+    // Raw-image tools (generate_image) also stamp a display envelope, so
+    // this guard prevents double-attaching the same picture.
+    if (!image && !imageUrl) {
+      imageUrl = extractDisplayMediaUrl(agentResponse.toolResults, "image");
+    }
 
     // Sanitize the response
     generatedText = utilities.fixBareMentions(generatedText);
@@ -1833,6 +1857,7 @@ export async function buildAndGenerateReply({
     image,
     audioRef: audioRef ?? null,
     videoUrl: videoUrl ?? null,
+    imageUrl: imageUrl ?? null,
     imagePrompt,
   };
 }

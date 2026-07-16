@@ -25,6 +25,30 @@ export interface GenerateTextParams {
   traceId?: string;
 }
 
+/**
+ * One parsed SSE event from Prism's /agent stream (`data: {json}` frames).
+ * Field population depends on `type` — see prism-service SseUtilities.
+ */
+export interface PrismSseEvent {
+  type: string;
+  content?: string;
+  data?: string;
+  mimeType?: string;
+  minioRef?: string | null;
+  message?: string;
+  status?: string;
+  provider?: string;
+  model?: string;
+  audioRef?: string;
+  tool?: {
+    name?: string;
+    args?: Record<string, unknown>;
+    result?: unknown;
+    durationMilliseconds?: number;
+  };
+  [key: string]: unknown;
+}
+
 /** Params for PrismService.generateAgentResponse(). */
 export interface AgentResponseParams {
   messages: ChatMessage[];
@@ -37,6 +61,12 @@ export interface AgentResponseParams {
   thinkingBudget?: number;
   username?: string;
   traceId?: string;
+  /**
+   * When set, the call streams /agent SSE and invokes this per event as
+   * the agent works (thinking, tool calls, chunks) — used for live
+   * presence statuses. The final return value is identical either way.
+   */
+  onEvent?: (event: PrismSseEvent) => void;
 }
 
 /** Image data object for Prism image generation. */

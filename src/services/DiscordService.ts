@@ -52,6 +52,7 @@ import type { QueuedMessageData } from "#root/services/discord/DiscordState.js";
 import ButtonRouter from "#root/services/discord/ButtonRouter.js";
 import { extractContentFromMessages } from "#root/services/discord/ConversationExtractor.js";
 import { buildAndGenerateReply } from "#root/services/discord/PromptBuilder.js";
+import { AgentStatusTracker } from "#root/services/discord/AgentStatusTracker.js";
 import {
   luposOnReadyDeleteNewAccounts,
   luposOnReadyPurgeYoungAccounts,
@@ -127,11 +128,13 @@ async function replyMessage(
   let combinedGuildInformation: string | null = null;
   let combinedChannelInformation: string | null = null;
 
-  // Update status to say who it is replying to
-  DiscordUtilityService.setUserActivity(
-    client,
-    `Replying to ${combinedNames}...`,
-  );
+  // Live presence statuses for the whole reply lifecycle — "👀 Reading…",
+  // "🤔 Thinking… (8s)", tool-by-tool progress, then a persistent recap.
+  const statusTracker = new AgentStatusTracker({
+    pushStatus: (status) =>
+      DiscordUtilityService.setUserActivity(client, status),
+    username: user?.username || "someone",
+  });
 
   const start = performance.now();
 
@@ -201,7 +204,7 @@ async function replyMessage(
     return;
   }
 
-  const { generatedText, image, audioRef, videoUrl, imagePrompt } =
+  const { generatedText, image, audioRef, videoUrl, imageUrl, imagePrompt } =
     await buildAndGenerateReply({
       conversation: conversation as unknown as Record<string, unknown>[],
       conversationsCollection:
@@ -233,32 +236,25 @@ async function replyMessage(
       queuedDatum,
       userMentionsCollection,
       localMongo,
+      statusTracker,
     });
 
   const generatedTextResponse = generatedText;
   const generatedImage = image;
   const generatedAudioRef = audioRef;
   const generatedVideoUrl = videoUrl;
+  const generatedImageUrl = imageUrl;
 
   // (Image conversations are already saved per-call inside generateImage)
-
-  // GENERATE SUMMARY — use first ~5 words of the agent response instead of a separate LLM call
-  const textSummary = generatedTextResponse
-    ? `💬 ${generatedTextResponse
-        .replace(/[*_~`#>]/g, "")
-        .split(/\s+/)
-        .slice(0, 5)
-        .join(" ")
-        .substring(0, 100)}…`
-    : "";
-  DiscordUtilityService.setUserActivity(client, textSummary);
 
   if (
     !generatedTextResponse &&
     !generatedImage &&
     !generatedAudioRef &&
-    !generatedVideoUrl
+    !generatedVideoUrl &&
+    !generatedImageUrl
   ) {
+    statusTracker.finishError();
     await message.reply("...");
     DiscordState.lastMessageSentTime = TemporalHelpers.nowISO();
 
@@ -277,6 +273,7 @@ ${combinedGuildInformation && combinedChannelInformation ? `URL: ${utilities.get
         `🗑️ [DiscordService] Message ${(message as Message).id} was deleted during reply generation, not sending reply.`,
       );
       DiscordState.cancelledMessageIds.delete((message as Message).id);
+      statusTracker.finishCancelled();
       return;
     }
     await message.fetch();
@@ -292,8 +289,12 @@ ${combinedGuildInformation && combinedChannelInformation ? `URL: ${utilities.get
       imagePrompt ?? null,
       generatedAudioRef,
       generatedVideoUrl,
+      generatedImageUrl,
     );
+    // Reply landed — replace the live status with the persistent recap.
+    statusTracker.finishSuccess();
   } catch (error: unknown) {
+    statusTracker.finishError();
     console.warn(`❌ [DiscordService:replyMessage] MESSAGE NOT FOUND (OR DELETED)
             ${error}
     ${member ? `Member: ${combinedNames}` : `User: ${combinedNames}`}
