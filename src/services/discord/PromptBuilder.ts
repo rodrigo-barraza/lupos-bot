@@ -9,6 +9,10 @@
 // PrismService.generateAgentResponse call.
 // ============================================================
 
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
 import TemporalHelpers from "#root/utilities/TemporalHelpers.js";
 import { Collection } from "discord.js";
 import type {
@@ -35,6 +39,7 @@ import {
   findUntaggedNameMatches,
   detectGroupReference,
   hasSelfReferenceRegex,
+  hasBotSelfPortraitRegex,
   detectSelfReferenceViaLLM,
 } from "#root/services/discord/ImageIntent.js";
 import {
@@ -129,6 +134,33 @@ async function ensureMentionPopulated(
  */
 function resolveAvatarUrl(source: User | GuildMember) {
   return source?.displayAvatarURL?.({ extension: "png", size: 512 }) || null;
+}
+
+// Canonical Lupos reference for self-portraits: a pinned still of the bot's
+// Discord profile avatar. Attaching it on self-portrait intent keeps him the
+// SAME recognizable wolf across renders instead of a fresh design each time
+// (reference-conditioned character consistency — Gemini image generation /
+// "Nano Banana": https://ai.google.dev/gemini-api/docs/image-generation).
+const CANONICAL_SELF_PORTRAIT_PATH = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  "../../../images/lupos-canonical-reference.png",
+);
+let canonicalSelfPortraitDataUrl: string | null | undefined;
+
+function loadCanonicalSelfPortraitReference(): string | null {
+  if (canonicalSelfPortraitDataUrl !== undefined) {
+    return canonicalSelfPortraitDataUrl;
+  }
+  try {
+    const imageBuffer = fs.readFileSync(CANONICAL_SELF_PORTRAIT_PATH);
+    canonicalSelfPortraitDataUrl = `data:image/png;base64,${imageBuffer.toString("base64")}`;
+  } catch {
+    console.warn(
+      `⚠️ [PromptBuilder] Canonical self-portrait reference missing at ${CANONICAL_SELF_PORTRAIT_PATH} — falling back to the live avatar URL`,
+    );
+    canonicalSelfPortraitDataUrl = null;
+  }
+  return canonicalSelfPortraitDataUrl;
 }
 
 /**
@@ -955,6 +987,19 @@ export async function buildAndGenerateReply({
       }
     }
 
+    // Detect the bot being asked to draw ITSELF ("draw yourself", "take a
+    // selfie") — the canonical reference gets attached in the image block
+    // below so Lupos stays the same recognizable wolf across self-portraits.
+    // Deliberately NOT gated on isLikelyImageRequest: selfie phrasings
+    // ("take a selfie") carry image intent without a draw-verb, and the
+    // regex is itself image-specific. Skipped for replies to bot images for
+    // the same reason as above: the replied-to image is the subject.
+    const isBotSelfPortraitRequest =
+      !repliedToBotImage &&
+      hasBotSelfPortraitRegex(
+        message.cleanContent || (message as Message).content || "",
+      );
+
     // Process mentioned members
     if (memberMentionsCollection?.size) {
       // Skip the target user — they're already in "About me" above
@@ -1559,6 +1604,24 @@ export async function buildAndGenerateReply({
     const agentConversation = [
       ...(conversation || []),
     ] as unknown as ChatMessage[];
+
+    // Bot self-portrait: attach the canonical Lupos reference last, so it
+    // rides along as a reference without displacing the request's own
+    // attachments. The persona's image-prompt rules tell Lupos to stay
+    // faithful to it and fold his current somatic state into the prompt.
+    if (isBotSelfPortraitRequest) {
+      const canonicalReference =
+        loadCanonicalSelfPortraitReference() || resolveAvatarUrl(bot);
+      if (canonicalReference) {
+        imageLabels.push(
+          "Lupos's canonical appearance (reference — keep him consistent)",
+        );
+        imageUrls.push(canonicalReference);
+        console.log(
+          `🐺 [DiscordService] Bot self-portrait detected — attaching canonical Lupos reference`,
+        );
+      }
+    }
 
     // Attach collected image data URLs to the last user message
     // so the agent (and the generate_image tool) can access them

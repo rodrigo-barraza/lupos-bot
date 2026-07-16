@@ -17,6 +17,7 @@
 import {
   mightBeImageRequest,
   hasSelfReferenceRegex,
+  hasBotSelfPortraitRegex,
   detectGroupReference,
 } from "../../src/services/discord/ImageIntent.js";
 
@@ -224,6 +225,54 @@ describe("Self-referential detection (Tier 1 regex)", () => {
 
     test.each(negatives)("%s → false (%s)", (input) => {
       expect(hasSelfReferenceRegex(input)).toBe(false);
+    });
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════
+// 2b. hasBotSelfPortraitRegex — the bot drawing ITSELF (canonical ref)
+// ═══════════════════════════════════════════════════════════════════
+
+describe("hasBotSelfPortraitRegex", () => {
+  describe("should MATCH — bot self-portrait requests", () => {
+    const cases = [
+      ["draw yourself", "verb + yourself"],
+      ["draw yourself as a king", "verb + yourself + context"],
+      ["paint yourself in oil", "paint + yourself"],
+      ["redraw your face as a cyborg", "verb + your face"],
+      ["draw your own portrait", "verb + your own portrait"],
+      ["can you draw yourself eating donuts?", "question form"],
+      ["take a selfie", "selfie"],
+      ["send us a selfie right now", "selfie imperative"],
+      ["make a self-portrait", "self-portrait hyphenated"],
+      ["a picture of you as a knight", "noun of you"],
+      ["draw a portrait of yourself", "noun of yourself"],
+      ["how would you look as a human", "how would you look"],
+      ["what would you look like with a crown", "what would you look"],
+      ["draw you as the king of the server", "verb + you"],
+      ["DRAW YOURSELF", "all caps"],
+    ];
+
+    test.each(cases)("%s → true (%s)", (input) => {
+      expect(hasBotSelfPortraitRegex(input)).toBe(true);
+    });
+  });
+
+  describe("should NOT match — not about the bot", () => {
+    const negatives = [
+      ["draw a cat", "generic subject"],
+      ["can you draw a cat", "'you' precedes the verb"],
+      ["draw me as a samurai", "user self-reference, section 4's job"],
+      ["draw my selfie", "possessive selfie belongs to the user tier"],
+      ["her self-portrait is amazing", "someone else's self-portrait"],
+      ["draw whatever you want", "freeform, not a self-portrait"],
+      ["generate an image of my dog", "user's subject"],
+      ["draw Rodrigo as a knight", "other person"],
+      ["how would I look as a samurai", "user hypothetical"],
+    ];
+
+    test.each(negatives)("%s → false (%s)", (input) => {
+      expect(hasBotSelfPortraitRegex(input)).toBe(false);
     });
   });
 
