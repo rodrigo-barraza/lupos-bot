@@ -745,6 +745,67 @@ const DiscordUtilityService = {
     const limitMegabytes = premiumTier >= 3 ? 100 : premiumTier >= 2 ? 50 : 10;
     return limitMegabytes * 1024 * 1024;
   },
+  /**
+   * Resolve a tool-result media reference to a fetchable URL. Display
+   * envelopes usually carry public MinIO URLs, but raw-payload promotions
+   * stamp `minio://` refs — those are served by Prism's file endpoint.
+   */
+  resolveMediaUrl(reference: string): string {
+    if (reference.startsWith("minio://")) {
+      return `${config.PRISM_API_URL}/files/${reference.replace("minio://", "")}`;
+    }
+    return reference;
+  },
+  /**
+   * Download tool-result media for attaching to a Discord message.
+   * Returns the bytes + content type when the file fits under
+   * `uploadLimitBytes`; returns `fallbackUrl` (the original reference)
+   * when it is too large or the fetch fails, so the caller can post the
+   * link instead.
+   */
+  async fetchAttachableMedia(
+    mediaUrl: string,
+    uploadLimitBytes: number,
+  ): Promise<
+    | { buffer: Buffer; contentType: string; fallbackUrl: null }
+    | { buffer: null; contentType: null; fallbackUrl: string }
+  > {
+    const fallback = {
+      buffer: null,
+      contentType: null,
+      fallbackUrl: mediaUrl,
+    } as const;
+    try {
+      const response = await fetch(
+        DiscordUtilityService.resolveMediaUrl(mediaUrl),
+        { signal: AbortSignal.timeout(30000) },
+      );
+      if (!response.ok) {
+        console.error(
+          `[fetchAttachableMedia] Failed to fetch ${mediaUrl}: ${response.status}`,
+        );
+        return fallback;
+      }
+      const contentLengthBytes = parseInt(
+        response.headers.get("content-length") || "0",
+        10,
+      );
+      if (contentLengthBytes > uploadLimitBytes) return fallback;
+      const buffer = Buffer.from(await response.arrayBuffer());
+      if (buffer.length > uploadLimitBytes) return fallback;
+      return {
+        buffer,
+        contentType: response.headers.get("content-type") || "",
+        fallbackUrl: null,
+      };
+    } catch (fetchError) {
+      console.error(
+        `[fetchAttachableMedia] Error fetching ${mediaUrl}:`,
+        fetchError,
+      );
+      return fallback;
+    }
+  },
   async sendMessageInChunks(
     sendOrReply: "send" | "reply",
     message: Message,
@@ -753,6 +814,7 @@ const DiscordUtilityService = {
     imagePrompt: string | null,
     audioRef?: string | null,
     videoUrl?: string | null,
+    imageUrl?: string | null,
   ) {
     const messageChunkSizeLimit = 2000;
     let fileName = "lupos.png";
@@ -807,60 +869,53 @@ const DiscordUtilityService = {
       }
     }
 
-    // Fetch video binary from the tool result's public URL (display.kind
-    // === "video", e.g. trim_video's MinIO downloadUrl). When the clip
+    // Fetch tool-result media from their display-envelope URLs
+    // (display.kind === "video" from trim_video, kind === "image" from
+    // emoji kitchen / QR / charts / GIF conversions, …). When a file
     // exceeds the guild's upload cap — or the fetch fails — fall back to
     // posting the URL itself as a follow-up message.
+    const uploadLimitBytes = DiscordUtilityService.getUploadLimitBytes(message);
     let videoBuffer: Buffer | null = null;
     let videoExtension = "mp4";
     let videoFallbackUrl: string | null = null;
     if (videoUrl) {
-      const uploadLimitBytes =
-        DiscordUtilityService.getUploadLimitBytes(message);
-      try {
-        const videoResponse = await fetch(videoUrl, {
-          signal: AbortSignal.timeout(30000),
-        });
-        const contentLengthBytes = parseInt(
-          videoResponse.headers.get("content-length") || "0",
-          10,
-        );
-        if (videoResponse.ok && contentLengthBytes > uploadLimitBytes) {
-          videoFallbackUrl = videoUrl;
-        } else if (videoResponse.ok) {
-          const arrayBuffer = await videoResponse.arrayBuffer();
-          const buffer = Buffer.from(arrayBuffer);
-          if (buffer.length > uploadLimitBytes) {
-            videoFallbackUrl = videoUrl;
-          } else {
-            videoBuffer = buffer;
-            const contentType =
-              videoResponse.headers.get("content-type") || "";
-            if (contentType.includes("webm")) {
-              videoExtension = "webm";
-            } else if (contentType.includes("quicktime")) {
-              videoExtension = "mov";
-            }
-          }
-        } else {
-          console.error(
-            `[sendMessageInChunks] Failed to fetch video from ${videoUrl}: ${videoResponse.status}`,
-          );
-          videoFallbackUrl = videoUrl;
-        }
-      } catch (videoFetchError) {
-        console.error(
-          "[sendMessageInChunks] Error fetching video:",
-          videoFetchError,
-        );
-        videoFallbackUrl = videoUrl;
-      }
+      const media = await DiscordUtilityService.fetchAttachableMedia(
+        videoUrl,
+        uploadLimitBytes,
+      );
+      videoBuffer = media.buffer;
+      videoFallbackUrl = media.fallbackUrl;
+      if (media.contentType?.includes("webm")) videoExtension = "webm";
+      else if (media.contentType?.includes("quicktime")) videoExtension = "mov";
     }
+    let toolImageBuffer: Buffer | null = null;
+    let toolImageExtension = "png";
+    let toolImageFallbackUrl: string | null = null;
+    if (imageUrl) {
+      const media = await DiscordUtilityService.fetchAttachableMedia(
+        imageUrl,
+        uploadLimitBytes,
+      );
+      toolImageBuffer = media.buffer;
+      toolImageFallbackUrl = media.fallbackUrl;
+      if (media.contentType?.includes("gif")) toolImageExtension = "gif";
+      else if (media.contentType?.includes("jpeg")) toolImageExtension = "jpg";
+      else if (media.contentType?.includes("webp")) toolImageExtension = "webp";
+      else if (media.contentType?.includes("svg")) toolImageExtension = "svg";
+    }
+
+    const mediaFallbackUrls = [videoFallbackUrl, toolImageFallbackUrl].filter(
+      (url): url is string => !!url,
+    );
 
     // Handle media-only response (image/audio/video but no text)
     if (
       (!generatedTextResponse || generatedTextResponse.length === 0) &&
-      (encodedImageDataBase64 || audioBuffer || videoBuffer || videoFallbackUrl)
+      (encodedImageDataBase64 ||
+        audioBuffer ||
+        videoBuffer ||
+        toolImageBuffer ||
+        mediaFallbackUrls.length > 0)
     ) {
       const files: import("discord.js").AttachmentPayload[] = [];
       if (encodedImageDataBase64) {
@@ -888,10 +943,21 @@ const DiscordUtilityService = {
           description: "Video clip",
         });
       }
+      if (toolImageBuffer) {
+        files.push({
+          attachment: toolImageBuffer,
+          // Prompt-derived name/description when this is a streamed
+          // generate_image (raw buffer absent) — context rebuilds read it.
+          name: imagePrompt
+            ? `${imagePrompt.substring(0, 240)}.${toolImageExtension}`
+            : `image.${toolImageExtension}`,
+          description: imagePrompt ? imageDescription : "Generated image",
+        });
+      }
       const mediaOnlyOptions: Record<string, unknown> = { files };
-      // Oversized clip with no text: the URL becomes the message body.
-      if (videoFallbackUrl) {
-        mediaOnlyOptions.content = videoFallbackUrl;
+      // Oversized/unfetchable media with no text: URLs become the body.
+      if (mediaFallbackUrls.length > 0) {
+        mediaOnlyOptions.content = mediaFallbackUrls.join("\n");
       }
       if (sendOrReply === "send") {
         return await (message.channel as TextChannel).send(mediaOnlyOptions);
@@ -940,6 +1006,15 @@ const DiscordUtilityService = {
           description: "Video clip",
         });
       }
+      if (toolImageBuffer && isLastChunk) {
+        files.push({
+          attachment: toolImageBuffer,
+          name: imagePrompt
+            ? `${imagePrompt.substring(0, 240)}.${toolImageExtension}`
+            : `image.${toolImageExtension}`,
+          description: imagePrompt ? imageDescription : "Generated image",
+        });
+      }
       messageReplyOptions = { ...messageReplyOptions, files: files };
       if (sendOrReply === "send") {
         const sentMessage = await (message.channel as TextChannel).send(
@@ -955,11 +1030,12 @@ const DiscordUtilityService = {
         }
       }
     }
-    // Oversized clip alongside text: post the download URL as its own
-    // follow-up message so it never pushes a chunk past the 2000-char cap.
-    if (videoFallbackUrl) {
+    // Oversized/unfetchable media alongside text: post the URLs as their
+    // own follow-up message so they never push a chunk past the
+    // 2000-char cap.
+    if (mediaFallbackUrls.length > 0) {
       await (message.channel as TextChannel).send({
-        content: videoFallbackUrl,
+        content: mediaFallbackUrls.join("\n"),
       });
     }
     return returnedFirstMessage!;
