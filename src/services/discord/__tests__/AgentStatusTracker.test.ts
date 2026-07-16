@@ -43,11 +43,12 @@ describe("AgentStatusTracker", () => {
       status: "calling",
       tool: { name: "get_weather" },
     });
-    expect(pushed).toContain("💭 Thought for 8 seconds");
-    // The tool status lands on the next tick (throttled behind the
-    // announcement push).
+    // Announcement is held for the next open window (tick), then live
+    // phase rendering resumes on the tick after.
     vi.advanceTimersByTime(4000);
-    expect(pushed[pushed.length - 1]).toBe("🌦️ Checking the sky…");
+    expect(pushed[pushed.length - 1]).toBe("💭 Thought for 8 seconds");
+    vi.advanceTimersByTime(4000);
+    expect(pushed[pushed.length - 1]).toBe("🌦️ Checking the sky… (8s)");
   });
 
   it("uses the generic label for unmapped tools", () => {
@@ -78,6 +79,7 @@ describe("AgentStatusTracker", () => {
         result: { auto_enabled: ["trim_video", "get_weather"] },
       },
     });
+    vi.advanceTimersByTime(4000);
     expect(pushed).toContain('🧰 Discovered "trim_video, get_weather" in 2.1s');
   });
 
@@ -94,6 +96,7 @@ describe("AgentStatusTracker", () => {
       status: "error",
       tool: { name: "search_web" },
     });
+    vi.advanceTimersByTime(4000);
     expect(pushed).toContain("⚠️ search_web failed, improvising…");
   });
 
