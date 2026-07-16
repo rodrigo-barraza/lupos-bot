@@ -6,6 +6,8 @@
 // presence and member information.
 // ============================================================
 
+import path from "path";
+import { fileURLToPath } from "url";
 import { Router } from "express";
 import type { Request, Response, NextFunction } from "express";
 import { asyncHandler } from "@rodrigo-barraza/utilities-library/express";
@@ -29,8 +31,16 @@ import TraitRegistry from "#root/services/TraitRegistry.js";
 import PrismService from "#root/services/PrismService.js";
 import {
   formatSomaticStats,
+  formatEmotionDetail,
+  formatSomaticLabels,
+  type EmotionDetail,
+  type SomaticStatLabels,
   type PrismSomaticSnapshot,
 } from "#root/formatters/SomaticStatsFormatter.js";
+import {
+  resolveAvatarState,
+  AVATAR_KEYS,
+} from "#root/formatters/AvatarStateFormatter.js";
 import { EXCLUDE_SOFT_DELETED } from "#root/constants.js";
 import { MILLISECONDS_PER_DAY } from "@rodrigo-barraza/utilities-library";
 import {
@@ -909,11 +919,15 @@ router.get(
       // client contract; fall back to the local stub if Prism is down so
       // the dashboard degrades gracefully instead of failing.
       let somatic = TraitRegistry.toStatsObject();
+      let emotion: EmotionDetail | null = null;
+      let somaticLabels: SomaticStatLabels | null = null;
       try {
         const snapshot =
           (await PrismService.getSomaticSnapshot()) as unknown as PrismSomaticSnapshot;
         if (snapshot?.emotion && snapshot?.hunger) {
           somatic = formatSomaticStats(snapshot);
+          emotion = formatEmotionDetail(snapshot.emotion);
+          somaticLabels = formatSomaticLabels(snapshot);
         }
       } catch (somaticErr: unknown) {
         console.warn(
@@ -921,6 +935,10 @@ router.get(
           (somaticErr as Error).message,
         );
       }
+
+      // Which mood-set portrait Lupos should currently wear; the client
+      // fetches the image itself via GET /bot/avatar/:key.
+      const avatar = resolveAvatarState(somatic, emotion);
 
       // 2. Database Stats
       let database = {
@@ -1031,6 +1049,9 @@ router.get(
 
       res.json({
         somatic,
+        emotion,
+        somaticLabels,
+        avatar,
         database,
         topGames,
         activeStreamers,
@@ -1049,6 +1070,34 @@ router.get(
     }
   }),
 );
+
+// ─── GET /bot/avatar/:key ─────────────────────────────────────────
+// Serves one mood-set portrait PNG (e.g. mood-love, state-wasted). The
+// key is validated against the known portrait set, so no path input
+// ever reaches the filesystem. Portraits are static art — cache hard;
+// the client re-picks WHICH key to show from /bot/stats.avatar.
+const MOOD_SET_DIRECTORY = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  "../../images/mood-set",
+);
+
+router.get("/bot/avatar/:key", (req: Request, res: Response) => {
+  const key = String(req.params.key || "");
+  if (!AVATAR_KEYS.has(key)) {
+    res.status(404).json({ error: "Unknown avatar key" });
+    return;
+  }
+  res.sendFile(
+    path.join(MOOD_SET_DIRECTORY, `${key}.png`),
+    { headers: { "Cache-Control": "public, max-age=86400, immutable" } },
+    (error) => {
+      if (error && !res.headersSent) {
+        console.error(`[bot/avatar] Failed to serve ${key}:`, error.message);
+        res.status(404).json({ error: "Avatar image missing" });
+      }
+    },
+  );
+});
 
 // ─── GET /bot/guilds ──────────────────────────────────────────────
 // Returns detailed information about every Discord server the bot is in.

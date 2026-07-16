@@ -17,17 +17,56 @@ export interface PrismSomaticSnapshot {
   emotion: {
     dominant: string;
     intensity: number;
+    /** Live level (0-100) of every Plutchik primary — the full wheel. */
+    all?: Record<string, number>;
     isDyad?: boolean;
     components?: string[];
   };
-  hunger: { level: number };
-  thirst: { level: number };
-  energy: { level: number };
-  sickness: { level: number };
-  alcohol: { level: number };
-  substance: { level: number };
-  bathroom: { level: number };
+  hunger: { level: number; label?: string };
+  thirst: { level: number; label?: string };
+  energy: { level: number; label?: string };
+  sickness: { level: number; label?: string };
+  alcohol: { level: number; label?: string };
+  substance: { level: number; label?: string };
+  bathroom: { level: number; label?: string };
 }
+
+/**
+ * Rich emotion detail for the dashboard — everything prism knows about the
+ * current emotional state, plus the presentation (emoji/valence) this
+ * formatter already derives for the mood bar.
+ */
+export interface EmotionDetail {
+  /** Dominant emotion id, e.g. "joy" or a dyad like "love". */
+  dominant: string;
+  /** Title-cased display name of the dominant emotion. */
+  label: string;
+  /** 0-100 strength of the dominant emotion. */
+  intensity: number;
+  emoji: string;
+  /** -1 (miserable) … 1 (elated) — how the emotion reads on a happy↔sad axis. */
+  valence: number;
+  /** True when the dominant is a Plutchik dyad of two primaries. */
+  isDyad: boolean;
+  /** The primary emotions a dyad blends, e.g. love → ["joy", "trust"]. */
+  components: string[];
+  /** Live level (0-100) of every Plutchik primary — the full wheel. */
+  wheel: Record<string, number>;
+}
+
+/** Human labels prism assigns each physical stat (e.g. hunger → "Starving"). */
+export type SomaticStatLabels = Partial<
+  Record<
+    | "hunger"
+    | "thirst"
+    | "energy"
+    | "sickness"
+    | "alcohol"
+    | "substance"
+    | "bathroom",
+    string
+  >
+>;
 
 // Valence of each Plutchik primary: how positive the mood reads on the
 // client's happy↔sad bar. Dyads average their components' valences.
@@ -152,5 +191,37 @@ export function formatSomaticStats(
     alcohol: snapshot.alcohol.level,
     bathroom: snapshot.bathroom.level,
     substance: snapshot.substance.level,
+  };
+}
+
+/** Full emotion detail (wheel, dyad composition, valence) for the dashboard. */
+export function formatEmotionDetail(
+  emotion: PrismSomaticSnapshot["emotion"],
+): EmotionDetail {
+  const dominant = (emotion.dominant || "neutral").toLowerCase();
+  return {
+    dominant,
+    label: titleCase(dominant),
+    intensity: Math.max(0, Math.min(100, Math.round(emotion.intensity ?? 0))),
+    emoji: resolveEmoji(dominant, emotion.components),
+    valence: resolveValence(dominant, emotion.components),
+    isDyad: emotion.isDyad ?? false,
+    components: emotion.components ?? [],
+    wheel: emotion.all ?? {},
+  };
+}
+
+/** Pull prism's per-stat human labels ("Starving", "Tipsy", …) through. */
+export function formatSomaticLabels(
+  snapshot: PrismSomaticSnapshot,
+): SomaticStatLabels {
+  return {
+    hunger: snapshot.hunger.label,
+    thirst: snapshot.thirst.label,
+    energy: snapshot.energy.label,
+    sickness: snapshot.sickness.label,
+    alcohol: snapshot.alcohol.label,
+    substance: snapshot.substance.label,
+    bathroom: snapshot.bathroom.label,
   };
 }
