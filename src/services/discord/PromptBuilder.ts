@@ -204,6 +204,34 @@ export function appendVerbatimCodeResults(
 }
 
 /**
+ * Pull a video clip URL out of tool results tagged with a self-describing
+ * `kind: "video"` display envelope (e.g. trim_video's MinIO downloadUrl).
+ * First match wins — Discord replies carry at most one clip. The send path
+ * downloads the URL and attaches it, falling back to posting the URL when
+ * the file exceeds the guild's upload cap.
+ */
+export function extractVideoDisplayUrl(
+  toolResults:
+    | Array<{ name?: string; result?: unknown; status?: string }>
+    | undefined,
+): string | null {
+  if (!toolResults?.length) return null;
+  for (const toolResult of toolResults) {
+    const resultObject =
+      toolResult.result && typeof toolResult.result === "object"
+        ? (toolResult.result as Record<string, unknown>)
+        : null;
+    const display = resultObject?.display as
+      | { kind?: string; url?: string }
+      | undefined;
+    if (display?.kind === "video" && typeof display.url === "string") {
+      return display.url;
+    }
+  }
+  return null;
+}
+
+/**
  * Pull the generation prompt out of an agent response's generate_image tool
  * call. Prism's /agent JSON path emits `{ name, args }` entries while the
  * declared client type is OpenAI-style `{ function: { name, arguments } }`
@@ -606,6 +634,7 @@ export async function buildAndGenerateReply({
   }[] = [];
   let image: unknown = null;
   let audioRef: string | null = null;
+  let videoUrl: string | null = null;
   let imagePrompt: string | null = null;
   try {
     if (
@@ -1703,6 +1732,7 @@ export async function buildAndGenerateReply({
         generatedText: null,
         image: null,
         audioRef: null,
+        videoUrl: null,
         imagePrompt: null,
         promptForImagePromptGeneration: null,
       };
@@ -1774,6 +1804,9 @@ export async function buildAndGenerateReply({
       }
     }
 
+    // Extract a video clip URL (display.kind === "video", e.g. trim_video)
+    videoUrl = extractVideoDisplayUrl(agentResponse.toolResults);
+
     // Sanitize the response
     generatedText = utilities.fixBareMentions(generatedText);
     generatedText = utilities.removeMentions(generatedText);
@@ -1799,6 +1832,7 @@ export async function buildAndGenerateReply({
     generatedText,
     image,
     audioRef: audioRef ?? null,
+    videoUrl: videoUrl ?? null,
     imagePrompt,
   };
 }
