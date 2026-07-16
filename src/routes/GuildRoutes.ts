@@ -26,6 +26,11 @@ import DiscordWrapper from "#root/wrappers/DiscordWrapper.js";
 import config from "#root/config.js";
 import utilities from "#root/utilities.js";
 import TraitRegistry from "#root/services/TraitRegistry.js";
+import PrismService from "#root/services/PrismService.js";
+import {
+  formatSomaticStats,
+  type PrismSomaticSnapshot,
+} from "#root/formatters/SomaticStatsFormatter.js";
 import { EXCLUDE_SOFT_DELETED } from "#root/constants.js";
 import { MILLISECONDS_PER_DAY } from "@rodrigo-barraza/utilities-library";
 import {
@@ -898,8 +903,24 @@ router.get(
       const localMongo = MongoService.getClient("local");
       const db = localMongo ? localMongo.db("lupos") : null;
 
-      // 1. Somatic Status
-      const somatic = TraitRegistry.toStatsObject();
+      // 1. Somatic Status — the REAL emotion/body state lives in
+      // prism-service (TraitRegistry is a vestigial in-memory stub that
+      // resets on restart). Fetch the live snapshot and map it into the
+      // client contract; fall back to the local stub if Prism is down so
+      // the dashboard degrades gracefully instead of failing.
+      let somatic = TraitRegistry.toStatsObject();
+      try {
+        const snapshot =
+          (await PrismService.getSomaticSnapshot()) as unknown as PrismSomaticSnapshot;
+        if (snapshot?.emotion && snapshot?.hunger) {
+          somatic = formatSomaticStats(snapshot);
+        }
+      } catch (somaticErr: unknown) {
+        console.warn(
+          "[bot/stats] Live somatic snapshot unavailable, using local stub:",
+          (somaticErr as Error).message,
+        );
+      }
 
       // 2. Database Stats
       let database = {
