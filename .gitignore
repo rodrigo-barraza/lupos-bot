@@ -4,6 +4,8 @@
 !/images/countdown/
 /images/countdown/*
 !/images/countdown/base-icon.gif
+!/images/mood-set/
+!/images/lupos-canonical-reference.png
 /recordings
 /voices
 .env
