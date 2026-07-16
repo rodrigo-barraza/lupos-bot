@@ -182,7 +182,7 @@ describe("AgentStatusTracker", () => {
   });
 
   it("truncates statuses to Discord's 128-char cap", () => {
-    const tracker = makeTracker("x".repeat(200));
+    makeTracker("x".repeat(200));
     expect(pushed[0].length).toBeLessThanOrEqual(128);
   });
 });
