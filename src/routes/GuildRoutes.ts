@@ -1060,8 +1060,10 @@ router.get("/bot/guilds", (req: Request, res: Response) => {
       id: guild.id,
       name: guild.name,
       icon: guild.iconURL({ extension: "png", size: 128 }),
-      banner: guild.bannerURL({ extension: "png", size: 480 }),
-      splash: guild.splashURL({ extension: "png", size: 480 }),
+      // CDN image sizes must be a power of two (16–4096); 480 throws a
+      // RangeError and took the whole endpoint down for guilds with banners.
+      banner: guild.bannerURL({ extension: "png", size: 512 }),
+      splash: guild.splashURL({ extension: "png", size: 512 }),
       memberCount: guild.memberCount,
       channelCount: guild.channels?.cache?.size || 0,
       emojiCount: guild.emojis?.cache?.size || 0,
