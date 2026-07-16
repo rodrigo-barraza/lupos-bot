@@ -901,6 +901,31 @@ router.post(
   }),
 );
 
+// ─── GET /bot/emotion-history ───────────────────────────────────
+// Emotion/physical time series proxied from prism-service (the somatic
+// engine samples one point per persist tick). Feeds the lupos-client
+// mood-over-time chart. ?hours=24 (1 … 336).
+router.get(
+  "/bot/emotion-history",
+  asyncHandler(async (req: Request, res: Response) => {
+    try {
+      const requestedHours = parseFloat(String(req.query.hours ?? "24"));
+      const hours = Math.min(
+        Math.max(Number.isFinite(requestedHours) ? requestedHours : 24, 1),
+        336,
+      );
+      const history = await PrismService.getSomaticHistory(hours);
+      res.json(history);
+    } catch (error: unknown) {
+      console.error(
+        "[bot/emotion-history] Failed to fetch history:",
+        (error as Error).message,
+      );
+      res.status(502).json({ error: "Emotion history unavailable" });
+    }
+  }),
+);
+
 // ─── GET /bot/stats ─────────────────────────────────────────────
 // Returns live bot somatic status, database counts, and active server stats
 router.get(

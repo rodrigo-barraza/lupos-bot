@@ -311,6 +311,21 @@ export default class PrismService {
   }
 
   /**
+   * Fetch an agent's emotion/physical time series from prism-service's
+   * GET /somatic/:agentId/history — one point per somatic persist tick
+   * ({at, dominant, intensity, wheel, physical}), ascending, 30-day TTL.
+   */
+  static async getSomaticHistory(hours = 24, agentId = "LUPOS") {
+    return prism().request(
+      `/somatic/${encodeURIComponent(agentId)}/history?hours=${encodeURIComponent(hours)}`,
+      {
+        method: "GET",
+        username: "lupos",
+      },
+    );
+  }
+
+  /**
    * Caption / describe an image via Prism's /chat endpoint.
    */
   static async captionImage({

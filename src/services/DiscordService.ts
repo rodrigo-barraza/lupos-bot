@@ -54,6 +54,11 @@ import { extractContentFromMessages } from "#root/services/discord/ConversationE
 import { buildAndGenerateReply } from "#root/services/discord/PromptBuilder.js";
 import { AgentStatusTracker } from "#root/services/discord/AgentStatusTracker.js";
 import {
+  formatEmotionDetail,
+  formatMoodStatusLine,
+  type PrismSomaticSnapshot,
+} from "#root/formatters/SomaticStatsFormatter.js";
+import {
   luposOnReadyDeleteNewAccounts,
   luposOnReadyPurgeYoungAccounts,
   revokeRoleFromAllMembers,
@@ -129,11 +134,18 @@ async function replyMessage(
   let combinedChannelInformation: string | null = null;
 
   // Live presence statuses for the whole reply lifecycle — "👀 Reading…",
-  // "🤔 Thinking… (8s)", tool-by-tool progress, then a persistent recap.
+  // "🤔 Thinking… (8s)", tool-by-tool progress, then a recap that yields
+  // to his current mood after a few seconds.
   const statusTracker = new AgentStatusTracker({
     pushStatus: (status) =>
       DiscordUtilityService.setUserActivity(client, status),
     username: user?.username || "someone",
+    fetchIdleStatus: async () => {
+      const snapshot =
+        (await PrismService.getSomaticSnapshot()) as unknown as PrismSomaticSnapshot;
+      if (!snapshot?.emotion) return null;
+      return formatMoodStatusLine(formatEmotionDetail(snapshot.emotion));
+    },
   });
 
   const start = performance.now();

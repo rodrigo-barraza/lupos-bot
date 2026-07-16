@@ -185,4 +185,63 @@ describe("AgentStatusTracker", () => {
     makeTracker("x".repeat(200));
     expect(pushed[0].length).toBeLessThanOrEqual(128);
   });
+
+  describe("idle mood hand-off", () => {
+    function makeMoodTracker(
+      fetchIdleStatus: () => Promise<string | null>,
+      username = "rodrigo",
+    ) {
+      return new AgentStatusTracker({
+        pushStatus: (status) => pushed.push(status),
+        username,
+        fetchIdleStatus,
+      });
+    }
+
+    it("replaces the recap with the mood status after the idle delay", async () => {
+      const tracker = makeMoodTracker(async () => "😤 Feeling very angry");
+      vi.advanceTimersByTime(5000);
+      tracker.finishSuccess();
+      expect(pushed[pushed.length - 1]).toBe(
+        "💬 Replied to rodrigo — 5s total",
+      );
+      await vi.advanceTimersByTimeAsync(10_000);
+      expect(pushed[pushed.length - 1]).toBe("😤 Feeling very angry");
+    });
+
+    it("also hands off after an error status", async () => {
+      const tracker = makeMoodTracker(async () => "🥱 Feeling a bit tired");
+      tracker.finishError();
+      await vi.advanceTimersByTimeAsync(10_000);
+      expect(pushed[pushed.length - 1]).toBe("🥱 Feeling a bit tired");
+    });
+
+    it("keeps the recap when the mood fetch fails or returns null", async () => {
+      const failing = makeMoodTracker(async () => {
+        throw new Error("prism down");
+      });
+      failing.finishSuccess();
+      const afterRecap = pushed[pushed.length - 1];
+      await vi.advanceTimersByTimeAsync(10_000);
+      expect(pushed[pushed.length - 1]).toBe(afterRecap);
+
+      const empty = makeMoodTracker(async () => null);
+      empty.finishSuccess();
+      const recap = pushed[pushed.length - 1];
+      await vi.advanceTimersByTimeAsync(10_000);
+      expect(pushed[pushed.length - 1]).toBe(recap);
+    });
+
+    it("stands down when a newer tracker owns presence", async () => {
+      const older = makeMoodTracker(async () => "😤 Feeling very angry");
+      older.finishSuccess();
+      // A new reply starts before the idle delay elapses.
+      makeMoodTracker(async () => "🙂 Feeling joyful", "someone-else");
+      await vi.advanceTimersByTimeAsync(10_000);
+      expect(pushed).not.toContain("😤 Feeling very angry");
+      expect(pushed[pushed.length - 1]).toBe(
+        "👀 Reading someone-else's message…",
+      );
+    });
+  });
 });
