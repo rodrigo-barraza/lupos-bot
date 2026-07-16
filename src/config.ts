@@ -54,6 +54,11 @@ const config = {
   LIGHTS_SERVICE_URL: process.env.LIGHTS_SERVICE_URL,
   TOOLS_SERVICE_URL: process.env.TOOLS_SERVICE_URL,
 
+  // ─── Monitoring (Optional — dead-man's-switch heartbeat) ────────
+  // Healthchecks.io check URL or Uptime Kuma push URL; pinged every
+  // minute by HeartbeatService (https://healthchecks.io/docs/).
+  HEARTBEAT_URL: process.env.HEARTBEAT_URL,
+
   // ─── MinIO (Optional — media archival) ──────────────────────────
   MINIO_ENDPOINT: process.env.MINIO_ENDPOINT,
   MINIO_ACCESS_KEY: process.env.MINIO_ACCESS_KEY,
@@ -191,6 +196,11 @@ export function validateConfig(cfg: typeof config = config): void {
   if (!cfg.PRISM_API_URL) {
     console.log(
       "[config] PRISM_SERVICE_URL not set — Prism integration disabled.",
+    );
+  }
+  if (!cfg.HEARTBEAT_URL) {
+    console.log(
+      "[config] HEARTBEAT_URL not set — dead-man's-switch heartbeat disabled.",
     );
   }
 }

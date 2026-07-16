@@ -11,6 +11,7 @@ import LogFormatter from "./formatters/LogFormatter.ts";
 import MinioWrapper from "./wrappers/MinioWrapper.ts";
 import MediaArchivalService from "./services/MediaArchivalService.ts";
 import DiscordWrapper from "./wrappers/DiscordWrapper.ts";
+import HeartbeatService from "./services/HeartbeatService.ts";
 
 import type { Request, Response } from "express";
 import express from "express";
@@ -114,18 +115,28 @@ async function main() {
     // API_SHARED_SECRET is set; no-op (with a warning) when it is not.
     app.use(createApiAuthMiddleware(config.API_SHARED_SECRET));
     app.get("/health", (_req: Request, res: Response) => {
+      // Queue gauges surface the wedge the plain 200 can't: one hung reply
+      // freezes the global serial drain while HTTP keeps answering.
+      const queue = HeartbeatService.getLivenessSnapshot();
+      const liveness = HeartbeatService.evaluateLiveness(queue, Date.now());
       res.json({
         name: "Lupos",
-        status: "ok",
+        status: liveness.alive ? "ok" : "wedged",
+        reason: liveness.reason,
         uptime: process.uptime(),
         mode: mode || "default",
         minioAvailable: MinioWrapper.isAvailable(),
+        queueDepth: queue.queueDepth,
+        isProcessingQueue: queue.isProcessingQueue,
+        lastQueueActivityAt: new Date(queue.lastQueueActivityAtMs).toISOString(),
       });
     });
     app.use("/", services());
     httpServer = app.listen(Number(config.SERVER_PORT), "0.0.0.0", () => {
       console.log(`Server listening on 0.0.0.0:${config.SERVER_PORT}`);
     });
+    // Dead-man's-switch heartbeat — no-op unless HEARTBEAT_URL is set
+    HeartbeatService.startHeartbeat();
   } catch (error: unknown) {
     console.log(LogFormatter.errorInitialization(error));
   }

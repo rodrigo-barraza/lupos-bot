@@ -172,6 +172,51 @@ export function hasSelfReferenceRegex(text: string): boolean {
   );
 }
 
+// ─── 5. Bot self-portrait detection ──────────────────────────────
+// Detects the BOT being asked to draw ITSELF ("draw yourself", "take a
+// selfie") — distinct from section 4, which detects a USER drawing
+// themselves. A hit makes PromptBuilder attach the canonical Lupos
+// reference image so the image model keeps him the same recognizable
+// wolf across renders (reference-conditioned character consistency —
+// Gemini image generation / "Nano Banana":
+// https://ai.google.dev/gemini-api/docs/image-generation).
+// Since replies are @-mention-gated, "you"/"yourself" refers to the bot.
+
+// "draw yourself", "paint your own portrait", "redraw your face as..."
+export const BOT_SELF_VERB_YOURSELF_REGEX =
+  /\b(draw|paint|sketch|illustrate|render|depict|generate|create|make|design|reimagine|redraw|show)\b[^.!?]*\b(yourself|urself|your\s+(?:own\s+)?(?:self|face|portrait|body|likeness|fursona))\b/i;
+// "take a selfie", "self-portrait" — possessive-owned ones ("my selfie",
+// "her self-portrait") belong to section 4's user tier, not the bot
+export const BOT_SELF_SELFIE_REGEX =
+  /(?<!my\s)(?<!his\s)(?<!her\s)(?<!their\s)(?<!our\s)\b(selfie|self[- ]?portrait)\b/i;
+// "a picture of you", "portrait of yourself"
+export const BOT_SELF_NOUN_OF_YOU_REGEX =
+  /\b(portrait|painting|picture|photo|image|illustration|drawing|version|rendition|interpretation)\s+of\s+(you|yourself|urself)\b/i;
+// "how would you look as...", "what would you look like..."
+export const BOT_SELF_HOW_WOULD_YOU_LOOK_REGEX =
+  /\b(how|what)\s+would\s+you\s+look\b/i;
+// "draw you as a king" — verb immediately followed by "you" (not "can
+// you draw", where "you" precedes the verb)
+export const BOT_SELF_VERB_YOU_REGEX =
+  /\b(draw|paint|sketch|illustrate|render|depict|reimagine|redraw)\s+you\b/i;
+
+/**
+ * Fast-path regex (English) for the bot being asked to draw itself.
+ * Deliberately explicit-trigger-only (no LLM fallback tier): the canonical
+ * reference should attach on clear self-portrait intent, not on every
+ * freeform "draw whatever you want".
+ */
+export function hasBotSelfPortraitRegex(text: string): boolean {
+  const selfText = (text || "").toLowerCase();
+  return (
+    BOT_SELF_VERB_YOURSELF_REGEX.test(selfText) ||
+    BOT_SELF_SELFIE_REGEX.test(selfText) ||
+    BOT_SELF_NOUN_OF_YOU_REGEX.test(selfText) ||
+    BOT_SELF_HOW_WOULD_YOU_LOOK_REGEX.test(selfText) ||
+    BOT_SELF_VERB_YOU_REGEX.test(selfText)
+  );
+}
+
 /**
  * Tier 2: LLM fallback (multilingual, indirect refs).
  * Only runs when regex didn't match but image request is likely.
@@ -219,5 +264,6 @@ export default {
   findUntaggedNameMatches,
   detectGroupReference,
   hasSelfReferenceRegex,
+  hasBotSelfPortraitRegex,
   detectSelfReferenceViaLLM,
 };

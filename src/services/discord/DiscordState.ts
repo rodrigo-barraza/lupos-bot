@@ -44,6 +44,11 @@ const DiscordState = {
 
   // ─── Timing ──────────────────────────────────────────────────
   lastMessageSentTime: TemporalHelpers.nowISO(),
+  // Last time the reply queue made progress (drain started or an item
+  // finished). HeartbeatService compares this against isProcessingQueue to
+  // detect a wedged queue — the failure mode where one hung reply freezes
+  // the single global serial drain while /health still answers 200.
+  lastQueueActivityAtMs: Date.now(),
 
   // ─── Helpers ─────────────────────────────────────────────────
 

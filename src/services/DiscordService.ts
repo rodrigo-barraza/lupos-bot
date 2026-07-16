@@ -1032,6 +1032,10 @@ URL: ${utilities.getDiscordMessageUrl((message as Message).guild?.id || "", (mes
 
   if (!DiscordState.isProcessingQueue) {
     DiscordState.isProcessingQueue = true;
+    // Stamp queue progress at drain start and after every item so
+    // HeartbeatService can tell "one reply is hung" from "queue just
+    // started after a long idle stretch".
+    DiscordState.lastQueueActivityAtMs = Date.now();
     try {
       while (DiscordState.queuedData.length > 0) {
         const queuedDatum =
@@ -1052,6 +1056,7 @@ URL: ${utilities.getDiscordMessageUrl((message as Message).guild?.id || "", (mes
             delete DiscordState.typingIntervals[currentChannelId];
           }
         }
+        DiscordState.lastQueueActivityAtMs = Date.now();
         // No more queued messages for this channel — clear typing indicator
         if (
           !DiscordState.queuedData.some(
