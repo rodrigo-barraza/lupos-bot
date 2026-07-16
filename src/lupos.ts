@@ -12,6 +12,7 @@ import MinioWrapper from "./wrappers/MinioWrapper.ts";
 import MediaArchivalService from "./services/MediaArchivalService.ts";
 import DiscordWrapper from "./wrappers/DiscordWrapper.ts";
 import HeartbeatService from "./services/HeartbeatService.ts";
+import AvatarSyncService from "./services/AvatarSyncService.ts";
 
 import type { Request, Response } from "express";
 import express from "express";
@@ -137,6 +138,11 @@ async function main() {
     });
     // Dead-man's-switch heartbeat — no-op unless HEARTBEAT_URL is set
     HeartbeatService.startHeartbeat();
+    // Mood-portrait → Discord profile avatar sync; only the live bot
+    // should touch the account avatar, not maintenance modes.
+    if (!mode) {
+      AvatarSyncService.startAvatarSync();
+    }
   } catch (error: unknown) {
     console.log(LogFormatter.errorInitialization(error));
   }
