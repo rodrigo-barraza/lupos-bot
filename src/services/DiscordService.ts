@@ -201,7 +201,7 @@ async function replyMessage(
     return;
   }
 
-  const { generatedText, image, audioRef, imagePrompt } =
+  const { generatedText, image, audioRef, videoUrl, imagePrompt } =
     await buildAndGenerateReply({
       conversation: conversation as unknown as Record<string, unknown>[],
       conversationsCollection:
@@ -238,6 +238,7 @@ async function replyMessage(
   const generatedTextResponse = generatedText;
   const generatedImage = image;
   const generatedAudioRef = audioRef;
+  const generatedVideoUrl = videoUrl;
 
   // (Image conversations are already saved per-call inside generateImage)
 
@@ -252,7 +253,12 @@ async function replyMessage(
     : "";
   DiscordUtilityService.setUserActivity(client, textSummary);
 
-  if (!generatedTextResponse && !generatedImage && !generatedAudioRef) {
+  if (
+    !generatedTextResponse &&
+    !generatedImage &&
+    !generatedAudioRef &&
+    !generatedVideoUrl
+  ) {
     await message.reply("...");
     DiscordState.lastMessageSentTime = TemporalHelpers.nowISO();
 
@@ -285,6 +291,7 @@ ${combinedGuildInformation && combinedChannelInformation ? `URL: ${utilities.get
       // image instead of falling back to the meaningless "lupos.png".
       imagePrompt ?? null,
       generatedAudioRef,
+      generatedVideoUrl,
     );
   } catch (error: unknown) {
     console.warn(`❌ [DiscordService:replyMessage] MESSAGE NOT FOUND (OR DELETED)
