@@ -164,6 +164,46 @@ function loadCanonicalSelfPortraitReference(): string | null {
 }
 
 /**
+ * Append verbatim `kind: "code"` tool outputs (ASCII banners, hashes,
+ * diffs — anything tagged with a self-describing code display by
+ * tools-service) as fenced blocks when the reply text doesn't already
+ * contain the exact payload. Small models corrupt whitespace-exact text
+ * when retyping it; the tool result is the source of truth. Oversized
+ * payloads are skipped — they wouldn't survive Discord's 2000-char
+ * message limit inside a single fence anyway.
+ */
+const MAX_INLINE_CODE_CHARS = 1500;
+export function appendVerbatimCodeResults(
+  text: string,
+  toolResults:
+    | Array<{ name?: string; result?: unknown; status?: string }>
+    | undefined,
+): string {
+  if (!toolResults?.length) return text;
+  let output = text;
+  for (const toolResult of toolResults) {
+    const resultObject =
+      toolResult.result && typeof toolResult.result === "object"
+        ? (toolResult.result as Record<string, unknown>)
+        : null;
+    const display = resultObject?.display as
+      | { kind?: string; sourceField?: string; language?: string }
+      | undefined;
+    if (display?.kind !== "code" || !display.sourceField) continue;
+    const codeText = resultObject?.[display.sourceField];
+    if (typeof codeText !== "string" || !codeText.trim()) continue;
+    // Already present verbatim (the model used the {{tool_output}} token
+    // and Prism substituted it, or copied it correctly) — nothing to add.
+    if (output.includes(codeText.trim())) continue;
+    if (codeText.length > MAX_INLINE_CODE_CHARS) continue;
+    const fenceLanguage =
+      display.language && display.language !== "text" ? display.language : "";
+    output = `${output}\n\`\`\`${fenceLanguage}\n${codeText.replace(/\s+$/, "")}\n\`\`\``;
+  }
+  return output;
+}
+
+/**
  * Pull the generation prompt out of an agent response's generate_image tool
  * call. Prism's /agent JSON path emits `{ name, args }` entries while the
  * declared client type is OpenAI-style `{ function: { name, arguments } }`
@@ -1738,6 +1778,17 @@ export async function buildAndGenerateReply({
     generatedText = utilities.fixBareMentions(generatedText);
     generatedText = utilities.removeMentions(generatedText);
     generatedText = CensorService.removeFlaggedWords(generatedText);
+
+    // Verbatim code outputs (display.kind === "code", e.g. ASCII banners,
+    // hashes, diffs): guarantee a byte-perfect copy on Discord. Prism's
+    // server-side {{tool_output}} substitution usually inlines it into the
+    // reply text already — only append a fenced block when the reply
+    // doesn't carry the exact payload. Appended AFTER sanitization so the
+    // sanitizers can never mangle the verbatim text.
+    generatedText = appendVerbatimCodeResults(
+      generatedText,
+      agentResponse.toolResults,
+    );
   } catch (error: unknown) {
     generatedText = "...";
     console.error(
