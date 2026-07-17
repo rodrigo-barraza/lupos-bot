@@ -1444,11 +1444,14 @@ export async function buildAndGenerateReply({
       for (const mapObject of imagesMap.values()) {
         referenceCaptionsMap.set(mapObject.url, mapObject.caption);
       }
-      // Build <attached-reference-images> block with indexed descriptions
+      // Build <attached-reference-images> block with indexed descriptions.
+      // The URL rides along so the agent has a real handle to pass into
+      // image tools (data: URIs are filtered out by the block builder).
       const referenceEntries = imageUrls.map(
         (imageUrl: string, index: number) => ({
           label: imageLabels[index] || `Attachment ${index + 1}`,
           caption: referenceCaptionsMap.get(imageUrl),
+          url: imageUrl,
         }),
       );
       const referenceBlock = buildReferenceImagesBlock(referenceEntries);
@@ -1716,6 +1719,8 @@ export async function buildAndGenerateReply({
               caption:
                 referenceCaptionsMap.get(imageUrls[i]) ||
                 captionsMap?.get(imageUrls[i]),
+              // Real handle for image tools; data: URIs filtered by builder
+              url: imageUrls[i],
             })),
           );
           if (attachedBlock) {
