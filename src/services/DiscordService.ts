@@ -680,7 +680,7 @@ async function luposOnReady(
     {
       guildId: config.GUILD_ID_CLOCK_CREW,
       targetDateString: config.COUNTDOWN_ICON_TARGET_DATE_CLOCK_CREW,
-      baseIconFilename: "clock-crew-base-icon.gif",
+      baseIconFilename: "clock-crew-base-icon.png",
     },
   ];
   const activeCountdownDefinitions = countdownIconDefinitions.filter(
