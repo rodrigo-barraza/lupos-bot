@@ -23,5 +23,10 @@ export interface Command {
   botPermissions?: bigint[];
   /** Per-user cooldown in seconds, enforced in memory. */
   cooldownSeconds?: number;
+  /**
+   * Restrict Discord registration to these guild IDs (deploy-commands
+   * skips the command for other guilds). Omit to register everywhere.
+   */
+  guildIds?: string[];
   execute(interaction: ChatInputCommandInteraction): Promise<void>;
 }
