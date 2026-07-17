@@ -126,7 +126,7 @@ describe("CountdownIconOverlay", () => {
   // ─── GIF Overlay (Integration) ────────────────────────────────
 
   describe("overlayCountdownNumber", () => {
-    it("produces a PNG buffer from a static image (Discord rejects GIF icons on non-boosted guilds)", async () => {
+    it("produces a GIF buffer from a GIF source (output mirrors source format)", async () => {
       // Create a minimal 64×64 red test image as GIF
       const testGifBuffer = await sharp({
         create: {
@@ -147,11 +147,11 @@ describe("CountdownIconOverlay", () => {
       expect(result).toBeInstanceOf(Buffer);
       expect(result.length).toBeGreaterThan(0);
 
-      // Single-frame sources are emitted as PNG (magic: \x89PNG)
-      expect(result.subarray(1, 4).toString("ascii")).toBe("PNG");
+      // Verify it's a valid GIF (magic bytes: GIF89a or GIF87a)
+      expect(result.subarray(0, 3).toString("ascii")).toBe("GIF");
     });
 
-    it("produces a PNG buffer from a static PNG source (guild-icon base case)", async () => {
+    it("produces a PNG buffer from a PNG source (output mirrors source format)", async () => {
       const testPngBuffer = await sharp({
         create: {
           width: 128,
@@ -236,11 +236,7 @@ describe("CountdownIconOverlay", () => {
       expect(result).toBeInstanceOf(Buffer);
 
       const outputMetadata = await sharp(result, { animated: true }).metadata();
-      // Multi-frame sources stay GIF; if sharp collapsed the frames the
-      // static path emits PNG instead
-      const expectedFormat =
-        sourceMetadata.pages && sourceMetadata.pages > 1 ? "gif" : "png";
-      expect(outputMetadata.format).toBe(expectedFormat);
+      expect(outputMetadata.format).toBe("gif");
 
       // If multiple frames survived, verify delay metadata was preserved
       if (outputMetadata.pages && outputMetadata.pages > 1) {
@@ -268,7 +264,7 @@ describe("CountdownIconOverlay", () => {
       });
 
       expect(result).toBeInstanceOf(Buffer);
-      expect(result.subarray(1, 4).toString("ascii")).toBe("PNG");
+      expect(result.subarray(0, 3).toString("ascii")).toBe("GIF");
     });
 
     it("preserves alpha transparency through the composite pipeline", async () => {
