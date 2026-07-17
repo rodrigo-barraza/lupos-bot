@@ -77,6 +77,7 @@ const config = {
   GUILD_ID_TESTING: process.env.GUILD_ID_TESTING,
   GUILD_ID_GROBBULUS: process.env.GUILD_ID_GROBBULUS,
   GUILD_ID_CLOCK_CREW: process.env.GUILD_ID_CLOCK_CREW,
+  GUILD_ID_CRUSADER_STRIKE: process.env.GUILD_ID_CRUSADER_STRIKE,
 
   // ─── Discord IDs — Emojis ──────────────────────────────────────
   EMOJI_ID_FLAG: process.env.EMOJI_ID_FLAG,
@@ -104,6 +105,8 @@ const config = {
   CHANNEL_ID_JUKEBOX_EXCEPTION: process.env.CHANNEL_ID_JUKEBOX_EXCEPTION,
 
   // ─── Discord IDs — Users ───────────────────────────────────────
+  // Bot owner — gates owner-only surfaces (e.g. /dm-campaign).
+  OWNER_USER_ID: process.env.OWNER_USER_ID,
   USER_IDS_DISALLOWED: parseCommaSeparated("USER_IDS_DISALLOWED"),
   USER_IDS_TIMED_OUT: parseCommaSeparated("USER_IDS_TIMED_OUT"),
   USER_IDS_POLITICS_MUTED: parseCommaSeparated("USER_IDS_POLITICS_MUTED"),

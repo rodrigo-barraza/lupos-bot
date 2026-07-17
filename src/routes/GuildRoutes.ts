@@ -27,6 +27,7 @@ import type {
 import DiscordWrapper from "#root/wrappers/DiscordWrapper.js";
 import config from "#root/config.js";
 import utilities from "#root/utilities.js";
+import DmCampaignService from "#root/services/DmCampaignService.js";
 import TraitRegistry from "#root/services/TraitRegistry.js";
 import PrismService from "#root/services/PrismService.js";
 import {
@@ -597,6 +598,85 @@ router.post(
       );
       res.status(500).json({
         error: "Failed to start rescrape",
+        detail: (error as Error).message,
+      });
+    }
+  }),
+);
+
+// ─── DM Campaign (manual invite-DM mechanism) ───────────────────
+// Slowly DMs Crusader Strike members who aren't in Whitemane with an
+// invite. All endpoints are owner-triggered (x-api-key on POSTs via
+// the global apiAuth middleware). See DmCampaignService for pacing,
+// crash safety, and auto-pause behavior.
+
+// Body (all optional): { inviteUrl, messageVariants: ["...{name}...{invite}..."] }
+router.post(
+  "/guild/dm-campaign/seed",
+  asyncHandler(async (req: Request, res: Response) => {
+    try {
+      const { inviteUrl, messageVariants } = req.body ?? {};
+      const result = await DmCampaignService.seedCampaign({
+        inviteUrl,
+        messageVariants,
+      });
+      res.json(result);
+    } catch (error: unknown) {
+      console.error("[guild/dm-campaign/seed] Error:", (error as Error).message);
+      res.status(500).json({
+        error: "Failed to seed DM campaign",
+        detail: (error as Error).message,
+      });
+    }
+  }),
+);
+
+router.post(
+  "/guild/dm-campaign/start",
+  asyncHandler(async (_req: Request, res: Response) => {
+    try {
+      const result = await DmCampaignService.startCampaign();
+      res.json(result);
+    } catch (error: unknown) {
+      console.error("[guild/dm-campaign/start] Error:", (error as Error).message);
+      res.status(400).json({
+        error: "Failed to start DM campaign",
+        detail: (error as Error).message,
+      });
+    }
+  }),
+);
+
+router.post(
+  "/guild/dm-campaign/pause",
+  asyncHandler(async (req: Request, res: Response) => {
+    try {
+      const reason =
+        typeof req.body?.reason === "string" ? req.body.reason : "manual";
+      const result = await DmCampaignService.pauseCampaign(reason);
+      res.json(result);
+    } catch (error: unknown) {
+      console.error("[guild/dm-campaign/pause] Error:", (error as Error).message);
+      res.status(500).json({
+        error: "Failed to pause DM campaign",
+        detail: (error as Error).message,
+      });
+    }
+  }),
+);
+
+router.get(
+  "/guild/dm-campaign/status",
+  asyncHandler(async (_req: Request, res: Response) => {
+    try {
+      res.json(await DmCampaignService.getStatus());
+    } catch (error: unknown) {
+      console.error(
+        "[guild/dm-campaign/status] Error:",
+        (error as Error).message,
+      );
+      res.status(500).json({
+        error: "Failed to get DM campaign status",
         detail: (error as Error).message,
       });
     }
