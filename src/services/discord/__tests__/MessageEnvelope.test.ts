@@ -294,6 +294,33 @@ describe("renderEmbed", () => {
       renderEmbed({ fields: ["HP: 100", "MP: 50"], footer: "the end" }),
     ).toBe(`<embed>\nHP: 100\nMP: 50\nthe end\n</embed>`);
   });
+
+  it("keeps & raw in embed URLs so the model can copy them into tool args", () => {
+    const signedUrl = "https://media.tenor.com/x/dance.gif?ex=a&is=b&hm=c";
+    const embed = renderEmbed({ title: "gif", url: signedUrl });
+    expect(embed).toContain(`url="${signedUrl}"`);
+    expect(embed).not.toContain("&amp;");
+  });
+});
+
+describe("renderSticker via envelope", () => {
+  it("renders the sticker URL as a tool handle", () => {
+    const envelope = buildDiscordMessageEnvelope({
+      id: "1",
+      author: "fallen",
+      authorId: "355955981202489344",
+      time: "2026-07-14T11:27:44-07:00",
+      sticker: {
+        name: "wave",
+        caption: "A waving hand",
+        url: "https://media.discordapp.net/stickers/123.png?size=320&quality=lossless",
+      },
+    });
+    expect(envelope).toContain(
+      `url="https://media.discordapp.net/stickers/123.png?size=320&quality=lossless"`,
+    );
+    expect(envelope).not.toContain("&amp;");
+  });
 });
 
 describe("buildReferenceImagesBlock", () => {
