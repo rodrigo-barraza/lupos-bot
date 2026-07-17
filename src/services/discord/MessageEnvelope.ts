@@ -69,6 +69,20 @@ export function escapeAttribute(value: string): string {
     .trim();
 }
 
+/**
+ * Escape a URL for a double-quoted attribute WITHOUT entity-encoding `&`.
+ * Signed CDN URLs (`?ex=…&is=…&hm=…`) must survive the model copying them
+ * verbatim into tool arguments — `&amp;` would break the signature.
+ */
+export function escapeUrlAttribute(value: string): string {
+  return value
+    .replace(/"/g, "%22")
+    .replace(/</g, "%3C")
+    .replace(/>/g, "%3E")
+    .replace(/\s+/g, "")
+    .trim();
+}
+
 /** Format epoch milliseconds as ISO-8601 with offset (second precision). */
 export function toIsoTime(epochMs: number): string {
   const zdt = TemporalHelpers.fromMillis(epochMs);
@@ -95,6 +109,12 @@ export interface AttachmentPart {
   dimensions?: string;
   /** File size in MB, already formatted ("1.24"). */
   sizeMb?: string;
+  /**
+   * Direct http(s) link so the agent has a real handle to pass into
+   * image tools (manipulate_image, scan_barcode, …) — it sees attached
+   * images only as pixels otherwise. Omit data: URIs.
+   */
+  url?: string;
 }
 
 export interface StickerPart {
@@ -168,11 +188,16 @@ function attr(name: string, value: string | undefined | null): string {
 }
 
 function renderAttachment(attachment: AttachmentPart): string {
+  const urlAttr =
+    attachment.url && /^https?:\/\//.test(attachment.url)
+      ? ` url="${escapeUrlAttribute(attachment.url)}"`
+      : "";
   const attrs =
     attr("kind", attachment.kind) +
     attr("description", attachment.description) +
     attr("dimensions", attachment.dimensions) +
-    attr("size-mb", attachment.sizeMb);
+    attr("size-mb", attachment.sizeMb) +
+    urlAttr;
   if (attachment.caption) {
     return `<attachment${attrs}>${sanitizeUntrustedText(attachment.caption)}</attachment>`;
   }
@@ -313,6 +338,12 @@ export function buildMessageAnnotation(
 export interface ReferenceImageEntry {
   label: string;
   caption?: string;
+  /**
+   * Direct http(s) link for this image — gives the agent a real handle to
+   * pass into image tools (manipulate_image, scan_barcode, read_url, …).
+   * data: URIs are omitted from the rendered block (too large for text).
+   */
+  url?: string;
 }
 
 /**
@@ -329,7 +360,11 @@ export function buildReferenceImagesBlock(
       const caption = entry.caption
         ? `: ${sanitizeUntrustedText(entry.caption)}`
         : "";
-      return `${index + 1}. ${sanitizeUntrustedText(entry.label)}${caption}`;
+      const url =
+        entry.url && /^https?:\/\//.test(entry.url)
+          ? `\n   URL: ${sanitizeUntrustedText(entry.url)}`
+          : "";
+      return `${index + 1}. ${sanitizeUntrustedText(entry.label)}${caption}${url}`;
     })
     .join("\n");
   return `<attached-reference-images>\n\n${lines}\n\n</attached-reference-images>`;

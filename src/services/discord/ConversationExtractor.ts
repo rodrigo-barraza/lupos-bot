@@ -695,11 +695,15 @@ export async function extractContentFromMessages(
         const botImagesCollection = messagesImagesCollection.get(
           recentMessage.id,
         );
-        const botImageCaptions: string[] = botImagesCollection?.size
-          ? [...botImagesCollection.values()].map(
-              (imageObject) => imageObject.caption,
-            )
-          : [];
+        const botImages: { caption: string; url?: string }[] =
+          botImagesCollection?.size
+            ? [...botImagesCollection.values()].map((imageObject) => ({
+                caption: imageObject.caption,
+                ...(imageObject.url?.startsWith("http")
+                  ? { url: imageObject.url }
+                  : {}),
+              }))
+            : [];
 
         // Uploader-provided description — for the bot's own generated
         // images this is the generate_image prompt set at upload time.
@@ -710,11 +714,12 @@ export async function extractContentFromMessages(
           : undefined;
 
         const annotationAttachments: AttachmentPart[] = [];
-        if (botImageCaptions.length) {
-          botImageCaptions.forEach((caption: string, captionIndex: number) => {
+        if (botImages.length) {
+          botImages.forEach((botImage, captionIndex: number) => {
             annotationAttachments.push({
               kind: "image",
-              caption,
+              caption: botImage.caption,
+              ...(botImage.url ? { url: botImage.url } : {}),
               ...(captionIndex === 0
                 ? { description: imageDescription, dimensions, sizeMb }
                 : {}),
@@ -726,6 +731,7 @@ export async function extractContentFromMessages(
             caption: imageDescription,
             dimensions,
             sizeMb,
+            ...(imageAttached.url ? { url: imageAttached.url } : {}),
           });
         }
 
@@ -950,7 +956,12 @@ export async function collectMessageBodyParts(
   const messageImageUrls: string[] = [];
   if (imagesCollection?.size) {
     for (const [, image] of imagesCollection.entries()) {
-      attachments.push({ kind: "image", caption: image.caption });
+      attachments.push({
+        kind: "image",
+        caption: image.caption,
+        // http(s) only — data: URIs are pixels-only context, no text handle
+        ...(image.url?.startsWith("http") ? { url: image.url } : {}),
+      });
       messageImageUrls.push(image.url);
     }
   }

@@ -200,6 +200,21 @@ describe("buildDiscordMessageEnvelope", () => {
     );
   });
 
+  it("renders attachment URLs raw (no &amp;) and drops data: URIs", () => {
+    const cdnUrl =
+      "https://cdn.discordapp.com/attachments/1/2/cow.png?ex=a&is=b&hm=c";
+    const envelope = buildDiscordMessageEnvelope({
+      ...base,
+      attachments: [
+        { kind: "image", caption: "A cow", url: cdnUrl },
+        { kind: "image", caption: "A frame", url: "data:image/png;base64,AA" },
+      ],
+    });
+    expect(envelope).toContain(`url="${cdnUrl}"`);
+    expect(envelope).not.toContain("&amp;is");
+    expect(envelope).not.toContain("base64");
+  });
+
   it("defuses structure-forging injection attempts in user content", () => {
     const envelope = buildDiscordMessageEnvelope({
       ...base,
@@ -297,5 +312,26 @@ describe("buildReferenceImagesBlock", () => {
         `2. Attached image from message\n\n` +
         `</attached-reference-images>`,
     );
+  });
+
+  it("includes http(s) URLs as tool handles but omits data: URIs", () => {
+    const cdnUrl =
+      "https://cdn.discordapp.com/attachments/1/2/cow.png?ex=a&is=b&hm=c";
+    const block = buildReferenceImagesBlock([
+      {
+        label: "THE IMAGE BEING DISCUSSED",
+        caption: "A cow with a crown",
+        url: cdnUrl,
+      },
+      {
+        label: "First frame",
+        caption: "A gif frame",
+        url: "data:image/png;base64,AAAA",
+      },
+    ]);
+    // Raw URL, un-entity-encoded, so the model can copy it into tool args
+    expect(block).toContain(`\n   URL: ${cdnUrl}\n`);
+    expect(block).not.toContain("base64");
+    expect(block).not.toContain("&amp;");
   });
 });
