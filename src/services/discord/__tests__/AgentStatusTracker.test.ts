@@ -25,13 +25,14 @@ describe("AgentStatusTracker", () => {
     expect(pushed).toEqual(["👀 Reading rodrigo's message…"]);
   });
 
-  it("shows thinking with a live elapsed counter on ticks", () => {
+  it("shows a steady thinking status with no ticking counter", () => {
     const tracker = makeTracker();
     tracker.handleEvent({ type: "thinking", content: "hmm" });
     vi.advanceTimersByTime(8100);
-    expect(pushed.some((s) => s.startsWith("🤔 Thinking… ("))).toBe(true);
-    const last = pushed[pushed.length - 1];
-    expect(last).toMatch(/🤔 Thinking… \(\d+s\)/);
+    expect(pushed).toContain("🤔 Thinking…");
+    // The identical re-render dedupes — no counter churn on ticks.
+    expect(pushed.filter((s) => s.startsWith("🤔")).length).toBe(1);
+    expect(pushed.some((s) => s.includes("s)"))).toBe(false);
   });
 
   it("announces thought duration when thinking ends, then shows the tool", () => {
@@ -43,15 +44,26 @@ describe("AgentStatusTracker", () => {
       status: "calling",
       tool: { name: "get_weather" },
     });
-    // Announcement is held for the next open window (tick), then live
-    // phase rendering resumes on the tick after.
-    vi.advanceTimersByTime(4000);
+    // The steady thinking status left the throttle window open, so the
+    // announcement pushes immediately; the tool renders on the next tick.
     expect(pushed[pushed.length - 1]).toBe("💭 Thought for 8 seconds");
     vi.advanceTimersByTime(4000);
-    expect(pushed[pushed.length - 1]).toBe("🌦️ Checking the sky… (8s)");
+    expect(pushed[pushed.length - 1]).toBe("🌦️ Checking the sky…");
   });
 
-  it("uses the generic label for unmapped tools", () => {
+  it("prefers prism's toolLabel for unmapped tools", () => {
+    const tracker = makeTracker();
+    tracker.handleEvent({
+      type: "tool_execution",
+      status: "calling",
+      tool: { name: "search_spotify" },
+      toolLabel: 'Searching Spotify for "phonk"',
+    });
+    vi.advanceTimersByTime(4000);
+    expect(pushed).toContain('🔧 Searching Spotify for "phonk"…');
+  });
+
+  it("falls back to a humanized name for unmapped tools without a label", () => {
     const tracker = makeTracker();
     tracker.handleEvent({
       type: "tool_execution",
@@ -59,7 +71,26 @@ describe("AgentStatusTracker", () => {
       tool: { name: "get_moon_phase" },
     });
     vi.advanceTimersByTime(4000);
-    expect(pushed).toContain("🔧 Using get_moon_phase…");
+    expect(pushed).toContain("🔧 Using Moon Phase…");
+  });
+
+  it("announces tool completion with the completed-tense label", () => {
+    const tracker = makeTracker();
+    tracker.handleEvent({
+      type: "tool_execution",
+      status: "calling",
+      tool: { name: "search_spotify" },
+      toolLabel: 'Searching Spotify for "phonk"',
+    });
+    vi.advanceTimersByTime(4100);
+    tracker.handleEvent({
+      type: "tool_execution",
+      status: "done",
+      tool: { name: "search_spotify", durationMilliseconds: 3200 },
+      toolLabel: 'Searched Spotify for "phonk"',
+    });
+    vi.advanceTimersByTime(4000);
+    expect(pushed).toContain('✅ Searched Spotify for "phonk" (3.2s)');
   });
 
   it("announces discovered tools with names from auto_enabled", () => {
@@ -97,7 +128,7 @@ describe("AgentStatusTracker", () => {
       tool: { name: "search_web" },
     });
     vi.advanceTimersByTime(4000);
-    expect(pushed).toContain("⚠️ search_web failed, improvising…");
+    expect(pushed).toContain("⚠️ Web failed, improvising…");
   });
 
   it("switches to writing when reply chunks stream", () => {
@@ -167,7 +198,7 @@ describe("AgentStatusTracker", () => {
     expect(pushed.length).toBe(1);
     vi.advanceTimersByTime(4000);
     expect(pushed.length).toBe(2);
-    expect(pushed[1]).toBe("🔧 Using tool_9…");
+    expect(pushed[1]).toBe("🔧 Using Tool 9…");
   });
 
   it("never lets a throwing push sink break event handling", () => {

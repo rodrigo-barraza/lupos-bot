@@ -46,6 +46,12 @@ export interface PrismSseEvent {
     result?: unknown;
     durationMilliseconds?: number;
   };
+  /**
+   * Human-readable, argument-aware label stamped by prism-service on
+   * tool_execution frames — "Searching Spotify for \"phonk\"" (calling)
+   * / "Searched Spotify for \"phonk\"" (done). Prefer over tool.name.
+   */
+  toolLabel?: string;
   [key: string]: unknown;
 }
 

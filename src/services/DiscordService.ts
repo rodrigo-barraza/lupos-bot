@@ -134,7 +134,7 @@ async function replyMessage(
   let combinedChannelInformation: string | null = null;
 
   // Live presence statuses for the whole reply lifecycle — "👀 Reading…",
-  // "🤔 Thinking… (8s)", tool-by-tool progress, then a recap that yields
+  // "🤔 Thinking…", tool-by-tool progress, then a recap that yields
   // to his current mood after a few seconds.
   const statusTracker = new AgentStatusTracker({
     pushStatus: (status) =>
@@ -985,18 +985,23 @@ URL: ${utilities.getDiscordMessageUrl((message as Message).guild?.id || "", (mes
     return;
   }
 
-  // START TYPING
-  if (!DiscordState.typingIntervals[(message as Message).channel.id]) {
-    try {
-      DiscordState.typingIntervals[(message as Message).channel.id] =
-        await DiscordUtilityService.startTypingInterval(
-          (message as Message).channel as TextChannel,
-        );
-    } catch (error: unknown) {
-      console.warn(
-        `⚠️ [processMessage] Could not start typing: ${(error as Error).message}`,
-      );
+  // START TYPING — always restart: an existing entry may hold a dead
+  // interval (sendTyping failures self-clear the timer without deleting
+  // the entry), and restarting a healthy one is harmless.
+  try {
+    const existingTypingInterval =
+      DiscordState.typingIntervals[(message as Message).channel.id];
+    if (existingTypingInterval) {
+      DiscordUtilityService.clearTypingInterval(existingTypingInterval);
     }
+    DiscordState.typingIntervals[(message as Message).channel.id] =
+      await DiscordUtilityService.startTypingInterval(
+        (message as Message).channel as TextChannel,
+      );
+  } catch (error: unknown) {
+    console.warn(
+      `⚠️ [processMessage] Could not start typing: ${(error as Error).message}`,
+    );
   }
 
   // LUPOS CHATTER ROLE

@@ -1,13 +1,15 @@
 // AgentStatusTracker — turns the live /agent SSE event stream into Discord
-// presence statuses ("🤔 Thinking… (8s)", "✂️ Clipping a video…", …) so the
+// presence statuses ("🤔 Thinking…", "✂️ Clipping a video…", …) so the
 // community can watch Lupos work instead of a static "Replying to X...".
 //
 // Presence pushes ride the gateway's rate-limited presence-update command,
 // so updates are throttled to one per THROTTLE_MS with latest-state-wins: a
-// background tick re-renders the current phase (with a live elapsed
-// counter) and completed-phase announcements ("💭 Thought for 8 seconds")
-// stick until the next event supersedes them.
+// background tick flushes held completed-phase announcements ("💭 Thought
+// for 8 seconds"), which stick until the next event supersedes them. Live
+// phases render without elapsed counters — a ticking "(8s)" churns the
+// presence for no information.
 
+import { humanizeToolName } from "@rodrigo-barraza/utilities-library";
 import type { PrismSseEvent } from "#root/types/prism.js";
 
 const THROTTLE_MS = 4000;
@@ -50,7 +52,7 @@ const TOOL_STATUS_LABELS: Record<string, string> = {
 type Phase =
   | { kind: "reading"; startedAt: number }
   | { kind: "thinking"; startedAt: number }
-  | { kind: "tool"; startedAt: number; toolName: string }
+  | { kind: "tool"; startedAt: number; toolName: string; toolLabel?: string }
   | { kind: "writing"; startedAt: number };
 
 export class AgentStatusTracker {
@@ -106,8 +108,8 @@ export class AgentStatusTracker {
     this.phase = { kind: "reading", startedAt: this.startedAt };
     this.push(this.render(), true);
     // Every throttle window: flush a held announcement if one is waiting,
-    // otherwise re-render the current phase so long phases get a live
-    // elapsed counter.
+    // otherwise re-render the current phase (dedup in push() makes the
+    // re-render a no-op unless an announcement was showing over it).
     this.tickTimer = setInterval(() => this.tick(), THROTTLE_MS);
     this.tickTimer.unref?.();
   }
@@ -176,7 +178,12 @@ export class AgentStatusTracker {
     if (event.status === "calling") {
       this.closeThinkingRound();
       this.toolCallCount += 1;
-      this.setPhase({ kind: "tool", startedAt: Date.now(), toolName });
+      this.setPhase({
+        kind: "tool",
+        startedAt: Date.now(),
+        toolName,
+        toolLabel: event.toolLabel,
+      });
       return;
     }
 
@@ -186,7 +193,7 @@ export class AgentStatusTracker {
       : null;
 
     if (event.status === "error") {
-      this.announce(`⚠️ ${toolName} failed, improvising…`);
+      this.announce(`⚠️ ${humanizeToolName(toolName)} failed, improvising…`);
       return;
     }
     if (DISCOVERY_TOOLS.has(toolName)) {
@@ -202,7 +209,10 @@ export class AgentStatusTracker {
       );
       return;
     }
-    this.announce(`✅ ${toolName} took ${seconds ?? "?"}s`);
+    // "✅ Searched Spotify for "phonk" (3.2s)" — completed-tense label from
+    // prism, humanized name when the frame predates toolLabel stamping.
+    const label = event.toolLabel || `${humanizeToolName(toolName)} done`;
+    this.announce(`✅ ${label}${seconds ? ` (${seconds}s)` : ""}`);
   }
 
   /** Fold a finished thinking round into the running total. */
@@ -227,15 +237,19 @@ export class AgentStatusTracker {
       case "reading":
         return `👀 Reading ${this.username}'s message…`;
       case "thinking":
-        return `🤔 Thinking… (${this.elapsedSeconds(this.phase.startedAt)}s)`;
+        return "🤔 Thinking…";
       case "tool": {
-        const label =
-          TOOL_STATUS_LABELS[this.phase.toolName] ||
-          (DISCOVERY_TOOLS.has(this.phase.toolName)
-            ? "🧰 Discovering tools…"
-            : `🔧 Using ${this.phase.toolName}…`);
-        const elapsed = this.elapsedSeconds(this.phase.startedAt);
-        return elapsed >= 5 ? `${label} (${elapsed}s)` : label;
+        if (TOOL_STATUS_LABELS[this.phase.toolName]) {
+          return TOOL_STATUS_LABELS[this.phase.toolName];
+        }
+        if (DISCOVERY_TOOLS.has(this.phase.toolName)) {
+          return "🧰 Discovering tools…";
+        }
+        // Prism's argument-aware label ("Searching Spotify for "phonk"")
+        // beats anything we can derive from the raw snake_case name.
+        return this.phase.toolLabel
+          ? `🔧 ${this.phase.toolLabel}…`
+          : `🔧 Using ${humanizeToolName(this.phase.toolName)}…`;
       }
       case "writing":
         return "✍️ Writing a reply…";
@@ -286,10 +300,6 @@ export class AgentStatusTracker {
       this.push(idleStatus, true);
     }, IDLE_STATUS_DELAY_MS);
     timer.unref?.();
-  }
-
-  private elapsedSeconds(since: number): number {
-    return Math.round((Date.now() - since) / 1000);
   }
 
   private push(status: string, force = false): void {
