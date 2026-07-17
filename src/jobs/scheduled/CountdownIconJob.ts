@@ -6,7 +6,7 @@ import {
   overlayCountdownNumber,
   calculateDaysUntilTarget,
 } from "#root/utilities/CountdownIconOverlay.js";
-import type { Client } from "discord.js";
+import type { Client, Guild } from "discord.js";
 
 const { consoleLog } = utilities;
 
@@ -14,16 +14,15 @@ const BASE_ICON_DIR = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
   "../../../images/countdown",
 );
-const BASE_ICON_FILENAME = "base-icon.gif";
-
-// Fallback URL — used to auto-download the base icon on first boot
-const BASE_ICON_FALLBACK_URL =
-  "https://cdn.discordapp.com/attachments/634583290984136716/1524160419399467168/whitemane-icon-fire-ashes-final.gif";
 
 interface CountdownIconJobConfiguration {
   client: Client;
   guildId: string;
   targetDate: Date;
+  /** Pristine (overlay-free) base icon filename inside images/countdown/ */
+  baseIconFilename: string;
+  /** Pinned URL to auto-download the pristine base icon if missing locally */
+  baseIconFallbackUrl?: string;
 }
 
 // ─── Helpers ────────────────────────────────────────────────────
@@ -45,65 +44,91 @@ function getMillisecondsUntilNextMidnight(): number {
   return nextMidnight.getTime() - now.getTime();
 }
 
-/**
- * Ensure the base icon exists locally. Downloads from the fallback
- * URL if the file is missing (e.g. fresh deployment before images
- * were copied in).
- */
-async function ensureBaseIconExists(): Promise<string | null> {
-  const baseIconPath = path.join(BASE_ICON_DIR, BASE_ICON_FILENAME);
-
-  if (fs.existsSync(baseIconPath)) {
-    return baseIconPath;
-  }
-
-  // Auto-download fallback
-  consoleLog(
-    "=",
-    `[CountdownIconJob] Base icon not found locally — downloading…`,
-  );
-
+async function downloadToFile(
+  url: string,
+  destinationPath: string,
+  logPrefix: string,
+): Promise<string | null> {
   try {
     if (!fs.existsSync(BASE_ICON_DIR)) {
       fs.mkdirSync(BASE_ICON_DIR, { recursive: true });
     }
 
-    const response = await fetch(BASE_ICON_FALLBACK_URL);
+    const response = await fetch(url);
     if (!response.ok) {
       consoleLog(
         "!",
-        `[CountdownIconJob] Failed to download base icon: HTTP ${response.status}`,
+        `${logPrefix} Failed to download base icon: HTTP ${response.status}`,
       );
       return null;
     }
 
     const imageBuffer = Buffer.from(await response.arrayBuffer());
-    fs.writeFileSync(baseIconPath, imageBuffer);
+    fs.writeFileSync(destinationPath, imageBuffer);
     consoleLog(
       "=",
-      `[CountdownIconJob] ✅ Base icon downloaded (${(imageBuffer.length / 1024).toFixed(0)} KB)`,
+      `${logPrefix} ✅ Base icon downloaded (${(imageBuffer.length / 1024).toFixed(0)} KB)`,
     );
-    return baseIconPath;
+    return destinationPath;
   } catch (error: unknown) {
     consoleLog(
       "!",
-      `[CountdownIconJob] Download error: ${(error as Error).message}`,
+      `${logPrefix} Download error: ${(error as Error).message}`,
     );
     return null;
   }
 }
 
+/**
+ * Ensure the pristine base icon exists locally. Downloads from the
+ * pinned fallback URL if configured, otherwise falls back to the
+ * guild's current Discord icon (only safe before the first overlay
+ * has been applied — the local cache prevents compounding badges).
+ */
+async function ensureBaseIconExists(
+  { baseIconFilename, baseIconFallbackUrl }: CountdownIconJobConfiguration,
+  guild: Guild,
+  logPrefix: string,
+): Promise<string | null> {
+  const baseIconPath = path.join(BASE_ICON_DIR, baseIconFilename);
+
+  if (fs.existsSync(baseIconPath)) {
+    return baseIconPath;
+  }
+
+  consoleLog(
+    "=",
+    `${logPrefix} Base icon ${baseIconFilename} not found locally — downloading…`,
+  );
+
+  const downloadUrl =
+    baseIconFallbackUrl ??
+    guild.iconURL({ size: 512, forceStatic: false }) ??
+    undefined;
+
+  if (!downloadUrl) {
+    consoleLog(
+      "!",
+      `${logPrefix} No fallback URL and guild has no icon — cannot build base`,
+    );
+    return null;
+  }
+
+  return downloadToFile(downloadUrl, baseIconPath, logPrefix);
+}
+
 // ─── Core Update ────────────────────────────────────────────────
 
-async function updateCountdownIcon({
-  client,
-  guildId,
-  targetDate,
-}: CountdownIconJobConfiguration) {
+async function updateCountdownIcon(
+  jobConfiguration: CountdownIconJobConfiguration,
+) {
+  const { client, guildId, targetDate } = jobConfiguration;
+  const logPrefix = `[CountdownIconJob:${guildId}]`;
+
   try {
     const guild = client.guilds.cache.get(guildId);
     if (!guild) {
-      consoleLog("!", `[CountdownIconJob] Guild ${guildId} not found in cache`);
+      consoleLog("!", `${logPrefix} Guild not found in cache`);
       return;
     }
 
@@ -113,18 +138,19 @@ async function updateCountdownIcon({
     if (daysRemaining <= 0) {
       consoleLog(
         "=",
-        `[CountdownIconJob] 📅 Target date ${targetDateLabel} reached — no overlay needed`,
+        `${logPrefix} 📅 Target date ${targetDateLabel} reached — no overlay needed`,
       );
       return;
     }
 
     // Ensure we have the pristine base icon
-    const baseIconPath = await ensureBaseIconExists();
+    const baseIconPath = await ensureBaseIconExists(
+      jobConfiguration,
+      guild,
+      logPrefix,
+    );
     if (!baseIconPath) {
-      consoleLog(
-        "!",
-        "[CountdownIconJob] Cannot proceed without base icon",
-      );
+      consoleLog("!", `${logPrefix} Cannot proceed without base icon`);
       return;
     }
 
@@ -132,7 +158,7 @@ async function updateCountdownIcon({
 
     consoleLog(
       "=",
-      `[CountdownIconJob] 📅 ${daysRemaining} days until ${targetDateLabel} — generating overlay…`,
+      `${logPrefix} 📅 ${daysRemaining} days until ${targetDateLabel} — generating overlay…`,
     );
 
     // Composite the countdown number onto the pristine base
@@ -141,10 +167,15 @@ async function updateCountdownIcon({
       countdownNumber: daysRemaining,
     });
 
-    // Save a copy for debugging / history
+    // Save a copy for debugging / history (extension via magic bytes —
+    // static sources come back as PNG, animated as GIF)
+    const overlaidExtension =
+      overlaidBuffer.subarray(0, 3).toString("ascii") === "GIF"
+        ? "gif"
+        : "png";
     const generatedPath = path.join(
       BASE_ICON_DIR,
-      `countdown-${daysRemaining}.gif`,
+      `countdown-${guildId}-${daysRemaining}.${overlaidExtension}`,
     );
     fs.writeFileSync(generatedPath, overlaidBuffer);
 
@@ -156,13 +187,10 @@ async function updateCountdownIcon({
 
     consoleLog(
       "=",
-      `[CountdownIconJob] ✅ Guild icon updated → ${daysRemaining} days remaining`,
+      `${logPrefix} ✅ Guild icon updated → ${daysRemaining} days remaining`,
     );
   } catch (error: unknown) {
-    consoleLog(
-      "!",
-      `[CountdownIconJob] Error: ${(error as Error).message}`,
-    );
+    consoleLog("!", `${logPrefix} Error: ${(error as Error).message}`);
     console.error(error);
   }
 }
@@ -180,7 +208,7 @@ function scheduleNextMidnightUpdate(
 
   consoleLog(
     "=",
-    `[CountdownIconJob] ⏰ Next update in ${hoursUntilMidnight}h (midnight)`,
+    `[CountdownIconJob:${jobConfiguration.guildId}] ⏰ Next update in ${hoursUntilMidnight}h (midnight)`,
   );
 
   setTimeout(async () => {
@@ -197,7 +225,7 @@ const CountdownIconJob = {
 
     consoleLog(
       "=",
-      `[CountdownIconJob] 📅 Starting countdown to ${targetDateLabel} for guild ${jobConfiguration.guildId}`,
+      `[CountdownIconJob:${jobConfiguration.guildId}] 📅 Starting countdown to ${targetDateLabel}`,
     );
 
     // Execute immediately on startup, then schedule midnight updates

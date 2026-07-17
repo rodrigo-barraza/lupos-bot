@@ -668,15 +668,38 @@ async function luposOnReady(
     }
   }
 
-  // Countdown icon overlay — runs in ALL modes (daily countdown on guild icon)
-  if (config.GUILD_ID_PRIMARY && config.COUNTDOWN_ICON_TARGET_DATE) {
+  // Countdown icon overlays — run in ALL modes (daily countdown on guild icon)
+  const countdownIconDefinitions = [
+    {
+      guildId: config.GUILD_ID_PRIMARY,
+      targetDateString: config.COUNTDOWN_ICON_TARGET_DATE,
+      baseIconFilename: "base-icon.gif",
+      baseIconFallbackUrl:
+        "https://cdn.discordapp.com/attachments/634583290984136716/1524160419399467168/whitemane-icon-fire-ashes-final.gif",
+    },
+    {
+      guildId: config.GUILD_ID_CLOCK_CREW,
+      targetDateString: config.COUNTDOWN_ICON_TARGET_DATE_CLOCK_CREW,
+      baseIconFilename: "clock-crew-base-icon.png",
+    },
+  ];
+  const activeCountdownDefinitions = countdownIconDefinitions.filter(
+    (definition) => definition.guildId && definition.targetDateString,
+  );
+  if (activeCountdownDefinitions.length > 0) {
     const { parseTargetDateString } =
       await import("#root/utilities/CountdownIconOverlay.js");
-    CountdownIconJob.startJob({
-      client,
-      guildId: config.GUILD_ID_PRIMARY,
-      targetDate: parseTargetDateString(config.COUNTDOWN_ICON_TARGET_DATE),
-    });
+    for (const definition of activeCountdownDefinitions) {
+      CountdownIconJob.startJob({
+        client,
+        guildId: definition.guildId as string,
+        targetDate: parseTargetDateString(
+          definition.targetDateString as string,
+        ),
+        baseIconFilename: definition.baseIconFilename,
+        baseIconFallbackUrl: definition.baseIconFallbackUrl,
+      });
+    }
   }
 }
 
