@@ -117,6 +117,14 @@ async function ensureBaseIconExists(
   return downloadToFile(downloadUrl, baseIconPath, logPrefix);
 }
 
+function detectImageExtension(imageBuffer: Buffer): string {
+  if (imageBuffer.subarray(0, 3).toString("ascii") === "GIF") return "gif";
+  if (imageBuffer.subarray(1, 4).toString("ascii") === "PNG") return "png";
+  if (imageBuffer.subarray(8, 12).toString("ascii") === "WEBP") return "webp";
+  if (imageBuffer[0] === 0xff && imageBuffer[1] === 0xd8) return "jpg";
+  return "png";
+}
+
 // ─── Core Update ────────────────────────────────────────────────
 
 async function updateCountdownIcon(
@@ -167,12 +175,9 @@ async function updateCountdownIcon(
       countdownNumber: daysRemaining,
     });
 
-    // Save a copy for debugging / history (extension via magic bytes —
-    // static sources come back as PNG, animated as GIF)
-    const overlaidExtension =
-      overlaidBuffer.subarray(0, 3).toString("ascii") === "GIF"
-        ? "gif"
-        : "png";
+    // Save a copy for debugging / history (output format mirrors the
+    // base icon's format — sniff magic bytes for the right extension)
+    const overlaidExtension = detectImageExtension(overlaidBuffer);
     const generatedPath = path.join(
       BASE_ICON_DIR,
       `countdown-${guildId}-${daysRemaining}.${overlaidExtension}`,
