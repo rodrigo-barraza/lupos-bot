@@ -735,6 +735,26 @@ export async function extractContentFromMessages(
           });
         }
 
+        // The bot's own video/audio uploads (trim_video clips, audio
+        // remixes) — URL handles so follow-up edits can chain on them.
+        for (const attachment of recentMessage.attachments?.values() ?? []) {
+          const mediaKind = attachment.contentType?.startsWith("video/")
+            ? "video"
+            : attachment.contentType?.startsWith("audio/")
+              ? "audio"
+              : null;
+          if (!mediaKind) continue;
+          const mediaUrl = attachment.proxyURL || attachment.url;
+          annotationAttachments.push({
+            kind: mediaKind,
+            description: attachment.name || undefined,
+            ...(attachment.size
+              ? { sizeMb: (attachment.size / 1024 / 1024).toFixed(2) }
+              : {}),
+            ...(mediaUrl?.startsWith("http") ? { url: mediaUrl } : {}),
+          });
+        }
+
         const annotationEmbeds: EmbedPart[] = (recentMessage.embeds ?? []).map(
           (embed: import("discord.js").Embed) => ({
             title: embed.title || undefined,
@@ -916,6 +936,8 @@ export async function collectStickerPart(
     name: sticker.name,
     description: sticker.description || undefined,
     caption: images[0] || undefined,
+    // Handle for image tools — Discord sticker CDN URLs are plain http(s)
+    ...(sticker.url?.startsWith("http") ? { url: sticker.url } : {}),
   };
 }
 
@@ -964,6 +986,29 @@ export async function collectMessageBodyParts(
       });
       messageImageUrls.push(image.url);
     }
+  }
+
+  // Video/audio attachments get envelope parts with URL handles so the
+  // model can reach them with tools (trim_video, remix_audio, …) — without
+  // this, media in non-triggering messages is invisible in the transcript.
+  // Voice messages keep their <transcription> for content; the audio part
+  // adds the handle. Non-media files stay unhandled for now.
+  for (const attachment of message.attachments?.values() ?? []) {
+    const mediaKind = attachment.contentType?.startsWith("video/")
+      ? "video"
+      : attachment.contentType?.startsWith("audio/")
+        ? "audio"
+        : null;
+    if (!mediaKind) continue;
+    const mediaUrl = attachment.proxyURL || attachment.url;
+    attachments.push({
+      kind: mediaKind,
+      description: attachment.name || undefined,
+      ...(attachment.size
+        ? { sizeMb: (attachment.size / 1024 / 1024).toFixed(2) }
+        : {}),
+      ...(mediaUrl?.startsWith("http") ? { url: mediaUrl } : {}),
+    });
   }
 
   const sticker = await collectStickerPart(message, localMongo);

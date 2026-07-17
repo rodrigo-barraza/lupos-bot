@@ -1245,6 +1245,10 @@ export async function buildAndGenerateReply({
     // url → caption for attached/replied reference images (filled by the
     // caption step below; avatar captions live in captionsMap instead).
     const referenceCaptionsMap = new Map<string, string>();
+    // data:-URI entry → its source http(s) URL, so the reference block can
+    // still offer a copyable tool handle when the pushed image is an
+    // extracted frame (e.g. GIF embeds) rather than a fetchable URL.
+    const referenceHandleMap = new Map<string, string>();
     const mentionsImageUrls: Record<string, unknown>[] = [];
     // This creates a shallow copy, which is no different than what we had before, can be changed back.
     let edittedMessageCleanContent = "";
@@ -1399,6 +1403,9 @@ export async function buildAndGenerateReply({
                         `${repliedToImageLabel} (embedded, first frame)`,
                       );
                       imageUrls.push(firstFrameDataUrl);
+                      // The frame is pixels-only; the source GIF/video URL
+                      // is the copyable handle for tools.
+                      referenceHandleMap.set(firstFrameDataUrl, videoUrl);
                       foundImage = true;
                       console.log(
                         `🖼️ [DiscordService] Extracted first frame from GIF embed for reference`,
@@ -1451,7 +1458,7 @@ export async function buildAndGenerateReply({
         (imageUrl: string, index: number) => ({
           label: imageLabels[index] || `Attachment ${index + 1}`,
           caption: referenceCaptionsMap.get(imageUrl),
-          url: imageUrl,
+          url: referenceHandleMap.get(imageUrl) || imageUrl,
         }),
       );
       const referenceBlock = buildReferenceImagesBlock(referenceEntries);
@@ -1720,7 +1727,7 @@ export async function buildAndGenerateReply({
                 referenceCaptionsMap.get(imageUrls[i]) ||
                 captionsMap?.get(imageUrls[i]),
               // Real handle for image tools; data: URIs filtered by builder
-              url: imageUrls[i],
+              url: referenceHandleMap.get(imageUrls[i]) || imageUrls[i],
             })),
           );
           if (attachedBlock) {

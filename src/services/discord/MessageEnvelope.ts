@@ -121,6 +121,8 @@ export interface StickerPart {
   name: string;
   description?: string;
   caption?: string;
+  /** Direct http(s) link — handle for image tools (redraw, manipulate). */
+  url?: string;
 }
 
 export interface EmbedPart {
@@ -205,7 +207,14 @@ function renderAttachment(attachment: AttachmentPart): string {
 }
 
 function renderSticker(sticker: StickerPart): string {
-  const attrs = attr("name", sticker.name) + attr("description", sticker.description);
+  const urlAttr =
+    sticker.url && /^https?:\/\//.test(sticker.url)
+      ? ` url="${escapeUrlAttribute(sticker.url)}"`
+      : "";
+  const attrs =
+    attr("name", sticker.name) +
+    attr("description", sticker.description) +
+    urlAttr;
   if (sticker.caption) {
     return `<sticker${attrs}>${sanitizeUntrustedText(sticker.caption)}</sticker>`;
   }
@@ -217,7 +226,13 @@ function renderReactions(reactions: ReactionsPart): string {
 }
 
 export function renderEmbed(embed: EmbedPart): string {
-  const attrs = attr("title", embed.title) + attr("url", embed.url);
+  // url uses the raw-& escape: signed/parameterized URLs must survive the
+  // model copying them into tool arguments (`&amp;` breaks signatures).
+  const urlAttr =
+    embed.url && /^https?:\/\//.test(embed.url)
+      ? ` url="${escapeUrlAttribute(embed.url)}"`
+      : attr("url", embed.url);
+  const attrs = attr("title", embed.title) + urlAttr;
   const bodyLines: string[] = [];
   if (embed.description) bodyLines.push(sanitizeUntrustedText(embed.description));
   for (const field of embed.fields ?? []) {
