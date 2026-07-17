@@ -56,11 +56,15 @@ function buildNumberOverlaySvg(
 // ─── GIF Overlay ────────────────────────────────────────────────
 
 /**
- * Composites a countdown number onto every frame of an animated GIF.
+ * Composites a countdown number onto every frame of the source image.
  *
  * Sharp loads animated GIFs as a single tall image (all frames stacked
  * vertically). The SVG overlay is sized to a single frame and tiled
  * vertically so every frame receives the same number badge.
+ *
+ * Animated sources are re-encoded as GIF; static sources are emitted
+ * as PNG — Discord rejects GIF guild icons on guilds without the
+ * ANIMATED_ICON feature, and PNG keeps full 8-bit alpha.
  */
 async function overlayCountdownNumber({
   sourceImageBuffer,
@@ -79,28 +83,29 @@ async function overlayCountdownNumber({
     countdownNumber,
   );
 
+  const composited = image.composite([
+    {
+      input: svgOverlay,
+      tile: true,
+      gravity: "northwest",
+    },
+  ]);
+
+  if (frameCount <= 1) {
+    return composited.png().toBuffer();
+  }
+
   // Preserve animation metadata through the composite pipeline.
   // Sharp does not implicitly carry frame delays or loop count
   // through processing — they must be forwarded explicitly.
-  const gifOutputOptions: sharp.GifOptions = {};
-
-  if (frameCount > 1) {
-    if (metadata.delay && metadata.delay.length > 0) {
-      gifOutputOptions.delay = metadata.delay;
-    }
-    gifOutputOptions.loop = metadata.loop ?? 0;
+  const gifOutputOptions: sharp.GifOptions = {
+    loop: metadata.loop ?? 0,
+  };
+  if (metadata.delay && metadata.delay.length > 0) {
+    gifOutputOptions.delay = metadata.delay;
   }
 
-  return image
-    .composite([
-      {
-        input: svgOverlay,
-        tile: true,
-        gravity: "northwest",
-      },
-    ])
-    .gif(gifOutputOptions)
-    .toBuffer();
+  return composited.gif(gifOutputOptions).toBuffer();
 }
 
 // ─── Date Helpers ───────────────────────────────────────────────

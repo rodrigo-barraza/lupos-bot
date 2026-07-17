@@ -735,15 +735,15 @@ export async function extractContentFromMessages(
           });
         }
 
-        // The bot's own video/audio uploads (trim_video clips, audio
+        // The bot's own video/audio/file uploads (trim_video clips, audio
         // remixes) — URL handles so follow-up edits can chain on them.
         for (const attachment of recentMessage.attachments?.values() ?? []) {
+          if (attachment.contentType?.startsWith("image/")) continue;
           const mediaKind = attachment.contentType?.startsWith("video/")
             ? "video"
             : attachment.contentType?.startsWith("audio/")
               ? "audio"
-              : null;
-          if (!mediaKind) continue;
+              : "file";
           const mediaUrl = attachment.proxyURL || attachment.url;
           annotationAttachments.push({
             kind: mediaKind,
@@ -988,18 +988,19 @@ export async function collectMessageBodyParts(
     }
   }
 
-  // Video/audio attachments get envelope parts with URL handles so the
-  // model can reach them with tools (trim_video, remix_audio, …) — without
-  // this, media in non-triggering messages is invisible in the transcript.
-  // Voice messages keep their <transcription> for content; the audio part
-  // adds the handle. Non-media files stay unhandled for now.
+  // Video/audio/file attachments get envelope parts with URL handles so
+  // the model can reach them with tools (trim_video, remix_audio, read_url
+  // for text files, …) — without this, non-image media is invisible in the
+  // transcript. Images are covered by the captioned collection above;
+  // voice messages keep their <transcription> for content, the audio part
+  // adds the handle.
   for (const attachment of message.attachments?.values() ?? []) {
+    if (attachment.contentType?.startsWith("image/")) continue;
     const mediaKind = attachment.contentType?.startsWith("video/")
       ? "video"
       : attachment.contentType?.startsWith("audio/")
         ? "audio"
-        : null;
-    if (!mediaKind) continue;
+        : "file";
     const mediaUrl = attachment.proxyURL || attachment.url;
     attachments.push({
       kind: mediaKind,

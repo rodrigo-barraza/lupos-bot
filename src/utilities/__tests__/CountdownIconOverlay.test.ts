@@ -126,7 +126,7 @@ describe("CountdownIconOverlay", () => {
   // ─── GIF Overlay (Integration) ────────────────────────────────
 
   describe("overlayCountdownNumber", () => {
-    it("produces a valid GIF buffer from a static image", async () => {
+    it("produces a PNG buffer from a static image (Discord rejects GIF icons on non-boosted guilds)", async () => {
       // Create a minimal 64×64 red test image as GIF
       const testGifBuffer = await sharp({
         create: {
@@ -147,9 +147,32 @@ describe("CountdownIconOverlay", () => {
       expect(result).toBeInstanceOf(Buffer);
       expect(result.length).toBeGreaterThan(0);
 
-      // Verify it's a valid GIF (magic bytes: GIF89a or GIF87a)
-      const gifMagic = result.subarray(0, 3).toString("ascii");
-      expect(gifMagic).toBe("GIF");
+      // Single-frame sources are emitted as PNG (magic: \x89PNG)
+      expect(result.subarray(1, 4).toString("ascii")).toBe("PNG");
+    });
+
+    it("produces a PNG buffer from a static PNG source (guild-icon base case)", async () => {
+      const testPngBuffer = await sharp({
+        create: {
+          width: 128,
+          height: 128,
+          channels: 4,
+          background: { r: 200, g: 180, b: 80, alpha: 1 },
+        },
+      })
+        .png()
+        .toBuffer();
+
+      const result = await overlayCountdownNumber({
+        sourceImageBuffer: testPngBuffer,
+        countdownNumber: 29,
+      });
+
+      expect(result.subarray(1, 4).toString("ascii")).toBe("PNG");
+
+      const outputMetadata = await sharp(result).metadata();
+      expect(outputMetadata.width).toBe(128);
+      expect(outputMetadata.height).toBe(128);
     });
 
     it("preserves animation across multiple frames", async () => {
@@ -213,7 +236,11 @@ describe("CountdownIconOverlay", () => {
       expect(result).toBeInstanceOf(Buffer);
 
       const outputMetadata = await sharp(result, { animated: true }).metadata();
-      expect(outputMetadata.format).toBe("gif");
+      // Multi-frame sources stay GIF; if sharp collapsed the frames the
+      // static path emits PNG instead
+      const expectedFormat =
+        sourceMetadata.pages && sourceMetadata.pages > 1 ? "gif" : "png";
+      expect(outputMetadata.format).toBe(expectedFormat);
 
       // If multiple frames survived, verify delay metadata was preserved
       if (outputMetadata.pages && outputMetadata.pages > 1) {
@@ -241,7 +268,7 @@ describe("CountdownIconOverlay", () => {
       });
 
       expect(result).toBeInstanceOf(Buffer);
-      expect(result.subarray(0, 3).toString("ascii")).toBe("GIF");
+      expect(result.subarray(1, 4).toString("ascii")).toBe("PNG");
     });
 
     it("preserves alpha transparency through the composite pipeline", async () => {

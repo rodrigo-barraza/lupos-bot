@@ -113,6 +113,8 @@ const config = {
 
   // ─── Countdown Icon ────────────────────────────────────────────
   COUNTDOWN_ICON_TARGET_DATE: process.env.COUNTDOWN_ICON_TARGET_DATE,
+  COUNTDOWN_ICON_TARGET_DATE_CLOCK_CREW:
+    process.env.COUNTDOWN_ICON_TARGET_DATE_CLOCK_CREW,
 
   // ─── Feature Flags ─────────────────────────────────────────────
   DEATHROLL_SEASON: process.env.DEATHROLL_SEASON,
