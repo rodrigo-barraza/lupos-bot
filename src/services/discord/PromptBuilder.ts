@@ -1258,16 +1258,14 @@ export async function buildAndGenerateReply({
 
     // if has image attachment, check if messagesImagesCollection has any images using the message id as the key
     if (message.attachments && message.attachments.size > 0) {
-      const attachmentImages = messagesImagesCollection.filter(
-        (value: unknown, key: string) => {
-          return key.startsWith((message as Message).id);
-        },
+      const attachmentImages = messagesImagesCollection.get(
+        (message as Message).id,
       ) as import("discord.js").Collection<
         string,
-        Map<string, { url: string }>
-      >;
-      if (attachmentImages.size > 0) {
-        for (const imageObject of attachmentImages.first()!.values()) {
+        { url: string }
+      > | undefined;
+      if (attachmentImages && attachmentImages.size > 0) {
+        for (const imageObject of attachmentImages.values()) {
           const imageUrl = imageObject.url;
           imageLabels.push("Attached image from message");
           imageUrls.push(imageUrl);
@@ -1299,21 +1297,17 @@ export async function buildAndGenerateReply({
 
     // If it's replying to a message with an image
     if (message.reference && message.reference.messageId) {
-      const referencedMessageImages = messagesImagesCollection.filter(
-        (value: unknown, key: string) => {
-          return key.startsWith(message.reference!.messageId as string);
-        },
+      const referencedMessageImages = messagesImagesCollection.get(
+        message.reference.messageId as string,
       ) as import("discord.js").Collection<
         string,
-        Map<string, { url: string }>
-      >;
+        { url: string }
+      > | undefined;
       // If the referenced message has an image in the collection, use that
       // (both user and bot messages are captioned into the collection)
       if (referencedMessageImages && referencedMessageImages.size > 0) {
-        const firstImages = referencedMessageImages.first();
-        const imageUrl = firstImages
-          ? firstImages.values().next().value?.url
-          : undefined;
+        const firstImage = referencedMessageImages.first();
+        const imageUrl = firstImage?.url;
         if (imageUrl) {
           imageLabels.push(repliedToImageLabel);
           imageUrls.push(imageUrl);
