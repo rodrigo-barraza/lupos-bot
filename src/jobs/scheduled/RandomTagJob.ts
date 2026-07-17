@@ -44,6 +44,7 @@ interface CustomContext {
  */
 
 async function randomTag({ client, guildId, channelId }: RandomTagJobConfig) {
+  let activeTypingInterval: NodeJS.Timeout | null = null;
   try {
     const guild = client.guilds.cache.get(guildId);
     if (!guild) {
@@ -249,9 +250,12 @@ The people you are tagging are: ${namesList}
     userMessage += `\n\n## PEOPLE CONTEXT:${peopleContext || "\nNo specific info available."}`;
     userMessage += `\n\n${conversationContext ? `## RECENT CHAT CONTEXT (STAY ON THIS TOPIC):\n${conversationContext}` : "## No recent messages — just vibe and be chaotic."}`;
 
-    // Start typing indicator while generating
-    const typingInterval =
-      await DiscordUtilityService.startTypingInterval(channel);
+    // Start typing indicator while generating — mirrored into the outer
+    // catch so a throwing generation can't leak an eternal typing loop.
+    activeTypingInterval = await DiscordUtilityService.startTypingInterval(
+      channel,
+    );
+    const typingInterval = activeTypingInterval;
 
     const agentModel =
       config.LANGUAGE_MODEL_TYPE === "GOOGLE"
@@ -296,6 +300,9 @@ The people you are tagging are: ${namesList}
     );
     DiscordUtilityService.clearTypingInterval(typingInterval);
   } catch (error: unknown) {
+    if (activeTypingInterval) {
+      DiscordUtilityService.clearTypingInterval(activeTypingInterval);
+    }
     consoleLog("!", `[RandomTagJob] Error: ${(error as Error).message}`);
     console.error(error);
   }

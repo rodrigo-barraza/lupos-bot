@@ -722,7 +722,12 @@ const DiscordUtilityService = {
     });
     // Refresh typing every 5s (Discord auto-clears after 10s)
     const sendTypingInterval = setInterval(() => {
-      channel.sendTyping().catch((_error: Error) => {
+      channel.sendTyping().catch((error: Error) => {
+        // Self-clear so a dead channel doesn't spam failing requests —
+        // and say so, otherwise "typing never shows" is undebuggable.
+        console.warn(
+          `⚠️ [startTypingInterval] sendTyping failed in #${channel.name}, stopping refresh: ${error.message}`,
+        );
         if (sendTypingInterval) {
           clearInterval(sendTypingInterval);
         }
