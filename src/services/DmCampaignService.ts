@@ -55,9 +55,9 @@ export const DEFAULT_INVITE_URL = "https://discord.gg/classicwhitemane";
 // {name} → member display name, {invite} → invite URL. Variant picked
 // deterministically per user so a retry never switches copy mid-user.
 export const DEFAULT_MESSAGE_VARIANTS: string[] = [
-  "Hey {name}! Lupos here — the bot from the Classic Crusader Strike (+ Lone Wolf) Discord. Classic+ is dropping soon, and everyone's getting ready over at **Classic+ Whitemane** — guild planning, class discussion, and launch prep: {invite}\n\nCome join us before launch. This is a one-time message; you won't hear from me again.",
-  "Hey {name}, it's Lupos from the Classic Crusader Strike (+ Lone Wolf) server. With Classic+ launching in a couple of months, the community is gathering at **Classic+ Whitemane** to get ready — leveling routes, professions, guild rosters, all of it: {invite}\n\nWould be great to have you in before day one. Either way, this is the only DM you'll get from me.",
-  "{name} — Lupos here, from Classic Crusader Strike (+ Lone Wolf). Classic+ is almost here, and the prep is happening at **Classic+ Whitemane**: launch-day plans, guild recruitment, and plenty of theorycrafting: {invite}\n\nJump in so you're set when it drops. No more DMs after this one, promise.",
+  "Hey {name}! Lupos here — the bot from the Classic Crusader Strike (+ Lone Wolf) Discord. Classic+ is dropping soon, and everyone's getting ready over at **Classic+ Whitemane** — guild planning, class discussion, and launch prep: {invite}\n\nMost of the crowd hangs out in the #politics channel these days, so pop in there and say hi. This is a one-time message; you won't hear from me again.",
+  "Hey {name}, it's Lupos from the Classic Crusader Strike (+ Lone Wolf) server. With Classic+ launching in a couple of months, the community is gathering at **Classic+ Whitemane** to get ready — leveling routes, professions, guild rosters, all of it: {invite}\n\nRight now most people hang out in the #politics channel, so that's the place to say hi. Would be great to have you in before day one. Either way, this is the only DM you'll get from me.",
+  "{name} — Lupos here, from Classic Crusader Strike (+ Lone Wolf). Classic+ is almost here, and the prep is happening at **Classic+ Whitemane**: launch-day plans, guild recruitment, and plenty of theorycrafting: {invite}\n\nThe busiest spot at the moment is the #politics channel — head there first. Jump in so you're set when it drops. No more DMs after this one, promise.",
 ];
 
 export type DmTargetStatus =
@@ -237,6 +237,41 @@ export interface SeedOptions {
 }
 
 /**
+ * Campaign-doc upsert for seeding. Pure — exported for unit tests.
+ * Mongo rejects any path present in both $set and $setOnInsert, so
+ * defaults go in $setOnInsert only when the caller didn't override
+ * that field (overrides go in $set and must also apply to an
+ * existing doc, e.g. updating the copy after seeding).
+ */
+export function buildCampaignUpsert(
+  options: SeedOptions,
+  context: { sourceGuildId: string; excludeGuildId: string; now: Date },
+): { $set: Record<string, unknown>; $setOnInsert: Record<string, unknown> } {
+  const set: Record<string, unknown> = {
+    sourceGuildId: context.sourceGuildId,
+    excludeGuildId: context.excludeGuildId,
+    seededAt: context.now,
+  };
+  if (options.inviteUrl) set.inviteUrl = options.inviteUrl;
+  if (options.messageVariants && options.messageVariants.length > 0) {
+    set.messageVariants = options.messageVariants;
+  }
+
+  const setOnInsert: Record<string, unknown> = {
+    status: "seeded" as DmCampaignStatus,
+    startedAt: null,
+    pausedReason: null,
+    daily: { date: utcDateString(context.now.getTime()), sent: 0 },
+    totalSent: 0,
+  };
+  if (!("inviteUrl" in set)) setOnInsert.inviteUrl = DEFAULT_INVITE_URL;
+  if (!("messageVariants" in set)) {
+    setOnInsert.messageVariants = DEFAULT_MESSAGE_VARIANTS;
+  }
+  return { $set: set, $setOnInsert: setOnInsert };
+}
+
+/**
  * Compute (source guild members − exclude guild members − bots − ignore
  * list) and upsert one pending row per user. Idempotent: re-seeding
  * only inserts users not already tracked — rows already sent/failed
@@ -300,32 +335,9 @@ async function seedCampaign(options: SeedOptions = {}) {
     newlyAdded = result.upsertedCount;
   }
 
-  const update: Record<string, unknown> = {
-    sourceGuildId,
-    excludeGuildId,
-    seededAt: now,
-  };
-  if (options.inviteUrl) update.inviteUrl = options.inviteUrl;
-  if (options.messageVariants && options.messageVariants.length > 0) {
-    update.messageVariants = options.messageVariants;
-  }
   await campaignsCollection().updateOne(
     { _id: CAMPAIGN_ID },
-    {
-      $set: update,
-      $setOnInsert: {
-        status: "seeded" as DmCampaignStatus,
-        inviteUrl: options.inviteUrl ?? DEFAULT_INVITE_URL,
-        messageVariants:
-          options.messageVariants && options.messageVariants.length > 0
-            ? options.messageVariants
-            : DEFAULT_MESSAGE_VARIANTS,
-        startedAt: null,
-        pausedReason: null,
-        daily: { date: utcDateString(Date.now()), sent: 0 },
-        totalSent: 0,
-      },
-    },
+    buildCampaignUpsert(options, { sourceGuildId, excludeGuildId, now }),
     { upsert: true },
   );
 
