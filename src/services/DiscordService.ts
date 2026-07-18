@@ -50,6 +50,7 @@ import DeletedMessageLogger from "#root/services/discord/DeletedMessageLogger.js
 import DiscordState from "#root/services/discord/DiscordState.js";
 import type { QueuedMessageData } from "#root/services/discord/DiscordState.js";
 import ButtonRouter from "#root/services/discord/ButtonRouter.js";
+import DmInboxService from "#root/services/discord/DmInboxService.js";
 import { extractContentFromMessages } from "#root/services/discord/ConversationExtractor.js";
 import { buildAndGenerateReply } from "#root/services/discord/PromptBuilder.js";
 import { AgentStatusTracker } from "#root/services/discord/AgentStatusTracker.js";
@@ -907,8 +908,14 @@ async function processMessage(
   }
 
   // Lupos never converses over DMs — the birthday onboarding prompt
-  // (button interactions) is the only DM surface.
+  // (button interactions) is the only DM surface. Incoming DMs are
+  // relayed to #dm-inbox in Lupos Logs so replies (e.g. to the invite
+  // campaign) are seen; fire-and-forget so a relay hiccup can't block
+  // the pipeline.
   if (isDirectMessage) {
+    if (!isSelfMessage && !isMessageFromBot && actionType === "CREATE") {
+      void DmInboxService.relayDirectMessage(client, message);
+    }
     return;
   }
 
