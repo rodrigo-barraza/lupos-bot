@@ -13,6 +13,7 @@ import MediaArchivalService from "./services/MediaArchivalService.ts";
 import DiscordWrapper from "./wrappers/DiscordWrapper.ts";
 import HeartbeatService from "./services/HeartbeatService.ts";
 import AvatarSyncService from "./services/AvatarSyncService.ts";
+import CommandSyncService from "./services/CommandSyncService.ts";
 
 import type { Request, Response } from "express";
 import express from "express";
@@ -142,6 +143,9 @@ async function main() {
     // should touch the account avatar, not maintenance modes.
     if (!mode) {
       AvatarSyncService.startAvatarSync();
+      // Slash-command registration (hash-guarded, per guild) — a deploy
+      // is complete without a separate deploy-commands run.
+      CommandSyncService.startCommandSync();
     }
   } catch (error: unknown) {
     console.log(LogFormatter.errorInitialization(error));
