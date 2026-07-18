@@ -1,3 +1,10 @@
+// NOTE: registration now happens automatically at boot via
+// CommandSyncService (hash-guarded per guild). This script remains as
+// a manual force-push escape hatch; it always overwrites, ignoring the
+// stored hashes — CommandSyncService will simply see matching payloads
+// afterward. Requires LUPOS_TOKEN (and any guild env vars commands
+// reference, e.g. GUILD_ID_TESTING) in the environment; run from dist.
+
 import type { RESTPostAPIChatInputApplicationCommandsJSONBody } from "discord.js";
 import { REST, Routes, Client, GatewayIntentBits } from "discord.js";
 import secrets from "../config.ts";
