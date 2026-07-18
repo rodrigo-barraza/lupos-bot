@@ -15,8 +15,10 @@ import {
   computeNextDelayMs,
   evaluateDailyBudget,
   classifySendError,
+  buildCampaignUpsert,
   utcDateString,
   DEFAULT_MESSAGE_VARIANTS,
+  DEFAULT_INVITE_URL,
   DM_DELAY_BASE_MS,
   DM_DELAY_JITTER_MS,
   DAILY_CAP,
@@ -110,6 +112,45 @@ describe("evaluateDailyBudget", () => {
     const decision = evaluateDailyBudget(undefined, noonUtc, DAILY_CAP);
     expect(decision.allowed).toBe(true);
     expect(decision.daily.sent).toBe(0);
+  });
+});
+
+describe("buildCampaignUpsert", () => {
+  const context = {
+    sourceGuildId: "1",
+    excludeGuildId: "2",
+    now: new Date(Date.UTC(2026, 6, 17, 12, 0, 0)),
+  };
+
+  it("never puts the same path in both $set and $setOnInsert", () => {
+    for (const options of [
+      {},
+      { messageVariants: ["hi {name} {invite}"] },
+      { inviteUrl: "https://discord.gg/x" },
+      { inviteUrl: "https://discord.gg/x", messageVariants: ["a"] },
+    ]) {
+      const upsert = buildCampaignUpsert(options, context);
+      const overlap = Object.keys(upsert.$set).filter(
+        (key) => key in upsert.$setOnInsert,
+      );
+      expect(overlap).toEqual([]);
+    }
+  });
+
+  it("overrides go in $set so they also update an existing doc", () => {
+    const variants = ["updated copy {name} {invite}"];
+    const upsert = buildCampaignUpsert({ messageVariants: variants }, context);
+    expect(upsert.$set.messageVariants).toEqual(variants);
+    expect(upsert.$setOnInsert.messageVariants).toBeUndefined();
+  });
+
+  it("defaults go in $setOnInsert when not overridden", () => {
+    const upsert = buildCampaignUpsert({}, context);
+    expect(upsert.$setOnInsert.messageVariants).toEqual(
+      DEFAULT_MESSAGE_VARIANTS,
+    );
+    expect(upsert.$setOnInsert.inviteUrl).toBe(DEFAULT_INVITE_URL);
+    expect(upsert.$set.messageVariants).toBeUndefined();
   });
 });
 
