@@ -103,6 +103,9 @@ const config = {
   CHANNEL_ID_DELETED_MESSAGES: process.env.CHANNEL_ID_DELETED_MESSAGES,
   CHANNEL_ID_BOT_STATUS: process.env.CHANNEL_ID_BOT_STATUS,
   CHANNEL_ID_JUKEBOX_EXCEPTION: process.env.CHANNEL_ID_JUKEBOX_EXCEPTION,
+  // Optional override for the incoming-DM relay channel; when unset,
+  // DmInboxService finds/creates #dm-inbox in GUILD_ID_TESTING.
+  CHANNEL_ID_DM_INBOX: process.env.CHANNEL_ID_DM_INBOX,
 
   // ─── Discord IDs — Users ───────────────────────────────────────
   // Bot owner — gates owner-only surfaces (e.g. /dm-campaign).
