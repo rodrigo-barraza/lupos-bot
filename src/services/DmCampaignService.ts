@@ -36,10 +36,14 @@ import { fetchMembersWithRetry } from "#root/services/discord/ModerationSweeps.j
 
 export const CAMPAIGN_ID = "crusader-strike-to-whitemane";
 
-export const DAILY_CAP = 300;
+export const DAILY_CAP = 500;
 export const DM_DELAY_BASE_MS = 60_000;
 export const DM_DELAY_JITTER_MS = 30_000;
 export const MAX_CONSECUTIVE_FAILURES = 5;
+// Accounts younger than this are skipped — throwaway/spam accounts are
+// disproportionately likely to report the DM, and a real Classic player
+// invited to a Classic+ server almost certainly has an older account.
+export const MIN_ACCOUNT_AGE_MS = 365 * 24 * 60 * 60 * 1000;
 // A target that never reached member.send (left guild, ignore list)
 // doesn't touch the DM budget — advance quickly.
 const NO_SEND_DELAY_MS = 5_000;
@@ -68,7 +72,8 @@ export type DmTargetStatus =
   | "left_guild"
   | "failed"
   | "skipped_ambiguous"
-  | "skipped_ignored";
+  | "skipped_ignored"
+  | "skipped_young_account";
 
 export type DmCampaignStatus = "seeded" | "running" | "paused" | "done";
 
@@ -129,6 +134,17 @@ export function computeNextDelayMs(random: number): number {
 
 export function utcDateString(nowMs: number): string {
   return new Date(nowMs).toISOString().slice(0, 10);
+}
+
+const DISCORD_EPOCH_MS = 1_420_070_400_000;
+
+/** Account creation time from the snowflake — no API call needed. */
+export function accountCreatedAtMs(userId: string): number {
+  return Number(BigInt(userId) >> 22n) + DISCORD_EPOCH_MS;
+}
+
+export function isAccountTooYoung(userId: string, nowMs: number): boolean {
+  return nowMs - accountCreatedAtMs(userId) < MIN_ACCOUNT_AGE_MS;
 }
 
 export interface DailyBudgetDecision {
@@ -308,6 +324,7 @@ async function seedCampaign(options: SeedOptions = {}) {
     if (member.user.bot) continue;
     if (excludeMembers.has(userId)) continue;
     if (ignoreIds.has(userId)) continue;
+    if (isAccountTooYoung(userId, now.getTime())) continue;
     candidateCount++;
     operations.push({
       updateOne: {
@@ -433,6 +450,15 @@ async function tickOnce(): Promise<number | null> {
     return null;
   }
 
+  // Safety net for rows seeded before the age filter existed.
+  if (isAccountTooYoung(target.userId, Date.now())) {
+    await markTarget(target._id, {
+      status: "skipped_young_account",
+      error: "account younger than minimum age",
+    });
+    return NO_SEND_DELAY_MS;
+  }
+
   let guild: Guild;
   try {
     guild = resolveGuild(client, campaign.sourceGuildId, "Source");
@@ -536,6 +562,34 @@ async function startCampaign() {
   if (ambiguous.modifiedCount > 0) {
     console.warn(
       `🐺✉️ [DmCampaignService] Retired ${ambiguous.modifiedCount} ambiguous mid-send row(s) from a previous crash`,
+    );
+  }
+
+  // Retire pending rows for too-young accounts up front so the counts
+  // and ETA are honest (the per-tick check would drain them slowly).
+  const nowMs = Date.now();
+  const pendingRows = await targetsCollection()
+    .find(
+      { campaignId: CAMPAIGN_ID, status: "pending" },
+      { projection: { userId: 1 } },
+    )
+    .toArray();
+  const youngIds = pendingRows
+    .filter((row) => isAccountTooYoung(row.userId, nowMs))
+    .map((row) => row._id);
+  if (youngIds.length > 0) {
+    await targetsCollection().updateMany(
+      { _id: { $in: youngIds } },
+      {
+        $set: {
+          status: "skipped_young_account" as DmTargetStatus,
+          error: "account younger than minimum age",
+          updatedAt: new Date(),
+        },
+      },
+    );
+    console.log(
+      `🐺✉️ [DmCampaignService] Retired ${youngIds.length} pending target(s) with accounts younger than 1 year`,
     );
   }
 

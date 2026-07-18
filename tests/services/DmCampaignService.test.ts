@@ -17,11 +17,14 @@ import {
   classifySendError,
   buildCampaignUpsert,
   utcDateString,
+  accountCreatedAtMs,
+  isAccountTooYoung,
   DEFAULT_MESSAGE_VARIANTS,
   DEFAULT_INVITE_URL,
   DM_DELAY_BASE_MS,
   DM_DELAY_JITTER_MS,
   DAILY_CAP,
+  MIN_ACCOUNT_AGE_MS,
 } from "../../src/services/DmCampaignService.js";
 
 describe("pickMessageVariant", () => {
@@ -151,6 +154,44 @@ describe("buildCampaignUpsert", () => {
     );
     expect(upsert.$setOnInsert.inviteUrl).toBe(DEFAULT_INVITE_URL);
     expect(upsert.$set.messageVariants).toBeUndefined();
+  });
+});
+
+describe("account age filter", () => {
+  const DISCORD_EPOCH_MS = 1_420_070_400_000;
+
+  /** Build a snowflake for an account created at the given ms timestamp. */
+  function snowflakeAt(createdAtMs: number): string {
+    return (BigInt(createdAtMs - DISCORD_EPOCH_MS) << 22n).toString();
+  }
+
+  it("recovers the creation time from a snowflake", () => {
+    const createdAt = Date.UTC(2020, 2, 15, 8, 30, 0);
+    expect(accountCreatedAtMs(snowflakeAt(createdAt))).toBe(createdAt);
+  });
+
+  it("decodes a real snowflake to a plausible date", () => {
+    // 80351110224678912 is Discord's documented example snowflake.
+    const createdAt = accountCreatedAtMs("80351110224678912");
+    expect(new Date(createdAt).toISOString().slice(0, 10)).toBe("2015-08-10");
+  });
+
+  it("flags an account younger than the minimum age", () => {
+    const now = Date.UTC(2026, 6, 18, 12, 0, 0);
+    const young = snowflakeAt(now - MIN_ACCOUNT_AGE_MS + 24 * 3600 * 1000);
+    expect(isAccountTooYoung(young, now)).toBe(true);
+  });
+
+  it("allows an account exactly at the minimum age", () => {
+    const now = Date.UTC(2026, 6, 18, 12, 0, 0);
+    const boundary = snowflakeAt(now - MIN_ACCOUNT_AGE_MS);
+    expect(isAccountTooYoung(boundary, now)).toBe(false);
+  });
+
+  it("allows a clearly old account", () => {
+    const now = Date.UTC(2026, 6, 18, 12, 0, 0);
+    const old = snowflakeAt(Date.UTC(2017, 0, 1));
+    expect(isAccountTooYoung(old, now)).toBe(false);
   });
 });
 
