@@ -54,7 +54,7 @@ export interface TransformedUserFull extends TransformedUserConcise {
   createdTimestamp: number;
   defaultAvatarURL: string;
   discriminator: string;
-  dmChannel: import("discord.js").DMChannel | null;
+  dmChannelId: string | null;
   flags: import("discord.js").UserFlagsBitField | null;
   hexAccentColor: string | null | undefined;
   partial: false;
@@ -313,6 +313,23 @@ export interface TransformedMessageSnapshot {
   mentions: TransformedMessageMentions | undefined;
 }
 
+export interface TransformedMessageInteraction {
+  id: string;
+  type: import("discord.js").InteractionType;
+  commandName: string;
+  user: TransformedUser | undefined;
+}
+
+export interface TransformedMessageInteractionMetadata {
+  id: string;
+  type: import("discord.js").InteractionType;
+  user: TransformedUser | undefined;
+  authorizingIntegrationOwners: import("discord.js").APIAuthorizingIntegrationOwnersMap;
+  originalResponseMessageId: string | null;
+  interactedMessageId: string | null;
+  triggeringInteractionMetadata: TransformedMessageInteractionMetadata | null;
+}
+
 export interface TransformedMessage {
   activity: import("discord.js").MessageActivity | null;
   applicationId: string | null;
@@ -323,7 +340,7 @@ export interface TransformedMessage {
   channel: TransformedTextChannel | undefined;
   channelId: string;
   cleanContent: string;
-  components: import("discord.js").TopLevelComponent[];
+  components: import("discord.js").APIMessageTopLevelComponent[];
   content: string;
   createdAt: Date;
   createdTimestamp: number;
@@ -338,8 +355,8 @@ export interface TransformedMessage {
   guildId: string | null;
   hasThread: boolean;
   id: string;
-  interaction: import("discord.js").MessageInteraction | null;
-  interactionMetadata: import("discord.js").MessageInteractionMetadata | null;
+  interaction: TransformedMessageInteraction | null;
+  interactionMetadata: TransformedMessageInteractionMetadata | null;
   member: TransformedMember | undefined;
   mentions: TransformedMessageMentions | undefined;
   messageSnapshots: (TransformedMessageSnapshot | undefined)[] | undefined;
@@ -398,7 +415,8 @@ export const transformUser = (
       defaultAvatarURL: user.defaultAvatarURL,
       discriminator: user.discriminator,
       displayName: user.displayName,
-      dmChannel: user.dmChannel,
+      // Live DMChannel holds a client reference (circular → BSON crash); id only
+      dmChannelId: user.dmChannel?.id ?? null,
       flags: user.flags,
       globalName: user.globalName,
       hexAccentColor: user.hexAccentColor,
@@ -801,6 +819,38 @@ export const transformReaction = (
   }
 };
 
+// message.interaction / message.interactionMetadata carry a live User
+// instance (client reference → circular → BSON crash). Flatten to plain
+// data, preserving every field.
+export const transformMessageInteraction = (
+  interaction: import("discord.js").MessageInteraction | null,
+): TransformedMessageInteraction | null => {
+  if (!interaction) return null;
+  return {
+    id: interaction.id,
+    type: interaction.type,
+    commandName: interaction.commandName,
+    user: transformUser(interaction.user, true),
+  };
+};
+
+export const transformMessageInteractionMetadata = (
+  metadata: import("discord.js").MessageInteractionMetadata | null,
+): TransformedMessageInteractionMetadata | null => {
+  if (!metadata) return null;
+  return {
+    id: metadata.id,
+    type: metadata.type,
+    user: transformUser(metadata.user, true),
+    authorizingIntegrationOwners: metadata.authorizingIntegrationOwners,
+    originalResponseMessageId: metadata.originalResponseMessageId,
+    interactedMessageId: metadata.interactedMessageId,
+    triggeringInteractionMetadata: transformMessageInteractionMetadata(
+      metadata.triggeringInteractionMetadata,
+    ),
+  };
+};
+
 export const transformSticker = (sticker: Sticker): TransformedSticker => ({
   available: sticker.available,
   createdAt: sticker.createdAt,
@@ -840,8 +890,8 @@ export const transformMessageRoot = (
     channelId: message.channelId,
     // string
     cleanContent: message.cleanContent,
-    // TopLevelComponent[]
-    components: message.components,
+    // Component class instances → plain API data (lossless via toJSON)
+    components: message.components.map((component) => component.toJSON()),
     // string
     content: message.content,
     // Date
@@ -870,10 +920,12 @@ export const transformMessageRoot = (
     hasThread: message.hasThread,
     // Snowflake
     id: message.id,
-    // ! MISSING FROM DOCUMENTATION
-    interaction: message.interaction,
-    // MessageInteractionMetadata | null
-    interactionMetadata: message.interactionMetadata,
+    // Contains a live User (circular) — flattened
+    interaction: transformMessageInteraction(message.interaction),
+    // Contains a live User (circular) — flattened
+    interactionMetadata: transformMessageInteractionMetadata(
+      message.interactionMetadata,
+    ),
     member: message.member ? transformMember(message.member, true) : null,
     mentions: transformMessageMentions(message.mentions),
     // Collection<Snowflake, MessageSnapshot>
