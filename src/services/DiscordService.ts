@@ -31,7 +31,6 @@ import YouTubeService from "#root/services/YouTubeService.js";
 import MongoService from "#root/services/MongoService.js";
 import PrismService from "#root/services/PrismService.js";
 import DiscordUtilityService from "#root/services/DiscordUtilityService.js";
-import AIService from "#root/services/AIService.js";
 import type { ChatMessage } from "#root/services/AIService.js";
 import CurrentService from "#root/services/CurrentService.js";
 
