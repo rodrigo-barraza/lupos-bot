@@ -3,6 +3,12 @@
 // builders, message URLs, reaction and time formatters.
 // ============================================================
 
+import {
+  discordAvatarUrl,
+  discordBannerUrl,
+  discordMessageUrl,
+} from "@rodrigo-barraza/utilities-library/discord";
+
 import TemporalHelpers from "#root/utilities/TemporalHelpers.js";
 import { ansiEscapeCodes } from "#root/utilities/console.js";
 import type {
@@ -123,14 +129,11 @@ export function getDiscordAvatarUrl(
   size: number = 512,
   guildAvatar?: { guildId: string; avatarHash: string } | null,
 ) {
-  if (!userId) return null;
-  if (guildAvatar?.guildId && guildAvatar.avatarHash) {
-    const ext = guildAvatar.avatarHash.startsWith("a_") ? "gif" : "png";
-    return `https://cdn.discordapp.com/guilds/${guildAvatar.guildId}/users/${userId}/avatars/${guildAvatar.avatarHash}.${ext}?size=${size}`;
-  }
-  if (!avatarHash) return null;
-  const ext = avatarHash.startsWith("a_") ? "gif" : "png";
-  return `https://cdn.discordapp.com/avatars/${userId}/${avatarHash}.${ext}?size=${size}`;
+  return discordAvatarUrl(userId, avatarHash, {
+    size,
+    guildId: guildAvatar?.guildId,
+    guildAvatarHash: guildAvatar?.avatarHash,
+  });
 }
 
 /**
@@ -142,9 +145,7 @@ export function getDiscordBannerUrl(
   bannerHash: string,
   size: number = 512,
 ) {
-  if (!userId || !bannerHash) return null;
-  const ext = bannerHash.startsWith("a_") ? "gif" : "png";
-  return `https://cdn.discordapp.com/banners/${userId}/${bannerHash}.${ext}?size=${size}`;
+  return discordBannerUrl(userId, bannerHash, size);
 }
 
 /**
@@ -155,7 +156,7 @@ export function getDiscordMessageUrl(
   channelId: string,
   messageId: string,
 ) {
-  return `https://discord.com/channels/${guildId}/${channelId}/${messageId}`;
+  return discordMessageUrl(guildId, channelId, messageId);
 }
 
 /**
