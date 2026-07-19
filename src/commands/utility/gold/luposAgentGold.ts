@@ -100,8 +100,9 @@ async function tryConsumeDailyAllowance(
 /**
  * Ensures the wolf's wallet exists in this guild, seeding the hoard on
  * first touch so the wolf has something to give before his first mug.
+ * Exported for the heist (the hoard is the raid target).
  */
-async function ensureWolfWallet(guildId: string, botUserId: string) {
+export async function ensureWolfWallet(guildId: string, botUserId: string) {
   const wallet = await fetchWallet(guildId, botUserId);
   if (wallet) return wallet;
   await adjustGold(
