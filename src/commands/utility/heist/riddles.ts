@@ -140,6 +140,147 @@ export const HEIST_RIDDLES: HeistRiddle[] = [
     riddle: "What gets sharper the more you use it?",
     answers: ["your brain", "brain", "the mind", "mind"],
   },
+
+  // ─── Classic WoW (Whitemane crowd) ──────────────────────────────────
+  {
+    riddle:
+      "Break me and you're stranded for an hour. I always take you home, but never anywhere new. What am I?",
+    answers: [
+      "hearthstone",
+      "a hearthstone",
+      "hearth stone",
+      "my hearthstone",
+      "hearth",
+    ],
+  },
+  {
+    riddle:
+      "You hear me before you see me, and you never fight just one of me. Mrglglglgl. What am I?",
+    answers: ["murloc", "a murloc", "murlocs"],
+  },
+  {
+    riddle:
+      "Elwynn's first raid boss — a gnoll with a bounty on his head and a thousand level-nine corpses to his name. Who am I?",
+    answers: ["hogger"],
+  },
+  {
+    riddle:
+      "Half the Barrens searches for me, and no map has ever marked me. Who am I?",
+    answers: ["mankriks wife", "mankrik's wife", "the wife of mankrik"],
+  },
+  {
+    riddle:
+      "Whelps in my lair, fire from above — and when I take a deep breath, forty people die. Who am I?",
+    answers: ["onyxia", "ony"],
+  },
+  {
+    riddle: "I had a plan. We had numbers. At least I have chicken. Who am I?",
+    answers: ["leeroy jenkins", "leeroy"],
+  },
+  {
+    riddle:
+      "Did someone say...? Trade chat links me daily; almost nobody has me. Blessed blade of the Windseeker. What am I?",
+    answers: ["thunderfury", "thunderfury blessed blade of the windseeker"],
+  },
+  {
+    riddle:
+      "A warlock's bags overflow with me, yet I'm spent the moment I matter most. What am I?",
+    answers: ["soul shard", "soul shards", "shard", "shards"],
+  },
+  {
+    riddle:
+      "I'm free, I'm conjured, and I vanish from your bags when my maker logs off for good. What am I?",
+    answers: [
+      "mage water",
+      "conjured water",
+      "water",
+      "mage food",
+      "conjured food",
+    ],
+  },
+  {
+    riddle:
+      "The paladin's bravest maneuver: a shield, a stone, and sixty seconds of shame. What is it called?",
+    answers: [
+      "bubble hearth",
+      "bubblehearth",
+      "bubble hearthing",
+      "bubble and hearth",
+    ],
+  },
+  {
+    riddle:
+      "TOO SOON! My majordomo woke me before my time, and by fire you were purged. Who am I?",
+    answers: ["ragnaros", "rag"],
+  },
+  {
+    riddle:
+      "I never end, I'm never on topic, and Chuck Norris lives inside me. What am I?",
+    answers: ["barrens chat", "the barrens chat", "barrens"],
+  },
+  {
+    riddle:
+      "Weeks of raiding earn me, one bad council decision spends me, and I was never real gold at all. What am I?",
+    answers: ["dkp", "dragon kill points"],
+  },
+  {
+    riddle:
+      "Duskwood's roads belong to me after dark — the whole zone screams my name when I come walking. Who am I?",
+    answers: ["stitches"],
+  },
+  {
+    riddle:
+      "Forget to buy me and the hunter does no damage all raid. What am I?",
+    answers: ["ammo", "ammunition", "arrows", "bullets"],
+  },
+  {
+    riddle:
+      "I'm the only fight you lose gold to every single time, and after each wipe I grow. What am I?",
+    answers: [
+      "repair bill",
+      "the repair bill",
+      "repairs",
+      "repair costs",
+      "durability",
+    ],
+  },
+  {
+    riddle:
+      "Every hero meets me and few recall my name. I stand in the graveyard and offer you life — for a price your armor pays. Who am I?",
+    answers: ["spirit healer", "the spirit healer", "angel"],
+  },
+  {
+    riddle:
+      "Beneath a peaceful vineyard town I built a ship, an army, and a grudge against Stormwind. Who am I?",
+    answers: ["vancleef", "edwin vancleef", "van cleef"],
+  },
+  {
+    riddle:
+      "No horse, no wings, no boat — yet I carry you between two capitals beneath the sea. What am I?",
+    answers: ["deeprun tram", "the tram", "tram"],
+  },
+  {
+    riddle:
+      "Forty levels of walking buys you a hundred gold of me — and suddenly the world feels small. What am I?",
+    answers: ["mount", "a mount", "your mount", "your first mount"],
+  },
+  {
+    riddle:
+      "A head rolls in the capital so that I may bless the whole city — log out in the wrong spot and I'm wasted. What am I?",
+    answers: [
+      "world buff",
+      "world buffs",
+      "rallying cry",
+      "ony buff",
+      "onyxia buff",
+      "head buff",
+    ],
+  },
+  {
+    riddle:
+      "Two words in guild chat and forty people stop what they're doing to stand in a circle by the meeting stone. What am I?",
+    answers: ["summons", "a summon", "summon", "warlock summon", "lock summon"],
+  },
 ];
 
 /** Draws a random riddle. `rand` injectable for tests. */
