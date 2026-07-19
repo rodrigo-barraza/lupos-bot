@@ -31,6 +31,13 @@ export const HOUSE_RAKE = 0.1;
 /** Cost per remaining minute to ransom someone out of a game timeout. */
 export const RANSOM_GOLD_PER_MINUTE = 25;
 
+/** Gold dropped per second of self-shock paralysis (backfire punishment). */
+export const SHOCK_DROP_GOLD_PER_SECOND = 10;
+/** House bounty for landing a critical shock on someone else. */
+export const SHOCK_CRIT_BONUS_GOLD = 25;
+/** Insurance payout to the victim of a critical shock. */
+export const SHOCK_CRIT_CONSOLATION_GOLD = 15;
+
 // ─── Formatting ───────────────────────────────────────────────────────
 
 /** Formats an amount like "🪙 1,250g". */
@@ -114,4 +121,13 @@ export function computeRoyalePot(wager: number, playerCount: number) {
 export function computeRansomCost(remainingMs: number) {
   const minutes = Math.max(1, Math.ceil(remainingMs / 60_000));
   return minutes * RANSOM_GOLD_PER_MINUTE;
+}
+
+/**
+ * Gold a self-shocker drops: scales with how long they paralyzed
+ * themselves, capped at what they actually carry (never negative).
+ */
+export function computeShockDropGold(timeoutSeconds: number, balance: number) {
+  const drop = Math.round(timeoutSeconds * SHOCK_DROP_GOLD_PER_SECOND);
+  return Math.max(0, Math.min(balance, drop));
 }
