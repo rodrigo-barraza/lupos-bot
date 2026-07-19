@@ -25,14 +25,18 @@ import type { ScatterTarget } from "./gold/goldScatter.ts";
 /**
  * Everyone who spoke recently except the dropper and bots — broader than
  * the shockable pool (mods and timed-out members can still pick up gold).
+ * The Lupos bot itself (`allowBotId`) is eligible: the wolf snatches
+ * scattered gold into his hoard like anyone else.
  */
 function buildBystanderPool(
   recentMessages: Message[],
   excludeId: string,
+  allowBotId?: string,
 ): ScatterTarget[] {
   const pool = new Map<string, ScatterTarget>();
   for (const message of recentMessages) {
-    if (message.author.bot || message.author.id === excludeId) continue;
+    if (message.author.id === excludeId) continue;
+    if (message.author.bot && message.author.id !== allowBotId) continue;
     pool.set(message.author.id, {
       userId: message.author.id,
       username: message.author.username,
@@ -246,6 +250,7 @@ export default {
           const pool = buildBystanderPool(
             Array.from(messages.values()),
             userId,
+            interaction.client.user?.id,
           );
           const targets = pickScatterTargets(
             pool,
@@ -370,6 +375,7 @@ export default {
           const pool = buildBystanderPool(
             Array.from(messages.values()),
             userId,
+            interaction.client.user?.id,
           );
           const targets = pickScatterTargets(
             pool,
