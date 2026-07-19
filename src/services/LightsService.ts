@@ -1,6 +1,10 @@
+import { createApiClient } from "@rodrigo-barraza/utilities-library/http";
+
 import config from "#root/config.js";
 
 const { LIGHTS_SERVICE_URL } = config;
+
+const lightsApi = createApiClient(LIGHTS_SERVICE_URL ?? "");
 
 export interface LightState {
   power?: string;
@@ -35,13 +39,11 @@ export default class LightsService {
     body: unknown = null,
   ): Promise<unknown> {
     try {
-      const options: RequestInit = { method };
-      if (body) {
-        options.headers = { "Content-Type": "application/json" };
-        options.body = JSON.stringify(body);
-      }
-      const response = await fetch(`${LIGHTS_SERVICE_URL}${path}`, options);
-      return await response.json();
+      const result = await lightsApi.request(path, {
+        method,
+        ...(body ? { body: JSON.stringify(body) } : {}),
+      });
+      return result ?? null;
     } catch {
       return null;
     }
