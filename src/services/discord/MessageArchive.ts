@@ -18,6 +18,7 @@ import {
   transformReaction,
 } from "#root/services/discord/transformers.js";
 import { errorMessage } from "#root/services/discord/errors.js";
+import { DISCORD_USERS } from "@rodrigo-barraza/utilities-library/taxonomy";
 
 /** Resume point for message scraping. */
 interface ResumePoint {
@@ -452,7 +453,7 @@ const MessageArchive = {
     // After scraping each channel, remove messages from these users
     // that exist in MongoDB but were deleted from Discord.
     const CLEANUP_USER_IDS = [
-      "166745313258897409", // Rodrigo
+      DISCORD_USERS.owner, // Rodrigo
       "1198099566088699904", // Lupos (bot)
     ];
 

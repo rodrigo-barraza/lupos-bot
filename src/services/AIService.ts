@@ -3,6 +3,7 @@ import crypto from "crypto";
 
 import config from "#root/config.js";
 import { MONGO_DB_NAME } from "#root/constants.js";
+import { MODEL_IDS } from "@rodrigo-barraza/utilities-library/taxonomy";
 
 import LogFormatter from "#root/formatters/LogFormatter.js";
 
@@ -270,7 +271,7 @@ const AIService = {
             })
           : [];
 
-        usedModel = "gemini-3.1-flash-image-preview";
+        usedModel = MODEL_IDS.geminiImageFlash;
         const discordUsername = AIService._getDiscordUsername();
 
         const prismResult = await PrismService.generateImage({
@@ -324,7 +325,7 @@ const AIService = {
           ? await AIService._convertImageUrlsToBase64(imageUrls)
           : [];
 
-        usedModel = "gpt-image-1.5";
+        usedModel = MODEL_IDS.gptImage;
         const prismResult = await PrismService.generateImage({
           prompt,
           provider: "openai",
@@ -362,14 +363,14 @@ const AIService = {
         images: imageUrl,
         prompt: text || "What's in this image?",
         provider: provider || "google",
-        model: model || "gemini-3-flash-preview",
+        model: model || MODEL_IDS.geminiFlash,
         username: discordUsername,
         ...AIService._getTraceParams(),
       })) as { text?: string; model?: string; provider?: string };
 
       return {
         response: { choices: [{ message: { content: result.text || "" } }] },
-        model: result.model || model || "gemini-3-flash-preview",
+        model: result.model || model || MODEL_IDS.geminiFlash,
         provider: result.provider || provider || "google",
         error: null,
       };
@@ -378,7 +379,7 @@ const AIService = {
         error instanceof Error ? error : new Error(String(error));
       return {
         response: null,
-        model: model || "gemini-3-flash-preview",
+        model: model || MODEL_IDS.geminiFlash,
         provider: provider || "google",
         error: wrappedError,
       };

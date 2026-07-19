@@ -19,6 +19,7 @@ import type { Client, Message, TextChannel } from "discord.js";
 import { MILLISECONDS_PER_DAY } from "#root/constants.js";
 import DiscordUtilityService from "#root/services/DiscordUtilityService.js";
 import { errorMessage, errorStack } from "#root/services/discord/errors.js";
+import { DISCORD_CHANNELS } from "@rodrigo-barraza/utilities-library/taxonomy";
 
 /** Represents a channel stat entry from the activity analysis. */
 interface ChannelStat {
@@ -134,8 +135,8 @@ const ChannelAnalytics = {
 
     const excludedChannels = [
       "609498307626008576",
-      "762734438375096380", // politics
-      "844637988159356968", // sportsmane
+      DISCORD_CHANNELS.politics,
+      DISCORD_CHANNELS.sportsmane,
     ];
 
     console.log(
