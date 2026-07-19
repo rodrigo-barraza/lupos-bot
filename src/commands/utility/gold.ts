@@ -88,7 +88,9 @@ async function executeGive(interaction: ChatInputCommandInteraction) {
       content: `${GOLD_EMOJI} You can't give gold to yourself!`,
     });
   }
-  if (targetUser.bot) {
+  // Lupos has a hoard and gladly accepts tribute; other bots don't.
+  const isLupos = targetUser.id === interaction.client.user?.id;
+  if (targetUser.bot && !isLupos) {
     return interaction.editReply({
       content: `${GOLD_EMOJI} Bots have no use for gold!`,
     });
@@ -124,7 +126,9 @@ async function executeGive(interaction: ChatInputCommandInteraction) {
   }
 
   await interaction.editReply({
-    content: `${GOLD_EMOJI} <@${interaction.user.id}> gave **${formatGold(amount)}** to <@${targetUser.id}>!\n-# Your balance: ${formatGold(result.balance)}`,
+    content: isLupos
+      ? `${GOLD_EMOJI} <@${interaction.user.id}> offered **${formatGold(amount)}** in tribute to the wolf. 🐺 It will be remembered.\n-# Your balance: ${formatGold(result.balance)}`
+      : `${GOLD_EMOJI} <@${interaction.user.id}> gave **${formatGold(amount)}** to <@${targetUser.id}>!\n-# Your balance: ${formatGold(result.balance)}`,
   });
 }
 

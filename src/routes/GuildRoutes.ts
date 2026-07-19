@@ -50,6 +50,11 @@ import {
   computeStartDate,
   formatTimePeriod,
 } from "#root/commands/utility/commandUtils.js";
+import {
+  luposGetGoldBalance,
+  luposGiveGold,
+  luposMugGold,
+} from "#root/commands/utility/gold/luposAgentGold.js";
 
 const router = Router();
 
@@ -622,7 +627,10 @@ router.post(
       });
       res.json(result);
     } catch (error: unknown) {
-      console.error("[guild/dm-campaign/seed] Error:", (error as Error).message);
+      console.error(
+        "[guild/dm-campaign/seed] Error:",
+        (error as Error).message,
+      );
       res.status(500).json({
         error: "Failed to seed DM campaign",
         detail: (error as Error).message,
@@ -638,7 +646,10 @@ router.post(
       const result = await DmCampaignService.startCampaign();
       res.json(result);
     } catch (error: unknown) {
-      console.error("[guild/dm-campaign/start] Error:", (error as Error).message);
+      console.error(
+        "[guild/dm-campaign/start] Error:",
+        (error as Error).message,
+      );
       res.status(400).json({
         error: "Failed to start DM campaign",
         detail: (error as Error).message,
@@ -656,7 +667,10 @@ router.post(
       const result = await DmCampaignService.pauseCampaign(reason);
       res.json(result);
     } catch (error: unknown) {
-      console.error("[guild/dm-campaign/pause] Error:", (error as Error).message);
+      console.error(
+        "[guild/dm-campaign/pause] Error:",
+        (error as Error).message,
+      );
       res.status(500).json({
         error: "Failed to pause DM campaign",
         detail: (error as Error).message,
@@ -2556,5 +2570,83 @@ interface MonthlyMessageEntry {
   month: number;
   count: number;
 }
+
+// ============================================================
+// Gold — Lupos agent economy endpoints
+// ============================================================
+// Consumed by tools-service's Discord tools (get_discord_gold_balance,
+// give_discord_gold, mug_discord_gold). All caps and clamps are
+// enforced in luposAgentGold — these routes are thin adapters.
+
+// ─── GET /gold/balance ──────────────────────────────────────────
+// Query: ?guildId=...&userId=...
+router.get(
+  "/gold/balance",
+  asyncHandler(async (req: Request, res: Response) => {
+    const guildId = req.query.guildId as string;
+    const userId = req.query.userId as string;
+    if (!guildId || !userId) {
+      return res.status(400).json({ error: "guildId and userId are required" });
+    }
+    const client = DiscordWrapper.getClient("lupos");
+    if (!client) return res.status(503).json({ error: "Bot not ready" });
+    res.json(await luposGetGoldBalance(client, guildId, userId));
+  }),
+);
+
+// ─── POST /gold/give ────────────────────────────────────────────
+// Body: { guildId, targetUserId, amount?, note? }
+router.post(
+  "/gold/give",
+  asyncHandler(async (req: Request, res: Response) => {
+    const { guildId, targetUserId, amount, note } = req.body || {};
+    if (!guildId || !targetUserId) {
+      return res
+        .status(400)
+        .json({ error: "guildId and targetUserId are required" });
+    }
+    const client = DiscordWrapper.getClient("lupos");
+    if (!client) return res.status(503).json({ error: "Bot not ready" });
+    const guild = await client.guilds.fetch(guildId).catch(() => null);
+    if (!guild) return res.status(404).json({ error: "Guild not found" });
+    res.json(
+      await luposGiveGold(
+        client,
+        guild,
+        targetUserId,
+        Number(amount) || 0,
+        note,
+      ),
+    );
+  }),
+);
+
+// ─── POST /gold/mug ─────────────────────────────────────────────
+// Body: { guildId, channelId?, targetUserId, amount?, note? }
+router.post(
+  "/gold/mug",
+  asyncHandler(async (req: Request, res: Response) => {
+    const { guildId, channelId, targetUserId, amount, note } = req.body || {};
+    if (!guildId || !targetUserId) {
+      return res
+        .status(400)
+        .json({ error: "guildId and targetUserId are required" });
+    }
+    const client = DiscordWrapper.getClient("lupos");
+    if (!client) return res.status(503).json({ error: "Bot not ready" });
+    const guild = await client.guilds.fetch(guildId).catch(() => null);
+    if (!guild) return res.status(404).json({ error: "Guild not found" });
+    res.json(
+      await luposMugGold(
+        client,
+        guild,
+        channelId,
+        targetUserId,
+        Number(amount) || 0,
+        note,
+      ),
+    );
+  }),
+);
 
 export default router;
