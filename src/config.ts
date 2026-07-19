@@ -10,6 +10,8 @@
 // All consumers import: `import config from "#root/config.js"`
 // ============================================================
 
+import { assertRequiredEnvironment } from "@rodrigo-barraza/utilities-library";
+
 /**
  * Parse a comma-separated env var into an array of strings.
  */
@@ -163,26 +165,15 @@ const config = {
  * optional today stays optional.
  */
 export function validateConfig(cfg: typeof config = config): void {
-  // config key → env var it maps from (error messages name the env var)
-  const required: Array<{
-    key: "LUPOS_TOKEN" | "DATABASE_URL" | "SERVER_PORT";
-    envVar: string;
-  }> = [
-    { key: "LUPOS_TOKEN", envVar: "LUPOS_TOKEN" },
-    { key: "DATABASE_URL", envVar: "MONGO_URI" },
-    { key: "SERVER_PORT", envVar: "LUPOS_BOT_PORT" },
-  ];
-
-  const missing = required
-    .filter(({ key }) => !cfg[key])
-    .map(({ key, envVar }) =>
-      key === envVar ? envVar : `${envVar} (config.${key})`,
-    );
-  if (missing.length > 0) {
-    throw new Error(
-      `[config] Missing required environment variable(s): ${missing.join(", ")}`,
-    );
-  }
+  // Labels name the env var (annotated with the config key it feeds).
+  assertRequiredEnvironment(
+    {
+      "LUPOS_TOKEN": cfg.LUPOS_TOKEN,
+      "MONGO_URI (config.DATABASE_URL)": cfg.DATABASE_URL,
+      "LUPOS_BOT_PORT (config.SERVER_PORT)": cfg.SERVER_PORT,
+    },
+    { prefix: "[config]" },
+  );
 
   if (Number.isNaN(Number(cfg.SERVER_PORT))) {
     throw new Error(
