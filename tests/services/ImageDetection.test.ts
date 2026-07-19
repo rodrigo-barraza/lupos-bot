@@ -10,8 +10,9 @@
  *   2. hasSelfReferenceRegex  — detects "draw me" / "my pfp" (regex tier 1)
  *   3. detectGroupReference   — detects "draw everyone" / "top 5"
  *
- * NOTE: Tier 2 (LLM fallback) for self-ref is tested by documenting which
- * inputs fall through to it — actual LLM classification is integration-level.
+ * NOTE: Self-ref cases the regex can't catch (multilingual, indirect) are
+ * documented below as non-matches — the AGENT covers them by passing the
+ * author's avatar URL via generate_image's referenceImages parameter.
  */
 
 import {
@@ -276,8 +277,8 @@ describe("hasBotSelfPortraitRegex", () => {
     });
   });
 
-  describe("should FALL THROUGH to LLM tier — multilingual", () => {
-    // These should NOT match regex (they need the LLM fallback)
+  describe("should NOT match regex — multilingual/indirect (agent covers via referenceImages)", () => {
+    // These should NOT match regex (the agent attaches the avatar itself)
     const multilingualCases = [
       // Spanish
       ["dibújame", "Spanish: draw me"],
@@ -329,14 +330,14 @@ describe("hasBotSelfPortraitRegex", () => {
       ["ارسمني", "Arabic: draw me"],
 
       // Indirect / creative English (regex can't reliably catch)
-      ["give me advice", "non-visual give — falls to LLM"],
+      ["give me advice", "non-visual give — not a self-ref match"],
       [
         "give that cat pic the renaissance treatment",
         "indirect ref to own avatar",
       ],
     ];
 
-    test.each(multilingualCases)("%s → false (falls to LLM) (%s)", (input) => {
+    test.each(multilingualCases)("%s → false (agent's call) (%s)", (input) => {
       expect(hasSelfReferenceRegex(input)).toBe(false);
     });
   });

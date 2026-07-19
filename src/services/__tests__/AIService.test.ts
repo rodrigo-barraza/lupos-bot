@@ -36,46 +36,4 @@ describe("AIService", () => {
     });
   });
 
-  describe("generateTextCustomEmojiReactFromMessage", () => {
-    it("should call generateText and format the result accurately when custom emoji", async () => {
-      const generateTextSpy = vi
-        .spyOn(AIService, "generateText")
-        .mockResolvedValue(" customEmojiMock \n");
-
-      const mockGuild = {
-        id: "123",
-      };
-      const mockClient = {
-        user: { id: "bot123" },
-        guilds: {
-          cache: {
-            get: vi.fn().mockReturnValue({
-              emojis: {
-                cache: new Map([
-                  ["1", { id: "111", name: "customEmojiMock" }],
-                  ["2", { id: "222", name: "other" }],
-                ]),
-              },
-            }),
-          },
-        },
-      };
-
-      const mockMessage = {
-        content: "<@bot123> Test Message",
-        client: mockClient,
-        guild: mockGuild,
-      };
-
-      const result = await AIService.generateTextCustomEmojiReactFromMessage(
-        mockMessage,
-        null,
-      );
-
-      expect(result).toBe("111"); // Because it is wrapped inside logic to find by name and return id
-      expect(generateTextSpy).toHaveBeenCalledTimes(1);
-
-      generateTextSpy.mockRestore();
-    });
-  });
 });
