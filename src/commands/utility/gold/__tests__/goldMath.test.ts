@@ -11,6 +11,7 @@ import {
   computeDailyClaim,
   computeRansomCost,
   computeRoyalePot,
+  computeShockDropGold,
   computeWagerPot,
   formatGold,
 } from "../goldMath.ts";
@@ -107,6 +108,22 @@ describe("computeRansomCost", () => {
   it("the final seconds still cost a full minute", () => {
     expect(computeRansomCost(1_000)).toBe(RANSOM_GOLD_PER_MINUTE);
     expect(computeRansomCost(0)).toBe(RANSOM_GOLD_PER_MINUTE);
+  });
+});
+
+describe("computeShockDropGold", () => {
+  it("scales with paralysis duration at 10g per second", () => {
+    expect(computeShockDropGold(5, 10_000)).toBe(50);
+    expect(computeShockDropGold(15, 10_000)).toBe(150);
+  });
+
+  it("never drops more than the shocker carries", () => {
+    expect(computeShockDropGold(10, 35)).toBe(35);
+  });
+
+  it("drops nothing from an empty or missing pouch", () => {
+    expect(computeShockDropGold(10, 0)).toBe(0);
+    expect(computeShockDropGold(10, -5)).toBe(0);
   });
 });
 
