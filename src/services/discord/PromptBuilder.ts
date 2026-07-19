@@ -42,7 +42,6 @@ import {
   detectGroupReference,
   hasSelfReferenceRegex,
   hasBotSelfPortraitRegex,
-  detectSelfReferenceViaLLM,
 } from "#root/services/discord/ImageIntent.js";
 import {
   extractEmojisFromAllMessage,
@@ -976,13 +975,13 @@ export async function buildAndGenerateReply({
     // isn't in message.mentions when they only @mention the bot — so self-referential
     // requests would produce zero attached reference images without this block.
     //
-    // Two-tier detection:
-    //   1. Fast-path regex for common English patterns (zero latency, no API cost)
-    //   2. Lightweight LLM fallback for everything regex can't cover:
-    //      other languages, indirect refs, creative phrasings, slang
-    //      (~200ms Haiku call — negligible against the ~50s total flow)
+    // Regex fast-path only (zero latency, no API cost). Cases the regex
+    // can't cover — other languages, indirect refs, slang — are the
+    // agent's call now: it passes the author's avatar URL explicitly via
+    // generate_image's referenceImages parameter (the URL is in its
+    // participant context / get_discord_user_profile).
     // When the message replies to a bot message that carries an image, the
-    // replied-to image is the subject — skip BOTH self-reference tiers so
+    // replied-to image is the subject — skip self-reference detection so
     // "make me a bigger version" edits the generated image instead of
     // attaching the author's avatar. @mention and name-match attachment
     // above are deliberately left untouched ("draw me next to @Rodrigo"
@@ -995,23 +994,11 @@ export async function buildAndGenerateReply({
       const selfText =
         message.cleanContent || (message as Message).content || "";
 
-      // ── Tier 1: Fast-path regex (English) ──────────────────────
       if (hasSelfReferenceRegex(selfText)) {
         untaggedMatchedUserIds.add(message.author.id);
         console.log(
           `🪞 [DiscordService] Self-referential detected (regex fast-path) — adding author ${message.author.id} to image references`,
         );
-      } else {
-        // ── Tier 2: LLM fallback (multilingual, indirect refs) ───
-        // Only runs when regex didn't match but image request is likely.
-        // Uses the fastest model (~200ms) with a simple yes/no classification.
-        const isSelfRef = await detectSelfReferenceViaLLM(selfText);
-        if (isSelfRef) {
-          untaggedMatchedUserIds.add(message.author.id);
-          console.log(
-            `🪞 [DiscordService] Self-referential detected (LLM fallback) — adding author ${message.author.id} to image references`,
-          );
-        }
       }
     }
 

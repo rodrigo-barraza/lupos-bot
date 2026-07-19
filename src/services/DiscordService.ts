@@ -178,19 +178,9 @@ async function replyMessage(
     );
   }
 
-  // Generate custom emoji reaction
-  const customEmojiReact =
-    await AIService.generateTextCustomEmojiReactFromMessage(
-      message as Message,
-      localMongo,
-    );
-  if (customEmojiReact) {
-    try {
-      await message.react(customEmojiReact);
-    } catch {
-      /* emoji reaction failed — non-critical */
-    }
-  }
+  // Emoji reactions are no longer pre-generated here — the agent reacts
+  // autonomously via the react_to_discord_message tool (message ids ride
+  // in the <discord-message> envelopes).
 
   // Image detection is no longer needed — the agent decides autonomously
   // whether to generate images via the generate_image tool.

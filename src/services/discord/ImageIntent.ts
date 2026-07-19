@@ -6,13 +6,10 @@
 //   1. mightBeImageRequest — cheap gate that activates the pipeline
 //   2. Untagged-name matching — "draw Rodrigo" without @Rodrigo
 //   3. Group-reference detection — "draw everyone" / "top 5" → count
-//   4. Self-reference detection — regex tier + LLM-fallback tier
+//   4. Self-reference detection — regex fast-path only
 // The regexes are exported individually so tests can exercise the
 // real source instead of hand-synced copies.
 // ============================================================
-
-import config from "#root/config.js";
-import AIService from "#root/services/AIService.js";
 
 // ─── 1. Image-request gate ───────────────────────────────────────
 // Cheap heuristic: might the user be asking for image generation?
@@ -139,11 +136,12 @@ export function detectGroupReference(text: string): number {
 }
 
 // ─── 4. Self-reference detection ─────────────────────────────────
-// Two-tier detection:
-//   1. Fast-path regex for common English patterns (zero latency, no API cost)
-//   2. Lightweight LLM fallback for everything regex can't cover:
-//      other languages, indirect refs, creative phrasings, slang
-//      (~200ms Haiku call — negligible against the ~50s total flow)
+// Regex fast-path for common English patterns (zero latency, no API
+// cost). Everything the regex can't cover — other languages, indirect
+// refs, creative phrasings, slang — is the AGENT's job now: it can pass
+// the author's avatar URL (in its participant context / profile tool)
+// explicitly via generate_image's referenceImages parameter. The old
+// Tier-2 LLM classifier that pre-decided this was removed with it.
 
 // "draw me", "paint myself", "create me as...", etc.
 export const SELF_REF_VERB_ME_REGEX =
@@ -217,53 +215,10 @@ export function hasBotSelfPortraitRegex(text: string): boolean {
   );
 }
 
-/**
- * Tier 2: LLM fallback (multilingual, indirect refs).
- * Only runs when regex didn't match but image request is likely.
- * Uses the fastest model (~200ms) with a simple yes/no classification.
- * Returns false on classification failure (logged, non-fatal).
- */
-export async function detectSelfReferenceViaLLM(
-  messageText: string,
-): Promise<boolean> {
-  try {
-    const classificationResult = await AIService.generateText({
-      systemPrompt: `You are a classifier. Determine if the user's message is asking for an image that involves THEMSELVES — their own appearance, their own profile picture, their own avatar, or any visual depiction of themselves.
-
-This includes:
-- Direct self-references in ANY language: "draw me", "dibújame", "dessine-moi", "画我", "나를 그려줘", "нарисуй меня", etc.
-- Possessive references to their own image: "my profile picture", "mi foto de perfil", "mein Profilbild", etc.
-- Indirect self-references: "how would I look as...", "turn my pic into...", "make that a renaissance version" (when referring to their own image)
-- Hypothetical self-references: "what would I look like as a knight"
-- Shorthand: "my pfp", "my dp", "my avi"
-
-Respond with ONLY "yes" or "no". Nothing else.`,
-      conversation: [
-        {
-          role: "user",
-          content: messageText,
-        },
-      ],
-      type: "ANTHROPIC",
-      model: config.ANTHROPIC_LANGUAGE_MODEL_FAST,
-      temperature: 0,
-      tokens: 4,
-    });
-
-    return classificationResult?.trim().toLowerCase() === "yes";
-  } catch (classifyErr: unknown) {
-    console.warn(
-      `🪞 [DiscordService] Self-referential LLM classification failed: ${(classifyErr as Error).message}`,
-    );
-    return false;
-  }
-}
-
 export default {
   mightBeImageRequest,
   findUntaggedNameMatches,
   detectGroupReference,
   hasSelfReferenceRegex,
   hasBotSelfPortraitRegex,
-  detectSelfReferenceViaLLM,
 };
