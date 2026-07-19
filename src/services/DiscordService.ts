@@ -68,6 +68,7 @@ import {
 } from "#root/services/discord/ModerationSweeps.js";
 // Importing BirthdayOnboarding also registers its "birthday-month-" button handler
 import BirthdayOnboarding from "#root/services/discord/BirthdayOnboarding.js";
+import { luposOnChannelCreate } from "#root/services/discord/OnboardingDefaults.js";
 // Importing RolePicker also registers its "pick-role-" button handler
 // with ButtonRouter at module load.
 import { generateRolesEmbedMessage } from "#root/services/discord/RolePicker.js";
@@ -1646,6 +1647,7 @@ const DiscordService = {
     const guildEvents: [string, ...unknown[]][] = [
       ["onEventGuildMemberAdd", mongo, luposOnGuildMemberAdd],
       ["onEventGuildMemberUpdate", mongo, luposOnGuildMemberUpdate],
+      ["onEventChannelCreate", luposOnChannelCreate],
     ];
     const interactionEvents: [string, ...unknown[]][] = [
       ["onEventMessageReactionAdd", mongo, luposOnReactionCreateQueue],
