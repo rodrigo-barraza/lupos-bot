@@ -2422,6 +2422,14 @@ router.get(
         highestRole,
         displayColor,
         voiceState,
+        // Active timeout (null when not timed out) — parity with the old
+        // hand-built participant dossier so the agent loses nothing by
+        // fetching profiles on demand.
+        timedOutUntil:
+          member?.communicationDisabledUntilTimestamp &&
+          member.communicationDisabledUntilTimestamp > Date.now()
+            ? new Date(member.communicationDisabledUntilTimestamp).toISOString()
+            : null,
         isBot: user.bot,
       };
 

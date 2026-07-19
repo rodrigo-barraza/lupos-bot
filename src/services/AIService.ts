@@ -755,27 +755,6 @@ ${guildEmojiList}
     // talking, running bits, the current topic — not just the trigger.
     return 50;
   },
-  async generateTextFromUserConversation(
-    userName: string,
-    cleanUserName: string,
-    userMessagesAsText: string,
-  ): Promise<string | null> {
-    const generatedText = await AIService.generateText({
-      systemPrompt: `You are an expert at providing concise, accurate descriptions of messages. Analyze the content sent to you and create a detailed summary of what ${userName} is discussing. Focus on being precise and direct while capturing all key points and context from their message.
-                
-As the output, I want you to provide the descriptions in dash list form, without using any bold, italics, or any other formatting. You can have nested lists, but no more than 3 levels deep. Do not announce that you are generating a response, just provide the descriptions. Seperate each line with a new line, not two new lines.`,
-      conversation: [
-        {
-          role: "user",
-          name: cleanUserName,
-          content: `Recent messages from ${userName}: ${userMessagesAsText}`,
-        },
-      ],
-      type: "OPENAI",
-      model: config.OPENAI_LANGUAGE_MODEL_GPT4_1_NANO,
-    });
-    return generatedText;
-  },
 };
 
 export default AIService;

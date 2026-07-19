@@ -1028,7 +1028,13 @@ export async function buildAndGenerateReply({
         message.cleanContent || (message as Message).content || "",
       );
 
-    // Process mentioned members
+    // Non-primary participants get one roster line each instead of a full
+    // dossier — the agent deepens on demand via get_discord_user_profile.
+    // This also drops the per-mention guild member fetches the old dossier
+    // path needed.
+    const recentMessagesArray = Array.from(recentMessages.values());
+
+    // Mentioned members (in this server)
     if (memberMentionsCollection?.size) {
       // Skip the target user — they're already in "About me" above
       const filteredMemberMentions = memberMentionsCollection.filter(
@@ -1036,73 +1042,31 @@ export async function buildAndGenerateReply({
       );
       if (filteredMemberMentions.size > 0) {
         systemPrompt += `\n\n# Mentioned members in this server (${filteredMemberMentions.size})`;
-        let currentUserCount = 0;
         for (const member of filteredMemberMentions.values()) {
-          currentUserCount++;
-          participantMember = participantsMembersCollection.get(member.id);
-          // Member may not have sent messages — not in cache, so fetch from guild
-          if (!participantMember) {
-            participantMember =
-              (await DiscordUtilityService.retrieveMemberFromGuildById(
-                guild as Guild,
-                member.id,
-              )) || undefined;
-          }
-          participantUser = participantsUsersCollection.get(member.id);
-          participantConversation = conversationsCollection.get(member.id);
-
-          systemPrompt = await generateDescription(
-            systemPrompt,
-            message,
-            member,
-            "MENTIONED",
-            currentUserCount,
-            Array.from(recentMessages.values()),
-            participantsAvatarsCollection,
-            participantsBannersCollection,
-            participantConversation,
-            participantMember,
-            participantUser,
-            captionsMap,
+          const rosterLine = buildParticipantRosterLine(
+            participantsUsersCollection.get(member.id) || member.user,
+            participantsMembersCollection.get(member.id) || member,
+            member.id,
+            recentMessagesArray,
           );
+          if (rosterLine) systemPrompt += `\n${rosterLine}`;
         }
       }
     }
-    // Process mentioned users (not in this server)
+    // Mentioned users (not in this server)
     if (userMentionsCollection?.size) {
       systemPrompt += `\n\n# Mentioned users not in this server (${userMentionsCollection.size})`;
-      let currentUserCount = 0;
       for (const user of userMentionsCollection.values()) {
-        currentUserCount++;
-        participantMember = participantsMembersCollection.get(user.id);
-        // Member may not have sent messages — not in cache, so fetch from guild
-        if (!participantMember) {
-          participantMember =
-            (await DiscordUtilityService.retrieveMemberFromGuildById(
-              guild as Guild,
-              user.id,
-            )) || undefined;
-        }
-        participantUser = participantsUsersCollection.get(user.id);
-        participantConversation = conversationsCollection.get(user.id);
-
-        systemPrompt = await generateDescription(
-          systemPrompt,
-          message,
-          user,
-          "MENTIONED",
-          currentUserCount,
-          Array.from(recentMessages.values()),
-          participantsAvatarsCollection,
-          participantsBannersCollection,
-          participantConversation,
-          participantMember,
-          participantUser,
-          captionsMap,
+        const rosterLine = buildParticipantRosterLine(
+          participantsUsersCollection.get(user.id) || user,
+          participantsMembersCollection.get(user.id),
+          user.id,
+          recentMessagesArray,
         );
+        if (rosterLine) systemPrompt += `\n${rosterLine}`;
       }
     }
-    // Process secondary participants (size > 1 since it includes Lupos)
+    // Secondary participants (size > 1 since it includes Lupos)
     if (participantsCollection?.size > 1) {
       // Skip users already listed in "About me" or "Mentioned members" to avoid duplication
       const filteredParticipants = participantsCollection.filter(
@@ -1120,32 +1084,18 @@ export async function buildAndGenerateReply({
       if (filteredParticipants.size > 0) {
         systemPrompt += `\n\n# Secondary participants (${filteredParticipants.size})`;
         systemPrompt += `\nYou are aware of other participants in this conversation, but you are only replying to me.`;
-      }
-      let currentUserCount = 0;
-      for (const participant of filteredParticipants.values()) {
-        const pId =
-          (participant as { user?: { id: string }; id: string }).user?.id ||
-          (participant as { id: string }).id;
-        participantConversation = conversationsCollection.get(pId);
-        participantMember = participantsMembersCollection.get(pId);
-        participantUser = participantsUsersCollection.get(pId);
-        currentUserCount++;
-        systemPrompt = await generateDescription(
-          systemPrompt,
-          message,
-          participant as
-            | import("discord.js").User
-            | import("discord.js").GuildMember,
-          "SECONDARY",
-          currentUserCount,
-          Array.from(recentMessages.values()),
-          participantsAvatarsCollection,
-          participantsBannersCollection,
-          participantConversation,
-          participantMember,
-          participantUser,
-          captionsMap,
-        );
+        for (const participant of filteredParticipants.values()) {
+          const pId =
+            (participant as { user?: { id: string }; id: string }).user?.id ||
+            (participant as { id: string }).id;
+          const rosterLine = buildParticipantRosterLine(
+            participantsUsersCollection.get(pId),
+            participantsMembersCollection.get(pId),
+            pId,
+            recentMessagesArray,
+          );
+          if (rosterLine) systemPrompt += `\n${rosterLine}`;
+        }
       }
     }
 
@@ -1194,7 +1144,7 @@ export async function buildAndGenerateReply({
     const imageUrls: string[] = [];
     const imageLabels: string[] = []; // Tracks what each image in imageUrls represents
     // url → caption for attached/replied reference images (filled by the
-    // caption step below; avatar captions live in captionsMap instead).
+    // caption step below).
     const referenceCaptionsMap = new Map<string, string>();
     // data:-URI entry → its source http(s) URL, so the reference block can
     // still offer a copyable tool handle when the pushed image is an
@@ -1590,6 +1540,7 @@ export async function buildAndGenerateReply({
     if (messageGuildId) {
       let idsBlock = `# Discord IDs\n- Guild ID: ${messageGuildId}`;
       if (messageChannelId) idsBlock += `\n- Channel ID: ${messageChannelId}`;
+      idsBlock += `\n- Participant context above is intentionally slim. For anyone's full profile (presence, activities, roles, permissions, join/boost dates, voice state, timeout status) call get_discord_user_profile with this Guild ID and their numeric user ID (the digits inside their <@...> tag).`;
       platformContext.ids = idsBlock;
     }
 
@@ -1668,15 +1619,13 @@ export async function buildAndGenerateReply({
         // Add image index with descriptions so the agent knows which
         // image is which and what it looks like. Reference-image captions
         // (attached/replied-to images, including the bot's own generated
-        // images) come from referenceCaptionsMap; avatar/banner captions
-        // come from captionsMap.
+        // images) come from referenceCaptionsMap; avatar references carry
+        // no pre-computed caption — the model sees the image itself.
         if (imageLabels.length > 0) {
           const attachedBlock = buildReferenceImagesBlock(
             imageLabels.map((label: string, i: number) => ({
               label,
-              caption:
-                referenceCaptionsMap.get(imageUrls[i]) ||
-                captionsMap?.get(imageUrls[i]),
+              caption: referenceCaptionsMap.get(imageUrls[i]),
               // Real handle for image tools; data: URIs filtered by builder
               url: referenceHandleMap.get(imageUrls[i]) || imageUrls[i],
             })),
