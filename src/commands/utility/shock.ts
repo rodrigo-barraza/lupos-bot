@@ -1,12 +1,5 @@
-import {
-  ActionRowBuilder,
-  ButtonBuilder,
-  ButtonStyle,
-  SlashCommandBuilder,
-  PermissionFlagsBits,
-} from "discord.js";
+import { SlashCommandBuilder, PermissionFlagsBits } from "discord.js";
 import type {
-  ButtonInteraction,
   ChatInputCommandInteraction,
   GuildMember,
   Message,
@@ -16,12 +9,38 @@ import { adjustGold, fetchWallet } from "./gold/goldRepository.ts";
 import {
   SHOCK_CRIT_BONUS_GOLD,
   SHOCK_CRIT_CONSOLATION_GOLD,
+  computeScatterPileCount,
   computeShockDropGold,
+  computeShockMissDropGold,
   formatGold,
 } from "./gold/goldMath.ts";
+import {
+  buildScatterAssignments,
+  creditScatter,
+  formatScatterLine,
+  pickScatterTargets,
+} from "./gold/goldScatter.ts";
+import type { ScatterTarget } from "./gold/goldScatter.ts";
 
-/** How long dropped gold stays grabbable before it burns. */
-const GRAB_WINDOW_MS = 60 * 1000;
+/**
+ * Everyone who spoke recently except the dropper and bots — broader than
+ * the shockable pool (mods and timed-out members can still pick up gold).
+ */
+function buildBystanderPool(
+  recentMessages: Message[],
+  excludeId: string,
+): ScatterTarget[] {
+  const pool = new Map<string, ScatterTarget>();
+  for (const message of recentMessages) {
+    if (message.author.bot || message.author.id === excludeId) continue;
+    pool.set(message.author.id, {
+      userId: message.author.id,
+      username: message.author.username,
+      displayName: message.member?.displayName ?? message.author.username,
+    });
+  }
+  return Array.from(pool.values());
+}
 
 // Per-user cooldown, enforced centrally by the dispatcher via cooldownSeconds
 const COOLDOWN_SECONDS = 5 * 60; // 5 minutes
@@ -195,11 +214,63 @@ export default {
         `**${interaction.user}** used **${randomMoveName}** ${moveData.emoji}**!**\nBut **${randomMember.user}** avoided the attack!`,
       ];
 
-      const randomMissMessage =
+      let missMessage =
         missMessages[Math.floor(Math.random() * missMessages.length)];
 
+      // Fumble tax: a whiff still drops gold — scaled by the timeout the
+      // move would have dealt — scattered to bystanders. High-power,
+      // low-accuracy moves are a genuine gamble now.
+      const wouldBeSeconds =
+        calculateTimeoutDuration(moveData.power, false) / 1000;
+      const wallet = await fetchWallet(interaction.guildId!, userId);
+      const fumbleDrop = computeShockMissDropGold(
+        wouldBeSeconds,
+        wallet?.balance ?? 0,
+      );
+
+      if (fumbleDrop > 0) {
+        const debit = await adjustGold(
+          interaction.guildId!,
+          userId,
+          -fumbleDrop,
+          "shock_drop",
+          {
+            userInfo: {
+              username: interaction.user.username,
+              displayName: (interaction.member as GuildMember).displayName,
+            },
+            meta: { cause: "miss" },
+          },
+        );
+        if (debit.ok) {
+          const pool = buildBystanderPool(
+            Array.from(messages.values()),
+            userId,
+          );
+          const targets = pickScatterTargets(
+            pool,
+            computeScatterPileCount(fumbleDrop, pool.length),
+          );
+          if (targets.length > 0) {
+            const assignments = buildScatterAssignments(fumbleDrop, targets);
+            await creditScatter(
+              interaction.guildId!,
+              assignments,
+              "shock_pickup",
+              {
+                droppedBy: userId,
+                cause: "miss",
+              },
+            );
+            missMessage += `\n💸 In the fumble, **${interaction.user}** dropped **${formatGold(fumbleDrop)}**... ${formatScatterLine(assignments)}`;
+          } else {
+            missMessage += `\n💸 In the fumble, **${interaction.user}** dropped **${formatGold(fumbleDrop)}**... nobody was around, and it sinks into the floor.`;
+          }
+        }
+      }
+
       return interaction.editReply({
-        content: randomMissMessage,
+        content: missMessage,
       });
     }
 
@@ -271,8 +342,10 @@ export default {
         `It hurt itself in its confusion**!**\n` +
         `**${interaction.user}** is paralyzed**!** It can't move for the next ${timeoutSeconds} second${timeoutSeconds !== 1 ? "s" : ""}**!**\n\n`;
 
-      // Backfire punishment: the self-shocker drops gold on the floor.
-      // First member to grab it keeps it; unclaimed gold burns.
+      // Backfire punishment: the self-shocker drops gold, and it scatters
+      // across the recent conversation — big drops shower up to 4 people.
+      // No buttons, no interruption — one punchline line on the existing
+      // message. With no bystanders around, the gold burns instead.
       const wallet = await fetchWallet(interaction.guildId!, userId);
       const dropAmount = computeShockDropGold(
         timeoutSeconds,
@@ -290,31 +363,33 @@ export default {
               username: interaction.user.username,
               displayName: (interaction.member as GuildMember).displayName,
             },
+            meta: { cause: "self" },
           },
         );
         if (debit.ok) {
-          battleMessage += `💰 **${interaction.user}** dropped **${formatGold(dropAmount)}** in the chaos! First to grab it keeps it!`;
-
-          const grabButton = new ButtonBuilder()
-            .setCustomId(`shock_grab_${interaction.id}`)
-            .setLabel(`Grab ${dropAmount}g`)
-            .setStyle(ButtonStyle.Success)
-            .setEmoji("🫳");
-          const reply = (await interaction.editReply({
-            content: battleMessage,
-            components: [
-              new ActionRowBuilder<ButtonBuilder>().addComponents(grabButton),
-            ],
-          })) as Message;
-
-          createGrabCollector(
-            reply,
-            battleMessage,
-            interaction.guildId!,
+          const pool = buildBystanderPool(
+            Array.from(messages.values()),
             userId,
-            dropAmount,
           );
-          return;
+          const targets = pickScatterTargets(
+            pool,
+            computeScatterPileCount(dropAmount, pool.length),
+          );
+          if (targets.length > 0) {
+            const assignments = buildScatterAssignments(dropAmount, targets);
+            await creditScatter(
+              interaction.guildId!,
+              assignments,
+              "shock_pickup",
+              {
+                droppedBy: userId,
+                cause: "self",
+              },
+            );
+            battleMessage += `💰 **${interaction.user}** dropped **${formatGold(dropAmount)}** in the chaos... ${formatScatterLine(assignments)}`;
+          } else {
+            battleMessage += `💰 **${interaction.user}** dropped **${formatGold(dropAmount)}** in the chaos... nobody was around, and it sinks into the floor.`;
+          }
         }
       } else {
         battleMessage += `💰 **${interaction.user}** fumbled for gold to drop... but their pouch is empty!`;
@@ -364,71 +439,3 @@ export default {
     });
   },
 };
-
-/**
- * Watches the dropped-gold message: the first non-dropper to click Grab
- * gets the gold; if nobody does within the window, the gold burns.
- */
-function createGrabCollector(
-  message: Message,
-  battleMessage: string,
-  guildId: string,
-  dropperId: string,
-  dropAmount: number,
-) {
-  const collector = message.createMessageComponentCollector({
-    time: GRAB_WINDOW_MS,
-  });
-  let grabbed = false;
-
-  collector.on("collect", async (buttonInteraction: ButtonInteraction) => {
-    try {
-      if (buttonInteraction.user.id === dropperId) {
-        return buttonInteraction.reply({
-          content: "⚡ You dropped it — too paralyzed to pick it back up!",
-          ephemeral: true,
-        });
-      }
-      if (grabbed) return buttonInteraction.deferUpdate().catch(() => {});
-      grabbed = true;
-      collector.stop("grabbed");
-
-      await adjustGold(
-        guildId,
-        buttonInteraction.user.id,
-        dropAmount,
-        "shock_pickup",
-        {
-          userInfo: {
-            username: buttonInteraction.user.username,
-            displayName:
-              (buttonInteraction.member as GuildMember | null)?.displayName ??
-              buttonInteraction.user.username,
-          },
-          meta: { droppedBy: dropperId },
-        },
-      );
-
-      await buttonInteraction.update({
-        content:
-          battleMessage +
-          `\n🫳 **${buttonInteraction.user}** snatched the **${formatGold(dropAmount)}** off the floor!`,
-        components: [],
-      });
-    } catch (error: unknown) {
-      console.error("Error in shock grab collector:", error);
-    }
-  });
-
-  collector.on("end", async (_collected, reason: string) => {
-    if (reason === "grabbed" || grabbed) return;
-    await message
-      .edit({
-        content:
-          battleMessage +
-          `\n-# 🕳️ Nobody grabbed it — the ${formatGold(dropAmount)} sinks into the floor, lost forever.`,
-        components: [],
-      })
-      .catch(() => {});
-  });
-}

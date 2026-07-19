@@ -33,10 +33,19 @@ export const RANSOM_GOLD_PER_MINUTE = 25;
 
 /** Gold dropped per second of self-shock paralysis (backfire punishment). */
 export const SHOCK_DROP_GOLD_PER_SECOND = 10;
+/** Gold dropped per second of the timeout a missed shock would have dealt. */
+export const SHOCK_MISS_DROP_GOLD_PER_SECOND = 3;
 /** House bounty for landing a critical shock on someone else. */
 export const SHOCK_CRIT_BONUS_GOLD = 25;
 /** Insurance payout to the victim of a critical shock. */
 export const SHOCK_CRIT_CONSOLATION_GOLD = 15;
+/** Most gold a beatup victim drops for the mob to loot. */
+export const BEATUP_VICTIM_DROP_GOLD = 60;
+
+/** Scattered drops split into one extra pile per this much gold... */
+export const GOLD_PER_EXTRA_PILE = 50;
+/** ...capped at this many piles. */
+export const MAX_SCATTER_PILES = 4;
 
 // ─── Formatting ───────────────────────────────────────────────────────
 
@@ -130,4 +139,60 @@ export function computeRansomCost(remainingMs: number) {
 export function computeShockDropGold(timeoutSeconds: number, balance: number) {
   const drop = Math.round(timeoutSeconds * SHOCK_DROP_GOLD_PER_SECOND);
   return Math.max(0, Math.min(balance, drop));
+}
+
+/**
+ * Fumble tax for a missed shock: scales with the timeout the move would
+ * have dealt, capped at the caster's balance.
+ */
+export function computeShockMissDropGold(
+  timeoutSeconds: number,
+  balance: number,
+) {
+  const drop = Math.round(timeoutSeconds * SHOCK_MISS_DROP_GOLD_PER_SECOND);
+  return Math.max(0, Math.min(balance, drop));
+}
+
+// ─── Scatter Math ─────────────────────────────────────────────────────
+
+/**
+ * How many piles a scattered drop splits into: one, plus one per
+ * GOLD_PER_EXTRA_PILE, capped by the bystander pool and MAX_SCATTER_PILES.
+ */
+export function computeScatterPileCount(amount: number, poolSize: number) {
+  if (amount <= 0 || poolSize <= 0) return 0;
+  return Math.min(
+    poolSize,
+    1 + Math.floor(amount / GOLD_PER_EXTRA_PILE),
+    MAX_SCATTER_PILES,
+  );
+}
+
+/**
+ * Splits an amount into `count` uneven piles that always sum exactly to
+ * `amount`, each at least 1, sorted largest-first (loot-style — someone
+ * always gets the big pile). `rand` is injectable for deterministic tests.
+ */
+export function splitGoldPiles(
+  amount: number,
+  count: number,
+  rand: () => number = Math.random,
+) {
+  if (amount <= 0 || count <= 0) return [];
+  // A tiny drop can't fill every pile — fewer piles, never a 0g pile.
+  count = Math.min(count, amount);
+  if (count === 1) return [amount];
+
+  // Reserve 1 per pile, share the rest by random weight, then hand the
+  // rounding remainder out one coin at a time.
+  const weights = Array.from({ length: count }, () => rand() + 0.25);
+  const totalWeight = weights.reduce((sum, w) => sum + w, 0);
+  const base = amount - count;
+  const piles = weights.map((w) => 1 + Math.floor((base * w) / totalWeight));
+  let remainder = amount - piles.reduce((sum, p) => sum + p, 0);
+  for (let i = 0; remainder > 0; i = (i + 1) % count) {
+    piles[i]++;
+    remainder--;
+  }
+  return piles.sort((a, b) => b - a);
 }
