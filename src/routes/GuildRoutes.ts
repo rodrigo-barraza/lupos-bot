@@ -11,6 +11,7 @@ import { fileURLToPath } from "url";
 import { Router } from "express";
 import type { Request, Response, NextFunction } from "express";
 import { asyncHandler } from "@rodrigo-barraza/utilities-library/express";
+import { COLLECTIONS } from "@rodrigo-barraza/utilities-library/taxonomy";
 import { ChannelType } from "discord.js";
 import type {
   GuildMember,
@@ -1355,7 +1356,7 @@ router.get(
 
       // 4. Image generation activity + unique IPs per hour (Prism requests for lupos)
       const imageGenActivity = (await prismDb
-        .collection("requests")
+        .collection(COLLECTIONS.requests)
         .aggregate([
           {
             $match: {
@@ -1387,7 +1388,7 @@ router.get(
 
       // 5a. Unique client IPs per hour from prism requests (all lupos API interactions)
       const prismUniqueIps = (await prismDb
-        .collection("requests")
+        .collection(COLLECTIONS.requests)
         .aggregate([
           {
             $match: {
@@ -1423,7 +1424,7 @@ router.get(
         .collection("MetricsMessageGeneration")
         .distinct("userId", { _id: { $gte: cutoffObjectId } });
       const totalUniqueIps = await prismDb
-        .collection("requests")
+        .collection(COLLECTIONS.requests)
         .distinct("clientIp", {
           project: "lupos",
           success: true,

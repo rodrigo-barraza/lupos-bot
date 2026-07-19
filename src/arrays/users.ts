@@ -1,9 +1,11 @@
+import { DISCORD_USERS } from "@rodrigo-barraza/utilities-library/taxonomy";
+
 const users = [
   {
     name: "Rodrigo",
     keywords: "rodrigo, rod",
     username: "rod.dev",
-    userId: "166745313258897409",
+    userId: DISCORD_USERS.owner,
     description: "Testing",
   },
 ];

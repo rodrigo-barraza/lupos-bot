@@ -22,6 +22,8 @@ import { pathToFileURL } from "node:url";
 
 import config from "#root/config.js";
 
+import { DISCORD_GUILDS, DISCORD_USERS } from "@rodrigo-barraza/utilities-library/taxonomy";
+
 import channels from "#root/arrays/channels.js";
 
 import DiscordWrapper from "#root/wrappers/DiscordWrapper.js";
@@ -753,13 +755,13 @@ async function luposOnReadyCloneMessages(
   await DiscordUtilityService.fetchAndSaveAllServerMessages(
     client,
     localMongo,
-    "249010731910037507",
+    DISCORD_GUILDS.whitemane,
   );
 
   // Backfill media archive for Lupos messages with Discord CDN URLs
   await DiscordUtilityService.backfillMediaArchive(client, localMongo, {
     authorIds: ["1198099566088699904"],
-    guildId: "249010731910037507",
+    guildId: DISCORD_GUILDS.whitemane,
   });
 }
 
@@ -777,7 +779,7 @@ async function luposOnReadyRescrapeChannels(
     dateLimit?: string;
   },
 ) {
-  const guilds = guildIds || ["249010731910037507"];
+  const guilds = guildIds || [DISCORD_GUILDS.whitemane];
   const limit = dateLimit || "2025-01-01";
 
   for (const guildId of guilds) {
@@ -1030,7 +1032,7 @@ URL: ${utilities.getDiscordMessageUrl((message as Message).guild?.id || "", (mes
     return;
   }
 
-  if (config.UNDER_MAINTENANCE && message.author.id !== "166745313258897409") {
+  if (config.UNDER_MAINTENANCE && message.author.id !== DISCORD_USERS.owner) {
     // Only the owner can interact with Lupos during maintenance
     if ((message as Message).guild?.id === config.GUILD_ID_PRIMARY) {
       await sendMaintenanceCountdown(message);

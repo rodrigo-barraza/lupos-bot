@@ -1,13 +1,15 @@
+import { DISCORD_CHANNELS } from "@rodrigo-barraza/utilities-library/taxonomy";
+
 const channels = [
   // Politics and News
   {
-    id: "762734438375096380",
+    id: DISCORD_CHANNELS.politics,
     name: "politics",
     roleId: "954089066373214208",
   },
   // Sports
   {
-    id: "844637988159356968",
+    id: DISCORD_CHANNELS.sportsmane,
     name: "sportsmane",
     roleId: "984930847079677972",
   },
