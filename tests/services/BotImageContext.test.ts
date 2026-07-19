@@ -162,7 +162,6 @@ vi.mock("../../src/services/AIService", () => ({
       .fn()
       .mockResolvedValue({ transcriptionsMap: new Map() }),
     generateText: vi.fn().mockResolvedValue(""),
-    generateTextFromUserConversation: vi.fn().mockResolvedValue("summary"),
     _getTraceParams: vi.fn().mockReturnValue({}),
   },
 }));
