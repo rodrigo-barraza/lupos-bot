@@ -461,6 +461,14 @@ const DiscordUtilityService = {
       },
     );
   },
+  onEventChannelCreate(
+    client: Client,
+    customFunction: (...args: unknown[]) => void,
+  ) {
+    return client.on(Events.ChannelCreate, (channel) => {
+      void runEventHandler("channelCreate", customFunction, client, channel);
+    });
+  },
   onEventGuildMemberRemove(
     client: Client,
     mongo: import("mongodb").MongoClient,
