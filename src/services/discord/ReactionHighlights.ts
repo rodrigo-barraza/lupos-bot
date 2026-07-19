@@ -12,7 +12,10 @@ import type { MongoClient } from "mongodb";
 import { EmbedBuilder, DiscordAPIError } from "discord.js";
 import config from "#root/config.js";
 import utilities from "#root/utilities.js";
+import AIService from "#root/services/AIService.js";
+import CensorService from "#root/services/CensorService.js";
 import DiscordUtilityService from "#root/services/DiscordUtilityService.js";
+import PrismService from "#root/services/PrismService.js";
 import ScraperService from "#root/services/ScraperService.js";
 import DiscordState from "#root/services/discord/DiscordState.js";
 import EventReactJob from "#root/jobs/event-driven/ReactJob.js";
@@ -22,6 +25,88 @@ import MongoService from "#root/services/MongoService.js";
 interface QueuedReaction {
   reaction: MessageReaction | PartialMessageReaction;
   user: User | PartialUser;
+}
+
+/**
+ * Generate a short in-character Lupos comment for a freshly-highlighted
+ * message. The LUPOS persona (voice, mood, guild flavor) is assembled
+ * server-side by Prism — this only ships the runtime task context, same
+ * shape as RandomTagJob. Returns null on any failure: the highlight is
+ * already posted, the quip is best-effort garnish, never load-bearing.
+ */
+async function generateHighlightQuip(details: {
+  authorName: string;
+  channelName: string;
+  content: string | null;
+  emojiName: string | null;
+  reactionCount: number;
+  guildId: string;
+  channelId: string;
+}): Promise<string | null> {
+  try {
+    const taskDescription = `# SPECIAL TASK: HIGHLIGHT COMMENTARY
+A message just earned enough reactions to make the highlights board.
+You are adding ONE short comment above the highlight embed.
+
+## RULES:
+- ONE sentence, in-character — celebrate it, roast it, or feign being unimpressed.
+- React to what the message actually says, not just that it got reactions.
+- Do NOT tag or @-mention anyone. Refer to the author by name only.
+- No hashtags, no quotation marks around your own line, no explaining the task.`;
+
+    const agentContext: Record<string, unknown> = {
+      platform: "discord",
+      guildId: details.guildId,
+      channelId: details.channelId,
+      platformContext: {
+        description: taskDescription,
+      },
+    };
+
+    let userMessage = `${details.authorName}'s message in #${details.channelName} just hit the highlights board with ${details.reactionCount} reactions${details.emojiName ? ` (mostly ${details.emojiName})` : ""}.`;
+    if (details.content) {
+      userMessage += `\n\n## THE MESSAGE:\n${details.content.slice(0, 1500)}`;
+    } else {
+      userMessage += `\n\nThe message was an image/attachment with no text.`;
+    }
+    userMessage += `\n\nWrite your one-line comment.`;
+
+    const agentModel =
+      config.LANGUAGE_MODEL_TYPE === "GOOGLE"
+        ? config.GOOGLE_LANGUAGE_MODEL_FAST
+        : config.LANGUAGE_MODEL_TYPE === "OPENAI"
+          ? config.FAST_LANGUAGE_MODEL_OPENAI
+          : config.LANGUAGE_MODEL_TYPE === "LOCAL"
+            ? config.FAST_LANGUAGE_MODEL_LOCAL
+            : config.ANTHROPIC_LANGUAGE_MODEL_FAST;
+
+    const agentResponse = await PrismService.generateAgentResponse({
+      messages: [{ role: "user", content: userMessage }],
+      type: config.LANGUAGE_MODEL_TYPE || "",
+      model: agentModel || "",
+      agentContext,
+      maxTokens: 256,
+      temperature: 1.0,
+      ...AIService._getTraceParams(),
+    });
+
+    let quip = agentResponse.text?.trim();
+    if (!quip) return null;
+    quip = CensorService.removeFlaggedWords(quip);
+    quip = utilities.removeMentions(quip);
+    // The quip must never ping: strip any user-mention tags the model
+    // produced anyway (allowedMentions on the edit is the hard backstop).
+    quip = quip
+      .replace(/<@!?\d{17,20}>/g, "")
+      .replace(/\s{2,}/g, " ")
+      .trim();
+    return quip ? quip.slice(0, 300) : null;
+  } catch (quipErr: unknown) {
+    console.warn(
+      `[ReactionHighlights] Quip generation failed: ${(quipErr as Error).message}`,
+    );
+    return null;
+  }
 }
 
 /**
@@ -216,6 +301,32 @@ async function processCreateReaction(client: Client, queuedReaction: QueuedReact
     if (!existingMessageId) {
       const message = await targetChannel.send({ embeds: [embed] });
       DiscordState.reactionMessages.set(messageId, message.id);
+
+      // Best-effort in-character commentary, edited in AFTER the post so a
+      // slow or failed agent call never delays the highlight or blocks the
+      // serial reaction queue. Only fired on first post — count-update
+      // edits below don't touch content, so the quip survives them.
+      void generateHighlightQuip({
+        authorName: name,
+        channelName,
+        content,
+        emojiName,
+        reactionCount: totalReactions,
+        guildId,
+        channelId,
+      }).then(async (quip) => {
+        if (!quip) return;
+        try {
+          await message.edit({
+            content: quip,
+            allowedMentions: { parse: [] },
+          });
+        } catch (editErr: unknown) {
+          console.warn(
+            `[ReactionHighlights] Quip edit failed: ${(editErr as Error).message}`,
+          );
+        }
+      });
     } else {
       const message = await targetChannel.messages.fetch(existingMessageId);
       await message.edit({ embeds: [embed] });
