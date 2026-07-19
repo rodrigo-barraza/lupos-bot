@@ -20,6 +20,8 @@ import {
   fetchSinglePlayerStats,
   fetchTopRivals,
 } from "./repository.ts";
+import { adjustGold } from "../gold/goldRepository.ts";
+import { HOUSE_RAKE, computeWagerPot, formatGold } from "../gold/goldMath.ts";
 import type { RankedPlayer } from "./repository.ts";
 import { buildEngageDeclineRow } from "./render.ts";
 import { createEngageCollector, createGame } from "./gameState.ts";
@@ -33,6 +35,7 @@ export async function executeDeathroll(
   const userId = interaction.user.id;
   const now = Date.now();
   const startingNumber = interaction.options.getInteger("number") || 100;
+  const wager = interaction.options.getInteger("wager") || 0;
   const targetUser = interaction.options.getUser("opponent");
 
   await interaction.deferReply();
@@ -86,18 +89,43 @@ export async function executeDeathroll(
   }
 
   const guildId = interaction.guild!.id;
+
+  // The initiator's wager goes into escrow up front; it's refunded on
+  // decline/expiry and paid out (minus rake) when a result is saved.
+  if (wager > 0) {
+    const debit = await adjustGold(guildId, userId, -wager, "deathroll_wager", {
+      userInfo: {
+        username: interaction.user.username,
+        displayName: member.displayName,
+      },
+    });
+    if (!debit.ok) {
+      return interaction.editReply({
+        content:
+          debit.error === "insufficient"
+            ? `🎲 You don't have ${formatGold(wager)} to wager! Check /gold balance.`
+            : "🎲 Couldn't take your wager — please try again.",
+      });
+    }
+  }
+
   const initiatorStats = await fetchSinglePlayerStats(guildId, userId);
   const targetStats = targetUser
     ? await fetchSinglePlayerStats(guildId, targetUser.id)
     : null;
 
+  const wagerSuffix = wager > 0 ? ` · ${wager}g wager` : "";
   const buttonLabel =
     targetUser && targetMember
-      ? `Accept Deathroll ${targetMember.displayName} (0-${startingNumber})`
-      : `Accept Deathroll (0-${startingNumber})`;
+      ? `Accept Deathroll ${targetMember.displayName} (0-${startingNumber})${wagerSuffix}`
+      : `Accept Deathroll (0-${startingNumber})${wagerSuffix}`;
 
   const initiatorRecord = formatStatsString(initiatorStats || {});
-  let content = `🎲 <@${interaction.user.id}>${initiatorRecord} has started a deathroll from **${startingNumber}**!\n\n`;
+  let content = `🎲 <@${interaction.user.id}>${initiatorRecord} has started a deathroll from **${startingNumber}**!\n`;
+  if (wager > 0) {
+    content += `💰 Both players stake **${formatGold(wager)}** — winner takes **${formatGold(computeWagerPot(wager, 2))}** (${Math.round(HOUSE_RAKE * 100)}% house rake).\n`;
+  }
+  content += `\n`;
 
   if (targetUser) {
     const targetRecord = formatStatsString(targetStats || {});
@@ -132,6 +160,7 @@ export async function executeDeathroll(
       startedAt: now,
       currentMessageId: reply.id,
       timeoutMultiplier: 1,
+      wager,
     },
     "pending",
   );

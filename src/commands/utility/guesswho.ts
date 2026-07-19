@@ -21,6 +21,8 @@ import {
 } from "./commandUtils.ts";
 import { WRONG_GUESS_ROASTS } from "../../constants/GuessWhoConstants.ts";
 import { EXCLUDE_SOFT_DELETED } from "#root/constants.js";
+import { adjustGold } from "./gold/goldRepository.ts";
+import { GUESSWHO_CORRECT_GOLD } from "./gold/goldMath.ts";
 
 interface GuessOption {
   userId: string;
@@ -463,9 +465,24 @@ export default {
       });
 
       if (isCorrect) {
+        // Correct guessers also earn gold (fire-and-forget — the game
+        // must not stall on the economy).
+        adjustGold(
+          interaction.guildId!,
+          i.user.id,
+          GUESSWHO_CORRECT_GOLD,
+          "guesswho_correct",
+          {
+            userInfo: {
+              username: i.user.username,
+              displayName: i.user.username,
+            },
+          },
+        ).catch(() => {});
+
         // Add winning guess to the live feed
         guessLog.push(
-          `${guessLog.length + 1}. <@${i.user.id}> guessed **${userDisplayNames.get(userId)}** ✅ (+1 → **${currentScore}** pts)`,
+          `${guessLog.length + 1}. <@${i.user.id}> guessed **${userDisplayNames.get(userId)}** ✅ (+1 → **${currentScore}** pts · 🪙 +${GUESSWHO_CORRECT_GOLD}g)`,
         );
 
         // Acknowledge the button press (required by Discord)

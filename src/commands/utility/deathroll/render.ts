@@ -21,6 +21,8 @@ export interface EndGameDisplayStats {
   loserMmrChange?: string;
   winnerStreak?: number;
   loserStreak?: number;
+  winnerGold?: number;
+  winnerPot?: number;
 }
 
 export function formatGameMessage(
@@ -33,6 +35,9 @@ export function formatGameMessage(
 ) {
   const timeoutMinutes = (game.timeoutMultiplier || 1) * BASE_TIMEOUT_MINUTES;
   let content = `🎲 **Deathroll Game**${game.timeoutMultiplier > 1 ? ` 🎰 **${getMultiplierName(game.timeoutMultiplier).toUpperCase()} OR NOTHING (${timeoutMinutes}min timeout)**` : ""}\n`;
+  if (game.wager > 0) {
+    content += `💰 **${game.wager}g wager each** — winner takes the pot\n`;
+  }
 
   if (stats && !isGameOver) {
     const initiatorRecord = stats.initiator
@@ -81,8 +86,16 @@ export function formatGameMessage(
         ? " · " + formatStreak(stats.loserStreak)
         : "";
 
+      const winnerGoldStr = stats.winnerGold
+        ? ` · 🪙 +${stats.winnerGold}g`
+        : "";
+      const winnerPotStr = stats.winnerPot
+        ? ` · 💰 +${stats.winnerPot}g pot`
+        : "";
+
       content += `💀 ${loserRank} <@${lastRollerId}>${loserMmrChange} loses!${loserStreakStr}\n`;
-      content += `🎉 ${winnerRank} <@${winnerId}>${winnerMmrChange} wins!${winnerStreakStr}`;
+      content += `🎉 ${winnerRank} <@${winnerId}>${winnerMmrChange} wins!${winnerStreakStr}${winnerGoldStr}${winnerPotStr}\n`;
+      content += `-# 💰 /gold ransom can buy the loser out of their timeout`;
     } else {
       content += `💀 <@${lastRollerId}> loses!\n`;
       content += `🎉 <@${winnerId}> wins!`;

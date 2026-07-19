@@ -25,6 +25,16 @@ import {
   UNRANKED_DISPLAY,
 } from "./mmr.ts";
 import type { GameState, PlayerProfile, UserStats } from "./types.ts";
+import { adjustGold } from "../gold/goldRepository.ts";
+import { DEATHROLL_WIN_GOLD, computeWagerPot } from "../gold/goldMath.ts";
+
+/**
+ * Gold paid to a 1v1 deathroll winner, scaled by the same compressed
+ * multiplier the MMR system uses for Double-or-Nothing games.
+ */
+export function computeDeathrollWinGold(timeoutMultiplier: number) {
+  return Math.round(DEATHROLL_WIN_GOLD * mmrMultiplier(timeoutMultiplier));
+}
 
 // ─── Collections & Indexes ────────────────────────────────────────────
 
@@ -523,6 +533,8 @@ export async function buildEndGameData(
         : ` (${loserPost.mmr} MMR, ${loserMmrDiff}${multiplierLabel} ↓)`,
       winnerStreak: winnerCurrentStreak,
       loserStreak: loserCurrentStreak,
+      winnerGold: computeDeathrollWinGold(multiplier),
+      winnerPot: game.wager > 0 ? computeWagerPot(game.wager, 2) : 0,
     };
   } catch (error: unknown) {
     console.error("Error building end game data:", error);
@@ -629,6 +641,8 @@ export async function saveGameResult(
     endedAt: now,
     duration: now - game.startedAt,
     timeoutMultiplier: multiplier,
+    wager: game.wager || 0,
+    pot: game.wager > 0 ? computeWagerPot(game.wager, 2) : 0,
     season: config.DEATHROLL_SEASON,
   };
   if (endReason) {
@@ -645,6 +659,33 @@ export async function saveGameResult(
       return;
     }
     throw error;
+  }
+
+  // The unique gameId insert above is the idempotency gate, so the gold
+  // awards can't double-pay on a duplicate save.
+  await adjustGold(
+    guildId,
+    winnerId,
+    computeDeathrollWinGold(multiplier),
+    "deathroll_win",
+    {
+      userInfo: winnerInfo,
+      meta: { gameId: gameRecord.gameId },
+    },
+  );
+  // Escrowed wagers pay out here — the only "result saved" moment — so
+  // the pot survives Double-or-Nothing chains and restart reconciliation.
+  if (game.wager > 0) {
+    await adjustGold(
+      guildId,
+      winnerId,
+      computeWagerPot(game.wager, 2),
+      "deathroll_pot",
+      {
+        userInfo: winnerInfo,
+        meta: { gameId: gameRecord.gameId, wager: game.wager },
+      },
+    );
   }
 
   await updatePlayerStatsAtomic(

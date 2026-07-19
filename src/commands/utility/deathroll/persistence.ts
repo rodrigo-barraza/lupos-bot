@@ -12,6 +12,7 @@
 import type { Client, GuildTextBasedChannel } from "discord.js";
 import utilities from "#root/utilities.js";
 import { tryTimeoutMember } from "../commandUtils.ts";
+import { adjustGold } from "../gold/goldRepository.ts";
 import { getDeathrollDb, saveGameResult } from "./repository.ts";
 import type {
   DeathrollGameSnapshot,
@@ -70,6 +71,7 @@ export function buildGameSnapshot(
     currentMax: game.currentNumber,
     startingNumber: game.startingNumber,
     timeoutMultiplier: game.timeoutMultiplier || 1,
+    wager: game.wager || 0,
     phase,
     rolls: game.rolls,
     startedAt: game.startedAt,
@@ -172,6 +174,7 @@ function snapshotToGameState(doc: DeathrollGameSnapshot): GameState {
     startedAt: doc.startedAt,
     currentMessageId: doc.currentMessageId,
     timeoutMultiplier: doc.timeoutMultiplier || 1,
+    wager: doc.wager || 0,
   };
 }
 
@@ -250,7 +253,8 @@ export async function reconcileInterruptedGames(client: Client) {
         }
       }
 
-      // 3. Save the result when the outcome was already determined.
+      // 3. Save the result when the outcome was already determined
+      //    (saveGameResult also pays out any escrowed wager pot).
       if (doc.phase === "don_pending" && doc.pendingResult) {
         await saveGameResult(
           doc.guildId,
@@ -266,6 +270,25 @@ export async function reconcileInterruptedGames(client: Client) {
             utilities.errorMessage(err),
           ),
         );
+      } else if ((doc.wager || 0) > 0) {
+        // No result was ever determined — the game is voided, so return
+        // the escrowed wagers to everyone who paid in.
+        await adjustGold(
+          doc.guildId,
+          doc.initiator,
+          doc.wager,
+          "deathroll_refund",
+          { meta: { gameId: doc.gameId, restart: true } },
+        );
+        if (doc.opponent) {
+          await adjustGold(
+            doc.guildId,
+            doc.opponent,
+            doc.wager,
+            "deathroll_refund",
+            { meta: { gameId: doc.gameId, restart: true } },
+          );
+        }
       }
     } catch (err: unknown) {
       console.error(

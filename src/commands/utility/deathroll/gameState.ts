@@ -34,6 +34,8 @@ import {
   formatGameMessage,
 } from "./render.ts";
 import { deleteGameSnapshot, persistGameSnapshot } from "./persistence.ts";
+import { adjustGold } from "../gold/goldRepository.ts";
+import { formatGold } from "../gold/goldMath.ts";
 import type {
   GameState,
   PendingGameData,
@@ -109,6 +111,29 @@ function rollAndRecord(
 function advanceTurn(game: GameState, roll: number, nextPlayerId: string) {
   game.currentNumber = roll;
   game.currentTurn = nextPlayerId;
+}
+
+/**
+ * Returns escrowed wagers when a game ends without a saved result
+ * (declined, expired, initiator left). Refunds the initiator always and
+ * the opponent when they had already paid in. Games that reach
+ * saveGameResult pay the pot instead and must NOT be refunded.
+ */
+async function refundWagers(guildId: string, game: GameState, cause: string) {
+  if (!game.wager || game.wager <= 0) return;
+  await adjustGold(guildId, game.initiator, game.wager, "deathroll_refund", {
+    meta: { cause },
+  });
+  if (game.opponent) {
+    await adjustGold(guildId, game.opponent, game.wager, "deathroll_refund", {
+      meta: { cause },
+    });
+  }
+}
+
+/** "` Wagers refunded.`" suffix for end-of-game notices, or "". */
+function refundNotice(game: GameState) {
+  return game.wager > 0 ? ` (${formatGold(game.wager)} wager refunded)` : "";
 }
 
 // ─── Double or Nothing ────────────────────────────────────────────────
@@ -218,6 +243,9 @@ export function createDoubleOrNothingCollector(
         startedAt: now,
         currentMessageId: null,
         timeoutMultiplier: nextMultiplier,
+        // The escrowed wagers ride the DoN chain: the original result was
+        // voided unsaved, so the pot pays out on this game's result instead.
+        wager: pendingGameData?.game.wager ?? 0,
         h2h: h2h,
       };
       activeGames.set(newGameId, newGame);
@@ -557,10 +585,14 @@ export function createRollCollector(
               .catch(() => {});
           }
         } else {
+          // Defensive: no opponent/turn recorded — no result will ever be
+          // saved, so return the escrowed wagers.
+          await refundWagers(guild.id, game, "inactive game voided");
           await message
             .edit({
               content:
-                message.content + "\n\n⏱️ Game timed out due to inactivity.",
+                message.content +
+                `\n\n⏱️ Game timed out due to inactivity.${refundNotice(game)}`,
               components: [],
             })
             .catch(() => {});
@@ -709,7 +741,7 @@ export function createEngageCollector(
           });
           newCollector.on(
             "end",
-            (
+            async (
               _collected: Collection<string, ButtonInteraction>,
               reason: string,
             ) => {
@@ -717,9 +749,16 @@ export function createEngageCollector(
                 const game = activeGames.get(gameId);
                 if (!game) return;
                 if (!game.opponent) {
+                  if (buttonInteraction.guild) {
+                    await refundWagers(
+                      buttonInteraction.guild.id,
+                      game,
+                      "challenge expired",
+                    );
+                  }
                   recoveryMsg
                     .edit({
-                      content: `🎲 <@${game.initiator}>'s deathroll expired - no one engaged!`,
+                      content: `🎲 <@${game.initiator}>'s deathroll expired - no one engaged!${refundNotice(game)}`,
                       components: [],
                     })
                     .catch(() => {});
@@ -742,15 +781,23 @@ export function createEngageCollector(
 
   collector.on(
     "end",
-    (_collected: Collection<string, ButtonInteraction>, reason: string) => {
+    async (
+      _collected: Collection<string, ButtonInteraction>,
+      reason: string,
+    ) => {
       if (reason !== "manually stopped") {
         if (activeGames.has(gameId)) {
           const game = activeGames.get(gameId);
           if (!game) return;
           if (!(game.opponent as string)) {
+            await refundWagers(
+              interaction.guild!.id,
+              game,
+              "challenge expired",
+            );
             interaction
               .editReply({
-                content: `🎲 <@${game.initiator}>'s deathroll expired - no one engaged!`,
+                content: `🎲 <@${game.initiator}>'s deathroll expired - no one engaged!${refundNotice(game)}`,
                 components: [],
               })
               .catch(() => {});
@@ -796,8 +843,10 @@ async function handleDeclineButton(
 
   stopCollector(gameId);
 
+  await refundWagers(buttonInteraction.guild!.id, game, "declined");
+
   await buttonInteraction.update({
-    content: `🎲 <@${game.initiator}>'s deathroll from **${game.startingNumber}** was denied by <@${buttonInteraction.user.id}>!`,
+    content: `🎲 <@${game.initiator}>'s deathroll from **${game.startingNumber}** was denied by <@${buttonInteraction.user.id}>!${refundNotice(game)}`,
     components: [],
   });
 
@@ -846,8 +895,9 @@ async function handleEngageButton(
     .catch(() => null);
 
   if (!initiatorMember) {
+    await refundWagers(guild.id, game, "initiator left");
     await buttonInteraction.update({
-      content: `🎲 <@${game.initiator}>'s deathroll has ended - they left the server!`,
+      content: `🎲 <@${game.initiator}>'s deathroll has ended - they left the server!${refundNotice(game)}`,
       components: [],
     });
     activeGames.delete(gameId);
@@ -869,6 +919,33 @@ async function handleEngageButton(
     return buttonInteraction.reply({
       content: `🎲 You can't deathroll (you have higher permissions)!`,
     });
+  }
+
+  // Escrow the acceptor's stake before locking the game in. On failure
+  // the challenge stays open for someone who can afford it.
+  if (game.wager > 0) {
+    const debit = await adjustGold(
+      guild.id,
+      userId,
+      -game.wager,
+      "deathroll_wager",
+      {
+        userInfo: {
+          username: buttonInteraction.user.username,
+          displayName: opponentMember.displayName,
+        },
+        meta: { gameId },
+      },
+    );
+    if (!debit.ok) {
+      return buttonInteraction.reply({
+        content:
+          debit.error === "insufficient"
+            ? `🎲 You need ${formatGold(game.wager)} to accept this deathroll! Check /gold balance.`
+            : "🎲 Couldn't take your wager — please try again.",
+        ephemeral: true,
+      });
+    }
   }
 
   stopCollector(gameId);

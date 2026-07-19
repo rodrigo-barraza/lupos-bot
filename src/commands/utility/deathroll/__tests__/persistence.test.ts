@@ -18,6 +18,7 @@ function makeGame(overrides: Partial<GameState> = {}): GameState {
     startedAt: 1700000000000,
     currentMessageId: "msg-2",
     timeoutMultiplier: 2,
+    wager: 0,
     ...overrides,
   };
 }
@@ -52,6 +53,19 @@ describe("buildGameSnapshot", () => {
     const game = makeGame({ timeoutMultiplier: 0 });
     const snapshot = buildGameSnapshot("game-1", "guild-1", game, "pending");
     expect(snapshot.timeoutMultiplier).toBe(1);
+  });
+
+  it("carries the wager so a restart can refund escrow", () => {
+    const wagered = buildGameSnapshot(
+      "game-1",
+      "guild-1",
+      makeGame({ wager: 250 }),
+      "active",
+    );
+    expect(wagered.wager).toBe(250);
+
+    const free = buildGameSnapshot("game-2", "guild-1", makeGame(), "active");
+    expect(free.wager).toBe(0);
   });
 
   it("records pending timeout and result for the don_pending phase", () => {

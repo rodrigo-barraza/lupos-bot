@@ -42,6 +42,7 @@ import ServerIconJob from "#root/jobs/scheduled/ServerIconJob.js";
 import CountdownIconJob from "#root/jobs/scheduled/CountdownIconJob.js";
 import EventReactJob from "#root/jobs/event-driven/ReactJob.js";
 import { reconcileInterruptedGames } from "#root/commands/utility/deathroll/persistence.js";
+import { reconcileInterruptedRoyales } from "#root/commands/utility/deathroll/royalePersistence.js";
 
 import utilities from "#root/utilities.js";
 import type { TransformedPrismResponse } from "#root/types/prism.js";
@@ -579,6 +580,16 @@ async function luposOnReady(
     } catch (error: unknown) {
       console.error(
         "⚠️ [DiscordService] Failed to reconcile interrupted deathroll games:",
+        error,
+      );
+    }
+
+    // Same sweep for interrupted royales (marks the message, refunds wagers)
+    try {
+      await reconcileInterruptedRoyales(client);
+    } catch (error: unknown) {
+      console.error(
+        "⚠️ [DiscordService] Failed to reconcile interrupted royales:",
         error,
       );
     }

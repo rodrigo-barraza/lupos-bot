@@ -1,5 +1,8 @@
 import { SlashCommandBuilder } from "discord.js";
-import type { SlashCommandUserOption, SlashCommandIntegerOption } from "discord.js";
+import type {
+  SlashCommandUserOption,
+  SlashCommandIntegerOption,
+} from "discord.js";
 import { executeDeathroll } from "./deathrollUtils.ts";
 
 export default {
@@ -19,6 +22,16 @@ export default {
         .setName("number")
         .setDescription("Starting number for the deathroll (default: 100)")
         .setMinValue(2)
+        .setMaxValue(10000)
+        .setRequired(false),
+    )
+    .addIntegerOption((option: SlashCommandIntegerOption) =>
+      option
+        .setName("wager")
+        .setDescription(
+          "Gold each player stakes - winner takes the pot minus 10% house rake (default: 0)",
+        )
+        .setMinValue(0)
         .setMaxValue(10000)
         .setRequired(false),
     ),
