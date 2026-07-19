@@ -29,6 +29,9 @@ export interface GameState {
   startedAt: number;
   currentMessageId: string | null;
   timeoutMultiplier: number;
+  /** Gold each player staked (0 = timeout-only game). Escrowed up front;
+   * paid out (minus rake) by saveGameResult, refunded if no result. */
+  wager: number;
   h2h?: H2HStats | null;
 }
 
@@ -115,6 +118,7 @@ export interface DeathrollGameSnapshot {
   currentMax: number;
   startingNumber: number;
   timeoutMultiplier: number;
+  wager: number;
   phase: GamePhase;
   rolls: GameRoll[];
   startedAt: number;

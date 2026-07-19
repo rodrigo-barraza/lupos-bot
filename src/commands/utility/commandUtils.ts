@@ -308,11 +308,62 @@ export function buildLeaderboardEmbed<T>(
 /** Discord's maximum timeout duration (28 days). */
 export const MAX_TIMEOUT_DURATION_MS = 28 * MILLISECONDS_PER_DAY;
 
+const GAME_TIMEOUTS_COLLECTION = "GameTimeouts";
+
+let gameTimeoutsIndexEnsured = false;
+
+function getGameTimeoutsCollection() {
+  const collection = getMongoDb().collection(GAME_TIMEOUTS_COLLECTION);
+  if (!gameTimeoutsIndexEnsured) {
+    gameTimeoutsIndexEnsured = true;
+    collection
+      .createIndex({ userId: 1, guildId: 1 }, { unique: true })
+      .catch((err: unknown) =>
+        console.error("Failed to ensure GameTimeouts index:", err),
+      );
+  }
+  return collection;
+}
+
+export interface GameTimeoutRecord {
+  userId: string;
+  guildId: string;
+  /** Epoch ms when the timeout ends. */
+  until: number;
+  reason: string;
+  at: number;
+}
+
 /**
- * Times out a guild member, clamping the duration to Discord's 28-day
- * maximum. Never throws: returns `{ ok: false, error }` when the member
- * isn't moderatable or the API call fails ("missing permissions" for
- * Discord error 50013).
+ * Latest game-issued timeout for a member, or null. Distinguishes
+ * game timeouts (ransomable via /gold ransom) from moderator ones.
+ */
+export async function fetchGameTimeout(
+  guildId: string,
+  userId: string,
+): Promise<GameTimeoutRecord | null> {
+  return (await getGameTimeoutsCollection().findOne({
+    userId,
+    guildId,
+  })) as unknown as GameTimeoutRecord | null;
+}
+
+/** Removes the game-timeout record (timeout served or ransomed). */
+export function clearGameTimeoutRecord(guildId: string, userId: string) {
+  getGameTimeoutsCollection()
+    .deleteOne({ userId, guildId })
+    .catch((err: unknown) =>
+      console.error("[gameTimeouts] Failed to clear record:", err),
+    );
+}
+
+/**
+ * Times out a guild member for losing/being hit by a game, clamping the
+ * duration to Discord's 28-day maximum. Every successful timeout is
+ * recorded in GameTimeouts so /gold ransom can tell game timeouts apart
+ * from moderator ones. Never throws: returns `{ ok: false, error }` when
+ * the member isn't moderatable or the API call fails ("missing
+ * permissions" for Discord error 50013).
  */
 export async function tryTimeoutMember(
   member: GuildMember,
@@ -327,6 +378,27 @@ export async function tryTimeoutMember(
 
   try {
     await member.timeout(clampedDuration, reason);
+    const now = Date.now();
+    // Fire-and-forget: the ransom bookkeeping must never fail a game.
+    try {
+      getGameTimeoutsCollection()
+        .updateOne(
+          { userId: member.id, guildId: member.guild.id },
+          {
+            $set: {
+              until: now + clampedDuration,
+              reason,
+              at: now,
+            },
+          },
+          { upsert: true },
+        )
+        .catch((err: unknown) =>
+          console.error("[gameTimeouts] Failed to record timeout:", err),
+        );
+    } catch (err: unknown) {
+      console.error("[gameTimeouts] Failed to record timeout:", err);
+    }
     return { ok: true };
   } catch (error: unknown) {
     if ((error as { code?: number }).code === 50013) {
