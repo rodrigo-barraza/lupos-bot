@@ -6,6 +6,13 @@ import type {
 } from "discord.js";
 import { getMongoDb, tryTimeoutMember } from "./commandUtils.ts";
 import type { BeatupVote } from "#root/types/index.js";
+import { adjustGold, fetchWallet } from "./gold/goldRepository.ts";
+import { BEATUP_VICTIM_DROP_GOLD, formatGold } from "./gold/goldMath.ts";
+import {
+  buildScatterAssignments,
+  creditScatter,
+  formatScatterLine,
+} from "./gold/goldScatter.ts";
 
 // How many votes needed to trigger timeout
 const VOTES_REQUIRED = 3;
@@ -285,6 +292,51 @@ export default {
       battleMessage += `<@${voterId}> used **${move.name}** ${move.emoji}**!**\n`;
       battleMessage += `Enemy ${target.user} has been ganged up on!\n`;
       battleMessage += `It can't move for the next **1** minute!`;
+
+      // Mob loot: the victim drops gold as they go down, split unevenly
+      // among the voters who did the beating. Player-to-player transfer —
+      // no inflation, and the 1h voter/target cooldowns prevent farming.
+      const wallet = await fetchWallet(interaction.guildId!, target.user.id);
+      const lootDrop = Math.max(
+        0,
+        Math.min(wallet?.balance ?? 0, BEATUP_VICTIM_DROP_GOLD),
+      );
+      if (lootDrop > 0) {
+        const debit = await adjustGold(
+          interaction.guildId!,
+          target.user.id,
+          -lootDrop,
+          "beatup_drop",
+          {
+            userInfo: {
+              username: target.user.username,
+              displayName: target.displayName,
+            },
+            meta: { voters: currentVotes.map((v: BeatupVote) => v.voterId) },
+          },
+        );
+        if (debit.ok) {
+          const assignments = buildScatterAssignments(
+            lootDrop,
+            currentVotes.map((vote: BeatupVote) => ({
+              userId: vote.voterId,
+              username: vote.voterUsername ?? vote.voterId,
+              displayName: vote.voterUsername ?? vote.voterId,
+            })),
+          );
+          await creditScatter(
+            interaction.guildId!,
+            assignments,
+            "beatup_loot",
+            {
+              victim: target.user.id,
+            },
+          );
+          battleMessage += `\n💰 ${target.user} drops **${formatGold(lootDrop)}** as they go down... ${formatScatterLine(assignments)}`;
+        }
+      } else {
+        battleMessage += `\n💰 The mob rifles through ${target.user}'s pockets... empty!`;
+      }
 
       await interaction.editReply({ content: battleMessage });
     } else {

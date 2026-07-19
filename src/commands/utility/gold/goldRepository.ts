@@ -39,6 +39,8 @@ export type GoldReason =
   | "shock_pickup"
   | "shock_crit_bonus"
   | "shock_consolation"
+  | "beatup_drop"
+  | "beatup_loot"
   | "royale_wager"
   | "royale_refund"
   | "royale_pot"

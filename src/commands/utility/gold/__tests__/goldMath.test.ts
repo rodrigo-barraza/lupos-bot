@@ -9,11 +9,15 @@ import {
   RANSOM_GOLD_PER_MINUTE,
   ROYALE_PRIZE_PER_OPPONENT,
   computeDailyClaim,
+  MAX_SCATTER_PILES,
   computeRansomCost,
   computeRoyalePot,
+  computeScatterPileCount,
   computeShockDropGold,
+  computeShockMissDropGold,
   computeWagerPot,
   formatGold,
+  splitGoldPiles,
 } from "../goldMath.ts";
 
 const NOW = 1_800_000_000_000;
@@ -124,6 +128,76 @@ describe("computeShockDropGold", () => {
   it("drops nothing from an empty or missing pouch", () => {
     expect(computeShockDropGold(10, 0)).toBe(0);
     expect(computeShockDropGold(10, -5)).toBe(0);
+  });
+});
+
+describe("computeShockMissDropGold", () => {
+  it("scales with the would-be timeout at 3g per second", () => {
+    expect(computeShockMissDropGold(10, 10_000)).toBe(30);
+  });
+
+  it("caps at the caster's balance", () => {
+    expect(computeShockMissDropGold(10, 12)).toBe(12);
+    expect(computeShockMissDropGold(10, 0)).toBe(0);
+  });
+});
+
+describe("computeScatterPileCount", () => {
+  it("adds a pile per 50g, starting from one", () => {
+    expect(computeScatterPileCount(30, 10)).toBe(1);
+    expect(computeScatterPileCount(50, 10)).toBe(2);
+    expect(computeScatterPileCount(100, 10)).toBe(3);
+    expect(computeScatterPileCount(150, 10)).toBe(4);
+  });
+
+  it("never exceeds the cap or the bystander pool", () => {
+    expect(computeScatterPileCount(10_000, 10)).toBe(MAX_SCATTER_PILES);
+    expect(computeScatterPileCount(150, 2)).toBe(2);
+  });
+
+  it("is zero with no gold or no bystanders", () => {
+    expect(computeScatterPileCount(0, 5)).toBe(0);
+    expect(computeScatterPileCount(100, 0)).toBe(0);
+  });
+});
+
+describe("splitGoldPiles", () => {
+  const fixedRand = () => 0.5;
+
+  it("returns the whole amount as a single pile", () => {
+    expect(splitGoldPiles(90, 1)).toEqual([90]);
+  });
+
+  it("always sums exactly to the amount with no zero piles", () => {
+    for (let trial = 0; trial < 50; trial++) {
+      const piles = splitGoldPiles(137, 4);
+      expect(piles).toHaveLength(4);
+      expect(piles.reduce((a, b) => a + b, 0)).toBe(137);
+      for (const pile of piles) expect(pile).toBeGreaterThanOrEqual(1);
+    }
+  });
+
+  it("sorts piles largest-first", () => {
+    const piles = splitGoldPiles(140, 3);
+    const sorted = [...piles].sort((a, b) => b - a);
+    expect(piles).toEqual(sorted);
+  });
+
+  it("shrinks the pile count for tiny drops instead of dealing 0g piles", () => {
+    const piles = splitGoldPiles(2, 3, fixedRand);
+    expect(piles).toHaveLength(2);
+    expect(piles).toEqual([1, 1]);
+  });
+
+  it("is deterministic with an injected rand", () => {
+    expect(splitGoldPiles(100, 3, fixedRand)).toEqual(
+      splitGoldPiles(100, 3, fixedRand),
+    );
+  });
+
+  it("returns empty for nothing to split", () => {
+    expect(splitGoldPiles(0, 3)).toEqual([]);
+    expect(splitGoldPiles(50, 0)).toEqual([]);
   });
 });
 
