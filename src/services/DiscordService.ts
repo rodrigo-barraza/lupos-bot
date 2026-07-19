@@ -200,13 +200,11 @@ async function replyMessage(
   const {
     conversation,
     newSystemPrompt,
-    conversationsCollection,
     memberMentionsCollection,
     messagesEmojisCollection,
     messagesImagesCollection,
     messagesTranscriptionsCollection: _messagesTranscriptionsCollection,
     participantsAvatarsCollection,
-    participantsBannersCollection,
     participantsCollection,
     participantsMembersCollection,
     participantsUsersCollection,
@@ -225,22 +223,12 @@ async function replyMessage(
   const { generatedText, image, audioRef, videoUrl, imageUrl, imagePrompt } =
     await buildAndGenerateReply({
       conversation: conversation as unknown as Record<string, unknown>[],
-      conversationsCollection:
-        conversationsCollection as import("discord.js").Collection<
-          string,
-          Record<string, unknown>[]
-        >,
       memberMentionsCollection,
       messagesEmojisCollection,
       messagesImagesCollection,
       newSystemPrompt,
       participantsAvatarsCollection:
         participantsAvatarsCollection as import("discord.js").Collection<
-          string,
-          string
-        >,
-      participantsBannersCollection:
-        participantsBannersCollection as import("discord.js").Collection<
           string,
           string
         >,

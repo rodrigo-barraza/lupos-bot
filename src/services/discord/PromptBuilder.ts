@@ -279,19 +279,19 @@ export function extractGenerateImagePrompt(
   return null;
 }
 
+/**
+ * Full dossier for the PRIMARY participant (the message author) only.
+ * Everyone else gets a one-line roster entry (buildParticipantRosterLine);
+ * the agent deepens on demand via get_discord_user_profile.
+ */
 export async function generateDescription(
-  systemPrompt: string, // should stay the same
-  message: Message, // should stay the same
+  systemPrompt: string,
+  message: Message,
   participant: User | GuildMember, //is either user or member
-  who: "MENTIONED" | "SECONDARY" | string,
-  participantIndex: number, // used only for who='MENTIONED' or 'SECONDARY'
-  messages: Message[], // should stay the same
-  participantsAvatarsCollection: DiscordCollection<string, string | null>, // should stay the same
-  participantsBannersCollection: DiscordCollection<string, string | null>, // should stay the same
-  conversation: Record<string, unknown>[] | undefined,
+  messages: Message[],
+  participantsAvatarsCollection: DiscordCollection<string, string | null>,
   member: GuildMember | undefined,
   user: User | undefined,
-  captionsMap: Map<string, string>, // pre-computed Map<url, caption> from batch captioning
 ) {
   if (!user) {
     if (member) {
@@ -330,29 +330,14 @@ export async function generateDescription(
     }
   }
 
-  if (who === "PRIMARY") {
-    systemPrompt += `\n\n# About me: ${combinedNames}`;
-    systemPrompt += `\n- PRIMARY TARGET: You're replying to me only (aware of others but ignore them)`;
-  } else if (who === "SECONDARY" || who === "MENTIONED") {
-    systemPrompt += `\n\n# ${participantIndex}. ${combinedNames}`;
-  }
+  systemPrompt += `\n\n# About me: ${combinedNames}`;
+  systemPrompt += `\n- PRIMARY TARGET: You're replying to me only (aware of others but ignore them)`;
 
-  // Inject avatar/banner URLs and pre-computed descriptions
+  // Avatar URL is a handle for image tools (describe_image on demand) —
+  // no pre-computed vision caption.
   const avatarUrl = participantsAvatarsCollection.get(user.id);
-  const bannerUrl = participantsBannersCollection.get(user.id);
   if (avatarUrl) {
-    const avatarCaption = captionsMap?.get(avatarUrl);
     systemPrompt += `\n- Avatar URL: ${avatarUrl}`;
-    if (avatarCaption) {
-      systemPrompt += `\n- Avatar description: ${avatarCaption}`;
-    }
-  }
-  if (bannerUrl) {
-    const bannerCaption = captionsMap?.get(bannerUrl);
-    systemPrompt += `\n- Banner URL: ${bannerUrl}`;
-    if (bannerCaption) {
-      systemPrompt += `\n- Banner description: ${bannerCaption}`;
-    }
   }
 
   const totalMessages = messages.filter(
@@ -422,7 +407,7 @@ export async function generateDescription(
     systemPrompt += `\n- Profile color (their choice of color): ${colorName} (${hexColor})`;
   }
 
-  if (who === "PRIMARY") {
+  {
     const { absolute: accountCreatedAt, relative: accountCreatedAtRelative } =
       formatAbsoluteAndRelative(user.createdTimestamp);
     systemPrompt += `\n- Account creation date: ${accountCreatedAt} (${accountCreatedAtRelative})`;
@@ -551,24 +536,54 @@ export async function generateDescription(
   }
   // - Voice Channel Details
 
-  if (who === "PRIMARY") {
-    systemPrompt += `\n\n## My conversation summary `;
-    systemPrompt += `\n${conversation}`;
-  } else if (who === "SECONDARY") {
-    systemPrompt += `\n\n## The conversation summary of ${combinedNames}`;
-    systemPrompt += `\n${conversation}`;
-  }
   return systemPrompt;
+}
+
+/**
+ * One-line roster entry for a non-primary participant. Replaces the full
+ * per-participant dossier — the agent fetches presence, roles, permissions,
+ * dates, and voice state on demand via get_discord_user_profile using the
+ * numeric user ID from the <@id> tag.
+ */
+function buildParticipantRosterLine(
+  user: User | undefined,
+  member: GuildMember | undefined,
+  fallbackId: string | undefined,
+  messages: Message[],
+): string | null {
+  const id = user?.id || member?.id || fallbackId;
+  if (!id) return null;
+  const combinedNames = utilities.getCombinedNamesFromUserOrMember({
+    member,
+    user,
+  });
+  let line = `- <@${id}> ${combinedNames}`;
+  const totalMessages = messages.filter(
+    (message: Message) => message.author.id === id,
+  ).length;
+  if (totalMessages) {
+    const lastMessageSentByUser = messages.find(
+      (message: Message) => message.author.id === id,
+    );
+    if (lastMessageSentByUser) {
+      const { relative } = formatAbsoluteAndRelative(
+        lastMessageSentByUser.createdTimestamp,
+      );
+      line += ` — ${totalMessages} of the last ${messages.length} messages, last one ${relative}`;
+    }
+  }
+  if (user?.bot) {
+    line += ` — bot`;
+  }
+  return line;
 }
 
 export async function buildAndGenerateReply({
   conversation,
-  conversationsCollection,
   memberMentionsCollection,
   messagesEmojisCollection,
   messagesImagesCollection,
   participantsAvatarsCollection,
-  participantsBannersCollection,
   participantsCollection,
   participantsMembersCollection,
   participantsUsersCollection,
@@ -578,10 +593,6 @@ export async function buildAndGenerateReply({
   statusTracker,
 }: {
   conversation: Record<string, unknown>[];
-  conversationsCollection: import("discord.js").Collection<
-    string,
-    Record<string, unknown>[]
-  >;
   memberMentionsCollection: import("discord.js").Collection<
     string,
     import("discord.js").GuildMember
@@ -590,10 +601,6 @@ export async function buildAndGenerateReply({
   messagesImagesCollection: import("discord.js").Collection<string, unknown>;
   newSystemPrompt: string;
   participantsAvatarsCollection: import("discord.js").Collection<
-    string,
-    string
-  >;
-  participantsBannersCollection: import("discord.js").Collection<
     string,
     string
   >;
@@ -699,38 +706,15 @@ export async function buildAndGenerateReply({
 
     const guild = (message as Message).guild;
     if (guild) {
-      const bans = await guild.bans.fetch();
-
+      // Slim envelope: no bans fetch (a REST call per turn for one flavor
+      // line) and no voice-channel roster — the agent pulls live voice
+      // occupancy on demand via get_discord_voice_channel_members.
       systemPrompt += `\n\n# Discord server information`;
       systemPrompt += `\n- You are in the discord server called: ${guild.name}.`;
       if (guild.description) {
         systemPrompt += `\n- The server description is: ${guild.description}`;
       }
       systemPrompt += `\n- This server has ${guild.memberCount} members, ${guild.channels.cache.size} channels, and ${guild.premiumSubscriptionCount} nitro boosts.`;
-      if (bans.size) {
-        systemPrompt += `\n- ${bans.size} bans on record.`;
-      }
-
-      // who is in voice chat
-      const voiceChannelMembers = guild.channels.cache.filter(
-        (channel: import("discord.js").GuildBasedChannel) =>
-          ((channel.type as unknown as number) === 2 ||
-            (channel.type as unknown as string) === "GUILD_VOICE") &&
-          (channel as import("discord.js").VoiceChannel).members &&
-          (channel as import("discord.js").VoiceChannel).members.size > 0,
-      );
-      if (voiceChannelMembers.size) {
-        systemPrompt += `\n- The following voice channels have members in them:`;
-        for (const channel of voiceChannelMembers.values()) {
-          const chan = channel as
-            | import("discord.js").VoiceChannel
-            | import("discord.js").StageChannel;
-          systemPrompt += `\n  - ${chan.name} (${chan.members.size} members)`;
-          for (const member of chan.members.values()) {
-            systemPrompt += `\n    - ${utilities.getCombinedNamesFromUserOrMember({ member })}`;
-          }
-        }
-      }
     }
     if (message?.channel) {
       const channel = message.channel as
@@ -747,37 +731,12 @@ export async function buildAndGenerateReply({
 
     let participantMember: GuildMember | undefined;
     let participantUser: User | undefined;
-    let participantConversation: Record<string, unknown>[] | undefined;
 
-    // ── Batch caption ALL avatar and banner images in parallel ────
-    // Collect all URLs, caption them in one Promise.all, then inject
-    // descriptions into the system prompt per-participant.
-    const allVisionUrls: { url: string; userId: string }[] = [];
-    for (const [userId, url] of participantsAvatarsCollection) {
-      allVisionUrls.push({ url, userId });
-    }
-    for (const [userId, url] of participantsBannersCollection) {
-      allVisionUrls.push({ url, userId });
-    }
+    // Slim envelope: no batch avatar/banner pre-captioning — reference
+    // avatars reach the model as actual images, and the agent calls
+    // describe_image / get_discord_user_profile when it wants more.
 
-    // Build a Map<url, caption> from the batch result
-    const captionsMap = new Map();
-    if (allVisionUrls.length > 0) {
-      const { imagesMap } = await AIService.captionImages(
-        allVisionUrls,
-        localMongo,
-        "SMALL",
-      );
-      for (const [, mapObject] of imagesMap) {
-        captionsMap.set(mapObject.url, mapObject.caption);
-      }
-      console.log(
-        `🖼️ [DiscordService] Batch captioned ${captionsMap.size}/${allVisionUrls.length} ` +
-          `avatar/banner images in parallel`,
-      );
-    }
-
-    // Process primary participant (message author)
+    // Process primary participant (message author) — full dossier
     if (participantsCollection?.size) {
       const primaryParticipant = participantsCollection.get(message.author?.id);
       if (primaryParticipant && (primaryParticipant as { user?: User }).user) {
@@ -785,23 +744,15 @@ export async function buildAndGenerateReply({
           message.author?.id,
         );
         participantUser = participantsUsersCollection.get(message.author?.id);
-        participantConversation = conversationsCollection.get(
-          message.author?.id,
-        );
       }
       systemPrompt = await generateDescription(
         systemPrompt,
         message,
         message.author,
-        "PRIMARY",
-        0,
         Array.from(recentMessages.values()),
         participantsAvatarsCollection,
-        participantsBannersCollection,
-        participantConversation,
         participantMember,
         participantUser,
-        captionsMap,
       );
     }
 

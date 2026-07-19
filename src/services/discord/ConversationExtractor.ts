@@ -4,11 +4,9 @@
 // Extracted from DiscordService (R1 decomposition). Owns the
 // transformation of a Discord channel's recent messages into the
 // ChatMessage conversation array sent to the agent, plus the
-// per-message content formatters (stickers, attachments, emojis)
-// and the per-user conversation-summary cache.
+// per-message content formatters (stickers, attachments, emojis).
 // ============================================================
 
-import crypto from "crypto";
 import { Collection } from "discord.js";
 import type {
   Message,
@@ -26,7 +24,6 @@ import type {
 import DiscordUtilityService from "#root/services/DiscordUtilityService.js";
 import utilities from "#root/utilities.js";
 import LogFormatter from "#root/formatters/LogFormatter.js";
-import { MONGO_DB_NAME } from "#root/constants.js";
 import {
   buildDiscordMessageEnvelope,
   buildMessageAnnotation,
@@ -111,59 +108,6 @@ export async function extractEmojisFromAllMessage(
   return messageEmojisCollection;
 }
 
-export async function generateUserConversationAndHash(
-  queuedDatum: {
-    message: import("discord.js").Message;
-    recentMessages: import("discord.js").Collection<
-      string,
-      import("discord.js").Message
-    >;
-    actionType?: string;
-  },
-  recentMessage: Message,
-  localMongo: import("mongodb").MongoClient,
-) {
-  // Create a hash of all the this specific user's recent messages
-  const { message, recentMessages } = queuedDatum;
-  const userMessages = recentMessages.filter(
-    (message: Message) =>
-      message.author.id === (recentMessage as Message).author.id,
-  );
-  const userMessagesAsText = userMessages
-    .map((message: Message) => (message as Message).content)
-    .join("\n\n");
-  const hash = crypto
-    .createHash("sha256")
-    .update(userMessagesAsText)
-    .digest("hex");
-  // Check if we already have a conversation for this hash
-  const db = localMongo.db(MONGO_DB_NAME);
-  const collection = db.collection("UserConversationSummaries");
-  const existingConversation = await collection.findOne({ hash });
-  if (existingConversation) {
-    return existingConversation.conversation;
-  }
-  // If not, generate a new conversation
-  const userName =
-    DiscordUtilityService.getNameFromItem(recentMessage) || "Unknown";
-  const cleanUserName = DiscordUtilityService.getCleanUsernameFromUser(
-    message.author,
-  );
-  const conversation = await AIService.generateTextFromUserConversation(
-    userName,
-    cleanUserName,
-    userMessagesAsText,
-  );
-  // Store the conversation and hash in the database
-  await collection.insertOne({
-    hash,
-    userId: message.author.id,
-    conversation,
-    createdAt: new Date(),
-  });
-  return conversation;
-}
-
 export async function extractContentFromMessages(
   queuedDatum: {
     message: import("discord.js").Message;
@@ -209,7 +153,6 @@ export async function extractContentFromMessages(
     { user: User; member: GuildMember | null; time?: number }
   >();
   const participantsAvatarsCollection = new Collection<string, string | null>();
-  const participantsBannersCollection = new Collection<string, string | null>();
   const participantsUsersCollection = new Collection<string, User>();
   const participantsMembersCollection = new Collection<string, GuildMember>();
   let memberMentionsCollection = new Collection<string, GuildMember>();
@@ -223,13 +166,11 @@ export async function extractContentFromMessages(
     DiscordCollection<string, { transcription: string }>
   >();
   const messagesEmojisCollection = new Collection<string, unknown>();
-  const conversationsCollection = new Collection<string, unknown>();
   const conversation: ChatMessage[] = [];
   const newSystemPrompt = "";
 
   // Prepare all async operations
   const allPromises = {
-    conversations: [] as { userId: string; promise: Promise<unknown> }[],
     emojis: [] as {
       messageId: string;
       promise: Promise<Collection<string, unknown>>;
@@ -394,48 +335,20 @@ export async function extractContentFromMessages(
         if (!userExists) {
           participantsCollection.set(user.id, { user, member });
 
-          // Queue conversation generation
-          allPromises.conversations.push({
-            userId: user.id,
-            promise: generateUserConversationAndHash(
-              queuedDatum,
-              recentMessage,
-              localMongo,
-            ),
-          });
-
-          // Store avatar/banner URLs — the agent calls describe_image on-demand
+          // Store avatar URLs — the agent calls describe_image on-demand
           // instead of pre-captioning every avatar on every message.
-          let avatarUrl: string | null = null,
-            bannerUrl: string | null = null;
+          let avatarUrl: string | null = null;
           if (user) {
             avatarUrl = user.avatar
               ? utilities.getDiscordAvatarUrl(user.id, user.avatar)
               : null;
-            bannerUrl = user.banner
-              ? utilities.getDiscordBannerUrl(user.id, user.banner)
-              : null;
           }
-          if (member) {
-            if (member.avatar) {
-              avatarUrl = utilities.getDiscordAvatarUrl(
-                member.id,
-                member.avatar,
-              );
-            }
-            if (member.banner) {
-              bannerUrl = utilities.getDiscordBannerUrl(
-                member.id,
-                member.banner,
-              );
-            }
+          if (member?.avatar) {
+            avatarUrl = utilities.getDiscordAvatarUrl(member.id, member.avatar);
           }
 
           if (avatarUrl) {
             participantsAvatarsCollection.set(user.id, avatarUrl);
-          }
-          if (bannerUrl) {
-            participantsBannersCollection.set(user.id, bannerUrl);
           }
         } else if (
           userExists.time !== undefined &&
@@ -534,9 +447,6 @@ export async function extractContentFromMessages(
     // Rest of your code remains the same...
     // Execute all promises in parallel
     const results = await Promise.allSettled([
-      ...allPromises.conversations.map(
-        (item: { userId: string; promise: Promise<unknown> }) => item.promise,
-      ),
       ...allPromises.emojis.map(
         (item: {
           messageId: string;
@@ -571,17 +481,6 @@ export async function extractContentFromMessages(
 
     // Process results
     let resultIndex = 0;
-
-    // Process conversations
-    for (const item of allPromises.conversations) {
-      const result = results[resultIndex++];
-      if (result.status === "fulfilled") {
-        conversationsCollection.set(
-          item.userId,
-          (result as PromiseFulfilledResult<unknown>).value,
-        );
-      }
-    }
 
     // Process emojis
     for (const _item of allPromises.emojis) {
@@ -885,14 +784,12 @@ export async function extractContentFromMessages(
 
   return {
     conversation,
-    conversationsCollection,
     memberMentionsCollection,
     messagesEmojisCollection,
     messagesImagesCollection,
     messagesTranscriptionsCollection,
     newSystemPrompt,
     participantsAvatarsCollection,
-    participantsBannersCollection,
     participantsCollection,
     participantsMembersCollection,
     participantsUsersCollection,
