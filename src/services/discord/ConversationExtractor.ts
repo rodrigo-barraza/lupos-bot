@@ -616,11 +616,18 @@ export async function extractContentFromMessages(
         // context (embeds, reactions, vision captions of the bot's own
         // attachments) goes into a separate <message-annotation> turn so
         // the model never sees structure it didn't author in its own turns.
-        conversation.push({
-          role: "assistant",
-          name: DiscordUtilityService.getUsernameNoSpaces(recentMessage),
-          content: recentMessage.content || "",
-        });
+        // Media-only bot posts get NO assistant turn — a contentless
+        // assistant message adds nothing (the annotation below carries the
+        // attachment context), and prism's harness strips empty assistant
+        // turns on some iterations but not others, which mutates history
+        // bytes mid-session and busts the provider prompt cache.
+        if (recentMessage.content?.trim()) {
+          conversation.push({
+            role: "assistant",
+            name: DiscordUtilityService.getUsernameNoSpaces(recentMessage),
+            content: recentMessage.content,
+          });
+        }
 
         // Attachment metadata from the bot's own uploads
         const imageAttached = recentMessage.attachments?.find(
