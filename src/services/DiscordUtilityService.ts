@@ -833,6 +833,9 @@ const DiscordUtilityService = {
     let fileName = "lupos.png";
     let imageDescription = "";
     let returnedFirstMessage: Message | null = null;
+    // Every message this reply posts, in order — the piggyback session
+    // records their ids so context rebuilds skip re-processing them.
+    const sentMessages: Message[] = [];
 
     if (imagePrompt) {
       fileName = `${imagePrompt.substring(0, 240)}.png`;
@@ -972,11 +975,12 @@ const DiscordUtilityService = {
       if (mediaFallbackUrls.length > 0) {
         mediaOnlyOptions.content = mediaFallbackUrls.join("\n");
       }
-      if (sendOrReply === "send") {
-        return await (message.channel as TextChannel).send(mediaOnlyOptions);
-      } else {
-        return await message.reply(mediaOnlyOptions);
-      }
+      const mediaOnlyMessage =
+        sendOrReply === "send"
+          ? await (message.channel as TextChannel).send(mediaOnlyOptions)
+          : await message.reply(mediaOnlyOptions);
+      sentMessages.push(mediaOnlyMessage);
+      return { firstMessage: mediaOnlyMessage, sentMessages };
     }
 
     for (
@@ -1033,11 +1037,13 @@ const DiscordUtilityService = {
         const sentMessage = await (message.channel as TextChannel).send(
           messageReplyOptions,
         );
+        sentMessages.push(sentMessage);
         if (!returnedFirstMessage) {
           returnedFirstMessage = sentMessage;
         }
       } else if (sendOrReply === "reply") {
         const repliedMessage = await message.reply(messageReplyOptions);
+        sentMessages.push(repliedMessage);
         if (!returnedFirstMessage) {
           returnedFirstMessage = repliedMessage;
         }
@@ -1047,11 +1053,12 @@ const DiscordUtilityService = {
     // own follow-up message so they never push a chunk past the
     // 2000-char cap.
     if (mediaFallbackUrls.length > 0) {
-      await (message.channel as TextChannel).send({
+      const fallbackMessage = await (message.channel as TextChannel).send({
         content: mediaFallbackUrls.join("\n"),
       });
+      sentMessages.push(fallbackMessage);
     }
-    return returnedFirstMessage!;
+    return { firstMessage: returnedFirstMessage!, sentMessages };
   },
   // Utility functions — reports-mode analytics moved to
   // discord/ChannelAnalytics.ts (R1 split). These are thin wrappers rather

@@ -176,8 +176,6 @@ export interface DiscordMessageEnvelope extends MessageBodyParts {
   time: string;
   /** Position in a same-author burst, only when the burst has >1 message. */
   sequence?: { index: number; total: number };
-  /** This is the message the agent must respond to. */
-  mostRecent?: boolean;
   edited?: boolean;
   replyTo?: ReplyToPart;
 }
@@ -303,7 +301,6 @@ export function buildDiscordMessageEnvelope(
     (envelope.sequence && envelope.sequence.total > 1
       ? ` sequence="${envelope.sequence.index}/${envelope.sequence.total}"`
       : "") +
-    (envelope.mostRecent ? ` most-recent="true"` : "") +
     (envelope.edited ? ` edited="true"` : "");
 
   const blocks: string[] = [];
@@ -313,6 +310,31 @@ export function buildDiscordMessageEnvelope(
   blocks.push(...renderBodyParts(envelope));
 
   return `<discord-message${attrs}>\n\n${blocks.join("\n\n")}\n\n</discord-message>`;
+}
+
+// ─── Respond-to directive ─────────────────────────────────────
+
+export interface RespondToDirective {
+  /** Snowflake of the message the agent must answer. */
+  id: string;
+  author?: string;
+  authorId?: string;
+}
+
+/**
+ * Render the per-request directive that identifies which message the
+ * agent must answer. This replaces the old most-recent="true" envelope
+ * attribute: the directive is rebuilt for every request and appended
+ * as the final (ephemeral) turn, so message envelopes stay byte-stable
+ * across requests — a stale marker inside a cached/frozen envelope can
+ * never contradict the current trigger.
+ */
+export function buildRespondToDirective(directive: RespondToDirective): string {
+  const attrs =
+    attr("id", directive.id) +
+    attr("author", directive.author) +
+    attr("author-id", directive.authorId);
+  return `<respond-to${attrs} />`;
 }
 
 // ─── Bot message annotation ───────────────────────────────────
