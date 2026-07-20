@@ -109,12 +109,32 @@ export function aggregateAgentEvents(events: PrismSseEvent[]) {
   }
   const doneEvent =
     events.find((event) => event.type === "done") ?? ({} as PrismSseEvent);
+
+  // Split streamed text at tool-call boundaries: each agentic pass's
+  // chunks form one segment. Only the LAST non-empty segment is the
+  // reply — models sometimes leak planning/reasoning as content on
+  // mid-loop passes, and joining every pass would prepend that noise
+  // to the real answer. Last NON-EMPTY (not merely last) so a reply
+  // written just before a trailing tool call (e.g.
+  // react_to_discord_message) still counts when the final pass is
+  // silent.
+  const textSegments: string[] = [""];
+  for (const event of events) {
+    if (event.type === "chunk") {
+      textSegments[textSegments.length - 1] += event.content ?? "";
+    } else if (
+      event.type === "tool_execution" &&
+      event.status === "calling"
+    ) {
+      textSegments.push("");
+    }
+  }
+  const lastText = textSegments
+    .reverse()
+    .find((segment) => segment.trim().length > 0);
+
   return {
-    text:
-      events
-        .filter((event) => event.type === "chunk")
-        .map((event) => event.content ?? "")
-        .join("") || null,
+    text: lastText || null,
     images: events
       .filter((event) => event.type === "image")
       .map((event) => ({
@@ -242,8 +262,12 @@ export default class PrismService {
       data = await prism().agent({ ...requestBody, username });
     }
 
+    // finalText (non-streaming path) carries only the last agentic
+    // pass's text — prefer it over the legacy all-passes join so
+    // mid-loop reasoning leaks never reach Discord.
+    const finalText = (data as { finalText?: string | null }).finalText;
     return {
-      text: data.text || null,
+      text: finalText || data.text || null,
       images: data.images || [],
       toolCalls: data.toolCalls || [],
       toolResults: data.toolResults || [],
