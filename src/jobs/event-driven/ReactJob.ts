@@ -1,5 +1,5 @@
-import DiscordUtilityService from "#root/services/DiscordUtilityService.js";
-import config from "#root/config.js";
+import DiscordUtilityService from "#root/services/DiscordUtilityService.ts";
+import config from "#root/config.ts";
 import {
   Client,
   MessageReaction,

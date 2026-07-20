@@ -2,9 +2,9 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
 import ChannelSessionCache, {
   isSnowflakeAfter,
-} from "#root/services/discord/ChannelSessionCache.js";
-import config from "#root/config.js";
-import type { ChatMessage } from "#root/services/AIService.js";
+} from "#root/services/discord/ChannelSessionCache.ts";
+import config from "#root/config.ts";
+import type { ChatMessage } from "#root/services/AIService.ts";
 
 const CHANNEL = "111222333444555666";
 

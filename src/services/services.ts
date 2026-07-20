@@ -2,8 +2,8 @@ import type { Request, Response } from "express";
 import express from "express";
 const router = express.Router();
 
-import AIService from "#root/services/AIService.js";
-import guildRoutes from "#root/routes/GuildRoutes.js";
+import AIService from "#root/services/AIService.ts";
+import guildRoutes from "#root/routes/GuildRoutes.ts";
 
 const routes = () => {
 

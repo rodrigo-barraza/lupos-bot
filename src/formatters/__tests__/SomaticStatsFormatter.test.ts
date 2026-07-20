@@ -3,7 +3,7 @@ import {
   formatSomaticStats,
   moodFromEmotion,
   type PrismSomaticSnapshot,
-} from "../SomaticStatsFormatter.js";
+} from "../SomaticStatsFormatter.ts";
 
 function snapshot(
   overrides: Partial<PrismSomaticSnapshot> = {},

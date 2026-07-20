@@ -8,8 +8,8 @@
  */
 
 import type { Client, GuildTextBasedChannel } from "discord.js";
-import utilities from "#root/utilities.js";
-import config from "#root/config.js";
+import utilities from "#root/utilities.ts";
+import config from "#root/config.ts";
 import { getDeathrollDb } from "./repository.ts";
 import { adjustGold } from "../gold/goldRepository.ts";
 import { computeRoyalePot } from "../gold/goldMath.ts";

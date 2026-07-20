@@ -13,7 +13,7 @@
 import { ChannelType, PermissionFlagsBits } from "discord.js";
 import type { Client, NonThreadGuildBasedChannel } from "discord.js";
 
-import config from "#root/config.js";
+import config from "#root/config.ts";
 
 /**
  * A channel belongs in the onboarding defaults when @everyone can view

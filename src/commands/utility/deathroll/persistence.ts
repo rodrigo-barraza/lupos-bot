@@ -10,7 +10,7 @@
  */
 
 import type { Client, GuildTextBasedChannel } from "discord.js";
-import utilities from "#root/utilities.js";
+import utilities from "#root/utilities.ts";
 import { tryTimeoutMember } from "../commandUtils.ts";
 import { adjustGold } from "../gold/goldRepository.ts";
 import { getDeathrollDb, saveGameResult } from "./repository.ts";

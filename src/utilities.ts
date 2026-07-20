@@ -12,7 +12,7 @@
 // @rodrigo-barraza/utilities-library (no local wrappers).
 //
 // Kept as a single default-export object so the ~40 existing
-// `import utilities from "#root/utilities.js"` call sites keep
+// `import utilities from "#root/utilities.ts"` call sites keep
 // working unchanged.
 // ============================================================
 
@@ -22,7 +22,7 @@ import {
   fixBareMentions,
   howl,
   removeMentions,
-} from "#root/utilities/strings.js";
+} from "#root/utilities/strings.ts";
 import {
   formatPlaybackTime,
   formatReactions,
@@ -37,10 +37,10 @@ import {
   getDiscordBannerUrl,
   getDiscordMessageUrl,
   getMinutesAgo,
-} from "#root/utilities/discord-format.js";
-import { generateFileHash, isImageUrl } from "#root/utilities/net.js";
-import { ansiEscapeCodes, consoleLog } from "#root/utilities/console.js";
-import { areArraysEqual, getRandomInterval } from "#root/utilities/misc.js";
+} from "#root/utilities/discord-format.ts";
+import { generateFileHash, isImageUrl } from "#root/utilities/net.ts";
+import { ansiEscapeCodes, consoleLog } from "#root/utilities/console.ts";
+import { areArraysEqual, getRandomInterval } from "#root/utilities/misc.ts";
 
 const utilities = {
   // Crypto/network utilities

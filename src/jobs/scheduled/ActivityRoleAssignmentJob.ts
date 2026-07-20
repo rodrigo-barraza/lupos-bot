@@ -1,6 +1,6 @@
-import DiscordUtilityService from "#root/services/DiscordUtilityService.js";
-import utilities from "#root/utilities.js";
-import { MONGO_DB_NAME } from "#root/constants.js";
+import DiscordUtilityService from "#root/services/DiscordUtilityService.ts";
+import utilities from "#root/utilities.ts";
+import { MONGO_DB_NAME } from "#root/constants.ts";
 import type { Client, GuildMember, Role, Message, User } from "discord.js";
 import type { MongoClient } from "mongodb";
 

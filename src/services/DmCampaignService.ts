@@ -27,12 +27,12 @@
 
 import type { Client, Guild, GuildMember } from "discord.js";
 
-import DiscordWrapper from "#root/wrappers/DiscordWrapper.js";
-import MongoService from "#root/services/MongoService.js";
-import config from "#root/config.js";
-import utilities from "#root/utilities.js";
-import { MONGO_DB_NAME } from "#root/constants.js";
-import { fetchMembersWithRetry } from "#root/services/discord/ModerationSweeps.js";
+import DiscordWrapper from "#root/wrappers/DiscordWrapper.ts";
+import MongoService from "#root/services/MongoService.ts";
+import config from "#root/config.ts";
+import utilities from "#root/utilities.ts";
+import { MONGO_DB_NAME } from "#root/constants.ts";
+import { fetchMembersWithRetry } from "#root/services/discord/ModerationSweeps.ts";
 
 export const CAMPAIGN_ID = "crusader-strike-to-whitemane";
 

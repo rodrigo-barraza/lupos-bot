@@ -1,17 +1,17 @@
 import path from "path";
 import crypto from "crypto";
 
-import config from "#root/config.js";
-import { MONGO_DB_NAME } from "#root/constants.js";
+import config from "#root/config.ts";
+import { MONGO_DB_NAME } from "#root/constants.ts";
 import { MODEL_IDS } from "@rodrigo-barraza/utilities-library/taxonomy";
 
-import LogFormatter from "#root/formatters/LogFormatter.js";
+import LogFormatter from "#root/formatters/LogFormatter.ts";
 
-import utilities from "#root/utilities.js";
+import utilities from "#root/utilities.ts";
 
-import PrismService from "#root/services/PrismService.js";
-import CurrentService from "#root/services/CurrentService.js";
-import DiscordUtilityService from "#root/services/DiscordUtilityService.js";
+import PrismService from "#root/services/PrismService.ts";
+import CurrentService from "#root/services/CurrentService.ts";
+import DiscordUtilityService from "#root/services/DiscordUtilityService.ts";
 
 import sharp from "sharp";
 import { Message, Client } from "discord.js";

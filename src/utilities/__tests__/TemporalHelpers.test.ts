@@ -6,7 +6,7 @@
 // ============================================================
 
 import { describe, it, expect, beforeAll } from "vitest";
-import TemporalHelpers from "#root/utilities/TemporalHelpers.js";
+import TemporalHelpers from "#root/utilities/TemporalHelpers.ts";
 
 describe("TemporalHelpers", () => {
   // ─── Construction ───────────────────────────────────────────

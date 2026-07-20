@@ -12,7 +12,7 @@ import {
   parseTargetDateString,
   buildNumberOverlaySvg,
   overlayCountdownNumber,
-} from "#root/utilities/CountdownIconOverlay.js";
+} from "#root/utilities/CountdownIconOverlay.ts";
 
 describe("CountdownIconOverlay", () => {
   // ─── Date Calculation ─────────────────────────────────────────

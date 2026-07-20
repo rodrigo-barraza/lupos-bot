@@ -1,6 +1,6 @@
-import config from "#root/config.js";
-import DiscordUtilityService from "#root/services/DiscordUtilityService.js";
-import LogFormatter from "#root/formatters/LogFormatter.js";
+import config from "#root/config.ts";
+import DiscordUtilityService from "#root/services/DiscordUtilityService.ts";
+import LogFormatter from "#root/formatters/LogFormatter.ts";
 import type { Client, GuildMember } from "discord.js";
 
 const timeoutLength = 168 * 60 * 60 * 1000;

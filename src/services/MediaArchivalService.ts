@@ -11,10 +11,10 @@
 
 import type { Message } from "discord.js";
 import crypto from "crypto";
-import MinioWrapper from "#root/wrappers/MinioWrapper.js";
-import ScraperService from "#root/services/ScraperService.js";
-import utilities from "#root/utilities.js";
-import MongoService from "#root/services/MongoService.js";
+import MinioWrapper from "#root/wrappers/MinioWrapper.ts";
+import ScraperService from "#root/services/ScraperService.ts";
+import utilities from "#root/utilities.ts";
+import MongoService from "#root/services/MongoService.ts";
 
 // ─── Types ──────────────────────────────────────────────────────
 

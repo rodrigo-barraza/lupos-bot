@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { appendVerbatimCodeResults } from "../PromptBuilder.js";
+import { appendVerbatimCodeResults } from "../PromptBuilder.ts";
 
 const BANNER =
   "   ____  __  ____   ______\n  / __ \\/  |/  / | / /  _/\n / / / / /|_/ /  |/ // /  ";

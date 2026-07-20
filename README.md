@@ -139,7 +139,7 @@ npm run clone:messages         # Clone/backfill message history
 npm run rescrape:channels      # Re-scrape channel data
 ```
 
-Additional modes available via `node dist/boot.js mode=<mode>`:
+Additional modes available via `node src/boot.ts mode=<mode>`:
 - `delete:duplicates` — Remove duplicate messages
 - `delete:newAccounts` — Remove flagged new accounts
 - `purge:youngAccounts` — Purge accounts under age threshold

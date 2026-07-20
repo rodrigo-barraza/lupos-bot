@@ -10,7 +10,7 @@
 
 import { fetchWithTimeout } from "@rodrigo-barraza/utilities-library";
 
-import config from "#root/config.js";
+import config from "#root/config.ts";
 
 const TOOLS_SERVICE_URL = config.TOOLS_SERVICE_URL;
 const SCRAPE_TIMEOUT_MS = 15_000;

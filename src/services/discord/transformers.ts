@@ -13,7 +13,7 @@ import {
   TextChannel,
   GuildEmoji,
   MessageReaction,
-  PartialMessageReaction,
+  type PartialMessageReaction,
   Presence,
   VoiceState,
   GuildMember,
@@ -24,7 +24,7 @@ import {
   Activity,
   Sticker,
   MessageMentions,
-  UserPrimaryGuild,
+  type UserPrimaryGuild,
 } from "discord.js";
 
 // ─── Transformed-shape interfaces ───────────────────────────────

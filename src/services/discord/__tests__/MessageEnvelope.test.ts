@@ -9,7 +9,7 @@ import {
   renderEmbed,
   sanitizeUntrustedText,
   toIsoTime,
-} from "#root/services/discord/MessageEnvelope.js";
+} from "#root/services/discord/MessageEnvelope.ts";
 
 describe("sanitizeUntrustedText", () => {
   it("neutralizes envelope structural tags", () => {

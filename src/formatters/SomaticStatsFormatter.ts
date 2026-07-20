@@ -10,7 +10,7 @@
 // stay meaningful, plus a per-emotion emoji.
 // ============================================================
 
-import type { SomaticStats } from "#root/services/TraitRegistry.js";
+import type { SomaticStats } from "#root/services/TraitRegistry.ts";
 
 /** Shape of prism-service GET /somatic/:agentId (the fields we consume). */
 export interface PrismSomaticSnapshot {

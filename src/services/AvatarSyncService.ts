@@ -23,15 +23,15 @@
 import path from "path";
 import { fileURLToPath } from "url";
 
-import DiscordWrapper from "#root/wrappers/DiscordWrapper.js";
-import MongoService from "#root/services/MongoService.js";
-import PrismService from "#root/services/PrismService.js";
+import DiscordWrapper from "#root/wrappers/DiscordWrapper.ts";
+import MongoService from "#root/services/MongoService.ts";
+import PrismService from "#root/services/PrismService.ts";
 import {
   formatSomaticStats,
   formatEmotionDetail,
   type PrismSomaticSnapshot,
-} from "#root/formatters/SomaticStatsFormatter.js";
-import { resolveAvatarState } from "#root/formatters/AvatarStateFormatter.js";
+} from "#root/formatters/SomaticStatsFormatter.ts";
+import { resolveAvatarState } from "#root/formatters/AvatarStateFormatter.ts";
 
 const CHECK_INTERVAL_MILLISECONDS = 5 * 60_000;
 // Half of Discord's ~2 changes/hour budget, so a manual avatar change or

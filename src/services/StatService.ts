@@ -15,7 +15,7 @@
  *   hunger.getName();        // "hunger"
  */
 
-import utilities from "#root/utilities.js";
+import utilities from "#root/utilities.ts";
 
 export interface StatOptions {
   min?: number;

@@ -13,7 +13,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import TemporalHelpers from "#root/utilities/TemporalHelpers.js";
+import TemporalHelpers from "#root/utilities/TemporalHelpers.ts";
 import { Collection } from "discord.js";
 import type {
   Message,
@@ -26,37 +26,37 @@ import type {
 } from "discord.js";
 import { GetColorName } from "hex-color-to-color-name";
 
-import config from "#root/config.js";
+import config from "#root/config.ts";
 
-import DiscordUtilityService from "#root/services/DiscordUtilityService.js";
-import AIService from "#root/services/AIService.js";
-import type { ChatMessage } from "#root/services/AIService.js";
-import PrismService from "#root/services/PrismService.js";
-import CensorService from "#root/services/CensorService.js";
-import DiscordState from "#root/services/discord/DiscordState.js";
-import type { AgentStatusTracker } from "#root/services/discord/AgentStatusTracker.js";
-import type { PrismSseEvent } from "#root/types/prism.js";
+import DiscordUtilityService from "#root/services/DiscordUtilityService.ts";
+import AIService from "#root/services/AIService.ts";
+import type { ChatMessage } from "#root/services/AIService.ts";
+import PrismService from "#root/services/PrismService.ts";
+import CensorService from "#root/services/CensorService.ts";
+import DiscordState from "#root/services/discord/DiscordState.ts";
+import type { AgentStatusTracker } from "#root/services/discord/AgentStatusTracker.ts";
+import type { PrismSseEvent } from "#root/types/prism.ts";
 import {
   mightBeImageRequest,
   findUntaggedNameMatches,
   detectGroupReference,
   hasSelfReferenceRegex,
   hasBotSelfPortraitRegex,
-} from "#root/services/discord/ImageIntent.js";
+} from "#root/services/discord/ImageIntent.ts";
 import {
   displayNameOf,
   extractEmojisFromAllMessage,
   splitEmojiNameAndId,
-} from "#root/services/discord/ConversationExtractor.js";
+} from "#root/services/discord/ConversationExtractor.ts";
 import {
   buildReferenceImagesBlock,
   buildRespondToDirective,
-} from "#root/services/discord/MessageEnvelope.js";
-import ChannelSessionCache from "#root/services/discord/ChannelSessionCache.js";
+} from "#root/services/discord/MessageEnvelope.ts";
+import ChannelSessionCache from "#root/services/discord/ChannelSessionCache.ts";
 
-import utilities from "#root/utilities.js";
-import LogFormatter from "#root/formatters/LogFormatter.js";
-import { MessageConstant, APRIL_FOOLS_MODE } from "#root/constants.js";
+import utilities from "#root/utilities.ts";
+import LogFormatter from "#root/formatters/LogFormatter.ts";
+import { MessageConstant, APRIL_FOOLS_MODE } from "#root/constants.ts";
 
 /**
  * Format an epoch-milliseconds timestamp as an absolute date string
@@ -1567,7 +1567,7 @@ export async function buildAndGenerateReply({
     // is handled by AgentPersonaRegistry based on guildId.
     if ((message as Message).guildId === config.GUILD_ID_CLOCK_CREW) {
       try {
-        const { ClockCrewConstants } = await import("#root/constants.js");
+        const { ClockCrewConstants } = await import("#root/constants.ts");
         const clockWithoutProfiles = ClockCrewConstants.clocks_without_profiles;
         const clocksWithProfiles = ClockCrewConstants.clocks_with_profiles;
         const allClocks = [...clockWithoutProfiles, ...clocksWithProfiles];

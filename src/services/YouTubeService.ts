@@ -19,8 +19,8 @@ import play from "play-dl";
 import type { YouTubeVideo } from "play-dl";
 import ytdl from "@distube/ytdl-core";
 import type ytdlTypes from "@distube/ytdl-core";
-import DiscordUtilityService from "#root/services/DiscordUtilityService.js";
-import utilities from "#root/utilities.js";
+import DiscordUtilityService from "#root/services/DiscordUtilityService.ts";
+import utilities from "#root/utilities.ts";
 import {
   ActionRowBuilder,
   ButtonBuilder,

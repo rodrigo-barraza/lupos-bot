@@ -168,11 +168,11 @@ vi.mock("../../src/services/AIService", () => ({
 
 // ── Import modules under test ────────────────────────────────────────────────
 const { Collection } = await import("discord.js");
-const AIService = (await import("../../src/services/AIService.js")).default;
+const AIService = (await import("../../src/services/AIService.ts")).default;
 const { extractContentFromMessages } =
-  await import("../../src/services/discord/ConversationExtractor.js");
+  await import("../../src/services/discord/ConversationExtractor.ts");
 const { extractGenerateImagePrompt } =
-  await import("../../src/services/discord/PromptBuilder.js");
+  await import("../../src/services/discord/PromptBuilder.ts");
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 const BOT_USER_ID = "bot-id-999";

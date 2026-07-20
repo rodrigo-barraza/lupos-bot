@@ -10,7 +10,7 @@
 // presence for no information.
 
 import { humanizeToolName } from "@rodrigo-barraza/utilities-library";
-import type { PrismSseEvent } from "#root/types/prism.js";
+import type { PrismSseEvent } from "#root/types/prism.ts";
 
 const THROTTLE_MS = 4000;
 /** Discord custom statuses cap at 128 characters. */

@@ -14,13 +14,13 @@ import {
   ButtonBuilder,
   ButtonStyle,
 } from "discord.js";
-import config from "#root/config.js";
-import { GAME_ROLE_MAPPINGS, MONGO_DB_NAME } from "#root/constants.js";
-import { rolesVideogames } from "#root/arrays/roles.js";
-import DiscordUtilityService from "#root/services/DiscordUtilityService.js";
-import ScraperService from "#root/services/ScraperService.js";
-import MongoService from "#root/services/MongoService.js";
-import LogFormatter from "#root/formatters/LogFormatter.js";
+import config from "#root/config.ts";
+import { GAME_ROLE_MAPPINGS, MONGO_DB_NAME } from "#root/constants.ts";
+import { rolesVideogames } from "#root/arrays/roles.ts";
+import DiscordUtilityService from "#root/services/DiscordUtilityService.ts";
+import ScraperService from "#root/services/ScraperService.ts";
+import MongoService from "#root/services/MongoService.ts";
+import LogFormatter from "#root/formatters/LogFormatter.ts";
 
 /**
  * Handle a presence update event — track activity, assign roles,

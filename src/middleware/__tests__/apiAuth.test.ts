@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { createApiAuthMiddleware } from "../apiAuth.js";
+import { createApiAuthMiddleware } from "../apiAuth.ts";
 import type { Request, Response, NextFunction } from "express";
 
 function makeReq(overrides: Partial<Request> = {}): Request {

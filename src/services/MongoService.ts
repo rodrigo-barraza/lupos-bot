@@ -1,6 +1,6 @@
 import { MongoClient, Db } from "mongodb";
-import LogFormatter from "#root/formatters/LogFormatter.js";
-import { MONGO_DB_NAME } from "#root/constants.js";
+import LogFormatter from "#root/formatters/LogFormatter.ts";
+import { MONGO_DB_NAME } from "#root/constants.ts";
 
 const clients = new Map<string, MongoClient>();
 

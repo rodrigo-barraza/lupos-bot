@@ -12,7 +12,7 @@ import {
   tryTimeoutMember,
   EMBED_DESCRIPTION_LIMIT,
   MAX_TIMEOUT_DURATION_MS,
-} from "../commandUtils.js";
+} from "../commandUtils.ts";
 import { SlashCommandBuilder } from "discord.js";
 import type {
   ChatInputCommandInteraction,

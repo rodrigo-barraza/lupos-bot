@@ -5,7 +5,7 @@
  */
 
 import type { Client, GuildTextBasedChannel } from "discord.js";
-import utilities from "#root/utilities.js";
+import utilities from "#root/utilities.ts";
 import { getMongoDb } from "../commandUtils.ts";
 import { adjustGold } from "../gold/goldRepository.ts";
 import { HEIST_COOLDOWN_MS } from "./heistMath.ts";

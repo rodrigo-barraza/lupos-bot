@@ -17,7 +17,7 @@ import {
   transformMessageRoot,
   transformMessageInteraction,
   transformMessageInteractionMetadata,
-} from "#root/services/discord/transformers.js";
+} from "#root/services/discord/transformers.ts";
 
 // Minimal Collection stand-in (only what transformMessageRoot touches)
 const collection = <T>(items: T[]) => ({

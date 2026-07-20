@@ -6,8 +6,8 @@
  */
 
 import type { Guild, GuildMember } from "discord.js";
-import config from "#root/config.js";
-import { ACCOUNT_AGE_THRESHOLD_MS, MILLISECONDS_PER_DAY } from "#root/constants.js";
+import config from "#root/config.ts";
+import { ACCOUNT_AGE_THRESHOLD_MS, MILLISECONDS_PER_DAY } from "#root/constants.ts";
 
 /**
  * Kick a member if their Discord account is too new (< 4 weeks old)

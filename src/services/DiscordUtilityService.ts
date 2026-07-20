@@ -1,9 +1,9 @@
-import utilities from "#root/utilities.js";
+import utilities from "#root/utilities.ts";
 const { consoleLog } = utilities;
-import config from "#root/config.js";
+import config from "#root/config.ts";
 import { Collection, Events, ActivityType } from "discord.js";
-import ScraperService from "#root/services/ScraperService.js";
-import LogFormatter from "#root/formatters/LogFormatter.js";
+import ScraperService from "#root/services/ScraperService.ts";
+import LogFormatter from "#root/formatters/LogFormatter.ts";
 import {
   Message,
   Guild,
@@ -13,18 +13,18 @@ import {
   GuildEmoji,
   Presence,
   VoiceState,
-  Interaction,
+  type Interaction,
   GuildMember,
-  PartialGuildMember,
-  PartialMessage,
+  type PartialGuildMember,
+  type PartialMessage,
   Role,
-  PresenceStatusData,
+  type PresenceStatusData,
 } from "discord.js";
 import MessageArchive, {
   type FetchMessagesOptions,
-} from "#root/services/discord/MessageArchive.js";
-import ChannelAnalytics from "#root/services/discord/ChannelAnalytics.js";
-import { errorMessage } from "#root/services/discord/errors.js";
+} from "#root/services/discord/MessageArchive.ts";
+import ChannelAnalytics from "#root/services/discord/ChannelAnalytics.ts";
+import { errorMessage } from "#root/services/discord/errors.ts";
 
 /** Options for MongoDB-backed operations. */
 interface MongoConnections {

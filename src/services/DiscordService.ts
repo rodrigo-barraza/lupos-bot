@@ -1,4 +1,4 @@
-import TemporalHelpers from "#root/utilities/TemporalHelpers.js";
+import TemporalHelpers from "#root/utilities/TemporalHelpers.ts";
 import { Collection, ChannelType, EmbedBuilder } from "discord.js";
 import type {
   Message,
@@ -20,82 +20,82 @@ import fs from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 
-import config from "#root/config.js";
+import config from "#root/config.ts";
 
 import { DISCORD_GUILDS, DISCORD_USERS } from "@rodrigo-barraza/utilities-library/taxonomy";
 
-import channels from "#root/arrays/channels.js";
+import channels from "#root/arrays/channels.ts";
 
-import DiscordWrapper from "#root/wrappers/DiscordWrapper.js";
-import YouTubeService from "#root/services/YouTubeService.js";
-import MongoService from "#root/services/MongoService.js";
-import PrismService from "#root/services/PrismService.js";
-import DiscordUtilityService from "#root/services/DiscordUtilityService.js";
-import type { ChatMessage } from "#root/services/AIService.js";
-import CurrentService from "#root/services/CurrentService.js";
+import DiscordWrapper from "#root/wrappers/DiscordWrapper.ts";
+import YouTubeService from "#root/services/YouTubeService.ts";
+import MongoService from "#root/services/MongoService.ts";
+import PrismService from "#root/services/PrismService.ts";
+import DiscordUtilityService from "#root/services/DiscordUtilityService.ts";
+import type { ChatMessage } from "#root/services/AIService.ts";
+import CurrentService from "#root/services/CurrentService.ts";
 
-import BirthdayJob from "#root/jobs/scheduled/BirthdayJob.js";
-import ActivityRoleAssignmentJob from "#root/jobs/scheduled/ActivityRoleAssignmentJob.js";
+import BirthdayJob from "#root/jobs/scheduled/BirthdayJob.ts";
+import ActivityRoleAssignmentJob from "#root/jobs/scheduled/ActivityRoleAssignmentJob.ts";
 
-import PermanentTimeOutJob from "#root/jobs/scheduled/PermanentTimeOutJob.js";
-import RandomTagJob from "#root/jobs/scheduled/RandomTagJob.js";
-import ServerIconJob from "#root/jobs/scheduled/ServerIconJob.js";
-import CountdownIconJob from "#root/jobs/scheduled/CountdownIconJob.js";
-import EventReactJob from "#root/jobs/event-driven/ReactJob.js";
-import { reconcileInterruptedGames } from "#root/commands/utility/deathroll/persistence.js";
-import { reconcileInterruptedRoyales } from "#root/commands/utility/deathroll/royalePersistence.js";
-import { reconcileInterruptedHeists } from "#root/commands/utility/heist/heistPersistence.js";
+import PermanentTimeOutJob from "#root/jobs/scheduled/PermanentTimeOutJob.ts";
+import RandomTagJob from "#root/jobs/scheduled/RandomTagJob.ts";
+import ServerIconJob from "#root/jobs/scheduled/ServerIconJob.ts";
+import CountdownIconJob from "#root/jobs/scheduled/CountdownIconJob.ts";
+import EventReactJob from "#root/jobs/event-driven/ReactJob.ts";
+import { reconcileInterruptedGames } from "#root/commands/utility/deathroll/persistence.ts";
+import { reconcileInterruptedRoyales } from "#root/commands/utility/deathroll/royalePersistence.ts";
+import { reconcileInterruptedHeists } from "#root/commands/utility/heist/heistPersistence.ts";
 
-import utilities from "#root/utilities.js";
-import type { TransformedPrismResponse } from "#root/types/prism.js";
+import utilities from "#root/utilities.ts";
+import type { TransformedPrismResponse } from "#root/types/prism.ts";
 // EXTRACTED MODULES (Phase 1 decomposition)
-import DeletedMessageLogger from "#root/services/discord/DeletedMessageLogger.js";
-import DiscordState from "#root/services/discord/DiscordState.js";
-import type { QueuedMessageData } from "#root/services/discord/DiscordState.js";
-import ButtonRouter from "#root/services/discord/ButtonRouter.js";
-import DmInboxService from "#root/services/discord/DmInboxService.js";
-import { extractContentFromMessages } from "#root/services/discord/ConversationExtractor.js";
-import type { ExtractContentOptions } from "#root/services/discord/ConversationExtractor.js";
-import ChannelSessionCache from "#root/services/discord/ChannelSessionCache.js";
-import AIService from "#root/services/AIService.js";
-import { buildMessageAnnotation } from "#root/services/discord/MessageEnvelope.js";
-import type { AttachmentPart } from "#root/services/discord/MessageEnvelope.js";
-import { buildAndGenerateReply } from "#root/services/discord/PromptBuilder.js";
-import { AgentStatusTracker } from "#root/services/discord/AgentStatusTracker.js";
+import DeletedMessageLogger from "#root/services/discord/DeletedMessageLogger.ts";
+import DiscordState from "#root/services/discord/DiscordState.ts";
+import type { QueuedMessageData } from "#root/services/discord/DiscordState.ts";
+import ButtonRouter from "#root/services/discord/ButtonRouter.ts";
+import DmInboxService from "#root/services/discord/DmInboxService.ts";
+import { extractContentFromMessages } from "#root/services/discord/ConversationExtractor.ts";
+import type { ExtractContentOptions } from "#root/services/discord/ConversationExtractor.ts";
+import ChannelSessionCache from "#root/services/discord/ChannelSessionCache.ts";
+import AIService from "#root/services/AIService.ts";
+import { buildMessageAnnotation } from "#root/services/discord/MessageEnvelope.ts";
+import type { AttachmentPart } from "#root/services/discord/MessageEnvelope.ts";
+import { buildAndGenerateReply } from "#root/services/discord/PromptBuilder.ts";
+import { AgentStatusTracker } from "#root/services/discord/AgentStatusTracker.ts";
 import {
   formatEmotionDetail,
   formatMoodStatusLine,
   type PrismSomaticSnapshot,
-} from "#root/formatters/SomaticStatsFormatter.js";
+} from "#root/formatters/SomaticStatsFormatter.ts";
 import {
   luposOnReadyDeleteNewAccounts,
   luposOnReadyPurgeYoungAccounts,
   revokeRoleFromAllMembers,
-} from "#root/services/discord/ModerationSweeps.js";
+} from "#root/services/discord/ModerationSweeps.ts";
 // Importing BirthdayOnboarding also registers its "birthday-month-" button handler
-import BirthdayOnboarding from "#root/services/discord/BirthdayOnboarding.js";
-import { luposOnChannelCreate } from "#root/services/discord/OnboardingDefaults.js";
+import BirthdayOnboarding from "#root/services/discord/BirthdayOnboarding.ts";
+import { luposOnChannelCreate } from "#root/services/discord/OnboardingDefaults.ts";
 // Importing RolePicker also registers its "pick-role-" button handler
 // with ButtonRouter at module load.
-import { generateRolesEmbedMessage } from "#root/services/discord/RolePicker.js";
-import BoundedMap from "#root/utilities/BoundedMap.js";
-import type { Command } from "#root/commands/types.js";
-import ReactionHighlights from "#root/services/discord/ReactionHighlights.js";
-import PresenceTracker from "#root/services/discord/PresenceTracker.js";
+import { generateRolesEmbedMessage } from "#root/services/discord/RolePicker.ts";
+import BoundedMap from "#root/utilities/BoundedMap.ts";
+import type { Command } from "#root/commands/types.ts";
+import ReactionHighlights from "#root/services/discord/ReactionHighlights.ts";
+import PresenceTracker from "#root/services/discord/PresenceTracker.ts";
 
-import LogFormatter from "#root/formatters/LogFormatter.js";
+import LogFormatter from "#root/formatters/LogFormatter.ts";
 
 import {
   APRIL_FOOLS_MODE,
   EXPLOSION_GIFS,
   YOUTUBE_BUTTON_ACTIONS,
   MONGO_DB_NAME,
-} from "#root/constants.js";
-import CensorService from "#root/services/CensorService.js";
+} from "#root/constants.ts";
+import CensorService from "#root/services/CensorService.ts";
 import {
   kickIfTooNew,
   kickIfForbiddenCombo,
-} from "#root/services/AccountGuardService.js";
+} from "#root/services/AccountGuardService.ts";
 
 const args = process.argv.slice(2);
 const mode = args.find((arg: string) => arg.startsWith("mode="))?.split("=")[1];
@@ -794,7 +794,7 @@ async function luposOnReady(
   );
   if (activeCountdownDefinitions.length > 0) {
     const { parseTargetDateString } =
-      await import("#root/utilities/CountdownIconOverlay.js");
+      await import("#root/utilities/CountdownIconOverlay.ts");
     for (const definition of activeCountdownDefinitions) {
       CountdownIconJob.startJob({
         client,

@@ -11,13 +11,13 @@
 
 import type { Client, Guild } from "discord.js";
 
-import config from "#root/config.js";
-import { MILLISECONDS_PER_DAY } from "#root/constants.js";
+import config from "#root/config.ts";
+import { MILLISECONDS_PER_DAY } from "#root/constants.ts";
 import {
   kickIfTooNew,
   kickIfForbiddenCombo,
   purgeByAccountAge,
-} from "#root/services/AccountGuardService.js";
+} from "#root/services/AccountGuardService.ts";
 
 /**
  * Fetch guild members with automatic retry on Gateway rate limits (opcode 8).

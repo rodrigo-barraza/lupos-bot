@@ -1,9 +1,9 @@
-export { default as ClockCrewConstants } from "./src/constants/ClockCrewConstants.js";
-export { default as MessageConstant, APRIL_FOOLS_MODE } from "./src/constants/MessageConstants.js";
+export { default as ClockCrewConstants } from "./src/constants/ClockCrewConstants.ts";
+export { default as MessageConstant, APRIL_FOOLS_MODE } from "./src/constants/MessageConstants.ts";
 export {
   MOODS,
   MOOD_TEMPERATURE_THRESHOLDS,
-} from "./src/constants/MoodConstants.js";
+} from "./src/constants/MoodConstants.ts";
 export {
   MILLISECONDS_PER_DAY,
   GAME_ROLE_MAPPINGS,
@@ -13,4 +13,4 @@ export {
   MONGO_DB_NAME,
   DEFAULT_LIGHT_CYCLE,
   RAINBOW_LIGHT_CYCLE,
-} from "./src/constants/GameConstants.js";
+} from "./src/constants/GameConstants.ts";

@@ -2,7 +2,7 @@
  * Type definitions for PrismService API method parameters.
  */
 
-import type { ChatMessage } from "#root/services/AIService.js";
+import type { ChatMessage } from "#root/services/AIService.ts";
 
 /** Options for PrismService._request() helper. */
 export interface PrismRequestOptions {

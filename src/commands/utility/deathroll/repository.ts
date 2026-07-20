@@ -3,10 +3,10 @@
  * pipelines, stats fetches, game persistence, and leaderboard queries.
  */
 
-import MongoService from "#root/services/MongoService.js";
-import config from "#root/config.js";
-import { MONGO_DB_NAME } from "#root/constants.js";
-import utilities from "#root/utilities.js";
+import MongoService from "#root/services/MongoService.ts";
+import config from "#root/config.ts";
+import { MONGO_DB_NAME } from "#root/constants.ts";
+import utilities from "#root/utilities.ts";
 import type { Collection, Document, ObjectId, UpdateFilter } from "mongodb";
 import {
   applyTimeDecayRD,

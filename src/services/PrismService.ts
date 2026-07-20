@@ -1,4 +1,4 @@
-import config from "#root/config.js";
+import config from "#root/config.ts";
 import { PrismApiClient } from "@rodrigo-barraza/utilities-library/service";
 import type {
   GenerateTextParams,
@@ -10,7 +10,7 @@ import type {
   MemoryExtractParams,
   MemorySearchParams,
   EmbeddingParams,
-} from "#root/types/prism.js";
+} from "#root/types/prism.ts";
 
 /** Map lupos provider types to Prism provider names */
 const PROVIDER_MAP = {

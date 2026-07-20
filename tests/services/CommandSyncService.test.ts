@@ -12,8 +12,8 @@ import { SlashCommandBuilder } from "discord.js";
 import {
   buildGuildCommandPayload,
   hashCommandPayload,
-} from "../../src/services/CommandSyncService.js";
-import type { Command } from "../../src/commands/types.js";
+} from "../../src/services/CommandSyncService.ts";
+import type { Command } from "../../src/commands/types.ts";
 
 function makeCommand(name: string, guildIds?: string[]): Command {
   return {

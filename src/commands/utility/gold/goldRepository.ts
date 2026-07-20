@@ -5,9 +5,9 @@
  * can never go negative.
  */
 
-import MongoService from "#root/services/MongoService.js";
-import { MONGO_DB_NAME } from "#root/constants.js";
-import utilities from "#root/utilities.js";
+import MongoService from "#root/services/MongoService.ts";
+import { MONGO_DB_NAME } from "#root/constants.ts";
+import utilities from "#root/utilities.ts";
 import type { Collection, Document } from "mongodb";
 import { computeDailyClaim } from "./goldMath.ts";
 

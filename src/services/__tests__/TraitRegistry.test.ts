@@ -1,4 +1,4 @@
-const TraitRegistry = (await import("../TraitRegistry.js")).default;
+const TraitRegistry = (await import("../TraitRegistry.ts")).default;
 
 describe("TraitRegistry", () => {
   // Registry state is module-level; restore initial levels after each test.

@@ -4,8 +4,8 @@ import type { Client, NonThreadGuildBasedChannel } from "discord.js";
 import {
   isPubliclyViewable,
   luposOnChannelCreate,
-} from "../OnboardingDefaults.js";
-import config from "#root/config.js";
+} from "../OnboardingDefaults.ts";
+import config from "#root/config.ts";
 
 /**
  * Community Onboarding hides any channel missing from default_channel_ids

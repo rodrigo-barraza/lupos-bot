@@ -10,15 +10,15 @@
 // bodies, which keeps the circular import safe.
 // ============================================================
 
-import TemporalHelpers from "#root/utilities/TemporalHelpers.js";
-import utilities from "#root/utilities.js";
+import TemporalHelpers from "#root/utilities/TemporalHelpers.ts";
+import utilities from "#root/utilities.ts";
 const { consoleLog } = utilities;
-import config from "#root/config.js";
+import config from "#root/config.ts";
 import { Collection, ChannelType } from "discord.js";
 import type { Client, Message, TextChannel } from "discord.js";
-import { MILLISECONDS_PER_DAY } from "#root/constants.js";
-import DiscordUtilityService from "#root/services/DiscordUtilityService.js";
-import { errorMessage, errorStack } from "#root/services/discord/errors.js";
+import { MILLISECONDS_PER_DAY } from "#root/constants.ts";
+import DiscordUtilityService from "#root/services/DiscordUtilityService.ts";
+import { errorMessage, errorStack } from "#root/services/discord/errors.ts";
 import { DISCORD_CHANNELS } from "@rodrigo-barraza/utilities-library/taxonomy";
 
 /** Represents a channel stat entry from the activity analysis. */

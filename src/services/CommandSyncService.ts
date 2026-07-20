@@ -25,11 +25,11 @@ import type {
   ApplicationCommandDataResolvable,
 } from "discord.js";
 
-import DiscordWrapper from "#root/wrappers/DiscordWrapper.js";
-import MongoService from "#root/services/MongoService.js";
-import utilities from "#root/utilities.js";
-import { MONGO_DB_NAME } from "#root/constants.js";
-import type { Command } from "#root/commands/types.js";
+import DiscordWrapper from "#root/wrappers/DiscordWrapper.ts";
+import MongoService from "#root/services/MongoService.ts";
+import utilities from "#root/utilities.ts";
+import { MONGO_DB_NAME } from "#root/constants.ts";
+import type { Command } from "#root/commands/types.ts";
 
 // Commands load into client.commands during init while the gateway
 // connects concurrently — poll until both are true before syncing.

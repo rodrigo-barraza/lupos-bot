@@ -25,7 +25,7 @@ RUN --mount=type=ssh \
 # ── Stage 2: Compile TypeScript ───────────────────────────────
 FROM deps AS build
 COPY . .
-RUN pnpm exec tsc
+RUN pnpm run typecheck
 
 # ── Stage 3: Production dependencies only ─────────────────────
 FROM node:26-slim AS prod-deps
@@ -64,8 +64,8 @@ WORKDIR /app
 # Copy production-only node_modules (no devDeps)
 COPY --from=prod-deps /app/node_modules ./node_modules
 
-# Copy compiled JS output
-COPY --from=build /app/dist ./dist
+# Copy TypeScript source (run directly via Node 26 type stripping)
+COPY --from=build /app/src ./src
 
 # Copy package.json (needed for "imports" and "type": "module")
 COPY package.json ./
@@ -85,4 +85,4 @@ EXPOSE 1337
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
   CMD wget --no-verbose --tries=1 -O /dev/null http://127.0.0.1:1337/health || exit 1
 
-CMD ["node", "dist/boot.js"]
+CMD ["node", "src/boot.ts"]

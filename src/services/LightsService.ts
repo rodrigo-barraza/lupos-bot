@@ -1,6 +1,6 @@
 import { createApiClient } from "@rodrigo-barraza/utilities-library/http";
 
-import config from "#root/config.js";
+import config from "#root/config.ts";
 
 const { LIGHTS_SERVICE_URL } = config;
 

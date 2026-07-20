@@ -10,14 +10,14 @@
 import type { Client, MessageReaction, PartialMessageReaction, User, PartialUser, TextChannel, Message } from "discord.js";
 import type { MongoClient } from "mongodb";
 import { EmbedBuilder, DiscordAPIError } from "discord.js";
-import config from "#root/config.js";
-import utilities from "#root/utilities.js";
-import DiscordUtilityService from "#root/services/DiscordUtilityService.js";
-import ScraperService from "#root/services/ScraperService.js";
-import DiscordState from "#root/services/discord/DiscordState.js";
-import EventReactJob from "#root/jobs/event-driven/ReactJob.js";
-import LogFormatter from "#root/formatters/LogFormatter.js";
-import MongoService from "#root/services/MongoService.js";
+import config from "#root/config.ts";
+import utilities from "#root/utilities.ts";
+import DiscordUtilityService from "#root/services/DiscordUtilityService.ts";
+import ScraperService from "#root/services/ScraperService.ts";
+import DiscordState from "#root/services/discord/DiscordState.ts";
+import EventReactJob from "#root/jobs/event-driven/ReactJob.ts";
+import LogFormatter from "#root/formatters/LogFormatter.ts";
+import MongoService from "#root/services/MongoService.ts";
 
 interface QueuedReaction {
   reaction: MessageReaction | PartialMessageReaction;

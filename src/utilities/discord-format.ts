@@ -9,8 +9,8 @@ import {
   discordMessageUrl,
 } from "@rodrigo-barraza/utilities-library/discord";
 
-import TemporalHelpers from "#root/utilities/TemporalHelpers.js";
-import { ansiEscapeCodes } from "#root/utilities/console.js";
+import TemporalHelpers from "#root/utilities/TemporalHelpers.ts";
+import { ansiEscapeCodes } from "#root/utilities/console.ts";
 import type {
   Guild,
   GuildMember,

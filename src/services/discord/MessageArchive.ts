@@ -11,13 +11,13 @@
 
 import { ChannelType } from "discord.js";
 import type { Client, Message, TextChannel, MessageReaction } from "discord.js";
-import { MONGO_DB_NAME, EXCLUDE_SOFT_DELETED } from "#root/constants.js";
-import MediaArchivalService from "#root/services/MediaArchivalService.js";
+import { MONGO_DB_NAME, EXCLUDE_SOFT_DELETED } from "#root/constants.ts";
+import MediaArchivalService from "#root/services/MediaArchivalService.ts";
 import {
   transformMessageRoot,
   transformReaction,
-} from "#root/services/discord/transformers.js";
-import { errorMessage } from "#root/services/discord/errors.js";
+} from "#root/services/discord/transformers.ts";
+import { errorMessage } from "#root/services/discord/errors.ts";
 import { DISCORD_USERS } from "@rodrigo-barraza/utilities-library/taxonomy";
 
 /** Resume point for message scraping. */

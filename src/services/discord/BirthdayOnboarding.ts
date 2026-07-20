@@ -20,10 +20,10 @@ import {
 } from "discord.js";
 import type { ButtonInteraction, Client, GuildMember } from "discord.js";
 
-import config from "#root/config.js";
-import { MONGO_DB_NAME } from "#root/constants.js";
-import MongoService from "#root/services/MongoService.js";
-import ButtonRouter from "#root/services/discord/ButtonRouter.js";
+import config from "#root/config.ts";
+import { MONGO_DB_NAME } from "#root/constants.ts";
+import MongoService from "#root/services/MongoService.ts";
+import ButtonRouter from "#root/services/discord/ButtonRouter.ts";
 
 export const MONTHS = [
   "January",

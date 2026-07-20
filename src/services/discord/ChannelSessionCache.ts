@@ -28,8 +28,8 @@
 //     Discord-posted copy (chunking/uploads mangle it).
 // ============================================================
 
-import config from "#root/config.js";
-import type { ChatMessage } from "#root/services/AIService.js";
+import config from "#root/config.ts";
+import type { ChatMessage } from "#root/services/AIService.ts";
 
 export interface ChannelSession {
   channelId: string;

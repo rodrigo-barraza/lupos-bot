@@ -13,8 +13,8 @@
 import type { ChatInputCommandInteraction } from "discord.js";
 import dmCampaign, {
   formatCampaignStatus,
-} from "../../src/commands/utility/dm-campaign.js";
-import config from "../../src/config.js";
+} from "../../src/commands/utility/dm-campaign.ts";
+import config from "../../src/config.ts";
 
 interface FakeInteraction {
   interaction: ChatInputCommandInteraction;

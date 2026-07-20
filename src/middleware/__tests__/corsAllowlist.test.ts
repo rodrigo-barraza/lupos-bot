@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { createCorsMiddleware } from "../corsAllowlist.js";
+import { createCorsMiddleware } from "../corsAllowlist.ts";
 import type { Request, Response, NextFunction } from "express";
 
 function makeReq(origin?: string): Request {

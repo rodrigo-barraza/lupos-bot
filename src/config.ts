@@ -7,7 +7,7 @@
 //
 // This file contains NO defaults and NO secrets.
 //
-// All consumers import: `import config from "#root/config.js"`
+// All consumers import: `import config from "#root/config.ts"`
 // ============================================================
 
 import { assertRequiredEnvironment } from "@rodrigo-barraza/utilities-library";

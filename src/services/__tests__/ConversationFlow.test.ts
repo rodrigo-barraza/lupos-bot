@@ -38,7 +38,7 @@ vi.mock("../PrismService", () => ({
 }));
 
 // ── Import AIService (after mocks are set up) ───────────────────────────────
-const AIService = (await import("../AIService.js")).default;
+const AIService = (await import("../AIService.ts")).default;
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 const mockMessage = {

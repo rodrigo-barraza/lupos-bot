@@ -25,12 +25,12 @@ import type {
   Guild,
 } from "discord.js";
 
-import DiscordWrapper from "#root/wrappers/DiscordWrapper.js";
-import config from "#root/config.js";
-import utilities from "#root/utilities.js";
-import DmCampaignService from "#root/services/DmCampaignService.js";
-import TraitRegistry from "#root/services/TraitRegistry.js";
-import PrismService from "#root/services/PrismService.js";
+import DiscordWrapper from "#root/wrappers/DiscordWrapper.ts";
+import config from "#root/config.ts";
+import utilities from "#root/utilities.ts";
+import DmCampaignService from "#root/services/DmCampaignService.ts";
+import TraitRegistry from "#root/services/TraitRegistry.ts";
+import PrismService from "#root/services/PrismService.ts";
 import {
   formatSomaticStats,
   formatEmotionDetail,
@@ -38,24 +38,24 @@ import {
   type EmotionDetail,
   type SomaticStatLabels,
   type PrismSomaticSnapshot,
-} from "#root/formatters/SomaticStatsFormatter.js";
+} from "#root/formatters/SomaticStatsFormatter.ts";
 import {
   resolveAvatarState,
   AVATAR_KEYS,
-} from "#root/formatters/AvatarStateFormatter.js";
-import { EXCLUDE_SOFT_DELETED } from "#root/constants.js";
+} from "#root/formatters/AvatarStateFormatter.ts";
+import { EXCLUDE_SOFT_DELETED } from "#root/constants.ts";
 import { MILLISECONDS_PER_DAY } from "@rodrigo-barraza/utilities-library";
 import {
   getMongoDb,
   getServerAgeYears,
   computeStartDate,
   formatTimePeriod,
-} from "#root/commands/utility/commandUtils.js";
+} from "#root/commands/utility/commandUtils.ts";
 import {
   luposGetGoldBalance,
   luposGiveGold,
   luposMugGold,
-} from "#root/commands/utility/gold/luposAgentGold.js";
+} from "#root/commands/utility/gold/luposAgentGold.ts";
 
 const router = Router();
 
@@ -555,10 +555,10 @@ router.post(
       }
 
       const client = DiscordWrapper.getClient("lupos");
-      const MongoService = (await import("#root/services/MongoService.js"))
+      const MongoService = (await import("#root/services/MongoService.ts"))
         .default;
       const DiscordUtilityService = (
-        await import("#root/services/DiscordUtilityService.js")
+        await import("#root/services/DiscordUtilityService.ts")
       ).default;
       const localMongo = MongoService.getClient("local");
       if (!localMongo) {
@@ -728,10 +728,10 @@ router.post(
       const { channelId, forceRetry = false } = req.body;
 
       const client = DiscordWrapper.getClient("lupos");
-      const MongoService = (await import("#root/services/MongoService.js"))
+      const MongoService = (await import("#root/services/MongoService.ts"))
         .default;
       const DiscordUtilityService = (
-        await import("#root/services/DiscordUtilityService.js")
+        await import("#root/services/DiscordUtilityService.ts")
       ).default;
       const localMongo = MongoService.getClient("local");
       if (!localMongo) {
@@ -947,7 +947,7 @@ router.post(
       // This keeps the SSE stream (which reads from MongoDB) in sync.
       try {
         const freshMessage = await channel.messages.fetch(messageId);
-        const MongoService = (await import("#root/services/MongoService.js"))
+        const MongoService = (await import("#root/services/MongoService.ts"))
           .default;
         const localMongo = MongoService.getClient("local");
         if (!localMongo)
@@ -1028,7 +1028,7 @@ router.get(
   asyncHandler(async (req: Request, res: Response) => {
     try {
       const client = DiscordWrapper.getClient("lupos");
-      const MongoService = (await import("#root/services/MongoService.js"))
+      const MongoService = (await import("#root/services/MongoService.ts"))
         .default;
       const localMongo = MongoService.getClient("local");
       const db = localMongo ? localMongo.db("lupos") : null;
@@ -1265,7 +1265,7 @@ router.get(
   "/bot/activity",
   asyncHandler(async (req: Request, res: Response) => {
     try {
-      const MongoService = (await import("#root/services/MongoService.js"))
+      const MongoService = (await import("#root/services/MongoService.ts"))
         .default;
       const localMongo = MongoService.getClient("local");
       if (!localMongo) {
