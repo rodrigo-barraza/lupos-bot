@@ -25,7 +25,7 @@ import {
   DM_DELAY_JITTER_MS,
   DAILY_CAP,
   MIN_ACCOUNT_AGE_MS,
-} from "../../src/services/DmCampaignService.js";
+} from "../../src/services/DmCampaignService.ts";
 
 describe("pickMessageVariant", () => {
   it("is deterministic for the same user", () => {

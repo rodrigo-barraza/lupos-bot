@@ -20,7 +20,7 @@
 //     bust the provider prompt cache.
 // ============================================================
 
-import TemporalHelpers from "#root/utilities/TemporalHelpers.js";
+import TemporalHelpers from "#root/utilities/TemporalHelpers.ts";
 
 // ─── Sanitization ─────────────────────────────────────────────
 

@@ -27,8 +27,8 @@ vi.mock("../../routes/GuildRoutes", () => ({
   default: vi.fn(),
 }));
 
-const routes = (await import("../services.js")).default;
-const AIService = (await import("../AIService.js")).default;
+const routes = (await import("../services.ts")).default;
+const AIService = (await import("../AIService.ts")).default;
 
 describe("services.js (Express Routes)", () => {
   let mockRouter;

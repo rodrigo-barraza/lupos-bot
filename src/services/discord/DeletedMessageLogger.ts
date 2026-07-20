@@ -19,11 +19,11 @@ import type {
 } from "discord.js";
 import type { MongoClient } from "mongodb";
 import { EmbedBuilder } from "discord.js";
-import config from "#root/config.js";
-import utilities from "#root/utilities.js";
-import DiscordUtilityService from "#root/services/DiscordUtilityService.js";
-import DiscordState from "#root/services/discord/DiscordState.js";
-import { MONGO_DB_NAME } from "#root/constants.js";
+import config from "#root/config.ts";
+import utilities from "#root/utilities.ts";
+import DiscordUtilityService from "#root/services/DiscordUtilityService.ts";
+import DiscordState from "#root/services/discord/DiscordState.ts";
+import { MONGO_DB_NAME } from "#root/constants.ts";
 
 /**
  * Handle a message deletion event.

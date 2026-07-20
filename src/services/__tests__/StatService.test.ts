@@ -1,4 +1,4 @@
-const StatService = (await import("../StatService.js")).default;
+const StatService = (await import("../StatService.ts")).default;
 
 describe("StatService", () => {
   beforeEach(() => {

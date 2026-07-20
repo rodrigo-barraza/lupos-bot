@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import CensorService from "../CensorService.js";
+import CensorService from "../CensorService.ts";
 
 describe("CensorService", () => {
   describe("containsFlaggedWords", () => {

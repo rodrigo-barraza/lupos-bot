@@ -27,8 +27,8 @@ for (const [key, value] of Object.entries(secrets)) {
 }
 
 // Now import config (relies on process.env being populated)
-import { EXCLUDE_SOFT_DELETED } from "#root/constants.js";
-const { default: MinioWrapper } = await import("../wrappers/MinioWrapper.js");
+import { EXCLUDE_SOFT_DELETED } from "#root/constants.ts";
+const { default: MinioWrapper } = await import("../wrappers/MinioWrapper.ts");
 
 // ─── CLI args ───────────────────────────────────────────────────
 const args = process.argv.slice(2);

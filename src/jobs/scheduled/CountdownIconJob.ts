@@ -1,11 +1,11 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import utilities from "#root/utilities.js";
+import utilities from "#root/utilities.ts";
 import {
   overlayCountdownNumber,
   calculateDaysUntilTarget,
-} from "#root/utilities/CountdownIconOverlay.js";
+} from "#root/utilities/CountdownIconOverlay.ts";
 import type { Client, Guild } from "discord.js";
 
 const { consoleLog } = utilities;

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { AgentStatusTracker } from "../AgentStatusTracker.js";
+import { AgentStatusTracker } from "../AgentStatusTracker.ts";
 
 describe("AgentStatusTracker", () => {
   let pushed: string[];

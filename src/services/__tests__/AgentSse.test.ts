@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
-import { readSseEvents, aggregateAgentEvents } from "../PrismService.js";
-import type { PrismSseEvent } from "#root/types/prism.js";
+import { readSseEvents, aggregateAgentEvents } from "../PrismService.ts";
+import type { PrismSseEvent } from "#root/types/prism.ts";
 
 /** Build a Response streaming the given SSE frames in arbitrary chunks. */
 function sseResponse(frames: string[], chunkSize = 7): Response {

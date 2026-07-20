@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { _testHelpers } from "../deathrollUtils.js";
+import { _testHelpers } from "../deathrollUtils.ts";
 
 const {
   calculateKFactor,

@@ -4,9 +4,9 @@ vi.mock("../DiscordUtilityService", () => ({
   },
 }));
 
-const AIService = (await import("../AIService.js")).default;
+const AIService = (await import("../AIService.ts")).default;
 const _DiscordUtilityService = (
-  await import("../DiscordUtilityService.js")
+  await import("../DiscordUtilityService.ts")
 ).default;
 
 describe("AIService", () => {

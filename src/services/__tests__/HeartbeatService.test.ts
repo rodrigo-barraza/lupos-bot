@@ -13,7 +13,7 @@ import {
   evaluateLiveness,
   buildPingRequest,
   QUEUE_WEDGE_THRESHOLD_MILLISECONDS,
-} from "../HeartbeatService.js";
+} from "../HeartbeatService.ts";
 
 const NOW = 10 * 60_000;
 

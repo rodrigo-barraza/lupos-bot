@@ -20,7 +20,7 @@ import {
   hasSelfReferenceRegex,
   hasBotSelfPortraitRegex,
   detectGroupReference,
-} from "../../src/services/discord/ImageIntent.js";
+} from "../../src/services/discord/ImageIntent.ts";
 
 // ═══════════════════════════════════════════════════════════════════
 // 1. mightBeImageRequest — the pipeline gate

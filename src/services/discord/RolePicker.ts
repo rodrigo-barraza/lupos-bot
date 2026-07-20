@@ -22,16 +22,16 @@ import type {
   Collection as DiscordCollection,
 } from "discord.js";
 
-import config from "#root/config.js";
+import config from "#root/config.ts";
 import {
   rolesVideogames,
   warcraftClasses,
   warcraftFactions,
-} from "#root/arrays/roles.js";
-import DiscordUtilityService from "#root/services/DiscordUtilityService.js";
-import ButtonRouter from "#root/services/discord/ButtonRouter.js";
-import LogFormatter from "#root/formatters/LogFormatter.js";
-import { kickIfForbiddenCombo } from "#root/services/AccountGuardService.js";
+} from "#root/arrays/roles.ts";
+import DiscordUtilityService from "#root/services/DiscordUtilityService.ts";
+import ButtonRouter from "#root/services/discord/ButtonRouter.ts";
+import LogFormatter from "#root/formatters/LogFormatter.ts";
+import { kickIfForbiddenCombo } from "#root/services/AccountGuardService.ts";
 
 /**
  * Build a role-picker embed + button rows for a given role source array.

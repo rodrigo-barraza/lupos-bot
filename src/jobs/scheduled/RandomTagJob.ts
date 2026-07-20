@@ -1,10 +1,10 @@
-import DiscordUtilityService from "#root/services/DiscordUtilityService.js";
-import AIService from "#root/services/AIService.js";
-import PrismService from "#root/services/PrismService.js";
-import { MessageConstant } from "#root/constants.js";
-import config from "#root/config.js";
-import utilities from "#root/utilities.js";
-import TemporalHelpers from "#root/utilities/TemporalHelpers.js";
+import DiscordUtilityService from "#root/services/DiscordUtilityService.ts";
+import AIService from "#root/services/AIService.ts";
+import PrismService from "#root/services/PrismService.ts";
+import { MessageConstant } from "#root/constants.ts";
+import config from "#root/config.ts";
+import utilities from "#root/utilities.ts";
+import TemporalHelpers from "#root/utilities/TemporalHelpers.ts";
 import type { Client, GuildMember, Message } from "discord.js";
 
 const { consoleLog } = utilities;

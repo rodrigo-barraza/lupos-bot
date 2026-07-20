@@ -2,7 +2,7 @@
 // Console utilities — styled terminal logging and ANSI helpers.
 // ============================================================
 
-import TemporalHelpers from "#root/utilities/TemporalHelpers.js";
+import TemporalHelpers from "#root/utilities/TemporalHelpers.ts";
 
 export interface StyleOptions {
   bold?: boolean;

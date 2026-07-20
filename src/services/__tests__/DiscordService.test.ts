@@ -110,7 +110,7 @@ vi.mock("../../jobs/event-driven/ReactJob", () => ({
   default: {},
 }));
 
-const DiscordService = (await import("../DiscordService.js"))
+const DiscordService = (await import("../DiscordService.ts"))
   .default;
 
 describe("DiscordService", () => {

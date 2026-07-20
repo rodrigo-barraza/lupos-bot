@@ -9,7 +9,7 @@ import {
   resolvePeriod,
   getMedal,
 } from "./commandUtils.ts";
-import { EXCLUDE_SOFT_DELETED } from "#root/constants.js";
+import { EXCLUDE_SOFT_DELETED } from "#root/constants.ts";
 
 interface MentionerEntry {
   _id: string;

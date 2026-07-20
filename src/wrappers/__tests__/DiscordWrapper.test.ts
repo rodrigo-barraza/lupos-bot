@@ -67,7 +67,7 @@ vi.mock("discord.js", () => {
   };
 });
 
-const DiscordWrapper = (await import("../DiscordWrapper.js"))
+const DiscordWrapper = (await import("../DiscordWrapper.ts"))
   .default;
 const { Client } = await import("discord.js");
 

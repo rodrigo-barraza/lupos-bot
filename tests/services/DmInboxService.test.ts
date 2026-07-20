@@ -8,8 +8,8 @@
  *   4. campaign-target context field (with and without sentAt)
  */
 
-import { buildInboxEmbed } from "../../src/services/discord/DmInboxService.js";
-import type { InboxMessageData } from "../../src/services/discord/DmInboxService.js";
+import { buildInboxEmbed } from "../../src/services/discord/DmInboxService.ts";
+import type { InboxMessageData } from "../../src/services/discord/DmInboxService.ts";
 
 function makeData(overrides: Partial<InboxMessageData> = {}): InboxMessageData {
   return {

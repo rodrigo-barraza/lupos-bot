@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   formatEmotionDetail,
   formatMoodStatusLine,
-} from "../SomaticStatsFormatter.js";
+} from "../SomaticStatsFormatter.ts";
 
 function detail(dominant: string, intensity: number) {
   return formatEmotionDetail({ dominant, intensity });

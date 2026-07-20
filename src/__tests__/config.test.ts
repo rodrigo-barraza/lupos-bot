@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import config, { validateConfig } from "../config.js";
+import config, { validateConfig } from "../config.ts";
 
 /** A minimally-valid config to mutate per test. */
 function validBaseConfig(): typeof config {

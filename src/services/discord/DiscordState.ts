@@ -8,8 +8,8 @@
 // arguments or using closures.
 // ============================================================
 
-import TemporalHelpers from "#root/utilities/TemporalHelpers.js";
-import BoundedMap from "#root/utilities/BoundedMap.js";
+import TemporalHelpers from "#root/utilities/TemporalHelpers.ts";
+import BoundedMap from "#root/utilities/BoundedMap.ts";
 
 export interface QueuedMessageData {
   message: import("discord.js").Message;

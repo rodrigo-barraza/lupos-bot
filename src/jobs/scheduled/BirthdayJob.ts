@@ -1,9 +1,9 @@
-import DiscordUtilityService from "#root/services/DiscordUtilityService.js";
+import DiscordUtilityService from "#root/services/DiscordUtilityService.ts";
 import BirthdayOnboarding, {
   MONTHS,
-} from "#root/services/discord/BirthdayOnboarding.js";
-import birthdays from "#root/arrays/birthdays.js";
-import config from "#root/config.js";
+} from "#root/services/discord/BirthdayOnboarding.ts";
+import birthdays from "#root/arrays/birthdays.ts";
+import config from "#root/config.ts";
 import type { Client, GuildMember, Role } from "discord.js";
 
 async function getCurrentMonthBirthdays(

@@ -10,10 +10,10 @@
  * Trait state is memory-only and resets on every restart.
  */
 
-import StatService from "#root/services/StatService.js";
-import type { StatInstance, StatOptions } from "#root/services/StatService.js";
-import { MOODS } from "#root/constants.js";
-import type { MoodEntry } from "#root/types/index.js";
+import StatService from "#root/services/StatService.ts";
+import type { StatInstance, StatOptions } from "#root/services/StatService.ts";
+import { MOODS } from "#root/constants.ts";
+import type { MoodEntry } from "#root/types/index.ts";
 
 /** Per-trait configs, copied verbatim from the deleted wrapper services. */
 const TRAIT_CONFIGS = {

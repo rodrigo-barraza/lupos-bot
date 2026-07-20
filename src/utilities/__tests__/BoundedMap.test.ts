@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import BoundedMap from "../BoundedMap.js";
+import BoundedMap from "../BoundedMap.ts";
 
 describe("BoundedMap", () => {
   beforeEach(() => {

@@ -5,7 +5,7 @@ import type {
   GuildMember,
 } from "discord.js";
 import { getMongoDb, tryTimeoutMember } from "./commandUtils.ts";
-import type { BeatupVote } from "#root/types/index.js";
+import type { BeatupVote } from "#root/types/index.ts";
 import { adjustGold, fetchWallet } from "./gold/goldRepository.ts";
 import { BEATUP_VICTIM_DROP_GOLD, formatGold } from "./gold/goldMath.ts";
 import {

@@ -15,27 +15,27 @@ import type {
   Collection as DiscordCollection,
 } from "discord.js";
 
-import AIService from "#root/services/AIService.js";
+import AIService from "#root/services/AIService.ts";
 import type {
   ChatMessage,
   CaptionMapObject,
   TranscriptionMapObject,
-} from "#root/services/AIService.js";
-import DiscordUtilityService from "#root/services/DiscordUtilityService.js";
-import utilities from "#root/utilities.js";
-import LogFormatter from "#root/formatters/LogFormatter.js";
+} from "#root/services/AIService.ts";
+import DiscordUtilityService from "#root/services/DiscordUtilityService.ts";
+import utilities from "#root/utilities.ts";
+import LogFormatter from "#root/formatters/LogFormatter.ts";
 import {
   buildDiscordMessageEnvelope,
   buildMessageAnnotation,
   toIsoTime,
-} from "#root/services/discord/MessageEnvelope.js";
+} from "#root/services/discord/MessageEnvelope.ts";
 import type {
   AttachmentPart,
   EmbedPart,
   ReactionsPart,
   ReplyToPart,
   StickerPart,
-} from "#root/services/discord/MessageEnvelope.js";
+} from "#root/services/discord/MessageEnvelope.ts";
 
 interface MessageProcessingData {
   index: number;

@@ -3,14 +3,14 @@
   "version": "1.0.0",
   "description": "",
   "type": "module",
-  "main": "dist/boot.js",
+  "main": "src/boot.ts",
   "imports": {
-    "#root/*": "./dist/*"
+    "#root/*": "./src/*"
   },
   "scripts": {
-    "dev": "tsx src/boot.ts mode=messages",
-    "clone:messages": "tsx src/boot.ts mode=clone:messages",
-    "rescrape:channels": "tsx src/boot.ts mode=rescrape:channels",
+    "dev": "node --watch src/boot.ts mode=messages",
+    "clone:messages": "node src/boot.ts mode=clone:messages",
+    "rescrape:channels": "node src/boot.ts mode=rescrape:channels",
     "test": "vitest run --passWithNoTests",
     "test:watch": "vitest",
     "lint": "eslint .",
@@ -20,8 +20,7 @@
     "deploy": "bash deploy.sh",
     "deploy:dry": "bash deploy.sh --dry-run",
     "typecheck": "tsc --noEmit",
-    "build": "tsc",
-    "start": "node dist/boot.js"
+    "start": "node src/boot.ts"
   },
   "keywords": [],
   "author": "",
@@ -54,7 +53,6 @@
     "eslint-config-prettier": "^10.1.8",
     "globals": "^17.6.0",
     "prettier": "^3.8.3",
-    "tsx": "^4.22.0",
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.63.0",
     "vitest": "^4.1.5"

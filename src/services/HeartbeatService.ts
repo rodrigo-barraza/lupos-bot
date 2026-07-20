@@ -18,8 +18,8 @@
 //   monitor alerts immediately instead of waiting out the grace period.
 // ============================================================
 
-import config from "#root/config.js";
-import DiscordState from "#root/services/discord/DiscordState.js";
+import config from "#root/config.ts";
+import DiscordState from "#root/services/discord/DiscordState.ts";
 
 const HEARTBEAT_INTERVAL_MILLISECONDS = 60_000;
 const PING_TIMEOUT_MILLISECONDS = 10_000;

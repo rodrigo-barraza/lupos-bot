@@ -1,6 +1,6 @@
 import { Client, GatewayIntentBits, Partials } from "discord.js";
 import { sleep } from "@rodrigo-barraza/utilities-library";
-import type { DiscordClientEntry } from "#root/types/index.js";
+import type { DiscordClientEntry } from "#root/types/index.ts";
 
 const clients: DiscordClientEntry[] = [];
 

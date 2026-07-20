@@ -4,8 +4,8 @@
  * leaderboard, mentions, shock, and wordcloud commands.
  */
 
-import MongoService from "#root/services/MongoService.js";
-import { MONGO_DB_NAME } from "#root/constants.js";
+import MongoService from "#root/services/MongoService.ts";
+import { MONGO_DB_NAME } from "#root/constants.ts";
 import { EmbedBuilder, Guild } from "discord.js";
 import type {
   ChatInputCommandInteraction,

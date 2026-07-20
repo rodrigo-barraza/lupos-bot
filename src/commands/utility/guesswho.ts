@@ -20,7 +20,7 @@ import {
   shuffleArray,
 } from "./commandUtils.ts";
 import { WRONG_GUESS_ROASTS } from "../../constants/GuessWhoConstants.ts";
-import { EXCLUDE_SOFT_DELETED } from "#root/constants.js";
+import { EXCLUDE_SOFT_DELETED } from "#root/constants.ts";
 import { adjustGold } from "./gold/goldRepository.ts";
 import { GUESSWHO_CORRECT_GOLD } from "./gold/goldMath.ts";
 

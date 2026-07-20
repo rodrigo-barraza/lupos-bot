@@ -6,7 +6,7 @@ import { MILLISECONDS_PER_DAY } from "@rodrigo-barraza/utilities-library";
 // methods using the native TC39 Temporal API (Node 26+).
 //
 // Replaces:  import { DateTime } from "luxon"
-// With:      import { TemporalHelpers } from "#root/utilities/TemporalHelpers.js"
+// With:      import { TemporalHelpers } from "#root/utilities/TemporalHelpers.ts"
 // ============================================================
 
 const TIMEZONE = "America/Los_Angeles";

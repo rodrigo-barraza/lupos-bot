@@ -6,7 +6,7 @@
 
 import { EmbedBuilder, PermissionFlagsBits } from "discord.js";
 import type { ChatInputCommandInteraction, GuildMember } from "discord.js";
-import config from "#root/config.js";
+import config from "#root/config.ts";
 import { truncateAtLineBoundary } from "../commandUtils.ts";
 import {
   BASE_TIMEOUT_MINUTES,

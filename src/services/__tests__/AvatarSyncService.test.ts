@@ -13,7 +13,7 @@ import {
   evaluateAvatarSync,
   MIN_CHANGE_INTERVAL_MILLISECONDS,
   type AvatarSyncState,
-} from "../AvatarSyncService.js";
+} from "../AvatarSyncService.ts";
 
 const NOW = 100 * 60_000;
 

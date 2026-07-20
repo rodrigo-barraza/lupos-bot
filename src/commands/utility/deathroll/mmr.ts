@@ -3,8 +3,8 @@
  * No I/O — everything here is unit-testable.
  */
 
-import config from "#root/config.js";
-import { MILLISECONDS_PER_DAY } from "#root/constants.js";
+import config from "#root/config.ts";
+import { MILLISECONDS_PER_DAY } from "#root/constants.ts";
 import type { AggregatedStats, PlayerProfile, UserStats } from "./types.ts";
 
 // ─── Constants ────────────────────────────────────────────────────────

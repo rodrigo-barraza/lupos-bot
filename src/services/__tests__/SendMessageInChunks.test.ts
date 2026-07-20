@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-import DiscordUtilityService from "../DiscordUtilityService.js";
+import DiscordUtilityService from "../DiscordUtilityService.ts";
 import type { Message } from "discord.js";
 
 /**

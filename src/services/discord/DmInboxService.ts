@@ -14,11 +14,11 @@
 import { ChannelType, EmbedBuilder } from "discord.js";
 import type { Client, Guild, Message, TextChannel } from "discord.js";
 
-import config from "#root/config.js";
-import MongoService from "#root/services/MongoService.js";
-import utilities from "#root/utilities.js";
-import { MONGO_DB_NAME } from "#root/constants.js";
-import { CAMPAIGN_ID } from "#root/services/DmCampaignService.js";
+import config from "#root/config.ts";
+import MongoService from "#root/services/MongoService.ts";
+import utilities from "#root/utilities.ts";
+import { MONGO_DB_NAME } from "#root/constants.ts";
+import { CAMPAIGN_ID } from "#root/services/DmCampaignService.ts";
 
 const INBOX_CHANNEL_NAME = "dm-inbox";
 const EMBED_DESCRIPTION_LIMIT = 4096;

@@ -146,7 +146,7 @@ vi.mock("../../src/jobs/event-driven/ReactJob", () => ({ default: {} }));
 
 // ── Import modules under test ────────────────────────────────────────────────
 const { Collection } = await import("discord.js");
-const AIService = (await import("../../src/services/AIService.js")).default;
+const AIService = (await import("../../src/services/AIService.ts")).default;
 
 // ── Helpers: Discord message factory ─────────────────────────────────────────
 const BOT_USER_ID = "bot-id-999";

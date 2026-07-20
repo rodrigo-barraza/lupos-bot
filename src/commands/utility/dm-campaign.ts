@@ -16,9 +16,9 @@ import type {
   SlashCommandSubcommandBuilder,
 } from "discord.js";
 
-import config from "#root/config.js";
-import utilities from "#root/utilities.js";
-import DmCampaignService from "#root/services/DmCampaignService.js";
+import config from "#root/config.ts";
+import utilities from "#root/utilities.ts";
+import DmCampaignService from "#root/services/DmCampaignService.ts";
 
 type CampaignStatus = Awaited<ReturnType<typeof DmCampaignService.getStatus>>;
 

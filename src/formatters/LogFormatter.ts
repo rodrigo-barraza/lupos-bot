@@ -1,4 +1,4 @@
-import utilities from "#root/utilities.js";
+import utilities from "#root/utilities.ts";
 import type {
   Client,
   Guild,

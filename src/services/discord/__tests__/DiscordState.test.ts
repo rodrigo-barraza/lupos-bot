@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import DiscordState from "../DiscordState.js";
+import DiscordState from "../DiscordState.ts";
 import type { Message } from "discord.js";
 
 /**

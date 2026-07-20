@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { extractDisplayMediaUrl } from "../PromptBuilder.js";
+import { extractDisplayMediaUrl } from "../PromptBuilder.ts";
 
 const CLIP_URL = "https://minio.example.com/trims/abc123.mp4";
 const IMAGE_URL = "https://minio.example.com/generations/qr-xyz.png";

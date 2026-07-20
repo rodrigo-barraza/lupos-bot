@@ -14,7 +14,7 @@
 // deliberately stricter than prism's mid labels so passive drift
 // (hunger creeping past 40) doesn't permanently mask the mood.
 
-import type { SomaticStats } from "#root/services/TraitRegistry.js";
+import type { SomaticStats } from "#root/services/TraitRegistry.ts";
 
 export interface AvatarState {
   /** mood-set filename without extension, e.g. "mood-love" | "state-wasted" */

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { collectMessageBodyParts } from "#root/services/discord/ConversationExtractor.js";
+import { collectMessageBodyParts } from "#root/services/discord/ConversationExtractor.ts";
 import type { Message } from "discord.js";
 
 // collectMessageBodyParts only touches: message.id, message.attachments
