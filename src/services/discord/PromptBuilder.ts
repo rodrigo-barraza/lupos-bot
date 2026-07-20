@@ -1751,7 +1751,10 @@ export async function buildAndGenerateReply({
     // Extract any generated audio from the agent response
     audioRef = agentResponse.audioRef || null;
 
-    // If no top-level audioRef, check tool results for audioRef (from generate_audio or synthesize_speech)
+    // If no top-level audioRef, check tool results for audioRef (from
+    // generate_audio or synthesize_speech). Take the LAST one — tracker
+    // sessions emit preview renders (add_channel/write_rows) before the
+    // final render, and the reply describes the most recent audio.
     if (!audioRef && agentResponse.toolResults?.length > 0) {
       for (const toolResult of agentResponse.toolResults) {
         const resultObject = toolResult.result as Record<
@@ -1760,7 +1763,6 @@ export async function buildAndGenerateReply({
         > | null;
         if (resultObject?.audioRef) {
           audioRef = resultObject.audioRef as string;
-          break;
         }
       }
     }

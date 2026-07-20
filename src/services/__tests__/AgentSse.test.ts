@@ -117,6 +117,37 @@ describe("aggregateAgentEvents", () => {
     expect(aggregateAgentEvents([{ type: "done" }]).text).toBeNull();
   });
 
+  it("keeps only the last pass's text when reasoning leaks mid-loop", () => {
+    const events: PrismSseEvent[] = [
+      { type: "chunk", content: "Let's see, what notes should " },
+      { type: "chunk", content: "the trumpet play?" },
+      { type: "tool_execution", status: "calling", tool: { name: "generate_audio" } },
+      { type: "tool_execution", status: "done", tool: { name: "generate_audio" } },
+      { type: "chunk", content: "Behold, " },
+      { type: "chunk", content: "your anthem!" },
+      { type: "done" },
+    ];
+    expect(aggregateAgentEvents(events).text).toBe("Behold, your anthem!");
+  });
+
+  it("falls back to text written before a silent trailing tool call", () => {
+    const events: PrismSseEvent[] = [
+      { type: "chunk", content: "Here you go, mortal." },
+      {
+        type: "tool_execution",
+        status: "calling",
+        tool: { name: "react_to_discord_message" },
+      },
+      {
+        type: "tool_execution",
+        status: "done",
+        tool: { name: "react_to_discord_message" },
+      },
+      { type: "done" },
+    ];
+    expect(aggregateAgentEvents(events).text).toBe("Here you go, mortal.");
+  });
+
   it("throws on an error event", () => {
     expect(() =>
       aggregateAgentEvents([{ type: "error", message: "provider exploded" }]),

@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
 import DiscordUtilityService from "../DiscordUtilityService.js";
 import type { Message } from "discord.js";
 
@@ -138,6 +138,73 @@ describe("sendMessageInChunks", () => {
     expect(replied).toHaveLength(0);
     expect(result.firstMessage).toEqual({ id: "sent-1" });
     expect(result.sentMessages).toEqual([{ id: "sent-1" }]);
+  });
+
+  describe("audioRef fetching", () => {
+    afterEach(() => {
+      vi.unstubAllGlobals();
+    });
+
+    it("fetches an absolute-URL audioRef directly and attaches the audio", async () => {
+      const audioBytes = new Uint8Array([1, 2, 3, 4]).buffer;
+      const fetchMock = vi.fn(async () => ({
+        ok: true,
+        headers: {
+          get: (name: string) =>
+            name === "content-type" ? "application/octet-stream" : null,
+        },
+        arrayBuffer: async () => audioBytes,
+      }));
+      vi.stubGlobal("fetch", fetchMock);
+
+      const { message, replied } = makeFakeMessage();
+      await DiscordUtilityService.sendMessageInChunks(
+        "reply",
+        message,
+        "here is your song",
+        null,
+        null,
+        "https://storage.example.com/prism/generations/abc.wav",
+      );
+
+      // The public URL must be fetched as-is, never routed through the
+      // Prism /files endpoint (which mangles absolute URLs into 404s).
+      expect(fetchMock).toHaveBeenCalledWith(
+        "https://storage.example.com/prism/generations/abc.wav",
+        expect.anything(),
+      );
+      expect(replied).toHaveLength(1);
+      expect(replied[0].files).toHaveLength(1);
+      expect(replied[0].files![0].name).toMatch(/\.wav$/);
+    });
+
+    it("posts the audio URL as a fallback message when the fetch fails", async () => {
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(async () => ({
+          ok: false,
+          status: 404,
+          headers: { get: () => null },
+        })),
+      );
+
+      const { message, replied, sent } = makeFakeMessage();
+      await DiscordUtilityService.sendMessageInChunks(
+        "reply",
+        message,
+        "here is your song",
+        null,
+        null,
+        "https://storage.example.com/prism/generations/abc.wav",
+      );
+
+      expect(replied).toHaveLength(1);
+      expect(replied[0].files).toEqual([]);
+      expect(sent).toHaveLength(1);
+      expect(sent[0].content).toBe(
+        "https://storage.example.com/prism/generations/abc.wav",
+      );
+    });
   });
 
   it("truncates very long image prompts in the filename and description", async () => {

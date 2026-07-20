@@ -842,46 +842,45 @@ const DiscordUtilityService = {
       imageDescription = imagePrompt.substring(0, 1000);
     }
 
-    // Fetch audio binary from Prism file service if audioRef is provided
+    const uploadLimitBytes = DiscordUtilityService.getUploadLimitBytes(message);
+
+    // Fetch generated audio. audioRef was historically a minio:// ref
+    // served by Prism's /files endpoint, but tool results now carry the
+    // public storage gateway URL — resolveMediaUrl (via
+    // fetchAttachableMedia) handles both shapes.
     let audioBuffer: Buffer | null = null;
     let audioExtension = "wav";
+    let audioFallbackUrl: string | null = null;
     if (audioRef) {
-      try {
-        const audioFileKey = audioRef.startsWith("minio://")
-          ? audioRef.replace("minio://", "")
-          : audioRef;
-        const audioUrl = `${config.PRISM_API_URL}/files/${audioFileKey}`;
-        const audioResponse = await fetch(audioUrl, {
-          signal: AbortSignal.timeout(10000),
-        });
-        if (audioResponse.ok) {
-          const arrayBuffer = await audioResponse.arrayBuffer();
-          audioBuffer = Buffer.from(arrayBuffer);
-          const contentType = audioResponse.headers.get("content-type");
-          if (contentType) {
-            if (contentType.includes("mpeg") || contentType.includes("mp3")) {
-              audioExtension = "mp3";
-            } else if (contentType.includes("ogg")) {
-              audioExtension = "ogg";
-            } else if (contentType.includes("webm")) {
-              audioExtension = "webm";
-            } else if (
-              contentType.includes("wav") ||
-              contentType.includes("wave")
-            ) {
-              audioExtension = "wav";
-            }
-          }
-        } else {
-          console.error(
-            `[sendMessageInChunks] Failed to fetch audio from ${audioUrl}: ${audioResponse.status}`,
-          );
+      const media = await DiscordUtilityService.fetchAttachableMedia(
+        audioRef,
+        uploadLimitBytes,
+      );
+      audioBuffer = media.buffer;
+      audioFallbackUrl = media.fallbackUrl;
+      const contentType = media.contentType || "";
+      if (contentType.includes("mpeg") || contentType.includes("mp3")) {
+        audioExtension = "mp3";
+      } else if (contentType.includes("ogg")) {
+        audioExtension = "ogg";
+      } else if (contentType.includes("webm")) {
+        audioExtension = "webm";
+      } else if (contentType.includes("wav") || contentType.includes("wave")) {
+        audioExtension = "wav";
+      } else {
+        // MinIO often serves application/octet-stream — trust the URL's
+        // own extension before falling back to the wav default.
+        const urlExtension = audioRef
+          .split("?")[0]
+          .split(".")
+          .pop()
+          ?.toLowerCase();
+        if (
+          urlExtension &&
+          ["mp3", "ogg", "webm", "wav", "m4a", "flac"].includes(urlExtension)
+        ) {
+          audioExtension = urlExtension;
         }
-      } catch (audioFetchError) {
-        console.error(
-          "[sendMessageInChunks] Error fetching audio:",
-          audioFetchError,
-        );
       }
     }
 
@@ -890,7 +889,6 @@ const DiscordUtilityService = {
     // emoji kitchen / QR / charts / GIF conversions, …). When a file
     // exceeds the guild's upload cap — or the fetch fails — fall back to
     // posting the URL itself as a follow-up message.
-    const uploadLimitBytes = DiscordUtilityService.getUploadLimitBytes(message);
     let videoBuffer: Buffer | null = null;
     let videoExtension = "mp4";
     let videoFallbackUrl: string | null = null;
@@ -920,9 +918,11 @@ const DiscordUtilityService = {
       else if (media.contentType?.includes("svg")) toolImageExtension = "svg";
     }
 
-    const mediaFallbackUrls = [videoFallbackUrl, toolImageFallbackUrl].filter(
-      (url): url is string => !!url,
-    );
+    const mediaFallbackUrls = [
+      audioFallbackUrl,
+      videoFallbackUrl,
+      toolImageFallbackUrl,
+    ].filter((url): url is string => !!url);
 
     // Handle media-only response (image/audio/video but no text)
     if (
