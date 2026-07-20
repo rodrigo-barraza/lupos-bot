@@ -108,6 +108,25 @@ export async function extractEmojisFromAllMessage(
   return messageEmojisCollection;
 }
 
+export interface ExtractContentOptions {
+  /** Context window size; defaults to the keyword heuristic. */
+  windowSize?: number;
+  /**
+   * Piggyback mode: only process messages strictly newer than this
+   * snowflake (the session watermark), ignoring windowSize — the frozen
+   * session already holds everything at or before it.
+   */
+  afterId?: string;
+  /** Ids to exclude entirely (already represented in the frozen session). */
+  skipMessageIds?: Set<string>;
+  /**
+   * Ids present verbatim in the frozen session — lets replies to frozen
+   * messages render as compact in-context references instead of
+   * re-quoting content the model already has.
+   */
+  extraInContextIds?: Set<string>;
+}
+
 export async function extractContentFromMessages(
   queuedDatum: {
     message: import("discord.js").Message;
@@ -118,7 +137,7 @@ export async function extractContentFromMessages(
     actionType?: string;
   },
   localMongo: import("mongodb").MongoClient,
-  _maxSimultaneous: number = 50,
+  options: ExtractContentOptions = {},
 ) {
   const functionName = "extractContentFromMessages";
 
@@ -131,20 +150,39 @@ export async function extractContentFromMessages(
 
   const totalMessages = filteredRecentMessages.size;
 
-  // Determine how many messages to process — deterministic keyword heuristic
-  // (no longer needs timing data or hourly breakdowns)
-  const messagesToFetch =
-    await AIService.generateTextDetermineHowManyMessagesToFetch(
-      (message as Message).content,
-      message,
-      "",
+  let recentXMessages: Message[];
+  if (options.afterId) {
+    const afterId = BigInt(options.afterId);
+    recentXMessages = [...filteredRecentMessages.values()].filter(
+      (recentMessage: Message) => {
+        if (options.skipMessageIds?.has(recentMessage.id)) return false;
+        try {
+          return BigInt(recentMessage.id) > afterId;
+        } catch {
+          return false;
+        }
+      },
+    );
+    console.log(
+      `PROCESSING ${recentXMessages.length} NEW MESSAGES after watermark ${options.afterId} (out of ${totalMessages} fetched)`,
+    );
+  } else {
+    // Determine how many messages to process — deterministic keyword
+    // heuristic (no longer needs timing data or hourly breakdowns)
+    const messagesToFetch =
+      options.windowSize ??
+      (await AIService.generateTextDetermineHowManyMessagesToFetch(
+        (message as Message).content,
+        message,
+        "",
+      ));
+
+    console.log(
+      `PROCESSING ${messagesToFetch} MESSAGES (out of ${totalMessages} available)`,
     );
 
-  console.log(
-    `PROCESSING ${messagesToFetch} MESSAGES (out of ${totalMessages} available)`,
-  );
-
-  const recentXMessages = filteredRecentMessages.last(messagesToFetch);
+    recentXMessages = filteredRecentMessages.last(messagesToFetch);
+  }
   const client = message.client;
 
   // Initialize collections
@@ -167,6 +205,10 @@ export async function extractContentFromMessages(
   >();
   const messagesEmojisCollection = new Collection<string, unknown>();
   const conversation: ChatMessage[] = [];
+  // Discord ids of every message this extraction turned into conversation
+  // turns — the piggyback session records them so future slices never
+  // re-process a message the frozen history already represents.
+  const representedMessageIds: string[] = [];
   const newSystemPrompt = "";
 
   // Prepare all async operations
@@ -202,11 +244,13 @@ export async function extractContentFromMessages(
     let index = 0;
 
     // Real Discord snowflake ids of every message in the fetched window —
-    // used to emit compact <replying-to in-context="true" /> references
-    // instead of re-quoting messages the model already has in full.
-    const inContextMessageIds = new Set(
-      recentXMessages.map((recentMessage: Message) => recentMessage.id),
-    );
+    // plus everything frozen in the piggyback session — used to emit
+    // compact <replying-to in-context="true" /> references instead of
+    // re-quoting messages the model already has in full.
+    const inContextMessageIds = new Set([
+      ...recentXMessages.map((recentMessage: Message) => recentMessage.id),
+      ...(options.extraInContextIds ?? []),
+    ]);
 
     // Pre-calculate message sequences
     const messageSequenceInfo = new Map();
@@ -565,6 +609,8 @@ export async function extractContentFromMessages(
         sequentialUserMessages,
       } = messageData;
 
+      representedMessageIds.push(recentMessage.id);
+
       if (isBot) {
         // Assistant turns carry exactly what the bot said. Platform-side
         // context (embeds, reactions, vision captions of the bot's own
@@ -750,7 +796,6 @@ export async function extractContentFromMessages(
           authorId: user.id,
           time: toIsoTime(recentMessage.createdTimestamp),
           sequence: { index: userMessageXofY, total: sequentialUserMessages },
-          mostRecent: isTriggeringMessage,
           edited: !!recentMessage.editedTimestamp,
           replyTo,
           content: recentMessage.content || undefined,
@@ -793,6 +838,7 @@ export async function extractContentFromMessages(
     participantsCollection,
     participantsMembersCollection,
     participantsUsersCollection,
+    representedMessageIds,
     userMentionsCollection,
   };
 }

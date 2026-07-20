@@ -154,6 +154,17 @@ const config = {
 
   FAST_LANGUAGE_MODEL_OPENAI: process.env.FAST_LANGUAGE_MODEL_OPENAI,
   FAST_LANGUAGE_MODEL_LOCAL: process.env.FAST_LANGUAGE_MODEL_LOCAL,
+
+  // ── Piggyback sessions (prompt-prefix caching) ────────────────
+  // Reuse the previous request's exact conversation bytes when a channel
+  // is busy, so the provider prompt cache (Gemini implicit caching)
+  // serves the shared history. "false" disables; any other value = on.
+  PIGGYBACK_SESSIONS: process.env.PIGGYBACK_SESSIONS,
+  // Session idle expiry. Default 1 hour — Google's documented default
+  // cache TTL for Gemini (implicit caches are best-effort within that).
+  PIGGYBACK_SESSION_TTL_MS: process.env.PIGGYBACK_SESSION_TTL_MS,
+  // Frozen-history size cap (chars, ≈ tokens × 4) before a rebaseline.
+  PIGGYBACK_SESSION_MAX_CHARS: process.env.PIGGYBACK_SESSION_MAX_CHARS,
 };
 
 /**

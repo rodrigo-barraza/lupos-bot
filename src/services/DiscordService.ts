@@ -55,6 +55,11 @@ import type { QueuedMessageData } from "#root/services/discord/DiscordState.js";
 import ButtonRouter from "#root/services/discord/ButtonRouter.js";
 import DmInboxService from "#root/services/discord/DmInboxService.js";
 import { extractContentFromMessages } from "#root/services/discord/ConversationExtractor.js";
+import type { ExtractContentOptions } from "#root/services/discord/ConversationExtractor.js";
+import ChannelSessionCache from "#root/services/discord/ChannelSessionCache.js";
+import AIService from "#root/services/AIService.js";
+import { buildMessageAnnotation } from "#root/services/discord/MessageEnvelope.js";
+import type { AttachmentPart } from "#root/services/discord/MessageEnvelope.js";
 import { buildAndGenerateReply } from "#root/services/discord/PromptBuilder.js";
 import { AgentStatusTracker } from "#root/services/discord/AgentStatusTracker.js";
 import {
@@ -94,6 +99,58 @@ import {
 
 const args = process.argv.slice(2);
 const mode = args.find((arg: string) => arg.startsWith("mode="))?.split("=")[1];
+
+/**
+ * Session bookkeeping after the bot's reply lands in Discord: mark the
+ * posted message ids as already-represented (the frozen assistant turn
+ * carries their raw text), and freeze a <message-annotation> turn for
+ * any posted media so its URL handles stay reachable for follow-up
+ * tool chains (rotate/trim/remix) without re-processing the message.
+ */
+function recordSessionReplyPosts(
+  channelId: string,
+  sentMessages: Message[],
+): void {
+  if (!sentMessages.length) return;
+  ChannelSessionCache.recordBotPosts(
+    channelId,
+    sentMessages.map((sentMessage) => sentMessage.id),
+  );
+
+  const annotationTurns: ChatMessage[] = [];
+  for (const sentMessage of sentMessages) {
+    const attachments: AttachmentPart[] = [];
+    for (const attachment of sentMessage.attachments?.values() ?? []) {
+      const kind = attachment.contentType?.startsWith("image/")
+        ? "image"
+        : attachment.contentType?.startsWith("video/")
+          ? "video"
+          : attachment.contentType?.startsWith("audio/")
+            ? "audio"
+            : "file";
+      const mediaUrl = attachment.proxyURL || attachment.url;
+      attachments.push({
+        kind,
+        description: attachment.description || attachment.name || undefined,
+        ...(attachment.size
+          ? { sizeMb: (attachment.size / 1024 / 1024).toFixed(2) }
+          : {}),
+        ...(mediaUrl?.startsWith("http") ? { url: mediaUrl } : {}),
+      });
+    }
+    if (!attachments.length) continue;
+    const annotation = buildMessageAnnotation({
+      forId: sentMessage.id,
+      attachments,
+    });
+    if (annotation) {
+      annotationTurns.push({ role: "system", content: annotation });
+    }
+  }
+  if (annotationTurns.length) {
+    ChannelSessionCache.appendFrozenTurns(channelId, annotationTurns);
+  }
+}
 
 async function replyMessage(
   queuedDatum: {
@@ -184,10 +241,38 @@ async function replyMessage(
   // Image detection is no longer needed — the agent decides autonomously
   // whether to generate images via the generate_image tool.
 
-  // Extract content from recent messages
+  // Extract content from recent messages — either the full heuristic
+  // window (rebaseline) or only the slice newer than the piggyback
+  // session's watermark, so the frozen history keeps its exact bytes
+  // and the provider's prompt cache stays warm across rapid triggers.
+  const sessionChannelId = (message as Message).channel.id;
+  const heuristicWindowSize =
+    await AIService.generateTextDetermineHowManyMessagesToFetch(
+      (message as Message).content,
+      message,
+      "",
+    );
+  const sessionPlan = ChannelSessionCache.planFor({
+    channelId: sessionChannelId,
+    recentMessageIds: [...queuedDatum.recentMessages.keys()],
+    windowSize: heuristicWindowSize,
+  });
+  const piggybackPlan = sessionPlan.mode === "piggyback" ? sessionPlan : null;
+  if (!piggybackPlan) {
+    console.log(
+      `🧩 [DiscordService] Session rebaseline for channel ${sessionChannelId}: ${sessionPlan.mode === "rebaseline" ? sessionPlan.reason : ""}`,
+    );
+  }
+  const extractOptions: ExtractContentOptions = piggybackPlan
+    ? {
+        afterId: piggybackPlan.session.watermarkId,
+        skipMessageIds: piggybackPlan.skipIds,
+        extraInContextIds: piggybackPlan.session.messageIds,
+      }
+    : { windowSize: heuristicWindowSize };
 
   const {
-    conversation,
+    conversation: extractedConversation,
     newSystemPrompt,
     memberMentionsCollection,
     messagesEmojisCollection,
@@ -197,8 +282,13 @@ async function replyMessage(
     participantsCollection,
     participantsMembersCollection,
     participantsUsersCollection,
+    representedMessageIds,
     userMentionsCollection,
-  } = await extractContentFromMessages(queuedDatum, localMongo);
+  } = await extractContentFromMessages(queuedDatum, localMongo, extractOptions);
+
+  const conversation = piggybackPlan
+    ? [...piggybackPlan.session.frozenConversation, ...extractedConversation]
+    : extractedConversation;
 
   // Check if message was deleted during content extraction
   if (DiscordState.isMessageCancelled((message as Message).id)) {
@@ -232,6 +322,13 @@ async function replyMessage(
       userMentionsCollection,
       localMongo,
       statusTracker,
+      session: {
+        channelId: sessionChannelId,
+        piggyback: !!piggybackPlan,
+        representedMessageIds,
+        cumulativeParticipantUserIds:
+          piggybackPlan?.session.participantUserIds ?? [],
+      },
     });
 
   const generatedTextResponse = generatedText;
@@ -249,6 +346,9 @@ async function replyMessage(
     !generatedVideoUrl &&
     !generatedImageUrl
   ) {
+    // The committed session expects this turn's reply to exist in the
+    // channel — without one, the frozen history would drift from Discord.
+    ChannelSessionCache.invalidate(sessionChannelId);
     statusTracker.finishError();
     await message.reply("...");
     DiscordState.lastMessageSentTime = TemporalHelpers.nowISO();
@@ -268,12 +368,13 @@ ${combinedGuildInformation && combinedChannelInformation ? `URL: ${utilities.get
         `🗑️ [DiscordService] Message ${(message as Message).id} was deleted during reply generation, not sending reply.`,
       );
       DiscordState.cancelledMessageIds.delete((message as Message).id);
+      ChannelSessionCache.invalidate(sessionChannelId);
       statusTracker.finishCancelled();
       return;
     }
     await message.fetch();
 
-    await DiscordUtilityService.sendMessageInChunks(
+    const { sentMessages } = await DiscordUtilityService.sendMessageInChunks(
       "reply",
       message,
       generatedTextResponse,
@@ -286,9 +387,11 @@ ${combinedGuildInformation && combinedChannelInformation ? `URL: ${utilities.get
       generatedVideoUrl,
       generatedImageUrl,
     );
+    recordSessionReplyPosts(sessionChannelId, sentMessages);
     // Reply landed — replace the live status with the persistent recap.
     statusTracker.finishSuccess();
   } catch (error: unknown) {
+    ChannelSessionCache.invalidate(sessionChannelId);
     statusTracker.finishError();
     console.warn(`❌ [DiscordService:replyMessage] MESSAGE NOT FOUND (OR DELETED)
             ${error}
@@ -1195,6 +1298,13 @@ async function luposOnMessageUpdate(
   oldMessage: Message | PartialMessage,
   newMessage: Message | PartialMessage,
 ) {
+  // An edit inside a frozen piggyback session makes its bytes stale —
+  // drop the session so the next trigger rebuilds from live history.
+  ChannelSessionCache.invalidateIfContains(
+    newMessage.channel.id,
+    newMessage.id,
+  );
+
   // Process if message was edited to mention the bot
   if (
     newMessage.mentions.has(client.user!) &&
@@ -1234,6 +1344,9 @@ async function luposOnMessageDelete(
   mongo: import("mongodb").MongoClient,
   message: Message,
 ) {
+  // A deletion inside a frozen piggyback session makes its bytes stale —
+  // drop the session so the next trigger rebuilds from live history.
+  ChannelSessionCache.invalidateIfContains(message.channel.id, message.id);
   return DeletedMessageLogger.handleMessageDelete(client, mongo, message);
 }
 

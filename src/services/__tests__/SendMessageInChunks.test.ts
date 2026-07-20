@@ -76,7 +76,7 @@ describe("sendMessageInChunks", () => {
     expect(replied.every((r) => r.content?.length === 2000)).toBe(true);
   });
 
-  it("returns the first message of a multi-chunk reply", async () => {
+  it("returns the first message and all sent messages of a multi-chunk reply", async () => {
     const { message } = makeFakeMessage();
     const result = await DiscordUtilityService.sendMessageInChunks(
       "reply",
@@ -85,7 +85,12 @@ describe("sendMessageInChunks", () => {
       null,
       null,
     );
-    expect(result).toEqual({ id: "replied-1" });
+    expect(result.firstMessage).toEqual({ id: "replied-1" });
+    expect(result.sentMessages.map((m: { id: string }) => m.id)).toEqual([
+      "replied-1",
+      "replied-2",
+      "replied-3",
+    ]);
   });
 
   it("attaches the image only to the last chunk", async () => {
@@ -131,7 +136,8 @@ describe("sendMessageInChunks", () => {
     );
     expect(sent).toHaveLength(1);
     expect(replied).toHaveLength(0);
-    expect(result).toEqual({ id: "sent-1" });
+    expect(result.firstMessage).toEqual({ id: "sent-1" });
+    expect(result.sentMessages).toEqual([{ id: "sent-1" }]);
   });
 
   it("truncates very long image prompts in the filename and description", async () => {

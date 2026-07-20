@@ -44,10 +44,15 @@ import {
   hasBotSelfPortraitRegex,
 } from "#root/services/discord/ImageIntent.js";
 import {
+  displayNameOf,
   extractEmojisFromAllMessage,
   splitEmojiNameAndId,
 } from "#root/services/discord/ConversationExtractor.js";
-import { buildReferenceImagesBlock } from "#root/services/discord/MessageEnvelope.js";
+import {
+  buildReferenceImagesBlock,
+  buildRespondToDirective,
+} from "#root/services/discord/MessageEnvelope.js";
+import ChannelSessionCache from "#root/services/discord/ChannelSessionCache.js";
 
 import utilities from "#root/utilities.js";
 import LogFormatter from "#root/formatters/LogFormatter.js";
@@ -590,6 +595,7 @@ export async function buildAndGenerateReply({
   userMentionsCollection,
   localMongo,
   statusTracker,
+  session,
 }: {
   conversation: Record<string, unknown>[];
   memberMentionsCollection: import("discord.js").Collection<
@@ -632,6 +638,16 @@ export async function buildAndGenerateReply({
   localMongo: import("mongodb").MongoClient;
   /** Live presence-status sink for /agent SSE events (optional). */
   statusTracker?: AgentStatusTracker;
+  /** Piggyback-session context for prompt-prefix caching (optional). */
+  session?: {
+    channelId: string;
+    /** True when the conversation rides a frozen session prefix. */
+    piggyback: boolean;
+    /** Discord ids represented by this request's extracted slice. */
+    representedMessageIds: string[];
+    /** Participant ids accumulated across the whole session. */
+    cumulativeParticipantUserIds: string[];
+  };
 }) {
   // Build the system prompt
   const { message, recentMessages } = queuedDatum;
@@ -1122,6 +1138,11 @@ export async function buildAndGenerateReply({
             participantUserIds.push(pId);
           }
         }
+      }
+      // Piggyback requests extract only the new slice — fold in everyone
+      // from the frozen session so Prism's memory search keeps its scope.
+      for (const pId of session?.cumulativeParticipantUserIds ?? []) {
+        if (!participantUserIds.includes(pId)) participantUserIds.push(pId);
       }
     }
 
@@ -1650,8 +1671,22 @@ export async function buildAndGenerateReply({
             ? config.FAST_LANGUAGE_MODEL_LOCAL
             : config.ANTHROPIC_LANGUAGE_MODEL_FAST;
 
+    // The respond-to directive is the ONLY per-request marker of which
+    // message to answer. It rides as an ephemeral tail turn — never
+    // committed to the session — so frozen envelopes stay byte-stable
+    // and the provider prompt cache survives across triggers.
+    const respondToTurn: ChatMessage = {
+      role: "system",
+      content: buildRespondToDirective({
+        id: (message as Message).id,
+        author:
+          displayNameOf(message as Message) || message.author?.username,
+        authorId: message.author?.id,
+      }),
+    };
+
     const agentResponse = await PrismService.generateAgentResponse({
-      messages: agentConversation,
+      messages: [...agentConversation, respondToTurn],
       type: config.LANGUAGE_MODEL_TYPE || "",
       model: agentModel || "",
       agentContext,
@@ -1671,6 +1706,23 @@ export async function buildAndGenerateReply({
     });
 
     generatedText = agentResponse.text || "";
+
+    // Freeze this request for the channel's piggyback session: the exact
+    // conversation as sent (minus the ephemeral respond-to tail) plus the
+    // RAW agent text — the Discord-posted copy gets chunked/uploaded and
+    // would re-serialize differently on rebuild, busting the prefix.
+    if (session) {
+      ChannelSessionCache.commit({
+        channelId: session.channelId,
+        piggyback: session.piggyback,
+        sentConversation: agentConversation,
+        envelopeMessageIds: session.representedMessageIds,
+        triggerMessageId: (message as Message).id,
+        assistantText: generatedText || null,
+        assistantName: (bot?.username || "Lupos").replace(/\s+/g, ""),
+        participantUserIds,
+      });
+    }
 
     // Extract any generated images from the agent response
     if (agentResponse.images?.length > 0) {
