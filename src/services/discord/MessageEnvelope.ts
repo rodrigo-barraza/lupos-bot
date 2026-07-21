@@ -406,3 +406,62 @@ export function buildReferenceImagesBlock(
     .join("\n");
   return `<attached-reference-images>\n\n${lines}\n\n</attached-reference-images>`;
 }
+
+/**
+ * Envelope/scaffolding tag names the model sees wrapped around incoming
+ * messages and harness context. None of these may ever appear in the
+ * bot's own outgoing chat text — a reply containing one is the model
+ * mimicking its prompt scaffolding (observed live: a reply that was
+ * nothing but an <attached-reference-images> block for its own
+ * generated image instead of a sentence).
+ */
+const SCAFFOLDING_TAG_NAMES = [
+  "attached-reference-images",
+  "discord-message",
+  "message-annotation",
+  "replying-to",
+  "respond-to",
+  "platform-context",
+  "self-context",
+  "system-context",
+  "agent-memory",
+  "tool-update",
+];
+
+/**
+ * Strip prompt-scaffolding XML the model mimicked from its context out
+ * of a generated reply. Paired scaffolding blocks are dropped whole
+ * (their bodies are metadata lists, not prose) — except a full
+ * <discord-message> envelope, whose <content> body IS the reply and is
+ * unwrapped instead. Stray unpaired tags are removed. Returns trimmed
+ * text; empty string means the reply was scaffolding-only (callers
+ * already handle empty text + media as a media-only post).
+ */
+export function stripScaffoldingTags(text: string): string {
+  if (!text || !text.includes("<")) return text;
+  let cleaned = text;
+
+  // A mimicked full envelope: rescue the human text inside <content>
+  // before the block-dropping pass would discard it.
+  cleaned = cleaned.replace(
+    /<discord-message\b[^>]*>([\s\S]*?)<\/discord-message>/gi,
+    (_match, body: string) => {
+      const contentMatch = /<content>([\s\S]*?)<\/content>/i.exec(body);
+      return contentMatch ? contentMatch[1] : "";
+    },
+  );
+
+  for (const tag of SCAFFOLDING_TAG_NAMES) {
+    // Paired block (body dropped), then self-closing, then stray
+    // opening/closing remnants.
+    cleaned = cleaned
+      .replace(new RegExp(`<${tag}\\b[^>]*>[\\s\\S]*?</${tag}>`, "gi"), "")
+      .replace(new RegExp(`<${tag}\\b[^>]*/>`, "gi"), "")
+      .replace(new RegExp(`</?${tag}\\b[^>]*>`, "gi"), "");
+  }
+
+  // <content>/<transcription> hold real prose — unwrap, never drop.
+  cleaned = cleaned.replace(/<\/?(?:content|transcription)>/gi, "");
+
+  return cleaned.replace(/\n{3,}/g, "\n\n").trim();
+}

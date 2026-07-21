@@ -51,6 +51,7 @@ import {
 import {
   buildReferenceImagesBlock,
   buildRespondToDirective,
+  stripScaffoldingTags,
 } from "#root/services/discord/MessageEnvelope.ts";
 import ChannelSessionCache from "#root/services/discord/ChannelSessionCache.ts";
 
@@ -1706,6 +1707,13 @@ export async function buildAndGenerateReply({
     });
 
     generatedText = agentResponse.text || "";
+
+    // Drop any envelope scaffolding the model mimicked from its context
+    // (<attached-reference-images>, <discord-message>, …) BEFORE the
+    // session commit — a frozen assistant turn carrying scaffolding
+    // teaches future turns that it's a valid reply shape. Scrubbed-empty
+    // text with media still posts as a media-only reply downstream.
+    generatedText = stripScaffoldingTags(generatedText);
 
     // Freeze this request for the channel's piggyback session: the exact
     // conversation as sent (minus the ephemeral respond-to tail) plus the
