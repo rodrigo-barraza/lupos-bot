@@ -8,6 +8,7 @@ import {
   escapeAttribute,
   renderEmbed,
   sanitizeUntrustedText,
+  stripScaffoldingTags,
   toIsoTime,
 } from "#root/services/discord/MessageEnvelope.ts";
 
@@ -391,5 +392,52 @@ describe("buildReferenceImagesBlock", () => {
     expect(block).toContain(`\n   URL: ${cdnUrl}\n`);
     expect(block).not.toContain("base64");
     expect(block).not.toContain("&amp;");
+  });
+});
+
+describe("stripScaffoldingTags", () => {
+  it("passes plain prose through untouched", () => {
+    const text = "Your bikini dreams are 2 < 3 my problem, Skippi.";
+    expect(stripScaffoldingTags(text)).toBe(text);
+  });
+
+  it("drops a scaffolding-only reply to empty (live incident shape)", () => {
+    const reply =
+      `<attached-reference-images>\n\n` +
+      `1. Generated Image\n` +
+      `   URL: minio://projects/lupos/hejskippi/generations/f0ee1ca6.jpg\n\n` +
+      `</attached-reference-images>`;
+    expect(stripScaffoldingTags(reply)).toBe("");
+  });
+
+  it("removes a scaffolding block but keeps surrounding prose", () => {
+    const reply =
+      `Here you go, nerd.\n\n` +
+      `<attached-reference-images>\n\n1. Generated Image\n\n` +
+      `</attached-reference-images>`;
+    expect(stripScaffoldingTags(reply)).toBe("Here you go, nerd.");
+  });
+
+  it("unwraps a mimicked <discord-message> envelope to its content", () => {
+    const reply =
+      `<discord-message id="123" author="Lupos">\n\n` +
+      `<replying-to id="99" author="Skippi" />\n\n` +
+      `<content>\nTake the picture and scram.\n</content>\n\n` +
+      `</discord-message>`;
+    expect(stripScaffoldingTags(reply)).toBe("Take the picture and scram.");
+  });
+
+  it("removes self-closing directives and stray tags", () => {
+    expect(
+      stripScaffoldingTags(
+        `<respond-to id="1" author="Skippi" />\nDone.\n</attached-reference-images>`,
+      ),
+    ).toBe("Done.");
+  });
+
+  it("unwraps stray <content> tags without dropping the prose", () => {
+    expect(stripScaffoldingTags("<content>Fine, here.</content>")).toBe(
+      "Fine, here.",
+    );
   });
 });
