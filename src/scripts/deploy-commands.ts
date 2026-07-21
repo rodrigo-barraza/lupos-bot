@@ -21,7 +21,7 @@ interface DeployableCommand {
 
 const commands: DeployableCommand[] = [];
 const foldersPath = path.join(import.meta.dirname, "..", "commands");
-// Only descend into directories — the folder also holds plain modules (types.js).
+// Only descend into directories — the folder also holds plain modules (types.ts).
 const commandFolders = fs
   .readdirSync(foldersPath, { withFileTypes: true })
   .filter((entry) => entry.isDirectory())
@@ -29,9 +29,16 @@ const commandFolders = fs
 
 for (const folder of commandFolders) {
   const commandsPath = path.join(foldersPath, folder);
+  // Source runs directly under Node's type-stripping (no build), so
+  // command files are .ts. Keep .js for safety, but never load .d.ts
+  // declaration files.
   const commandFiles = fs
     .readdirSync(commandsPath)
-    .filter((file: string) => file.endsWith(".js"));
+    .filter(
+      (file: string) =>
+        (file.endsWith(".ts") || file.endsWith(".js")) &&
+        !file.endsWith(".d.ts"),
+    );
 
   for (const file of commandFiles) {
     const filePath = path.join(commandsPath, file);
