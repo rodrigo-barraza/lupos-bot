@@ -36,8 +36,9 @@ import { fetchMembersWithRetry } from "#root/services/discord/ModerationSweeps.t
 
 export const CAMPAIGN_ID = "crusader-strike-to-whitemane";
 
-export const DAILY_CAP = 500;
-export const DM_DELAY_BASE_MS = 60_000;
+export const DAILY_CAP = 1200;
+// 45–75s per DM averages 60s → ~1440/day ceiling, keeping DAILY_CAP reachable.
+export const DM_DELAY_BASE_MS = 45_000;
 export const DM_DELAY_JITTER_MS = 30_000;
 export const MAX_CONSECUTIVE_FAILURES = 5;
 // Accounts younger than this are skipped — throwaway/spam accounts are
