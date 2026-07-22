@@ -91,7 +91,7 @@ export const GROUP_EVERYONE_REGEX =
 export const GROUP_CHATTERS_REGEX =
   /\b(all\s+(?:the\s+)?)?(?:chatters|people|participants|members|peeps|folks|homies)\b/i;
 export const GROUP_CHATTERS_VERB_REGEX =
-  /\b(draw|paint|sketch|illustrate|render|depict|generate|create|make|design)\b/i;
+  /\b(draw|paint|sketch|illustrate|render|depict|generate|create|make|design|add|put|include|insert)\b/i;
 export const GROUP_THE_CHAT_REGEX = /\bthe\s+chat\b/i;
 export const GROUP_ALL_OF_THEM_REGEX = /\ball\s+of\s+(them|these)\b/i;
 export const GROUP_DRAW_ALL_REGEX =
@@ -143,9 +143,9 @@ export function detectGroupReference(text: string): number {
 // explicitly via generate_image's referenceImages parameter. The old
 // Tier-2 LLM classifier that pre-decided this was removed with it.
 
-// "draw me", "paint myself", "create me as...", etc.
+// "draw me", "paint myself", "create me as...", "add me to this", etc.
 export const SELF_REF_VERB_ME_REGEX =
-  /\b(draw|paint|sketch|illustrate|render|depict|generate|create|make|design|reimagine|redraw|turn|put|do)\b.*\b(me|myself)\b/i;
+  /\b(draw|paint|sketch|illustrate|render|depict|generate|create|make|design|reimagine|redraw|turn|put|do|add|include|insert|stick)\b.*\b(me|myself)\b/i;
 // "my profile picture", "my pfp", "my cool avatar", etc.
 // Allows up to 3 intermediate words between "my" and the visual noun
 export const SELF_REF_MY_VISUAL_NOUN_REGEX =
@@ -168,6 +168,42 @@ export function hasSelfReferenceRegex(text: string): boolean {
     SELF_REF_HOW_WOULD_I_LOOK_REGEX.test(selfText) ||
     SELF_REF_NOUN_OF_ME_REGEX.test(selfText)
   );
+}
+
+// ─── 4b. Additive edit detection (replies to bot images) ─────────
+// "Add me to this", "put more chatters in", "include Rodrigo" — when
+// replying to one of the bot's own images, these carry image-edit intent
+// without any draw-verb, so mightBeImageRequest misses them (observed
+// live: a "PUT MORE CHATTERS IN THIS" reply ran with zero avatars
+// attached and the model invented likenesses). Only meaningful with
+// repliedToBotImage — outside that context "add me" is just chat.
+
+// Additive verb aimed at some subject ("add me", "put the chatters in",
+// "include @Rodrigo", "stick kvz in there")
+export const ADDITIVE_EDIT_VERB_REGEX =
+  /\b(add|put|include|insert|stick|throw|slap|cram|squeeze)\b[^.!?]*\b(me|myself|us|him|her|them|everyone|everybody|chatters|people|participants|members|peeps|folks|homies|<@!?\d+>|[a-z0-9_.]{3,})\b/i;
+
+/**
+ * Additive edit intent — ONLY meaningful when the message replies to a
+ * bot image (callers must AND this with repliedToBotImage). Broad by
+ * design: the subject group includes bare names/usernames, so nearly any
+ * "add/put/include X" on a bot-image reply counts as image intent.
+ */
+export function isAdditiveEditRequest(text: string): boolean {
+  return ADDITIVE_EDIT_VERB_REGEX.test((text || "").toLowerCase());
+}
+
+// "add me to this", "put me in", "squeeze us in there" — the SELF slice
+// of additive edits, used to bypass the repliedToBotImage suppression of
+// self-reference avatar attachment: transformative phrasings ("make me a
+// bigger version") keep the replied-to image as the sole subject, but
+// additive phrasings want the author's likeness ADDED to it, which needs
+// their avatar as an extra labeled reference.
+export const ADDITIVE_SELF_REGEX =
+  /\b(add|put|include|insert|stick|throw|slap|cram|squeeze)\b[^.!?]*\b(me|myself|us)\b/i;
+
+export function hasAdditiveSelfReference(text: string): boolean {
+  return ADDITIVE_SELF_REGEX.test((text || "").toLowerCase());
 }
 
 // ─── 5. Bot self-portrait detection ──────────────────────────────
@@ -220,5 +256,7 @@ export default {
   findUntaggedNameMatches,
   detectGroupReference,
   hasSelfReferenceRegex,
+  isAdditiveEditRequest,
+  hasAdditiveSelfReference,
   hasBotSelfPortraitRegex,
 };

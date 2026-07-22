@@ -41,6 +41,8 @@ import {
   findUntaggedNameMatches,
   detectGroupReference,
   hasSelfReferenceRegex,
+  isAdditiveEditRequest,
+  hasAdditiveSelfReference,
   hasBotSelfPortraitRegex,
 } from "#root/services/discord/ImageIntent.ts";
 import {
@@ -785,11 +787,10 @@ export async function buildAndGenerateReply({
       (a: import("discord.js").Attachment) =>
         a.contentType?.startsWith("image/"),
     );
-    const isLikelyImageRequest =
-      hasImageAttachments || mightBeImageRequest(messageText);
 
-    // Cache the message reference once — reused by the self-reference
-    // suppression below, the replied-to image capture, and avatar filtering.
+    // Cache the message reference once — reused by the image-request gate
+    // below, the self-reference suppression, the replied-to image capture,
+    // and avatar filtering.
     const cachedMessageReference = message.reference?.messageId
       ? await DiscordUtilityService.retrieveMessageReferenceFromMessage(message)
       : null;
@@ -814,6 +815,15 @@ export async function buildAndGenerateReply({
             embed.image || embed.thumbnail || embed.video,
         ),
       );
+
+    // Additive edits on a bot-image reply ("add me to this", "PUT MORE
+    // CHATTERS IN") carry image intent without any draw-verb — without
+    // this term the gate misses them and group/self detection never runs,
+    // so the request reaches the model with zero avatar references.
+    const isLikelyImageRequest =
+      hasImageAttachments ||
+      mightBeImageRequest(messageText) ||
+      (repliedToBotImage && isAdditiveEditRequest(messageText));
 
     // Detect untagged user names in image generation requests
     // e.g. "draw Rodrigo as a samurai" without @Rodrigo
@@ -1000,21 +1010,26 @@ export async function buildAndGenerateReply({
     // When the message replies to a bot message that carries an image, the
     // replied-to image is the subject — skip self-reference detection so
     // "make me a bigger version" edits the generated image instead of
-    // attaching the author's avatar. @mention and name-match attachment
-    // above are deliberately left untouched ("draw me next to @Rodrigo"
-    // still resolves Rodrigo's avatar).
+    // attaching the author's avatar. EXCEPTION: additive phrasings ("add
+    // me to this", "put me in") want the author's likeness ADDED to that
+    // image, so their avatar rides along as an extra reference — safe now
+    // that references reach the image model labeled. @mention and
+    // name-match attachment above are deliberately left untouched ("draw
+    // me next to @Rodrigo" still resolves Rodrigo's avatar).
     if (
       isLikelyImageRequest &&
-      !untaggedMatchedUserIds.has(message.author.id) &&
-      !repliedToBotImage
+      !untaggedMatchedUserIds.has(message.author.id)
     ) {
       const selfText =
         message.cleanContent || (message as Message).content || "";
 
-      if (hasSelfReferenceRegex(selfText)) {
+      const selfReferenceHit = repliedToBotImage
+        ? hasAdditiveSelfReference(selfText)
+        : hasSelfReferenceRegex(selfText);
+      if (selfReferenceHit) {
         untaggedMatchedUserIds.add(message.author.id);
         console.log(
-          `🪞 [DiscordService] Self-referential detected (regex fast-path) — adding author ${message.author.id} to image references`,
+          `🪞 [DiscordService] Self-referential detected (${repliedToBotImage ? "additive-edit" : "regex fast-path"}) — adding author ${message.author.id} to image references`,
         );
       }
     }

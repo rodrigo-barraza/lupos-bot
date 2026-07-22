@@ -2397,7 +2397,12 @@ router.get(
         displayName: user.displayName || user.globalName || user.username,
         nickname: member?.nickname || null,
         globalName: user.globalName || null,
-        avatarUrl: member ? member.displayAvatarURL() : user.displayAvatarURL(),
+        // size 512 matches the pre-attached reference path — the agent
+        // passes this URL into generate_image as a likeness reference,
+        // and the CDN default (128px) is too small for that.
+        avatarUrl: member
+          ? member.displayAvatarURL({ size: 512 })
+          : user.displayAvatarURL({ size: 512 }),
         bannerUrl: user.bannerURL() || null,
         profileColor: hexColor,
         status: presence?.status || "offline",
