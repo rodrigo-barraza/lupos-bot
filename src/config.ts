@@ -43,7 +43,6 @@ const config = {
   UNDER_MAINTENANCE: process.env.UNDER_MAINTENANCE === "true",
 
   // ─── Discord Tokens ────────────────────────────────────────────
-  VENDER_TOKEN: process.env.VENDER_TOKEN,
   LUPOS_TOKEN: process.env.LUPOS_TOKEN,
 
   // ─── Prism ─────────────────────────────────────────────────────

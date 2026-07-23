@@ -25,6 +25,7 @@
 // NOT auto-start on boot; after a restart, hitting start again
 // resumes exactly where it left off.
 
+import BotSettingsService from "#root/services/BotSettingsService.ts";
 import type { Client, Guild, GuildMember } from "discord.js";
 
 import DiscordWrapper from "#root/wrappers/DiscordWrapper.ts";
@@ -315,7 +316,7 @@ async function seedCampaign(options: SeedOptions = {}) {
   const excludeMembers = await fetchMembersWithRetry(excludeGuild);
 
   const ignoreIds = new Set<string>(
-    (config.USER_IDS_IGNORE as string[] | undefined) ?? [],
+    BotSettingsService.get("USER_IDS_IGNORE"),
   );
 
   const now = new Date();
