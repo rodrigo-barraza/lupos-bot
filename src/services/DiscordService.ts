@@ -44,6 +44,7 @@ import ServerIconJob from "#root/jobs/scheduled/ServerIconJob.ts";
 import CountdownIconJob from "#root/jobs/scheduled/CountdownIconJob.ts";
 import EventReactJob from "#root/jobs/event-driven/ReactJob.ts";
 import { reconcileInterruptedGames } from "#root/commands/utility/deathroll/persistence.ts";
+import ActivityGold from "#root/commands/utility/gold/activityGold.ts";
 import { reconcileInterruptedRoyales } from "#root/commands/utility/deathroll/royalePersistence.ts";
 import { reconcileInterruptedHeists } from "#root/commands/utility/heist/heistPersistence.ts";
 
@@ -725,6 +726,9 @@ async function luposOnReady(
 
     PermanentTimeOutJob.startJob(client);
 
+    // Silent voice-presence gold (1g/min with ≥2 humans, capped daily)
+    ActivityGold.startVoiceGoldSweep(client);
+
     if (
       config.CHANNEL_ID_POLITICS &&
       config.ROLE_ID_YAPPER &&
@@ -1269,6 +1273,16 @@ async function luposOnMessageCreateCloneMessage(
   await DiscordUtilityService.saveMessageToMongo(message, localMongo);
 }
 
+/** Silent chat-activity gold — atomically guarded inside, so it's safe
+ * even though default mode registers two messageCreate listener sets. */
+async function luposOnChatActivityGold(
+  _client: Client,
+  _mongoClients: unknown,
+  message: Message,
+) {
+  await ActivityGold.handleChatMessage(message);
+}
+
 async function luposOnMessageUpdateCloneMessage(
   client: Client,
   {
@@ -1707,6 +1721,9 @@ const DiscordService = {
         { mongo, localMongo },
         luposOnMessageUpdateCloneMessage,
       ],
+      // Rides the clone set so it runs in "services" and "default" modes
+      // (one process only — the atomic day-doc guard covers the rest).
+      ["onEventMessageCreate", { mongo, localMongo }, luposOnChatActivityGold],
     ];
     const messageEvents: [string, ...unknown[]][] = [
       ["onEventMessageCreate", { mongo, localMongo }, luposOnMessageCreate],

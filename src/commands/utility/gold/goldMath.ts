@@ -47,11 +47,133 @@ export const GOLD_PER_EXTRA_PILE = 50;
 /** ...capped at this many piles. */
 export const MAX_SCATTER_PILES = 4;
 
+// ─── Activity Gold (silent passive earnings) ──────────────────────────
+// Calibrated against real Whitemane archive stats (2026-07: ~72 chatters
+// /day, median 6 msgs & 229 chars per chatter-day, p90 = 80 msgs): the
+// median chatter earns ~20g/day, only the top ~10% hit the daily cap,
+// and the server-wide mint stays comparable to the /gold daily faucet.
+
+/** Base gold for a counted chat message. */
+export const CHAT_GOLD_BASE = 2;
+/** One bonus gold per this many characters of a counted message... */
+export const CHAT_GOLD_CHARS_PER_BONUS = 40;
+/** ...capped at this many bonus gold per message (so 2-5g per message). */
+export const CHAT_GOLD_LENGTH_BONUS_CAP = 3;
+/** Only one message per this window counts — spam earns nothing extra. */
+export const CHAT_GOLD_COOLDOWN_MS = 60_000;
+/** Cap on base chat gold per user per UTC day (bonuses tracked apart). */
+export const CHAT_GOLD_DAILY_CAP = 60;
+/** One-time bonus for the first counted message of the day. */
+export const FIRST_HOWL_GOLD = 10;
+/** Bonus when a counted message carries an attachment... */
+export const CHAT_ATTACHMENT_BONUS_GOLD = 2;
+/** ...paid at most this many times per day. */
+export const CHAT_ATTACHMENT_BONUS_DAILY_CAP = 3;
+/** Bonus when a counted message contains a link... */
+export const CHAT_LINK_BONUS_GOLD = 1;
+/** ...paid at most this many times per day. */
+export const CHAT_LINK_BONUS_DAILY_CAP = 3;
+
+/** Gold to a message author per unique reactor... */
+export const REACTION_RECEIVED_GOLD = 1;
+/** ...capped per author per UTC day. */
+export const REACTION_RECEIVED_DAILY_CAP = 10;
+/** One-time bonus when a message reaches the #highlights channel. */
+export const HIGHLIGHT_BONUS_GOLD = 25;
+
+/** Gold per minute spent in voice with at least VOICE_MIN_HUMANS... */
+export const VOICE_GOLD_PER_MINUTE = 1;
+/** ...capped per user per UTC day. */
+export const VOICE_GOLD_DAILY_CAP = 30;
+/** Humans (undeafened, non-AFK) required in a channel before it pays. */
+export const VOICE_MIN_HUMANS = 2;
+
+/** A lapsed streak survives if the user chatted on every skipped day,
+ * for gaps up to this many days. */
+export const STREAK_CHAT_RESCUE_MAX_DAYS = 30;
+
 // ─── Formatting ───────────────────────────────────────────────────────
 
 /** Formats an amount like "🪙 1,250g". */
 export function formatGold(amount: number) {
   return `${GOLD_EMOJI} ${amount.toLocaleString("en-US")}g`;
+}
+
+/** UTC calendar day ("2026-07-22") — the boundary for all daily caps. */
+export function utcDay(now = Date.now()) {
+  return new Date(now).toISOString().slice(0, 10);
+}
+
+// ─── Activity Earn Math ───────────────────────────────────────────────
+
+/** Prior same-day counters that gate a chat earn. */
+export interface ChatEarnCounters {
+  chatEarned: number;
+  attachBonuses: number;
+  linkBonuses: number;
+  firstHowlPaid: boolean;
+}
+
+export interface ChatEarnBreakdown {
+  base: number;
+  attach: number;
+  link: number;
+  firstHowl: number;
+  total: number;
+}
+
+/**
+ * Gold for one counted chat message given the day's prior counters:
+ * 2g base + 1g per 40 chars (capped +3), clamped to the daily base cap,
+ * plus capped attachment/link bonuses and the first-howl bonus.
+ */
+export function computeChatEarn(
+  counters: ChatEarnCounters,
+  chars: number,
+  hasAttachment: boolean,
+  hasLink: boolean,
+): ChatEarnBreakdown {
+  const raw =
+    CHAT_GOLD_BASE +
+    Math.min(
+      Math.floor(Math.max(0, chars) / CHAT_GOLD_CHARS_PER_BONUS),
+      CHAT_GOLD_LENGTH_BONUS_CAP,
+    );
+  const base = Math.max(
+    0,
+    Math.min(raw, CHAT_GOLD_DAILY_CAP - counters.chatEarned),
+  );
+  const attach =
+    hasAttachment && counters.attachBonuses < CHAT_ATTACHMENT_BONUS_DAILY_CAP
+      ? CHAT_ATTACHMENT_BONUS_GOLD
+      : 0;
+  const link =
+    hasLink && counters.linkBonuses < CHAT_LINK_BONUS_DAILY_CAP
+      ? CHAT_LINK_BONUS_GOLD
+      : 0;
+  const firstHowl = counters.firstHowlPaid ? 0 : FIRST_HOWL_GOLD;
+  return { base, attach, link, firstHowl, total: base + attach + link + firstHowl };
+}
+
+/**
+ * The full UTC days skipped between a daily claim at `lastDailyAt` and a
+ * claim attempt at `now`. Empty when no full day was skipped; null when
+ * the gap exceeds STREAK_CHAT_RESCUE_MAX_DAYS (streak unrescuable).
+ */
+export function computeStreakGapDays(
+  lastDailyAt: number,
+  now: number,
+): string[] | null {
+  const dayMs = 86_400_000;
+  const first = Math.floor(lastDailyAt / dayMs) + 1;
+  const last = Math.floor(now / dayMs) - 1;
+  if (last < first) return [];
+  if (last - first + 1 > STREAK_CHAT_RESCUE_MAX_DAYS) return null;
+  const days: string[] = [];
+  for (let i = first; i <= last; i++) {
+    days.push(new Date(i * dayMs).toISOString().slice(0, 10));
+  }
+  return days;
 }
 
 // ─── Daily Claim ──────────────────────────────────────────────────────
@@ -69,11 +191,14 @@ export interface DailyClaimComputation {
 /**
  * Computes the outcome of a daily claim attempt: whether it's allowed,
  * the resulting streak, and the payout including the streak bonus.
+ * `keptAliveByChat` rescues a streak past the grace window when the
+ * caller verified the user chatted on every skipped day.
  */
 export function computeDailyClaim(
   lastDailyAt: number | undefined,
   currentStreak: number,
   now: number,
+  keptAliveByChat: boolean = false,
 ): DailyClaimComputation {
   if (lastDailyAt && now - lastDailyAt < DAILY_COOLDOWN_MS) {
     return {
@@ -85,7 +210,8 @@ export function computeDailyClaim(
   }
 
   const keepsStreak =
-    lastDailyAt !== undefined && now - lastDailyAt <= DAILY_STREAK_GRACE_MS;
+    lastDailyAt !== undefined &&
+    (now - lastDailyAt <= DAILY_STREAK_GRACE_MS || keptAliveByChat);
   const streak = keepsStreak ? currentStreak + 1 : 1;
   const bonus = Math.min(
     (streak - 1) * DAILY_STREAK_BONUS,

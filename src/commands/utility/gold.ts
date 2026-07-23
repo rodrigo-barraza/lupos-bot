@@ -27,10 +27,14 @@ import {
   computeRansomCost,
   formatGold,
 } from "./gold/goldMath.ts";
+import ActivityGold from "./gold/activityGold.ts";
 
 async function executeBalance(interaction: ChatInputCommandInteraction) {
   const targetUser = interaction.options.getUser("user") || interaction.user;
-  const wallet = await fetchWallet(interaction.guildId!, targetUser.id);
+  const [wallet, today] = await Promise.all([
+    fetchWallet(interaction.guildId!, targetUser.id),
+    ActivityGold.fetchTodayActivity(interaction.guildId!, targetUser.id),
+  ]);
 
   const embed = new EmbedBuilder()
     .setTitle(`${GOLD_EMOJI} Gold Balance`)
@@ -40,7 +44,7 @@ async function executeBalance(interaction: ChatInputCommandInteraction) {
 
   if (!wallet) {
     embed.setDescription(
-      `<@${targetUser.id}> doesn't have a gold pouch yet!\nWin a deathroll, guess right in /guesswho, or claim /gold daily to start earning.`,
+      `<@${targetUser.id}> doesn't have a gold pouch yet!\nJust chatting earns gold — or win a deathroll, guess right in /guesswho, or claim /gold daily.`,
     );
   } else {
     let description = `<@${targetUser.id}>\n## ${formatGold(wallet.balance)}\n`;
@@ -50,6 +54,15 @@ async function executeBalance(interaction: ChatInputCommandInteraction) {
     }
     if (wallet.lastDailyAt) {
       description += `**Last Daily:** <t:${Math.floor(wallet.lastDailyAt / 1000)}:R>\n`;
+    }
+    if (today.totalEarned > 0) {
+      const parts: string[] = [];
+      const chatTotal =
+        today.totalEarned - today.reactionEarned - today.voiceEarned;
+      if (chatTotal > 0) parts.push(`💬 ${chatTotal}g`);
+      if (today.reactionEarned > 0) parts.push(`❤️ ${today.reactionEarned}g`);
+      if (today.voiceEarned > 0) parts.push(`🎙️ ${today.voiceEarned}g`);
+      description += `**Earned Today:** ${parts.join(" · ")}\n`;
     }
     embed.setDescription(description);
   }
@@ -74,6 +87,9 @@ async function executeDaily(interaction: ChatInputCommandInteraction) {
   let content = `${GOLD_EMOJI} <@${interaction.user.id}> claimed **${formatGold(result.amount)}**!`;
   if (result.streak > 1) {
     content += ` 🔥 ${result.streak}-day streak (+${Math.min((result.streak - 1) * DAILY_STREAK_BONUS, 100)}g bonus)`;
+  }
+  if (result.streakRescuedByChat) {
+    content += `\n-# 🐺 You forgot to claim, but chatting every day kept your streak alive.`;
   }
   content += `\n-# Balance: ${formatGold(result.balance)} · Next claim <t:${Math.floor(result.nextClaimAt / 1000)}:R>`;
   await interaction.editReply({ content });
@@ -247,7 +263,8 @@ async function executeLeaderboard(interaction: ChatInputCommandInteraction) {
       const streak = entry.dailyStreak > 0 ? ` · 🔥×${entry.dailyStreak}` : "";
       return `${medal} **${index + 1}.** <@${entry.userId}> — **${formatGold(entry.balance)}**\n-# Lifetime: ${formatGold(entry.lifetimeEarned)}${streak}`;
     },
-    footer: "Earn gold from deathrolls, royales, guesswho, and daily claims",
+    footer:
+      "Earn gold by chatting, deathrolls, royales, guesswho, and daily claims",
   });
 
   await interaction.editReply({ embeds: [embed] });
