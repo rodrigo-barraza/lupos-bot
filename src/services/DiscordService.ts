@@ -1,3 +1,4 @@
+import BotSettingsService from "#root/services/BotSettingsService.ts";
 import TemporalHelpers from "#root/utilities/TemporalHelpers.ts";
 import { Collection, ChannelType, EmbedBuilder } from "discord.js";
 import type {
@@ -1008,7 +1009,7 @@ async function processMessage(
     return;
   }
 
-  if (config.USER_IDS_DISALLOWED.includes(message.author.id)) {
+  if (BotSettingsService.get("USER_IDS_DISALLOWED").includes(message.author.id)) {
     return;
   }
 
@@ -1097,7 +1098,7 @@ URL: ${utilities.getDiscordMessageUrl((message as Message).guild?.id || "", (mes
   }
 
   // IGNORE MESSAGES FROM SPECIFIC USERS
-  if (config.USER_IDS_IGNORE.includes(message.author.id)) {
+  if (BotSettingsService.get("USER_IDS_IGNORE").includes(message.author.id)) {
     return;
   }
 
@@ -1106,7 +1107,7 @@ URL: ${utilities.getDiscordMessageUrl((message as Message).guild?.id || "", (mes
   if (
     memberObj &&
     memberObj.roles.cache.some((role: import("discord.js").Role) =>
-      config.ROLES_IDS_IGNORE.includes(role.id),
+      BotSettingsService.get("ROLES_IDS_IGNORE").includes(role.id),
     )
   ) {
     return;
@@ -1385,7 +1386,7 @@ async function luposOnGuildMemberAdd(
 
   // Assign politics mute role if user is in the muted list
   if (
-    config.USER_IDS_POLITICS_MUTED?.includes(member.id) &&
+    BotSettingsService.get("USER_IDS_POLITICS_MUTED").includes(member.id) &&
     config.ROLE_ID_POLITICS_MUTE
   ) {
     await DiscordUtilityService.addRoleToMember(
@@ -1673,33 +1674,6 @@ async function consoleLogAllGuilds(client: Client) {
 }
 
 const DiscordService = {
-  // VENDER
-  async initializeBotVender() {
-    const venderClient = DiscordWrapper.createClient(
-      "vender",
-      config.VENDER_TOKEN as string,
-    );
-    // Initialize MongoDB client
-    await MongoService.createClient("local", config.DATABASE_URL as string);
-    const mongo = MongoService.getClient(
-      "local",
-    ) as import("mongodb").MongoClient;
-    DiscordUtilityService.onEventClientReady(
-      venderClient,
-      { mongo, localMongo: mongo },
-      undefined as never, // venderOnReady placeholder
-    );
-    DiscordUtilityService.onEventMessageCreate(
-      venderClient,
-      { mongo, localMongo: mongo },
-      undefined as never, // venderOnMessageCreate placeholder
-    );
-    DiscordUtilityService.onEventInteractionCreate(
-      venderClient,
-      mongo,
-      undefined as never, // venderOnInteractionCreate placeholder
-    );
-  },
   // LUPOS
   async initializeBotLupos() {
     const luposClient = DiscordWrapper.createClient(
@@ -1712,6 +1686,8 @@ const DiscordService = {
       "local",
     ) as import("mongodb").MongoClient;
     const localMongo = mongo;
+    // Moderation lists live in Mongo (seeded from env on first boot)
+    await BotSettingsService.initialize();
     DiscordUtilityService.onEventClientReady(
       luposClient,
       { mongo, localMongo },

@@ -5,6 +5,7 @@
  * luposOnGuildMemberAdd() and luposOnReadyDeleteNewAccounts().
  */
 
+import BotSettingsService from "#root/services/BotSettingsService.ts";
 import type { Guild, GuildMember } from "discord.js";
 import config from "#root/config.ts";
 import { ACCOUNT_AGE_THRESHOLD_MS, MILLISECONDS_PER_DAY } from "#root/constants.ts";
@@ -17,7 +18,7 @@ export async function kickIfTooNew(member: GuildMember, callerName: string = "Ac
   if (member.user.bot) return false;
 
   const accountAge = Date.now() - member.user.createdAt.getTime();
-  const isWhitelisted = config.USER_IDS_NEW_ACCOUNT_WHITELIST?.includes(
+  const isWhitelisted = BotSettingsService.get("USER_IDS_NEW_ACCOUNT_WHITELIST").includes(
     member.id,
   );
 
@@ -120,7 +121,7 @@ export async function purgeByAccountAge(guild: Guild, thresholdMs: number, optio
     if (accountAge >= thresholdMs) continue;
 
     const ageDays = Math.floor(accountAge / MILLISECONDS_PER_DAY);
-    const isWhitelisted = config.USER_IDS_NEW_ACCOUNT_WHITELIST?.includes(
+    const isWhitelisted = BotSettingsService.get("USER_IDS_NEW_ACCOUNT_WHITELIST").includes(
       member.id,
     );
 

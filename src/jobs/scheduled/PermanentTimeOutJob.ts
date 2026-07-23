@@ -1,3 +1,4 @@
+import BotSettingsService from "#root/services/BotSettingsService.ts";
 import config from "#root/config.ts";
 import DiscordUtilityService from "#root/services/DiscordUtilityService.ts";
 import LogFormatter from "#root/formatters/LogFormatter.ts";
@@ -14,7 +15,7 @@ async function timeOutUsers(client: Client) {
   );
   if (!guild) return;
 
-  for (const userId of config.USER_IDS_TIMED_OUT) {
+  for (const userId of BotSettingsService.get("USER_IDS_TIMED_OUT")) {
     let member: GuildMember | undefined;
     try {
       member = await guild.members.fetch(userId);

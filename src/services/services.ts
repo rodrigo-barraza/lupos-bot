@@ -4,8 +4,14 @@ const router = express.Router();
 
 import AIService from "#root/services/AIService.ts";
 import guildRoutes from "#root/routes/GuildRoutes.ts";
+import settingsRoutes from "#root/routes/SettingsRoutes.ts";
 
 const routes = () => {
+
+  // ── Bot settings routes (Mongo-backed moderation lists) ─────────
+  // Mounted before guildRoutes so they work even while the Discord
+  // client is still logging in.
+  router.use("/", settingsRoutes);
 
   // ── Guild data routes (channels, members) ───────────────────────
   router.use("/", guildRoutes);
