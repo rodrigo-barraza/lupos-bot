@@ -19,7 +19,7 @@ importers:
         version: 4.16.12
       '@rodrigo-barraza/utilities-library':
         specifier: github:rodrigo-barraza/utilities-library
-        version: https://codeload.github.com/rodrigo-barraza/utilities-library/tar.gz/cc3c4f0762eac019b777b0a29e7d180a430a1612(express@5.2.1)
+        version: https://codeload.github.com/rodrigo-barraza/utilities-library/tar.gz/ef3b00a43ef3328d6c230e5fb5e0ba5772fa7de3(express@5.2.1)
       discord.js:
         specifier: ^14.26.4
         version: 14.26.4
@@ -554,8 +554,8 @@ packages:
   '@oxc-project/types@0.133.0':
     resolution: {integrity: sha512-KzkdCd6Uxqnf6l3HOw1xfatAlUURA0g14cvBYFyJ5SaNOQbOUvBr9PKArcPcrNIeRsBdgcUzOGrhKveVpvOIGA==}
 
-  '@rodrigo-barraza/utilities-library@https://codeload.github.com/rodrigo-barraza/utilities-library/tar.gz/cc3c4f0762eac019b777b0a29e7d180a430a1612':
-    resolution: {gitHosted: true, tarball: https://codeload.github.com/rodrigo-barraza/utilities-library/tar.gz/cc3c4f0762eac019b777b0a29e7d180a430a1612}
+  '@rodrigo-barraza/utilities-library@https://codeload.github.com/rodrigo-barraza/utilities-library/tar.gz/ef3b00a43ef3328d6c230e5fb5e0ba5772fa7de3':
+    resolution: {gitHosted: true, tarball: https://codeload.github.com/rodrigo-barraza/utilities-library/tar.gz/ef3b00a43ef3328d6c230e5fb5e0ba5772fa7de3}
     version: 0.7.0
     peerDependencies:
       express: '>=5.0.0'
@@ -1785,8 +1785,8 @@ packages:
     engines: {node: '>=18'}
     hasBin: true
 
-  postcss@8.5.20:
-    resolution: {integrity: sha512-lW616l85ucIQL+FocMmL7pQFPqBmwejrCMg+iPxyImlrANNJG9NHq/RkyCZopDhd8C3LA03PHRJDjkbGu8vvug==}
+  postcss@8.5.21:
+    resolution: {integrity: sha512-v4sDNP3fdNiWMfabO7OwOQdOX8TiQSztKyT1Wj0w+j7LDallJThJRBBBmzVGyYj0crMh7jlV4zepPkiNu9UwDQ==}
     engines: {node: ^10 || ^12 || >=14}
 
   prelude-ls@1.2.1:
@@ -2633,7 +2633,7 @@ snapshots:
 
   '@oxc-project/types@0.133.0': {}
 
-  '@rodrigo-barraza/utilities-library@https://codeload.github.com/rodrigo-barraza/utilities-library/tar.gz/cc3c4f0762eac019b777b0a29e7d180a430a1612(express@5.2.1)':
+  '@rodrigo-barraza/utilities-library@https://codeload.github.com/rodrigo-barraza/utilities-library/tar.gz/ef3b00a43ef3328d6c230e5fb5e0ba5772fa7de3(express@5.2.1)':
     dependencies:
       mongodb: 7.3.0
       nanoid: 5.1.16
@@ -3806,7 +3806,7 @@ snapshots:
     optionalDependencies:
       fsevents: 2.3.2
 
-  postcss@8.5.20:
+  postcss@8.5.21:
     dependencies:
       nanoid: 3.3.16
       picocolors: 1.1.1
@@ -4147,7 +4147,7 @@ snapshots:
     dependencies:
       lightningcss: 1.33.0
       picomatch: 4.0.5
-      postcss: 8.5.20
+      postcss: 8.5.21
       rolldown: 1.0.3
       tinyglobby: 0.2.17
     optionalDependencies:
