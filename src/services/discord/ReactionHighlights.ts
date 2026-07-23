@@ -18,6 +18,7 @@ import DiscordState from "#root/services/discord/DiscordState.ts";
 import EventReactJob from "#root/jobs/event-driven/ReactJob.ts";
 import LogFormatter from "#root/formatters/LogFormatter.ts";
 import MongoService from "#root/services/MongoService.ts";
+import ActivityGold from "#root/commands/utility/gold/activityGold.ts";
 
 interface QueuedReaction {
   reaction: MessageReaction | PartialMessageReaction;
@@ -289,6 +290,8 @@ async function processCreateReaction(client: Client, queuedReaction: QueuedReact
       channelId,
       createdAt: new Date(),
     });
+    // First time this message reaches #highlights — silent author bonus.
+    void ActivityGold.grantHighlightBonus(reaction.message as Message);
   }
 }
 
@@ -315,6 +318,15 @@ async function handleReactionCreate(client: Client, mongo: MongoClient, reaction
     await DiscordUtilityService.syncReactionsToMongo(reaction.message as Message<boolean>, localMongo);
   } catch (syncErr: unknown) {
     console.warn(`[ReactionHighlights] MongoDB reaction sync failed: ${(syncErr as Error).message}`);
+  }
+
+  // Silent gold to the message author per unique reactor (capped/day) —
+  // partials were fetched above; skip if the fetch failed.
+  if (!reaction.partial && !reaction.message.partial) {
+    void ActivityGold.handleReactionReceived({
+      message: reaction.message as Message,
+      reactor: user as User,
+    });
   }
 
   if (isHighlightChannel) return;

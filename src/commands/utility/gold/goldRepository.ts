@@ -9,7 +9,12 @@ import MongoService from "#root/services/MongoService.ts";
 import { MONGO_DB_NAME } from "#root/constants.ts";
 import utilities from "#root/utilities.ts";
 import type { Collection, Document } from "mongodb";
-import { computeDailyClaim } from "./goldMath.ts";
+import {
+  DAILY_COOLDOWN_MS,
+  DAILY_STREAK_GRACE_MS,
+  computeDailyClaim,
+  computeStreakGapDays,
+} from "./goldMath.ts";
 
 // ─── Types ────────────────────────────────────────────────────────────
 
@@ -53,7 +58,11 @@ export type GoldReason =
   | "royale_pot"
   | "gift_sent"
   | "gift_received"
-  | "ransom";
+  | "ransom"
+  | "chat_activity"
+  | "reaction_received"
+  | "highlight_bonus"
+  | "voice_activity";
 
 export interface UserInfo {
   username: string;
@@ -74,6 +83,10 @@ function getGoldDb() {
     throw new Error("MongoService: local client not initialized");
   return localMongo.db(MONGO_DB_NAME);
 }
+
+/** Per-user-per-day activity counters — owned by activityGold.ts, named
+ * here so claimDaily can consult it without a circular import. */
+export const GOLD_ACTIVITY_DAILY_COLLECTION = "GoldActivityDaily";
 
 export function getGoldCollections() {
   const db = getGoldDb();
@@ -277,8 +290,42 @@ export type DailyClaimResult =
       streak: number;
       balance: number;
       nextClaimAt: number;
+      /** The streak lapsed past the grace window but survived because
+       * the user chatted on every skipped day. */
+      streakRescuedByChat: boolean;
     }
   | { claimed: false; nextClaimAt: number };
+
+/**
+ * A lapsed streak survives when the user chatted (earned counted chat
+ * messages) on every full UTC day skipped between claims.
+ */
+async function chattedEveryGapDay(
+  guildId: string,
+  userId: string,
+  lastDailyAt: number,
+  now: number,
+): Promise<boolean> {
+  const gapDays = computeStreakGapDays(lastDailyAt, now);
+  if (gapDays === null || gapDays.length === 0) return false;
+  try {
+    const chattedDays = await getGoldDb()
+      .collection(GOLD_ACTIVITY_DAILY_COLLECTION)
+      .countDocuments({
+        guildId,
+        userId,
+        day: { $in: gapDays },
+        countedMessages: { $gte: 1 },
+      });
+    return chattedDays === gapDays.length;
+  } catch (error: unknown) {
+    console.error(
+      "[gold] Streak chat-rescue lookup failed:",
+      utilities.errorMessage(error),
+    );
+    return false;
+  }
+}
 
 /**
  * Claims the daily gold reward. The write is guarded on the previously
@@ -293,10 +340,28 @@ export async function claimDaily(
   const now = Date.now();
   const wallet = await fetchWallet(guildId, userId);
 
+  // Rare path: past the grace window with a streak worth saving — check
+  // whether daily chatting kept it alive.
+  let keptAliveByChat = false;
+  if (
+    wallet?.lastDailyAt !== undefined &&
+    (wallet.dailyStreak ?? 0) > 0 &&
+    now - wallet.lastDailyAt > DAILY_STREAK_GRACE_MS &&
+    now - wallet.lastDailyAt >= DAILY_COOLDOWN_MS
+  ) {
+    keptAliveByChat = await chattedEveryGapDay(
+      guildId,
+      userId,
+      wallet.lastDailyAt,
+      now,
+    );
+  }
+
   const claim = computeDailyClaim(
     wallet?.lastDailyAt,
     wallet?.dailyStreak ?? 0,
     now,
+    keptAliveByChat,
   );
   if (!claim.eligible) {
     return { claimed: false, nextClaimAt: claim.nextClaimAt };
@@ -334,6 +399,7 @@ export async function claimDaily(
     "daily",
     {
       streak: claim.streak,
+      ...(keptAliveByChat ? { streakRescuedByChat: true } : {}),
     },
   );
   return {
@@ -342,6 +408,7 @@ export async function claimDaily(
     streak: claim.streak,
     balance: doc.balance as number,
     nextClaimAt: claim.nextClaimAt,
+    streakRescuedByChat: keptAliveByChat && claim.streak > 1,
   };
 }
 

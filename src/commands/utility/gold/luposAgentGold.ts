@@ -16,7 +16,8 @@ import {
   fetchWallet,
   getGoldCollections,
 } from "./goldRepository.ts";
-import { computeScatterPileCount, formatGold } from "./goldMath.ts";
+import { computeScatterPileCount, formatGold, utcDay } from "./goldMath.ts";
+import ActivityGold from "./activityGold.ts";
 import {
   buildScatterAssignments,
   creditScatter,
@@ -53,10 +54,6 @@ function getDailyActionsCollection() {
       );
   }
   return collection;
-}
-
-function utcDay(now = Date.now()) {
-  return new Date(now).toISOString().slice(0, 10);
 }
 
 /**
@@ -133,9 +130,10 @@ export async function luposGetGoldBalance(
   userId: string,
 ) {
   const botUserId = client.user!.id;
-  const [wallet, wolfWallet] = await Promise.all([
+  const [wallet, wolfWallet, todayActivity] = await Promise.all([
     fetchWallet(guildId, userId),
     ensureWolfWallet(guildId, botUserId),
+    ActivityGold.fetchTodayActivity(guildId, userId),
   ]);
 
   let rank: number | null = null;
@@ -155,6 +153,8 @@ export async function luposGetGoldBalance(
     balanceDisplay: formatGold(wallet?.balance ?? 0),
     lifetimeEarned: wallet?.lifetimeEarned ?? 0,
     dailyStreak: wallet?.dailyStreak ?? 0,
+    earnedTodayFromActivity: todayActivity.totalEarned,
+    todayActivity,
     leaderboardRank: rank,
     wolfHoard: wolfWallet?.balance ?? 0,
     wolfHoardDisplay: formatGold(wolfWallet?.balance ?? 0),

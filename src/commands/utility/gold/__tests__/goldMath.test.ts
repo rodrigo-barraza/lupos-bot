@@ -1,14 +1,25 @@
 import { describe, it, expect } from "vitest";
 import {
+  CHAT_ATTACHMENT_BONUS_DAILY_CAP,
+  CHAT_ATTACHMENT_BONUS_GOLD,
+  CHAT_GOLD_BASE,
+  CHAT_GOLD_DAILY_CAP,
+  CHAT_GOLD_LENGTH_BONUS_CAP,
+  CHAT_LINK_BONUS_DAILY_CAP,
+  CHAT_LINK_BONUS_GOLD,
   DAILY_BASE_GOLD,
   DAILY_COOLDOWN_MS,
   DAILY_STREAK_BONUS,
   DAILY_STREAK_BONUS_CAP,
   DAILY_STREAK_GRACE_MS,
+  FIRST_HOWL_GOLD,
   HOUSE_RAKE,
   RANSOM_GOLD_PER_MINUTE,
   ROYALE_PRIZE_PER_OPPONENT,
+  STREAK_CHAT_RESCUE_MAX_DAYS,
+  computeChatEarn,
   computeDailyClaim,
+  computeStreakGapDays,
   MAX_SCATTER_PILES,
   computeRansomCost,
   computeRoyalePot,
@@ -18,6 +29,7 @@ import {
   computeWagerPot,
   formatGold,
   splitGoldPiles,
+  utcDay,
 } from "../goldMath.ts";
 
 const NOW = 1_800_000_000_000;
@@ -205,5 +217,124 @@ describe("formatGold", () => {
   it("formats with a thousands separator and the g suffix", () => {
     expect(formatGold(1250)).toBe("🪙 1,250g");
     expect(formatGold(0)).toBe("🪙 0g");
+  });
+});
+
+describe("computeChatEarn", () => {
+  const fresh = {
+    chatEarned: 0,
+    attachBonuses: 0,
+    linkBonuses: 0,
+    firstHowlPaid: true,
+  };
+
+  it("pays the base for a short message", () => {
+    const earn = computeChatEarn(fresh, 10, false, false);
+    expect(earn.base).toBe(CHAT_GOLD_BASE);
+    expect(earn.total).toBe(CHAT_GOLD_BASE);
+  });
+
+  it("scales with length and caps the length bonus", () => {
+    expect(computeChatEarn(fresh, 40, false, false).base).toBe(
+      CHAT_GOLD_BASE + 1,
+    );
+    expect(computeChatEarn(fresh, 85, false, false).base).toBe(
+      CHAT_GOLD_BASE + 2,
+    );
+    // A pasted novel still caps out
+    expect(computeChatEarn(fresh, 100_000, false, false).base).toBe(
+      CHAT_GOLD_BASE + CHAT_GOLD_LENGTH_BONUS_CAP,
+    );
+  });
+
+  it("clamps the base to what's left under the daily cap", () => {
+    const nearCap = { ...fresh, chatEarned: CHAT_GOLD_DAILY_CAP - 1 };
+    expect(computeChatEarn(nearCap, 200, false, false).base).toBe(1);
+    const atCap = { ...fresh, chatEarned: CHAT_GOLD_DAILY_CAP };
+    expect(computeChatEarn(atCap, 200, false, false).base).toBe(0);
+  });
+
+  it("pays attachment and link bonuses under their own caps", () => {
+    const earn = computeChatEarn(fresh, 10, true, true);
+    expect(earn.attach).toBe(CHAT_ATTACHMENT_BONUS_GOLD);
+    expect(earn.link).toBe(CHAT_LINK_BONUS_GOLD);
+    const spent = {
+      ...fresh,
+      attachBonuses: CHAT_ATTACHMENT_BONUS_DAILY_CAP,
+      linkBonuses: CHAT_LINK_BONUS_DAILY_CAP,
+    };
+    const capped = computeChatEarn(spent, 10, true, true);
+    expect(capped.attach).toBe(0);
+    expect(capped.link).toBe(0);
+  });
+
+  it("still pays bonuses when the base cap is spent", () => {
+    const atCap = { ...fresh, chatEarned: CHAT_GOLD_DAILY_CAP };
+    const earn = computeChatEarn(atCap, 10, true, false);
+    expect(earn.total).toBe(CHAT_ATTACHMENT_BONUS_GOLD);
+  });
+
+  it("pays the first howl exactly once", () => {
+    const first = computeChatEarn(
+      { ...fresh, firstHowlPaid: false },
+      10,
+      false,
+      false,
+    );
+    expect(first.firstHowl).toBe(FIRST_HOWL_GOLD);
+    expect(first.total).toBe(CHAT_GOLD_BASE + FIRST_HOWL_GOLD);
+    expect(computeChatEarn(fresh, 10, false, false).firstHowl).toBe(0);
+  });
+});
+
+describe("computeStreakGapDays", () => {
+  const DAY = 86_400_000;
+  // Noon UTC on an arbitrary day
+  const NOON = Math.floor(NOW / DAY) * DAY + DAY / 2;
+
+  it("returns empty when no full day was skipped", () => {
+    expect(computeStreakGapDays(NOON - DAY, NOON)).toEqual([]);
+  });
+
+  it("lists the full skipped days", () => {
+    const days = computeStreakGapDays(NOON - 3 * DAY, NOON);
+    expect(days).toHaveLength(2);
+    expect(days![0]).toBe(utcDay(NOON - 2 * DAY));
+    expect(days![1]).toBe(utcDay(NOON - DAY));
+  });
+
+  it("returns null for an unrescuably long gap", () => {
+    expect(
+      computeStreakGapDays(NOON - (STREAK_CHAT_RESCUE_MAX_DAYS + 2) * DAY, NOON),
+    ).toBeNull();
+  });
+});
+
+describe("computeDailyClaim chat rescue", () => {
+  it("keeps the streak past the grace window when kept alive by chat", () => {
+    const lastDailyAt = NOW - DAILY_STREAK_GRACE_MS - 5 * 86_400_000;
+    const claim = computeDailyClaim(lastDailyAt, 6, NOW, true);
+    expect(claim.eligible).toBe(true);
+    expect(claim.streak).toBe(7);
+    expect(claim.amount).toBe(DAILY_BASE_GOLD + 6 * DAILY_STREAK_BONUS);
+  });
+
+  it("still resets without the rescue flag", () => {
+    const lastDailyAt = NOW - DAILY_STREAK_GRACE_MS - 5 * 86_400_000;
+    const claim = computeDailyClaim(lastDailyAt, 6, NOW, false);
+    expect(claim.streak).toBe(1);
+  });
+
+  it("never rescues a first-ever claim", () => {
+    const claim = computeDailyClaim(undefined, 0, NOW, true);
+    expect(claim.streak).toBe(1);
+  });
+});
+
+describe("utcDay", () => {
+  it("formats the UTC calendar day", () => {
+    expect(utcDay(0)).toBe("1970-01-01");
+    expect(utcDay(86_400_000 - 1)).toBe("1970-01-01");
+    expect(utcDay(86_400_000)).toBe("1970-01-02");
   });
 });
