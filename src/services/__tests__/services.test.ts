@@ -27,6 +27,11 @@ vi.mock("../../routes/GuildRoutes", () => ({
   default: vi.fn(),
 }));
 
+// Mock SettingsRoutes — real module builds its own express Router at import
+vi.mock("../../routes/SettingsRoutes", () => ({
+  default: vi.fn(),
+}));
+
 const routes = (await import("../services.ts")).default;
 const AIService = (await import("../AIService.ts")).default;
 
