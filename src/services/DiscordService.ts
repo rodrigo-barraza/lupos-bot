@@ -23,7 +23,10 @@ import { pathToFileURL } from "node:url";
 
 import config from "#root/config.ts";
 
-import { DISCORD_GUILDS, DISCORD_USERS } from "@rodrigo-barraza/utilities-library/taxonomy";
+import {
+  DISCORD_GUILDS,
+  DISCORD_USERS,
+} from "@rodrigo-barraza/utilities-library/taxonomy";
 
 import channels from "#root/arrays/channels.ts";
 
@@ -72,6 +75,7 @@ import {
 import {
   luposOnReadyDeleteNewAccounts,
   luposOnReadyPurgeYoungAccounts,
+  luposOnReadySweepForbiddenCombo,
   revokeRoleFromAllMembers,
 } from "#root/services/discord/ModerationSweeps.ts";
 // Importing BirthdayOnboarding also registers its "birthday-month-" button handler
@@ -1013,7 +1017,9 @@ async function processMessage(
     return;
   }
 
-  if (BotSettingsService.get("USER_IDS_DISALLOWED").includes(message.author.id)) {
+  if (
+    BotSettingsService.get("USER_IDS_DISALLOWED").includes(message.author.id)
+  ) {
     return;
   }
 
@@ -1911,6 +1917,21 @@ const DiscordService = {
       luposClient,
       { dryRun: !confirm },
       luposOnReadyPurgeYoungAccounts as (...args: unknown[]) => void,
+    );
+  },
+  async sweepForbiddenCombo({
+    confirm = false,
+    onlyTheseRoles = true,
+  }: { confirm?: boolean; onlyTheseRoles?: boolean } = {}) {
+    const luposClient = DiscordWrapper.createClient(
+      "lupos",
+      config.LUPOS_TOKEN as string,
+    );
+    // Live sweep only when the CLI explicitly passed confirm=true.
+    DiscordUtilityService.onEventClientReady(
+      luposClient,
+      { dryRun: !confirm, onlyTheseRoles },
+      luposOnReadySweepForbiddenCombo as (...args: unknown[]) => void,
     );
   },
   async initializeBotLuposReports() {

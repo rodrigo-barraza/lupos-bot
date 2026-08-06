@@ -69,6 +69,17 @@ export { MILLISECONDS_PER_DAY };
 export const ACCOUNT_AGE_THRESHOLD_MS = 28 * MILLISECONDS_PER_DAY; // 4 weeks
 
 /**
+ * Forbidden-combo guard constants.
+ *
+ * Deliberately separate from ACCOUNT_AGE_THRESHOLD_MS: that one drives the
+ * blanket new-account kick (kickIfTooNew), where 5 years would empty the
+ * server. These two gate the much narrower "holds both forbidden roles" rule.
+ */
+export const FORBIDDEN_COMBO_MAX_ACCOUNT_AGE_MS =
+  5 * 365 * MILLISECONDS_PER_DAY; // 5 years
+export const FORBIDDEN_COMBO_MAX_JOIN_AGE_MS = 28 * MILLISECONDS_PER_DAY; // 4 weeks
+
+/**
  * MongoDB database name.
  */
 export const MONGO_DB_NAME = "lupos";

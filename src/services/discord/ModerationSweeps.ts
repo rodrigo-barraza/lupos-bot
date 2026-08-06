@@ -5,6 +5,7 @@
 // moderation passes that run on bot ready:
 //   - luposOnReadyDeleteNewAccounts — kick too-new / forbidden-combo members
 //   - luposOnReadyPurgeYoungAccounts — one-off young-account purge (dry-run unless confirmed)
+//   - luposOnReadySweepForbiddenCombo — one-off forbidden-combo backfill (dry-run unless confirmed)
 //   - revokeRoleFromAllMembers — bulk strip of a stale role
 //   - fetchMembersWithRetry — gateway-rate-limit-aware member fetch
 // ============================================================
@@ -17,6 +18,7 @@ import {
   kickIfTooNew,
   kickIfForbiddenCombo,
   purgeByAccountAge,
+  sweepForbiddenComboJoiners,
 } from "#root/services/AccountGuardService.ts";
 
 /**
@@ -138,6 +140,45 @@ export async function luposOnReadyPurgeYoungAccounts(
 
   await purgeByAccountAge(guild, TWO_MONTHS_MS, {
     dryRun,
+    callerName: functionName,
+  });
+}
+
+/**
+ * One-off backfill: kick members of the Whitemane guild who joined in the
+ * last 6 months and hold both forbidden-combo roles, whatever their account
+ * age. Dry-run unless the CLI passed confirm=true.
+ */
+export async function luposOnReadySweepForbiddenCombo(
+  client: Client,
+  options?: { dryRun?: boolean; onlyTheseRoles?: boolean },
+) {
+  const functionName = "luposOnReadySweepForbiddenCombo";
+  const guild = client.guilds.cache.get(PURGE_TARGET_GUILD_ID);
+  if (!guild) {
+    console.error(
+      `[${functionName}] Guild ${PURGE_TARGET_GUILD_ID} not found in cache`,
+    );
+    return;
+  }
+
+  const dryRun = options?.dryRun !== false;
+  const onlyTheseRoles = options?.onlyTheseRoles !== false;
+  if (dryRun) {
+    console.warn(
+      `🔍 [${functionName}] DRY RUN mode — no members will be kicked. ` +
+        `Run with "confirm=true" to execute the sweep.`,
+    );
+  } else {
+    console.warn(
+      `🚨 [${functionName}] LIVE mode — matching members WILL be kicked ` +
+        `from guild ${PURGE_TARGET_GUILD_ID}.`,
+    );
+  }
+
+  await sweepForbiddenComboJoiners(guild, {
+    dryRun,
+    onlyTheseRoles,
     callerName: functionName,
   });
 }

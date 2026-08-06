@@ -1,5 +1,8 @@
 export { default as ClockCrewConstants } from "./constants/ClockCrewConstants.ts";
-export { default as MessageConstant, APRIL_FOOLS_MODE } from "./constants/MessageConstants.ts";
+export {
+  default as MessageConstant,
+  APRIL_FOOLS_MODE,
+} from "./constants/MessageConstants.ts";
 export {
   MOODS,
   MOOD_TEMPERATURE_THRESHOLDS,
@@ -10,6 +13,8 @@ export {
   EXPLOSION_GIFS,
   YOUTUBE_BUTTON_ACTIONS,
   ACCOUNT_AGE_THRESHOLD_MS,
+  FORBIDDEN_COMBO_MAX_ACCOUNT_AGE_MS,
+  FORBIDDEN_COMBO_MAX_JOIN_AGE_MS,
   MONGO_DB_NAME,
   DEFAULT_LIGHT_CYCLE,
   RAINBOW_LIGHT_CYCLE,

@@ -51,6 +51,13 @@ const dateLimit =
 const confirm =
   args.find((arg: string) => arg.startsWith("confirm="))?.split("=")[1] ===
   "true";
+// sweep:forbiddenCombo — defaults to "the combo is their ENTIRE role set".
+// Only the literal "onlyTheseRoles=false" widens it to members who also
+// hold other roles.
+const onlyTheseRoles =
+  args
+    .find((arg: string) => arg.startsWith("onlyTheseRoles="))
+    ?.split("=")[1] !== "false";
 
 async function main() {
   try {
@@ -94,6 +101,8 @@ async function main() {
         await DiscordService.deleteNewAccounts();
       } else if (mode === "purge:youngAccounts") {
         await DiscordService.purgeYoungAccounts({ confirm });
+      } else if (mode === "sweep:forbiddenCombo") {
+        await DiscordService.sweepForbiddenCombo({ confirm, onlyTheseRoles });
       } else if (mode === "reports") {
         await DiscordService.initializeBotLuposReports();
       } else {
@@ -130,7 +139,9 @@ async function main() {
         minioAvailable: MinioWrapper.isAvailable(),
         queueDepth: queue.queueDepth,
         isProcessingQueue: queue.isProcessingQueue,
-        lastQueueActivityAt: new Date(queue.lastQueueActivityAtMs).toISOString(),
+        lastQueueActivityAt: new Date(
+          queue.lastQueueActivityAtMs,
+        ).toISOString(),
       });
     });
     app.use("/", services());
