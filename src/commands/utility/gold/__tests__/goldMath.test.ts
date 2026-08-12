@@ -3,6 +3,7 @@ import {
   CHAT_ATTACHMENT_BONUS_DAILY_CAP,
   CHAT_ATTACHMENT_BONUS_GOLD,
   CHAT_GOLD_BASE,
+  CHAT_GOLD_CHARS_PER_BONUS,
   CHAT_GOLD_DAILY_CAP,
   CHAT_GOLD_LENGTH_BONUS_CAP,
   CHAT_LINK_BONUS_DAILY_CAP,
@@ -13,9 +14,22 @@ import {
   DAILY_STREAK_BONUS_CAP,
   DAILY_STREAK_GRACE_MS,
   FIRST_HOWL_GOLD,
+  GOLD_PER_EXTRA_PILE,
   HOUSE_RAKE,
   RANSOM_GOLD_PER_MINUTE,
   ROYALE_PRIZE_PER_OPPONENT,
+  BEATUP_VICTIM_DROP_GOLD,
+  DEATHROLL_WIN_GOLD,
+  GUESSWHO_CORRECT_GOLD,
+  HIGHLIGHT_BONUS_GOLD,
+  REACTION_RECEIVED_DAILY_CAP,
+  REACTION_RECEIVED_GOLD,
+  SHOCK_CRIT_BONUS_GOLD,
+  SHOCK_CRIT_CONSOLATION_GOLD,
+  VOICE_GOLD_DAILY_CAP,
+  VOICE_GOLD_PER_MINUTE,
+  SHOCK_DROP_GOLD_PER_SECOND,
+  SHOCK_MISS_DROP_GOLD_PER_SECOND,
   STREAK_CHAT_RESCUE_MAX_DAYS,
   computeChatEarn,
   computeDailyClaim,
@@ -128,13 +142,18 @@ describe("computeRansomCost", () => {
 });
 
 describe("computeShockDropGold", () => {
-  it("scales with paralysis duration at 10g per second", () => {
-    expect(computeShockDropGold(5, 10_000)).toBe(50);
-    expect(computeShockDropGold(15, 10_000)).toBe(150);
+  it("scales with paralysis duration at the per-second rate", () => {
+    expect(computeShockDropGold(5, 10_000)).toBe(
+      5 * SHOCK_DROP_GOLD_PER_SECOND,
+    );
+    expect(computeShockDropGold(15, 10_000)).toBe(
+      15 * SHOCK_DROP_GOLD_PER_SECOND,
+    );
   });
 
   it("never drops more than the shocker carries", () => {
-    expect(computeShockDropGold(10, 35)).toBe(35);
+    const broke = SHOCK_DROP_GOLD_PER_SECOND * 10 - 1;
+    expect(computeShockDropGold(10, broke)).toBe(broke);
   });
 
   it("drops nothing from an empty or missing pouch", () => {
@@ -144,27 +163,31 @@ describe("computeShockDropGold", () => {
 });
 
 describe("computeShockMissDropGold", () => {
-  it("scales with the would-be timeout at 3g per second", () => {
-    expect(computeShockMissDropGold(10, 10_000)).toBe(30);
+  it("scales with the would-be timeout at the per-second rate", () => {
+    expect(computeShockMissDropGold(10, 10_000)).toBe(
+      10 * SHOCK_MISS_DROP_GOLD_PER_SECOND,
+    );
   });
 
   it("caps at the caster's balance", () => {
-    expect(computeShockMissDropGold(10, 12)).toBe(12);
+    const broke = SHOCK_MISS_DROP_GOLD_PER_SECOND * 10 - 1;
+    expect(computeShockMissDropGold(10, broke)).toBe(broke);
     expect(computeShockMissDropGold(10, 0)).toBe(0);
   });
 });
 
 describe("computeScatterPileCount", () => {
-  it("adds a pile per 50g, starting from one", () => {
-    expect(computeScatterPileCount(30, 10)).toBe(1);
-    expect(computeScatterPileCount(50, 10)).toBe(2);
-    expect(computeScatterPileCount(100, 10)).toBe(3);
-    expect(computeScatterPileCount(150, 10)).toBe(4);
+  it("adds a pile per GOLD_PER_EXTRA_PILE, starting from one", () => {
+    const per = GOLD_PER_EXTRA_PILE;
+    expect(computeScatterPileCount(per - 1, 10)).toBe(1);
+    expect(computeScatterPileCount(per, 10)).toBe(2);
+    expect(computeScatterPileCount(per * 2, 10)).toBe(3);
+    expect(computeScatterPileCount(per * 3, 10)).toBe(4);
   });
 
   it("never exceeds the cap or the bystander pool", () => {
     expect(computeScatterPileCount(10_000, 10)).toBe(MAX_SCATTER_PILES);
-    expect(computeScatterPileCount(150, 2)).toBe(2);
+    expect(computeScatterPileCount(GOLD_PER_EXTRA_PILE * 3, 2)).toBe(2);
   });
 
   it("is zero with no gold or no bystanders", () => {
@@ -234,17 +257,38 @@ describe("computeChatEarn", () => {
     expect(earn.total).toBe(CHAT_GOLD_BASE);
   });
 
-  it("scales with length and caps the length bonus", () => {
-    expect(computeChatEarn(fresh, 40, false, false).base).toBe(
-      CHAT_GOLD_BASE + 1,
+  it("scales with length, bounded by the length and daily caps", () => {
+    const per = CHAT_GOLD_CHARS_PER_BONUS;
+    // The gradient is real but the daily cap clips it: the cap is small
+    // enough to bind on a chatter's first message, so every expectation
+    // here is a min() against what's left for the day.
+    const capped = (raw: number) => Math.min(raw, CHAT_GOLD_DAILY_CAP);
+
+    expect(computeChatEarn(fresh, per - 1, false, false).base).toBe(
+      capped(CHAT_GOLD_BASE),
     );
-    expect(computeChatEarn(fresh, 85, false, false).base).toBe(
-      CHAT_GOLD_BASE + 2,
+    expect(computeChatEarn(fresh, per, false, false).base).toBe(
+      capped(CHAT_GOLD_BASE + 1),
     );
-    // A pasted novel still caps out
+    expect(computeChatEarn(fresh, per * 2 + 5, false, false).base).toBe(
+      capped(CHAT_GOLD_BASE + 2),
+    );
+    // A pasted novel is worth no more than the length cap allows
     expect(computeChatEarn(fresh, 100_000, false, false).base).toBe(
-      CHAT_GOLD_BASE + CHAT_GOLD_LENGTH_BONUS_CAP,
+      capped(CHAT_GOLD_BASE + CHAT_GOLD_LENGTH_BONUS_CAP),
     );
+  });
+
+  it("keeps a length gradient underneath the daily cap", () => {
+    // Guards the ordering itself, which the cap would otherwise hide: a
+    // longer message is never worth less than a shorter one.
+    const per = CHAT_GOLD_CHARS_PER_BONUS;
+    const lengths = [0, per - 1, per, per * 2, per * 3, 100_000];
+    const bases = lengths.map((n) => computeChatEarn(fresh, n, false, false).base);
+    for (let i = 1; i < bases.length; i++) {
+      expect(bases[i]).toBeGreaterThanOrEqual(bases[i - 1]);
+    }
+    expect(Math.max(...bases)).toBeLessThanOrEqual(CHAT_GOLD_DAILY_CAP);
   });
 
   it("clamps the base to what's left under the daily cap", () => {
@@ -336,5 +380,91 @@ describe("utcDay", () => {
     expect(utcDay(0)).toBe("1970-01-01");
     expect(utcDay(86_400_000 - 1)).toBe("1970-01-01");
     expect(utcDay(86_400_000)).toBe("1970-01-02");
+  });
+});
+
+describe("gold is always whole", () => {
+  // Gold is displayed and stored as a plain integer count of coins, and
+  // Mongo's $inc will happily persist 0.30000000000000004 forever. Nothing
+  // that produces an amount may emit a fraction — so every constant and
+  // every payout function is checked here rather than trusted.
+  const isWhole = (n: number) => Number.isInteger(n);
+
+  it("every gold constant is a whole number", () => {
+    const amounts: Record<string, number> = {
+      DAILY_BASE_GOLD,
+      DAILY_STREAK_BONUS,
+      DAILY_STREAK_BONUS_CAP,
+      DEATHROLL_WIN_GOLD,
+      GUESSWHO_CORRECT_GOLD,
+      ROYALE_PRIZE_PER_OPPONENT,
+      RANSOM_GOLD_PER_MINUTE,
+      SHOCK_DROP_GOLD_PER_SECOND,
+      SHOCK_MISS_DROP_GOLD_PER_SECOND,
+      SHOCK_CRIT_BONUS_GOLD,
+      SHOCK_CRIT_CONSOLATION_GOLD,
+      BEATUP_VICTIM_DROP_GOLD,
+      GOLD_PER_EXTRA_PILE,
+      CHAT_GOLD_BASE,
+      CHAT_GOLD_LENGTH_BONUS_CAP,
+      CHAT_GOLD_DAILY_CAP,
+      FIRST_HOWL_GOLD,
+      CHAT_ATTACHMENT_BONUS_GOLD,
+      CHAT_LINK_BONUS_GOLD,
+      REACTION_RECEIVED_GOLD,
+      REACTION_RECEIVED_DAILY_CAP,
+      HIGHLIGHT_BONUS_GOLD,
+      VOICE_GOLD_PER_MINUTE,
+      VOICE_GOLD_DAILY_CAP,
+    };
+    for (const [name, value] of Object.entries(amounts)) {
+      expect(`${name}=${value}`).toBe(`${name}=${Math.trunc(value)}`);
+    }
+  });
+
+  it("no payout function returns a fraction, at any input", () => {
+    // HOUSE_RAKE (0.1) and the MMR multiplier are the fraction sources, so
+    // the pot and wager sweeps below are the ones that actually matter.
+    for (let wager = 0; wager <= 200; wager++) {
+      for (let players = 2; players <= 8; players++) {
+        expect(isWhole(computeWagerPot(wager, players))).toBe(true);
+        expect(isWhole(computeRoyalePot(wager, players))).toBe(true);
+      }
+    }
+    for (let ms = 0; ms <= 600_000; ms += 997) {
+      expect(isWhole(computeRansomCost(ms))).toBe(true);
+    }
+    for (let secs = 0; secs <= 120; secs += 0.5) {
+      expect(isWhole(computeShockDropGold(secs, 10_000))).toBe(true);
+      expect(isWhole(computeShockMissDropGold(secs, 10_000))).toBe(true);
+    }
+    for (let chars = 0; chars <= 500; chars++) {
+      const earn = computeChatEarn(
+        { chatEarned: 0, attachBonuses: 0, linkBonuses: 0, firstHowlPaid: false },
+        chars,
+        true,
+        true,
+      );
+      expect(isWhole(earn.total)).toBe(true);
+      expect(earn.total).toBe(earn.base + earn.attach + earn.link + earn.firstHowl);
+    }
+    for (let streak = 0; streak <= 40; streak++) {
+      expect(isWhole(computeDailyClaim(undefined, streak, NOW).amount)).toBe(
+        true,
+      );
+    }
+  });
+
+  it("splits a scattered drop into whole piles that sum exactly", () => {
+    let seed = 1;
+    const rand = () => ((seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648);
+    for (let amount = 1; amount <= 400; amount++) {
+      const piles = splitGoldPiles(amount, MAX_SCATTER_PILES, rand);
+      for (const pile of piles) {
+        expect(isWhole(pile)).toBe(true);
+        expect(pile).toBeGreaterThan(0);
+      }
+      expect(piles.reduce((sum, p) => sum + p, 0)).toBe(amount);
+    }
   });
 });

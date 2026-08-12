@@ -15,15 +15,18 @@
 
 export const HEIST_MIN_CREW = 2;
 export const HEIST_MAX_CREW = 6;
-export const HEIST_MIN_BUYIN = 25;
-export const HEIST_MAX_BUYIN = 200;
-export const HEIST_DEFAULT_BUYIN = 50;
+// Buy-ins and the hoard floor are one tenth of what gold first shipped
+// with (see goldMath.ts). The loot percentages below needed no change —
+// they're cuts of the hoard, so they scale themselves.
+export const HEIST_MIN_BUYIN = 3;
+export const HEIST_MAX_BUYIN = 20;
+export const HEIST_DEFAULT_BUYIN = 5;
 /** How long the crew lobby stays open. */
 export const HEIST_LOBBY_LIFETIME_MS = 3 * 60 * 1000;
 /** One heist per guild per this window (measured from the last END). */
 export const HEIST_COOLDOWN_MS = 6 * 60 * 60 * 1000;
 /** The hoard must hold at least this much to be worth robbing. */
-export const HEIST_MIN_HOARD = 300;
+export const HEIST_MIN_HOARD = 30;
 
 // ─── Stages ───────────────────────────────────────────────────────────
 

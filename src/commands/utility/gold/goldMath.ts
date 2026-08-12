@@ -8,12 +8,19 @@
 export const GOLD_EMOJI = "🪙";
 export const GOLD_COLOR = 0xf1c40f;
 
+// Every amount here is one tenth of the values gold first shipped with.
+// That first run went 24 days barely noticed and still minted ~2,000g/day
+// server-wide — 50,000g total — almost all of it passive chat gold, against
+// zero sinks anywhere in the ledger. On 2026-08-12 the wallets were dropped
+// and the economy restarted from empty at these amounts. Percentage figures
+// (HOUSE_RAKE, the heist loot cuts) are scale-free and unchanged.
+
 /** Base payout for /gold daily. */
-export const DAILY_BASE_GOLD = 100;
+export const DAILY_BASE_GOLD = 10;
 /** Extra gold per consecutive daily-claim day beyond the first. */
-export const DAILY_STREAK_BONUS = 10;
+export const DAILY_STREAK_BONUS = 1;
 /** Cap on the total streak bonus (reached at an 11-day streak). */
-export const DAILY_STREAK_BONUS_CAP = 100;
+export const DAILY_STREAK_BONUS_CAP = 10;
 /** How long after a claim before the next one unlocks (20h, so a "daily"
  * habit doesn't slowly drift later every day). */
 export const DAILY_COOLDOWN_MS = 20 * 60 * 60 * 1000;
@@ -21,70 +28,84 @@ export const DAILY_COOLDOWN_MS = 20 * 60 * 60 * 1000;
 export const DAILY_STREAK_GRACE_MS = 48 * 60 * 60 * 1000;
 
 /** Base gold for winning a 1v1 deathroll (scaled by the MMR multiplier). */
-export const DEATHROLL_WIN_GOLD = 50;
+export const DEATHROLL_WIN_GOLD = 5;
 /** Gold for a correct /guesswho guess. */
-export const GUESSWHO_CORRECT_GOLD = 25;
+export const GUESSWHO_CORRECT_GOLD = 3;
 /** House-funded prize per defeated opponent in a wager-free royale. */
-export const ROYALE_PRIZE_PER_OPPONENT = 25;
+export const ROYALE_PRIZE_PER_OPPONENT = 3;
 /** Fraction of any wagered pot the house burns (gold sink). */
 export const HOUSE_RAKE = 0.1;
 /** Cost per remaining minute to ransom someone out of a game timeout. */
-export const RANSOM_GOLD_PER_MINUTE = 25;
+export const RANSOM_GOLD_PER_MINUTE = 3;
 
 /** Gold dropped per second of self-shock paralysis (backfire punishment). */
-export const SHOCK_DROP_GOLD_PER_SECOND = 10;
-/** Gold dropped per second of the timeout a missed shock would have dealt. */
-export const SHOCK_MISS_DROP_GOLD_PER_SECOND = 3;
+export const SHOCK_DROP_GOLD_PER_SECOND = 1;
+/** Gold dropped per second of the timeout a missed shock would have dealt.
+ * Can't go below 1g/s without fractional gold, so this is the one amount
+ * the ÷10 left proportionally heavier than it used to be. */
+export const SHOCK_MISS_DROP_GOLD_PER_SECOND = 1;
 /** House bounty for landing a critical shock on someone else. */
-export const SHOCK_CRIT_BONUS_GOLD = 25;
+export const SHOCK_CRIT_BONUS_GOLD = 3;
 /** Insurance payout to the victim of a critical shock. */
-export const SHOCK_CRIT_CONSOLATION_GOLD = 15;
+export const SHOCK_CRIT_CONSOLATION_GOLD = 2;
 /** Most gold a beatup victim drops for the mob to loot. */
-export const BEATUP_VICTIM_DROP_GOLD = 60;
+export const BEATUP_VICTIM_DROP_GOLD = 6;
 
 /** Scattered drops split into one extra pile per this much gold... */
-export const GOLD_PER_EXTRA_PILE = 50;
+export const GOLD_PER_EXTRA_PILE = 5;
 /** ...capped at this many piles. */
 export const MAX_SCATTER_PILES = 4;
 
 // ─── Activity Gold (silent passive earnings) ──────────────────────────
-// Calibrated against real Whitemane archive stats (2026-07: ~72 chatters
-// /day, median 6 msgs & 229 chars per chatter-day, p90 = 80 msgs): the
-// median chatter earns ~20g/day, only the top ~10% hit the daily cap,
-// and the server-wide mint stays comparable to the /gold daily faucet.
+// Originally calibrated (2026-07) against real Whitemane archive stats
+// (~72 chatters/day, median 6 msgs & 229 chars per chatter-day, p90 = 80
+// msgs) for a ~20g/day median chatter. Far too generous in practice: this
+// is where 85% of that first 50,000g came from.
+//
+// Gold is an integer and a 2g message can't pay 0.2g, so the per-message
+// amounts bottom out at 1 — only a 2x cut where a 10x was wanted. The daily
+// cap absorbs the difference. Replaying the real 24-day message stream
+// through these numbers mints 4,762g rather than 50,123g, about 190g/day
+// server-wide instead of 2,020g.
+//
+// The cost is that CHAT_GOLD_DAILY_CAP binds on a chatter's first message
+// or two, so the length gradient below rarely gets to matter. That was the
+// accepted trade for landing near a tenth; if it ever wants softening,
+// raise the cap and nothing else — every 1g here is already at the floor.
 
 /** Base gold for a counted chat message. */
-export const CHAT_GOLD_BASE = 2;
+export const CHAT_GOLD_BASE = 1;
 /** One bonus gold per this many characters of a counted message... */
-export const CHAT_GOLD_CHARS_PER_BONUS = 40;
-/** ...capped at this many bonus gold per message (so 2-5g per message). */
-export const CHAT_GOLD_LENGTH_BONUS_CAP = 3;
+export const CHAT_GOLD_CHARS_PER_BONUS = 80;
+/** ...capped at this many bonus gold per message (so 1-3g per message,
+ * before the daily cap below claws most of it back). */
+export const CHAT_GOLD_LENGTH_BONUS_CAP = 2;
 /** Only one message per this window counts — spam earns nothing extra. */
-export const CHAT_GOLD_COOLDOWN_MS = 60_000;
+export const CHAT_GOLD_COOLDOWN_MS = 600_000;
 /** Cap on base chat gold per user per UTC day (bonuses tracked apart). */
-export const CHAT_GOLD_DAILY_CAP = 60;
+export const CHAT_GOLD_DAILY_CAP = 2;
 /** One-time bonus for the first counted message of the day. */
-export const FIRST_HOWL_GOLD = 10;
+export const FIRST_HOWL_GOLD = 1;
 /** Bonus when a counted message carries an attachment... */
-export const CHAT_ATTACHMENT_BONUS_GOLD = 2;
+export const CHAT_ATTACHMENT_BONUS_GOLD = 1;
 /** ...paid at most this many times per day. */
-export const CHAT_ATTACHMENT_BONUS_DAILY_CAP = 3;
+export const CHAT_ATTACHMENT_BONUS_DAILY_CAP = 1;
 /** Bonus when a counted message contains a link... */
 export const CHAT_LINK_BONUS_GOLD = 1;
 /** ...paid at most this many times per day. */
-export const CHAT_LINK_BONUS_DAILY_CAP = 3;
+export const CHAT_LINK_BONUS_DAILY_CAP = 1;
 
 /** Gold to a message author per unique reactor... */
 export const REACTION_RECEIVED_GOLD = 1;
 /** ...capped per author per UTC day. */
-export const REACTION_RECEIVED_DAILY_CAP = 10;
+export const REACTION_RECEIVED_DAILY_CAP = 1;
 /** One-time bonus when a message reaches the #highlights channel. */
-export const HIGHLIGHT_BONUS_GOLD = 25;
+export const HIGHLIGHT_BONUS_GOLD = 3;
 
 /** Gold per minute spent in voice with at least VOICE_MIN_HUMANS... */
 export const VOICE_GOLD_PER_MINUTE = 1;
 /** ...capped per user per UTC day. */
-export const VOICE_GOLD_DAILY_CAP = 30;
+export const VOICE_GOLD_DAILY_CAP = 3;
 /** Humans (undeafened, non-AFK) required in a channel before it pays. */
 export const VOICE_MIN_HUMANS = 2;
 
@@ -124,8 +145,9 @@ export interface ChatEarnBreakdown {
 
 /**
  * Gold for one counted chat message given the day's prior counters:
- * 2g base + 1g per 40 chars (capped +3), clamped to the daily base cap,
+ * 1g base + 1g per 80 chars (capped +2), clamped to the daily base cap,
  * plus capped attachment/link bonuses and the first-howl bonus.
+ * Every term is a whole number of gold — nothing here can emit a fraction.
  */
 export function computeChatEarn(
   counters: ChatEarnCounters,

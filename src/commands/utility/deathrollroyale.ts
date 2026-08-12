@@ -28,7 +28,7 @@ export default {
           "Gold entry fee per player - winner takes the pot (default: 0)",
         )
         .setMinValue(0)
-        .setMaxValue(10000)
+        .setMaxValue(1000)
         .setRequired(false),
     )
     .addIntegerOption((option: SlashCommandIntegerOption) =>

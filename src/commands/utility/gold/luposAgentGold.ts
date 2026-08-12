@@ -5,8 +5,8 @@
  * Lupos has his own wallet (the hoard) and is closed-loop: gifts come
  * OUT of the hoard, mugged gold goes INTO it (or scatters to the
  * conversation, 50/50). Hard caps live here — no prompt can reach
- * past them: gift amounts 5-50g at most once per target per day,
- * mug amounts 5-25g at most three times per target per day.
+ * past them: gift amounts 1-5g at most once per target per day,
+ * mug amounts 1-3g at most three times per target per day.
  */
 
 import type { Client, Guild, Message } from "discord.js";
@@ -28,16 +28,18 @@ import type { ScatterTarget } from "./goldScatter.ts";
 
 // ─── Hard Caps (enforced here, not in the persona prompt) ─────────────
 
-export const LUPOS_GIFT_MIN = 5;
-export const LUPOS_GIFT_MAX = 50;
-export const LUPOS_MUG_MIN = 5;
-export const LUPOS_MUG_MAX = 25;
+// Gold amounts are one tenth of what gold first shipped with — see the
+// header in goldMath.ts.
+export const LUPOS_GIFT_MIN = 1;
+export const LUPOS_GIFT_MAX = 5;
+export const LUPOS_MUG_MIN = 1;
+export const LUPOS_MUG_MAX = 3;
 /** Chance a mug fumbles and the gold scatters instead of joining the hoard. */
 export const LUPOS_MUG_DROP_CHANCE = 0.5;
 export const LUPOS_GIFTS_PER_TARGET_PER_DAY = 1;
 export const LUPOS_MUGS_PER_TARGET_PER_DAY = 3;
 /** Starting hoard for a guild the wolf has never operated in. */
-export const LUPOS_HOARD_SEED_GOLD = 1000;
+export const LUPOS_HOARD_SEED_GOLD = 100;
 
 const DAILY_ACTIONS_COLLECTION = "LuposGoldDailyActions";
 
@@ -178,7 +180,7 @@ export type LuposGiftResult =
     };
 
 /**
- * Gives gold from the wolf's hoard to a member. Clamped to 5-50g and at
+ * Gives gold from the wolf's hoard to a member. Clamped to 1-5g and at
  * most once per target per UTC day, regardless of what the model asks.
  */
 export async function luposGiveGold(
@@ -279,7 +281,7 @@ export type LuposMugResult =
     };
 
 /**
- * Mugs a member: 5-25g (never more than they carry), at most three times
+ * Mugs a member: 1-3g (never more than they carry), at most three times
  * per target per UTC day. Half the time the wolf fumbles and the loot
  * scatters across recent talkers in the channel — the wolf himself is in
  * that pool and may snatch a pile of his own stolen gold.

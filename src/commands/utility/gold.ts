@@ -305,7 +305,7 @@ export default {
             .setName("amount")
             .setDescription("How much gold to give")
             .setMinValue(1)
-            .setMaxValue(1000000)
+            .setMaxValue(100000)
             .setRequired(true),
         ),
     )

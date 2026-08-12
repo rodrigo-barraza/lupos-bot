@@ -408,7 +408,7 @@ function startVoiceGoldSweep(client: Client) {
       ),
     );
   }, VOICE_SWEEP_INTERVAL_MS);
-  console.log("🪙 Voice gold sweep started (1g/min, ≥2 humans, 30g/day cap)");
+  console.log("🪙 Voice gold sweep started (1g/min, ≥2 humans, 3g/day cap)");
 }
 
 // ─── Read Model ───────────────────────────────────────────────────────

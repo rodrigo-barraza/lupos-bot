@@ -32,7 +32,7 @@ export default {
           "Gold each player stakes - winner takes the pot minus 10% house rake (default: 0)",
         )
         .setMinValue(0)
-        .setMaxValue(10000)
+        .setMaxValue(1000)
         .setRequired(false),
     ),
 
