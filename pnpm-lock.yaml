@@ -19,7 +19,7 @@ importers:
         version: 4.16.12
       '@rodrigo-barraza/utilities-library':
         specifier: github:rodrigo-barraza/utilities-library
-        version: https://codeload.github.com/rodrigo-barraza/utilities-library/tar.gz/4382085984ca5b67c506b8cbcfa365aa4bd42cd7(express@5.2.1)
+        version: https://codeload.github.com/rodrigo-barraza/utilities-library/tar.gz/03bb23acaf5cc5594a1f999d472acd57c9336488(express@5.2.1)
       discord.js:
         specifier: ^14.26.4
         version: 14.26.4
@@ -555,8 +555,8 @@ packages:
   '@oxc-project/types@0.133.0':
     resolution: {integrity: sha512-KzkdCd6Uxqnf6l3HOw1xfatAlUURA0g14cvBYFyJ5SaNOQbOUvBr9PKArcPcrNIeRsBdgcUzOGrhKveVpvOIGA==}
 
-  '@rodrigo-barraza/utilities-library@https://codeload.github.com/rodrigo-barraza/utilities-library/tar.gz/4382085984ca5b67c506b8cbcfa365aa4bd42cd7':
-    resolution: {gitHosted: true, tarball: https://codeload.github.com/rodrigo-barraza/utilities-library/tar.gz/4382085984ca5b67c506b8cbcfa365aa4bd42cd7}
+  '@rodrigo-barraza/utilities-library@https://codeload.github.com/rodrigo-barraza/utilities-library/tar.gz/03bb23acaf5cc5594a1f999d472acd57c9336488':
+    resolution: {gitHosted: true, tarball: https://codeload.github.com/rodrigo-barraza/utilities-library/tar.gz/03bb23acaf5cc5594a1f999d472acd57c9336488}
     version: 0.7.0
     peerDependencies:
       express: '>=5.0.0'
@@ -2634,7 +2634,7 @@ snapshots:
 
   '@oxc-project/types@0.133.0': {}
 
-  '@rodrigo-barraza/utilities-library@https://codeload.github.com/rodrigo-barraza/utilities-library/tar.gz/4382085984ca5b67c506b8cbcfa365aa4bd42cd7(express@5.2.1)':
+  '@rodrigo-barraza/utilities-library@https://codeload.github.com/rodrigo-barraza/utilities-library/tar.gz/03bb23acaf5cc5594a1f999d472acd57c9336488(express@5.2.1)':
     dependencies:
       mongodb: 7.3.0
       nanoid: 5.1.16
