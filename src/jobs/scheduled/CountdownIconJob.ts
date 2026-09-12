@@ -71,10 +71,7 @@ async function downloadToFile(
     );
     return destinationPath;
   } catch (error: unknown) {
-    consoleLog(
-      "!",
-      `${logPrefix} Download error: ${(error as Error).message}`,
-    );
+    consoleLog("!", `${logPrefix} Download error: ${(error as Error).message}`);
     return null;
   }
 }
@@ -125,11 +122,75 @@ function detectImageExtension(imageBuffer: Buffer): string {
   return "png";
 }
 
+/**
+ * Marker written beside the base icon once the pristine icon has been
+ * put back for a given target date, so a restart after the date does
+ * not re-upload the same icon on every boot.
+ */
+function restoredMarkerPath(guildId: string, targetDateLabel: string): string {
+  return path.join(
+    BASE_ICON_DIR,
+    `countdown-${guildId}-${targetDateLabel}.restored`,
+  );
+}
+
+/**
+ * The target date is here: put the pristine base icon back.
+ *
+ * The last midnight run BEFORE the date uploads a "1" badge, and Discord
+ * keeps whatever was uploaded last — so reaching zero has to be an
+ * upload of its own, not a no-op, or the guild wears "1" forever.
+ */
+async function restoreBaseIcon(
+  jobConfiguration: CountdownIconJobConfiguration,
+  guild: Guild,
+  targetDateLabel: string,
+  logPrefix: string,
+): Promise<boolean> {
+  const { guildId } = jobConfiguration;
+  const markerPath = restoredMarkerPath(guildId, targetDateLabel);
+
+  if (fs.existsSync(markerPath)) {
+    consoleLog(
+      "=",
+      `${logPrefix} 📅 Target date ${targetDateLabel} reached — base icon already restored`,
+    );
+    return true;
+  }
+
+  const baseIconPath = await ensureBaseIconExists(
+    jobConfiguration,
+    guild,
+    logPrefix,
+  );
+  if (!baseIconPath) {
+    consoleLog("!", `${logPrefix} Cannot restore without base icon`);
+    return false;
+  }
+
+  await guild.setIcon(
+    fs.readFileSync(baseIconPath),
+    `Countdown: ${targetDateLabel} reached — base icon restored`,
+  );
+  fs.writeFileSync(markerPath, new Date().toISOString());
+
+  consoleLog(
+    "=",
+    `${logPrefix} ✅ Target date ${targetDateLabel} reached — base icon restored`,
+  );
+  return true;
+}
+
 // ─── Core Update ────────────────────────────────────────────────
 
+/**
+ * Run one countdown step. Resolves `true` once the target date has
+ * been reached and the base icon restored — the scheduler stops there.
+ * A failed restore resolves `false` so midnight retries it.
+ */
 async function updateCountdownIcon(
   jobConfiguration: CountdownIconJobConfiguration,
-) {
+): Promise<boolean> {
   const { client, guildId, targetDate } = jobConfiguration;
   const logPrefix = `[CountdownIconJob:${guildId}]`;
 
@@ -137,18 +198,19 @@ async function updateCountdownIcon(
     const guild = client.guilds.cache.get(guildId);
     if (!guild) {
       consoleLog("!", `${logPrefix} Guild not found in cache`);
-      return;
+      return false;
     }
 
     const daysRemaining = calculateDaysUntilTarget(targetDate);
     const targetDateLabel = targetDate.toISOString().slice(0, 10);
 
     if (daysRemaining <= 0) {
-      consoleLog(
-        "=",
-        `${logPrefix} 📅 Target date ${targetDateLabel} reached — no overlay needed`,
+      return restoreBaseIcon(
+        jobConfiguration,
+        guild,
+        targetDateLabel,
+        logPrefix,
       );
-      return;
     }
 
     // Ensure we have the pristine base icon
@@ -159,7 +221,7 @@ async function updateCountdownIcon(
     );
     if (!baseIconPath) {
       consoleLog("!", `${logPrefix} Cannot proceed without base icon`);
-      return;
+      return false;
     }
 
     const baseIconBuffer = fs.readFileSync(baseIconPath);
@@ -198,6 +260,7 @@ async function updateCountdownIcon(
     consoleLog("!", `${logPrefix} Error: ${(error as Error).message}`);
     console.error(error);
   }
+  return false;
 }
 
 // ─── Scheduler ──────────────────────────────────────────────────
@@ -217,8 +280,8 @@ function scheduleNextMidnightUpdate(
   );
 
   setTimeout(async () => {
-    await updateCountdownIcon(jobConfiguration);
-    scheduleNextMidnightUpdate(jobConfiguration);
+    const countdownFinished = await updateCountdownIcon(jobConfiguration);
+    if (!countdownFinished) scheduleNextMidnightUpdate(jobConfiguration);
   }, millisecondsUntilMidnight);
 }
 
@@ -234,10 +297,13 @@ const CountdownIconJob = {
     );
 
     // Execute immediately on startup, then schedule midnight updates
-    updateCountdownIcon(jobConfiguration).then(() => {
-      scheduleNextMidnightUpdate(jobConfiguration);
+    // until the target date has been reached and the base icon restored
+    updateCountdownIcon(jobConfiguration).then((countdownFinished) => {
+      if (!countdownFinished) scheduleNextMidnightUpdate(jobConfiguration);
     });
   },
 };
 
 export default CountdownIconJob;
+export { updateCountdownIcon, restoredMarkerPath, BASE_ICON_DIR };
+export type { CountdownIconJobConfiguration };
