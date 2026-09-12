@@ -119,6 +119,11 @@ async function overlayCountdownNumber({
 /**
  * Calculate the number of calendar days remaining until the target date.
  * Returns 0 if the target date is today or in the past.
+ *
+ * Both ends are LOCAL midnights, so a span that crosses a daylight-saving
+ * change is a whole number of days plus or minus one hour. Rounding to the
+ * nearest day absorbs that hour; a ceiling counted the autumn hour as a
+ * whole extra day (Sept 12 → Nov 4 read 54 instead of 53).
  */
 function calculateDaysUntilTarget(targetDate: Date): number {
   const now = new Date();
@@ -134,7 +139,7 @@ function calculateDaysUntilTarget(targetDate: Date): number {
   );
   const differenceMilliseconds =
     targetMidnight.getTime() - todayMidnight.getTime();
-  return Math.max(0, Math.ceil(differenceMilliseconds / MILLISECONDS_PER_DAY));
+  return Math.max(0, Math.round(differenceMilliseconds / MILLISECONDS_PER_DAY));
 }
 
 /**
