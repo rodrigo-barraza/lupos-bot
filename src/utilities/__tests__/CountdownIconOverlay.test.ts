@@ -5,7 +5,7 @@
 // animated GIF overlay compositing logic.
 // ============================================================
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
 import sharp from "sharp";
 import {
   calculateDaysUntilTarget,
@@ -46,6 +46,33 @@ describe("CountdownIconOverlay", () => {
       const daysRemaining = calculateDaysUntilTarget(nextYear);
       expect(daysRemaining).toBeGreaterThan(0);
       expect(daysRemaining).toBeLessThanOrEqual(366);
+    });
+
+    describe("across a daylight-saving change", () => {
+      const originalTimezone = process.env.TZ;
+
+      afterEach(() => {
+        vi.useRealTimers();
+        if (originalTimezone === undefined) delete process.env.TZ;
+        else process.env.TZ = originalTimezone;
+      });
+
+      it("does not count the autumn extra hour as a day", () => {
+        // The bot runs in America/Los_Angeles; DST ends 2026-11-01, so the
+        // span from Sept 12 to Nov 4 is 53 days plus one hour.
+        process.env.TZ = "America/Los_Angeles";
+        vi.useFakeTimers();
+        vi.setSystemTime(new Date(2026, 8, 12, 12, 0, 0));
+        expect(calculateDaysUntilTarget(parseTargetDateString("2026-11-04"))).toBe(53);
+      });
+
+      it("does not lose the spring missing hour", () => {
+        // DST starts 2026-03-08: Mar 7 to Mar 10 is 3 days minus one hour.
+        process.env.TZ = "America/Los_Angeles";
+        vi.useFakeTimers();
+        vi.setSystemTime(new Date(2026, 2, 7, 12, 0, 0));
+        expect(calculateDaysUntilTarget(parseTargetDateString("2026-03-10"))).toBe(3);
+      });
     });
   });
 
