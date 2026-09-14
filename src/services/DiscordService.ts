@@ -1341,6 +1341,22 @@ async function luposOnMessageUpdate(
     newMessage.id,
   );
 
+  // Editing a message down to a laugh is a way round the laugh-only rule,
+  // so a listed member's edits are checked too (the update event can be
+  // partial — fetch the full message before reading its content).
+  if (
+    newMessage.guildId &&
+    !newMessage.author?.bot &&
+    BotSettingsService.get("USER_IDS_LAUGH_ONLY_DELETED").includes(
+      newMessage.author?.id ?? "",
+    )
+  ) {
+    const fullMessage = newMessage.partial
+      ? await newMessage.fetch().catch(() => null)
+      : (newMessage as Message);
+    if (fullMessage && (await deleteIfLaughOnly(fullMessage))) return;
+  }
+
   // Process if message was edited to mention the bot
   if (
     newMessage.mentions.has(client.user!) &&
