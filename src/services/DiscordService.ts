@@ -88,6 +88,7 @@ import BoundedMap from "#root/utilities/BoundedMap.ts";
 import type { Command } from "#root/commands/types.ts";
 import ReactionHighlights from "#root/services/discord/ReactionHighlights.ts";
 import PresenceTracker from "#root/services/discord/PresenceTracker.ts";
+import { deleteIfLaughOnly } from "#root/services/discord/LaughOnlyMessages.ts";
 
 import LogFormatter from "#root/formatters/LogFormatter.ts";
 
@@ -1014,6 +1015,20 @@ async function processMessage(
   const isMentioningBot = isDirectMessage || message.mentions.has(client.user!);
 
   if ((message as Message).guildId === (config.GUILD_ID_GROBBULUS as string)) {
+    return;
+  }
+
+  // A listed member's NEW laugh-only messages ("lol", "lmao", "haha", …)
+  // are deleted as they arrive and never reach the rest of the pipeline.
+  if (
+    actionType === "CREATE" &&
+    !isDirectMessage &&
+    !isMessageFromBot &&
+    BotSettingsService.get("USER_IDS_LAUGH_ONLY_DELETED").includes(
+      message.author.id,
+    ) &&
+    (await deleteIfLaughOnly(message))
+  ) {
     return;
   }
 
