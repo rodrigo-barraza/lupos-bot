@@ -117,6 +117,10 @@ const config = {
   USER_IDS_NEW_ACCOUNT_WHITELIST: parseCommaSeparated(
     "USER_IDS_NEW_ACCOUNT_WHITELIST",
   ),
+  // Members whose laugh-only messages ("lol", "lmao", "haha", …) are deleted.
+  USER_IDS_LAUGH_ONLY_DELETED: parseCommaSeparated(
+    "USER_IDS_LAUGH_ONLY_DELETED",
+  ),
 
   // ─── Countdown Icon ────────────────────────────────────────────
   COUNTDOWN_ICON_TARGET_DATE: process.env.COUNTDOWN_ICON_TARGET_DATE,

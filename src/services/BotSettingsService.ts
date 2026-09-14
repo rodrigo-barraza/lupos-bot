@@ -24,6 +24,7 @@ export const MANAGED_LIST_KEYS = [
   "USER_IDS_TIMED_OUT",
   "USER_IDS_POLITICS_MUTED",
   "USER_IDS_NEW_ACCOUNT_WHITELIST",
+  "USER_IDS_LAUGH_ONLY_DELETED",
 ] as const;
 export type ManagedListKey = (typeof MANAGED_LIST_KEYS)[number];
 
