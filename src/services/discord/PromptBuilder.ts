@@ -1745,9 +1745,9 @@ export async function buildAndGenerateReply({
         agentContext,
         maxTokens: 16_384, // Lupos text is ~1 sentence, but tool-call JSON (generate_audio compositions) can be 3-5K tokens
         // No temperature: agent turns leave sampling to Prism. Budget
-        // (maxIterations / maxCostDollars) comes from resolveAgentTurnBudget.
+        // (maxIterations / maxCostDollars) comes from resolveAgentTurnBudget,
+        // the reasoning effort (thinkingLevel) from resolveAgentThinkingLevel.
         thinkingEnabled: true,
-        thinkingBudget: 10_000,
         username: message.author?.username || "unknown",
         ...AIService._getTraceParams(),
         // Stream the agent SSE when a status tracker is watching so presence
