@@ -198,8 +198,12 @@ export function createFakeDb() {
       if (!collections.has(name)) collections.set(name, new FakeCollection());
       return collections.get(name)!;
     },
+    /**
+     * Drops every document but keeps the indexes — modules ensure their
+     * indexes once per process, as they would against a real database.
+     */
     reset() {
-      collections.clear();
+      for (const collection of collections.values()) collection.documents = [];
     },
   };
 }
