@@ -209,9 +209,17 @@ export function makeClient(guilds: FakeGuild[], extraChannels: FakeChannel[] = [
     for (const channel of guild.channels.cache.values()) channels.set(channel.id, channel);
   }
   for (const channel of extraChannels) channels.set(channel.id, channel);
+  const guildCache = new Map(guilds.map((g) => [g.id, g]));
   return {
     user: { id: BOT_ID },
-    guilds: { cache: new Map(guilds.map((g) => [g.id, g])) },
+    guilds: {
+      cache: guildCache,
+      fetch: vi.fn(async (guildId: string) => {
+        const guild = guildCache.get(guildId);
+        if (!guild) throw Object.assign(new Error("Unknown Guild"), { code: 10004, status: 404 });
+        return guild;
+      }),
+    },
     channels: {
       cache: channels,
       fetch: vi.fn(async (channelId: string) => channels.get(channelId) ?? null),

@@ -455,7 +455,8 @@ async function resolveDeliveryChannel(
   if (!channel || !channel.isTextBased() || !channel.isSendable()) {
     return "The channel no longer exists.";
   }
-  const me = guild.members.me;
+  const me =
+    guild.members.me ?? (await guild.members.fetchMe().catch(() => null));
   const permissions = me ? channel.permissionsFor(me) : null;
   if (
     !permissions?.has([
