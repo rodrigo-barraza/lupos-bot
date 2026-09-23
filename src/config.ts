@@ -158,7 +158,7 @@ const config = {
   AGENT_MAX_ITERATIONS: process.env.AGENT_MAX_ITERATIONS,
   AGENT_MAX_COST_DOLLARS: process.env.AGENT_MAX_COST_DOLLARS,
   // Reasoning effort sent as thinkingLevel on every /agent call:
-  // minimal | low | medium | high. Unset/invalid ⇒ "medium"
+  // minimal | low | medium | high. Unset/invalid ⇒ "low"
   // (PrismService.resolveAgentThinkingLevel).
   AGENT_THINKING_LEVEL: process.env.AGENT_THINKING_LEVEL,
 

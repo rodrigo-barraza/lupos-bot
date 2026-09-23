@@ -4,6 +4,7 @@ import PrismService, {
   AgentTurnAbortedError,
   DEFAULT_AGENT_MAX_COST_DOLLARS,
   DEFAULT_AGENT_MAX_ITERATIONS,
+  DEFAULT_AGENT_THINKING_LEVEL,
   readSseEvents,
   resolveAgentThinkingLevel,
   resolveAgentTurnBudget,
@@ -157,7 +158,7 @@ describe("generateAgentResponse — least privilege and thinking", () => {
     expect(body).toMatchObject({
       unattended: true,
       autoApprove: true,
-      thinkingLevel: "medium",
+      thinkingLevel: "low",
     });
     expect(body).not.toHaveProperty("thinkingBudget");
     expect(body).not.toHaveProperty("permissionMode");
@@ -191,17 +192,17 @@ describe("generateAgentResponse — least privilege and thinking", () => {
   });
 
   it("takes the level from AGENT_THINKING_LEVEL", async () => {
-    (config as { AGENT_THINKING_LEVEL?: string }).AGENT_THINKING_LEVEL = "low";
+    (config as { AGENT_THINKING_LEVEL?: string }).AGENT_THINKING_LEVEL = "high";
     const { calls } = stubPrism(sseStream([frame({ type: "done" })]));
     await PrismService.generateAgentResponse({ ...baseParams, onEvent: () => {} });
-    expect(calls[0].body.thinkingLevel).toBe("low");
+    expect(calls[0].body.thinkingLevel).toBe("high");
   });
 });
 
 describe("resolveAgentThinkingLevel", () => {
   it("defaults to medium", () => {
-    expect(resolveAgentThinkingLevel({})).toBe("medium");
-    expect(resolveAgentThinkingLevel({ AGENT_THINKING_LEVEL: "" })).toBe("medium");
+    expect(resolveAgentThinkingLevel({})).toBe(DEFAULT_AGENT_THINKING_LEVEL);
+    expect(resolveAgentThinkingLevel({ AGENT_THINKING_LEVEL: "" })).toBe(DEFAULT_AGENT_THINKING_LEVEL);
   });
 
   it("accepts the four levels, case-insensitively", () => {
@@ -213,9 +214,9 @@ describe("resolveAgentThinkingLevel", () => {
 
   it("falls back to medium on anything else, warning once per bad value", () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
-    expect(resolveAgentThinkingLevel({ AGENT_THINKING_LEVEL: "10000" })).toBe("medium");
-    expect(resolveAgentThinkingLevel({ AGENT_THINKING_LEVEL: "10000" })).toBe("medium");
-    expect(resolveAgentThinkingLevel({ AGENT_THINKING_LEVEL: "max" })).toBe("medium");
+    expect(resolveAgentThinkingLevel({ AGENT_THINKING_LEVEL: "10000" })).toBe(DEFAULT_AGENT_THINKING_LEVEL);
+    expect(resolveAgentThinkingLevel({ AGENT_THINKING_LEVEL: "10000" })).toBe(DEFAULT_AGENT_THINKING_LEVEL);
+    expect(resolveAgentThinkingLevel({ AGENT_THINKING_LEVEL: "max" })).toBe(DEFAULT_AGENT_THINKING_LEVEL);
     expect(warn).toHaveBeenCalledTimes(2);
   });
 });
