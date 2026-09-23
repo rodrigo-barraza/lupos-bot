@@ -18,6 +18,7 @@ export type {
   CaptionImageParams,
   TranscribeAudioParams,
   MemoryExtractParams,
+  MemoryParticipant,
   MemorySearchParams,
   EmbeddingParams,
 } from "./prism.ts";

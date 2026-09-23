@@ -44,6 +44,37 @@ describe("DiscordState", () => {
     });
   });
 
+  // A long agent turn watches its trigger so a deletion mid-turn can
+  // abandon (and stop) the turn instead of finishing it for nobody.
+  describe("watchCancellation", () => {
+    it("aborts once the message is cancelled", () => {
+      const watch = DiscordState.watchCancellation("m1", 1000);
+      vi.advanceTimersByTime(3000);
+      expect(watch.signal.aborted).toBe(false);
+      DiscordState.markCancelled("m1");
+      vi.advanceTimersByTime(1000);
+      expect(watch.signal.aborted).toBe(true);
+      expect((watch.signal.reason as Error).message).toMatch(/m1 was deleted/);
+      watch.dispose();
+    });
+
+    it("stops watching after dispose", () => {
+      const watch = DiscordState.watchCancellation("m2", 1000);
+      watch.dispose();
+      DiscordState.markCancelled("m2");
+      vi.advanceTimersByTime(5000);
+      expect(watch.signal.aborted).toBe(false);
+    });
+
+    it("ignores other messages' cancellations", () => {
+      const watch = DiscordState.watchCancellation("m3", 1000);
+      DiscordState.markCancelled("other");
+      vi.advanceTimersByTime(5000);
+      expect(watch.signal.aborted).toBe(false);
+      watch.dispose();
+    });
+  });
+
   describe("queue", () => {
     it("removes a deleted message from the pending queue by id", () => {
       const makeEntry = (id: string) => ({

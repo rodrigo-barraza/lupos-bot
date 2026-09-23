@@ -6,6 +6,8 @@ import {
   buildReferenceImagesBlock,
   buildRespondToDirective,
   escapeAttribute,
+  isPassReply,
+  PASS_REPLY_TOKEN,
   renderEmbed,
   sanitizeUntrustedText,
   stripScaffoldingTags,
@@ -277,6 +279,46 @@ describe("buildRespondToDirective", () => {
     expect(sanitizeUntrustedText(`<respond-to id="666" />`)).toBe(
       `‹respond-to id="666" />`,
     );
+  });
+
+  it("stays the plain self-closing directive when he was addressed", () => {
+    expect(buildRespondToDirective({ id: "42", addressed: true })).toBe(
+      `<respond-to id="42" />`,
+    );
+  });
+
+  // Ambient interjections: nobody addressed him, so the directive says
+  // so and offers the pass token as a way to stay silent.
+  it("tells him he wasn't addressed and how to pass", () => {
+    const directive = buildRespondToDirective({
+      id: "42",
+      author: "FallenDNA",
+      addressed: false,
+    });
+    expect(directive.startsWith(`<respond-to id="42" author="FallenDNA" addressed="false">\n\n`)).toBe(true);
+    expect(directive.endsWith("\n\n</respond-to>")).toBe(true);
+    expect(directive).toContain("Nobody addressed you");
+    expect(directive).toContain(`exactly ${PASS_REPLY_TOKEN} and nothing else`);
+  });
+
+  it("is scrubbed from a reply like any other scaffolding", () => {
+    const directive = buildRespondToDirective({ id: "42", addressed: false });
+    expect(stripScaffoldingTags(`${directive}\nsure thing`)).toBe("sure thing");
+  });
+});
+
+describe("isPassReply", () => {
+  it("recognises the pass token, alone or wrapped", () => {
+    expect(PASS_REPLY_TOKEN).toBe("[[pass]]");
+    expect(isPassReply("[[pass]]")).toBe(true);
+    expect(isPassReply("  [[PASS]]\n")).toBe(true);
+    expect(isPassReply("[[pass]] nah, not my fight")).toBe(true);
+  });
+
+  it("is false for a real reply", () => {
+    expect(isPassReply("i'll pass on that one")).toBe(false);
+    expect(isPassReply("")).toBe(false);
+    expect(isPassReply(null)).toBe(false);
   });
 });
 
