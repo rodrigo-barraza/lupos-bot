@@ -1,5 +1,5 @@
 import { afterEach, describe, it, expect, vi } from "vitest";
-import { Collection } from "discord.js";
+import { ChannelType, Collection } from "discord.js";
 import type { Channel, GuildMember, User } from "discord.js";
 import config from "#root/config.ts";
 import PrismService from "#root/services/PrismService.ts";
@@ -92,6 +92,16 @@ describe("isVisibleToEveryone", () => {
     const privateParentThread = { ...publicParentThread, parent: guildChannel(false) };
     expect(isVisibleToEveryone(publicParentThread as unknown as Channel)).toBe(true);
     expect(isVisibleToEveryone(privateParentThread as unknown as Channel)).toBe(false);
+  });
+
+  it("never counts a private thread as public, even under a public channel", () => {
+    const privateThread = {
+      isDMBased: () => false,
+      isThread: () => true,
+      type: ChannelType.PrivateThread,
+      parent: guildChannel(true),
+    };
+    expect(isVisibleToEveryone(privateThread as unknown as Channel)).toBe(false);
   });
 
   it("is false for DMs, orphaned threads, missing permission data and errors", () => {
