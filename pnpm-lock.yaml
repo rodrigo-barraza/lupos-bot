@@ -19,7 +19,7 @@ importers:
         version: 4.16.12
       '@rodrigo-barraza/utilities-library':
         specifier: github:rodrigo-barraza/utilities-library
-        version: https://codeload.github.com/rodrigo-barraza/utilities-library/tar.gz/eb72517ec56b4c2735bf0f5605bacbae99fa62e3(express@5.2.1)
+        version: https://codeload.github.com/rodrigo-barraza/utilities-library/tar.gz/a4bd47ac364876139339378da12df286826be93f(express@5.2.1)
       discord.js:
         specifier: ^14.26.4
         version: 14.26.4
@@ -606,8 +606,8 @@ packages:
     cpu: [x64]
     os: [win32]
 
-  '@rodrigo-barraza/utilities-library@https://codeload.github.com/rodrigo-barraza/utilities-library/tar.gz/eb72517ec56b4c2735bf0f5605bacbae99fa62e3':
-    resolution: {gitHosted: true, tarball: https://codeload.github.com/rodrigo-barraza/utilities-library/tar.gz/eb72517ec56b4c2735bf0f5605bacbae99fa62e3}
+  '@rodrigo-barraza/utilities-library@https://codeload.github.com/rodrigo-barraza/utilities-library/tar.gz/a4bd47ac364876139339378da12df286826be93f':
+    resolution: {gitHosted: true, tarball: https://codeload.github.com/rodrigo-barraza/utilities-library/tar.gz/a4bd47ac364876139339378da12df286826be93f}
     version: 0.7.0
     peerDependencies:
       express: '>=5.0.0'
@@ -2473,7 +2473,7 @@ snapshots:
   '@oxlint/binding-win32-x64-msvc@1.85.0':
     optional: true
 
-  '@rodrigo-barraza/utilities-library@https://codeload.github.com/rodrigo-barraza/utilities-library/tar.gz/eb72517ec56b4c2735bf0f5605bacbae99fa62e3(express@5.2.1)':
+  '@rodrigo-barraza/utilities-library@https://codeload.github.com/rodrigo-barraza/utilities-library/tar.gz/a4bd47ac364876139339378da12df286826be93f(express@5.2.1)':
     dependencies:
       mongodb: 7.3.0
       nanoid: 5.1.16
