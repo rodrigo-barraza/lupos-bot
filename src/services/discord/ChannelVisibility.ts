@@ -3,7 +3,9 @@
 // ============================================================
 // Feeds GET /guild/visible-channels, which tools-service uses to keep
 // archive-backed results (message search, stats) inside what the person
-// Lupos is answering can see. Reading history means ViewChannel AND
+// Lupos is answering can see, and scopeStatsToRequester, which does the
+// same for the whole-guild stats routes whose aggregates tools-service
+// cannot filter after the fact. Reading history means ViewChannel AND
 // ReadMessageHistory; threads inherit their parent's permissions.
 // ============================================================
 
@@ -14,6 +16,10 @@ import type {
   GuildBasedChannel,
   GuildMember,
 } from "discord.js";
+import {
+  fetchMember,
+  isSnowflake,
+} from "#root/services/discord/AgentActionGuards.ts";
 
 export interface VisibleChannels {
   channelIds: string[];
@@ -107,4 +113,51 @@ export function computeVisibleChannels(
   }
 
   return { channelIds, threadIds };
+}
+
+/** The contract's wording (§3) for a channel outside the requester's view. */
+export const HIDDEN_CHANNEL_ERROR =
+  "Lupos can't look into a channel you can't see.";
+
+/** The Messages `channelId` condition a stats query runs under. */
+export type ChannelFilter = string | { $in: string[] } | null;
+
+export type StatsChannelScope =
+  | { allowed: true; channelFilter: ChannelFilter }
+  | { allowed: false; status: number; error: string };
+
+/**
+ * The channel condition for a whole-guild stats query (word
+ * frequencies, leaderboards, heatmaps, mentions, channel stats):
+ *
+ * - no requester (a caller outside a Discord conversation): as before —
+ *   the explicit `channelId`, or no condition at all;
+ * - with a requester: only channels and threads they can read (the same
+ *   set GET /guild/visible-channels returns). An explicit `channelId`
+ *   outside that set is refused (403); a requester who is not a member
+ *   is a 404, as in visible-channels.
+ */
+export async function scopeStatsToRequester(
+  guild: Guild,
+  requesterUserId: unknown,
+  channelId: string | undefined,
+): Promise<StatsChannelScope> {
+  if (requesterUserId === undefined || requesterUserId === null || requesterUserId === "") {
+    return { allowed: true, channelFilter: channelId || null };
+  }
+  if (!isSnowflake(requesterUserId)) {
+    return { allowed: false, status: 400, error: "requesterUserId must be a Discord id" };
+  }
+  const member = await fetchMember(guild, requesterUserId);
+  if (!member) {
+    return { allowed: false, status: 404, error: "Requester is not a member of this guild" };
+  }
+  const { channelIds, threadIds } = computeVisibleChannels(guild, member);
+  const visible = [...channelIds, ...threadIds];
+  if (channelId) {
+    return visible.includes(channelId)
+      ? { allowed: true, channelFilter: channelId }
+      : { allowed: false, status: 403, error: HIDDEN_CHANNEL_ERROR };
+  }
+  return { allowed: true, channelFilter: { $in: visible } };
 }

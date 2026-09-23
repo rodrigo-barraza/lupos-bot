@@ -67,7 +67,10 @@ import type {
   ActionBody,
   ActionResponse,
 } from "#root/services/discord/AgentActionGuards.ts";
-import { computeVisibleChannels } from "#root/services/discord/ChannelVisibility.ts";
+import {
+  computeVisibleChannels,
+  scopeStatsToRequester,
+} from "#root/services/discord/ChannelVisibility.ts";
 import {
   checkReactScope,
   createPoll,
@@ -1726,6 +1729,7 @@ router.get(
 // ─── GET /guild/heatmap ──────────────────────────────────────────
 // Returns activity heatmap by day/hour for a user.
 // Query: ?guildId=...&userId=...&channelId=...&years=...&months=...&days=...
+//        &requesterUserId=... (counts only channels the requester can read)
 router.get(
   "/guild/heatmap",
   asyncHandler(async (req: Request, res: Response) => {
@@ -1767,8 +1771,18 @@ router.get(
       "author.bot": { $ne: true },
     };
 
-    if (channelId) {
-      matchQuery.channelId = channelId;
+    // With a requester, count only channels they can read (tools-service
+    // cannot filter an aggregate after the fact).
+    const channelScope = await scopeStatsToRequester(
+      guild,
+      req.query.requesterUserId,
+      channelId,
+    );
+    if (!channelScope.allowed) {
+      return res.status(channelScope.status).json({ error: channelScope.error });
+    }
+    if (channelScope.channelFilter) {
+      matchQuery.channelId = channelScope.channelFilter;
     }
 
     try {
@@ -1973,6 +1987,7 @@ router.get(
 // ─── GET /guild/mentions ─────────────────────────────────────────
 // Shows top 5 users who have mentioned a specific user.
 // Query: ?guildId=...&userId=...&years=...&months=...&days=...&channelId=...
+//        &requesterUserId=... (counts only channels the requester can read)
 router.get(
   "/guild/mentions",
   asyncHandler(async (req: Request, res: Response) => {
@@ -2013,8 +2028,18 @@ router.get(
       },
     };
 
-    if (channelId) {
-      matchQuery.channelId = channelId;
+    // With a requester, count only channels they can read (tools-service
+    // cannot filter an aggregate after the fact).
+    const channelScope = await scopeStatsToRequester(
+      guild,
+      req.query.requesterUserId,
+      channelId,
+    );
+    if (!channelScope.allowed) {
+      return res.status(channelScope.status).json({ error: channelScope.error });
+    }
+    if (channelScope.channelFilter) {
+      matchQuery.channelId = channelScope.channelFilter;
     }
 
     try {
@@ -2114,6 +2139,7 @@ router.get(
 // ─── GET /guild/leaderboard ──────────────────────────────────────
 // Shows message leaderboard for a specified time period.
 // Query: ?guildId=...&years=...&months=...&days=...&channelId=...
+//        &requesterUserId=... (counts only channels the requester can read)
 router.get(
   "/guild/leaderboard",
   asyncHandler(async (req: Request, res: Response) => {
@@ -2144,8 +2170,18 @@ router.get(
       guildId,
     };
 
-    if (channelId) {
-      matchQuery.channelId = channelId;
+    // With a requester, count only channels they can read (tools-service
+    // cannot filter an aggregate after the fact).
+    const channelScope = await scopeStatsToRequester(
+      guild,
+      req.query.requesterUserId,
+      channelId,
+    );
+    if (!channelScope.allowed) {
+      return res.status(channelScope.status).json({ error: channelScope.error });
+    }
+    if (channelScope.channelFilter) {
+      matchQuery.channelId = channelScope.channelFilter;
     }
 
     try {
@@ -2203,6 +2239,7 @@ router.get(
 // ─── GET /guild/word-frequencies ─────────────────────────────────
 // Generate word frequency analysis for a user.
 // Query: ?guildId=...&userId=...&years=...&months=...&days=...&limit=...
+//        &requesterUserId=... (counts only channels the requester can read)
 //
 // Uses cursor-based streaming with content-only projection to avoid
 // OOM crashes — the original .toArray() approach loaded 664K+ full
@@ -2237,6 +2274,16 @@ router.get(
 
     if (years === 0 && months === 0 && days === 0) {
       years = getServerAgeYears(guild);
+    }
+
+    // With a requester, only words from channels they can read.
+    const channelScope = await scopeStatsToRequester(
+      guild,
+      req.query.requesterUserId,
+      undefined,
+    );
+    if (!channelScope.allowed) {
+      return res.status(channelScope.status).json({ error: channelScope.error });
     }
 
     const { unixStartDate } = computeStartDate(years, months, days);
@@ -2355,6 +2402,9 @@ router.get(
           guildId,
           "author.id": userId,
           createdTimestamp: { $gte: unixStartDate },
+          ...(channelScope.channelFilter
+            ? { channelId: channelScope.channelFilter }
+            : {}),
         },
         { projection: { content: 1 } },
       );
@@ -2641,6 +2691,8 @@ router.get(
 );
 
 // ─── GET /guild/channel-stats ────────────────────────────────────
+// Per-channel message counts. Query: ?guildId=...&days=...
+//        &requesterUserId=... (ranks only channels the requester can read)
 router.get(
   "/guild/channel-stats",
   asyncHandler(async (req: Request, res: Response) => {
@@ -2657,6 +2709,18 @@ router.get(
         return res.status(404).json({ error: "Guild not found" });
       }
 
+      // With a requester, only the channels they can read are ranked.
+      const channelScope = await scopeStatsToRequester(
+        guild,
+        req.query.requesterUserId,
+        undefined,
+      );
+      if (!channelScope.allowed) {
+        return res
+          .status(channelScope.status)
+          .json({ error: channelScope.error });
+      }
+
       const { unixStartDate } = computeStartDate(0, 0, days);
       const database = getMongoDb();
       const messagesCollection = database.collection("Messages");
@@ -2669,6 +2733,9 @@ router.get(
               guildId,
               createdTimestamp: { $gte: unixStartDate },
               "author.bot": { $ne: true },
+              ...(channelScope.channelFilter
+                ? { channelId: channelScope.channelFilter }
+                : {}),
             },
           },
           {
