@@ -93,9 +93,12 @@ vi.mock("../../formatters/LogFormatter", () => ({
 vi.mock("../discord/ConversationExtractor", () => ({
   extractContentFromMessages: vi.fn(),
   displayNameOf: vi.fn(),
+  prefetchMessageCaptions: vi.fn(),
 }));
 vi.mock("../discord/PromptBuilder", () => ({
   buildAndGenerateReply: vi.fn(),
+  prefetchTriggerReferenceCaptions: vi.fn(),
+  prefetchRepliedImageCaption: vi.fn(),
 }));
 vi.mock("../../jobs/scheduled/BirthdayJob", () => ({ default: {} }));
 vi.mock("../../jobs/scheduled/ActivityRoleAssignmentJob", () => ({
