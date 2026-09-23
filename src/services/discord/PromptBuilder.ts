@@ -58,6 +58,7 @@ import {
 } from "#root/services/discord/MessageEnvelope.ts";
 import ChannelSessionCache from "#root/services/discord/ChannelSessionCache.ts";
 import type { ReplyMode } from "#root/services/discord/Addressee.ts";
+import type { SteerableTurn } from "#root/services/discord/TurnSteering.ts";
 
 import utilities from "#root/utilities.ts";
 import LogFormatter from "#root/formatters/LogFormatter.ts";
@@ -617,6 +618,7 @@ export async function buildAndGenerateReply({
   statusTracker,
   session,
   replyMode = "mention",
+  steering,
 }: {
   conversation: Record<string, unknown>[];
   memberMentionsCollection: import("discord.js").Collection<
@@ -674,6 +676,12 @@ export async function buildAndGenerateReply({
    * directive says so and a [[pass]] reply means stay silent.
    */
   replyMode?: ReplyMode;
+  /**
+   * The running-turn handle follow-ups fold into (TurnSteering): it reads
+   * the conversation id and `turn_input` acknowledgements off the stream
+   * and closes when the stream ends.
+   */
+  steering?: SteerableTurn | null;
 }): Promise<GeneratedReply> {
   // Build the system prompt
   const { message, recentMessages } = queuedDatum;
@@ -1750,15 +1758,23 @@ export async function buildAndGenerateReply({
         thinkingEnabled: true,
         username: message.author?.username || "unknown",
         ...AIService._getTraceParams(),
-        // Stream the agent SSE when a status tracker is watching so presence
-        // shows live thinking/tool progress; the return shape is identical.
-        ...(statusTracker && {
-          onEvent: (event: PrismSseEvent) => statusTracker.handleEvent(event),
+        // Stream the agent SSE when a status tracker or a steerable turn is
+        // watching — presence shows live thinking/tool progress, and a
+        // follow-up can join once the stream names the conversation. The
+        // return shape is identical either way.
+        ...((statusTracker || steering) && {
+          onEvent: (event: PrismSseEvent) => {
+            steering?.observe(event);
+            statusTracker?.handleEvent(event);
+          },
           signal: triggerWatch.signal,
         }),
       });
+      if (steering) steering.modelReplied = true;
     } finally {
       triggerWatch.dispose();
+      // The stream is over — a follow-up from now on is its own turn.
+      steering?.close();
     }
 
     generatedText = agentResponse.text || "";
@@ -1792,12 +1808,22 @@ export async function buildAndGenerateReply({
     // conversation as sent (minus the ephemeral respond-to tail) plus the
     // RAW agent text — the Discord-posted copy gets chunked/uploaded and
     // would re-serialize differently on rebuild, busting the prefix.
+    // Follow-ups folded into this turn and answered by it are frozen
+    // after the conversation and before the reply, as Discord shows them,
+    // so the next trigger doesn't re-read them as unanswered news.
     if (session) {
+      const answeredFolds = steering?.answeredFoldTurns() ?? [];
       ChannelSessionCache.commit({
         channelId: session.channelId,
         piggyback: session.piggyback,
-        sentConversation: agentConversation,
-        envelopeMessageIds: session.representedMessageIds,
+        sentConversation: [
+          ...agentConversation,
+          ...answeredFolds.map((fold) => fold.turn),
+        ],
+        envelopeMessageIds: [
+          ...session.representedMessageIds,
+          ...answeredFolds.map((fold) => fold.id),
+        ],
         triggerMessageId: (message as Message).id,
         assistantText: generatedText || null,
         assistantName: (bot?.username || "Lupos").replace(/\s+/g, ""),
