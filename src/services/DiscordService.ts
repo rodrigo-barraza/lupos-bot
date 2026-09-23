@@ -67,6 +67,15 @@ import { buildMessageAnnotation } from "#root/services/discord/MessageEnvelope.t
 import type { AttachmentPart } from "#root/services/discord/MessageEnvelope.ts";
 import { buildAndGenerateReply } from "#root/services/discord/PromptBuilder.ts";
 import { AgentStatusTracker } from "#root/services/discord/AgentStatusTracker.ts";
+import { resolveAddressing } from "#root/services/discord/Addressee.ts";
+import type {
+  AddressingMode,
+  ReplyMode,
+} from "#root/services/discord/Addressee.ts";
+import {
+  agentTurnRateLimiter,
+  RATE_LIMITED_REACTION,
+} from "#root/services/discord/AgentTurnRateLimiter.ts";
 import {
   buildMemoryParticipants,
   isVisibleToEveryone,
@@ -971,6 +980,49 @@ async function sendMaintenanceCountdown(message: Message) {
   }
 }
 
+/** Stop the channel's typing indicator (no-op when none is running). */
+function stopTyping(channelId: string) {
+  if (DiscordState.typingIntervals[channelId]) {
+    DiscordUtilityService.clearTypingInterval(
+      DiscordState.typingIntervals[channelId],
+    );
+    delete DiscordState.typingIntervals[channelId];
+  }
+}
+
+/** Whether the author is on an ignore list or holds an ignored role. */
+function isIgnoredAuthor(message: Message) {
+  if (BotSettingsService.get("USER_IDS_IGNORE").includes(message.author.id)) {
+    return true;
+  }
+  const member = (message as Message).member;
+  return Boolean(
+    member?.roles.cache.some((role: import("discord.js").Role) =>
+      BotSettingsService.get("ROLES_IDS_IGNORE").includes(role.id),
+    ),
+  );
+}
+
+/**
+ * Take a turn from the author's agent-turn allowance. Over the limit the
+ * message gets one ⏳ reaction instead of a reply.
+ */
+async function admitAgentTurn(message: Message) {
+  const verdict = agentTurnRateLimiter.consume(message.author.id);
+  if (!verdict) return true;
+  console.log(
+    `⏳ [processMessage] ${message.author.username} hit the ${verdict} agent-turn limit — reacting instead of replying.`,
+  );
+  try {
+    await message.react(RATE_LIMITED_REACTION);
+  } catch (error: unknown) {
+    console.warn(
+      `⚠️ [processMessage] Could not add the rate-limit reaction: ${(error as Error).message}`,
+    );
+  }
+  return false;
+}
+
 async function processMessage(
   client: Client,
   {
@@ -985,10 +1037,7 @@ async function processMessage(
   const isDirectMessage = (message as Message).channel.type === ChannelType.DM;
   const isSelfMessage = message.author.id === client.user!.id;
   const isDirectMessageFromSelf = isDirectMessage && isSelfMessage;
-  const isMessageWithoutSelfMention =
-    !isDirectMessage && !message.mentions.has(client.user!);
   const isMessageFromBot = message.author.bot;
-  const isGuildWhitemane = message?.guildId === config.GUILD_ID_PRIMARY;
   const isMentioningBot = isDirectMessage || message.mentions.has(client.user!);
 
   if ((message as Message).guildId === (config.GUILD_ID_GROBBULUS as string)) {
@@ -1027,8 +1076,20 @@ async function processMessage(
     return;
   }
 
-  // Check for flagged words in message content or replied-to content
-  if (!isSelfMessage && !isMessageFromBot && isMentioningBot) {
+  // Is this message talking TO Lupos — an @-mention, a reply to one of
+  // his messages (ping on or off), or his name used vocatively? Bots
+  // (himself included) only ever count by mention, as before, and are
+  // dropped below either way.
+  const addressing: AddressingMode | null =
+    isSelfMessage || isMessageFromBot
+      ? isMentioningBot
+        ? "mention"
+        : null
+      : await resolveAddressing(message, client.user!);
+
+  // Check for flagged words in message content or replied-to content —
+  // on every path that can lead to a reply.
+  if (!isSelfMessage && !isMessageFromBot && addressing) {
     if (await rejectIfFlaggedContent(message)) return;
   }
 
@@ -1075,7 +1136,7 @@ URL: ${utilities.getDiscordMessageUrl((message as Message).guild?.id || "", (mes
     await YouTubeService.setVolume(client, message);
   }
 
-  if (isMessageWithoutSelfMention) {
+  if (!addressing) {
     return;
   }
 
@@ -1099,19 +1160,8 @@ URL: ${utilities.getDiscordMessageUrl((message as Message).guild?.id || "", (mes
     return;
   }
 
-  // IGNORE MESSAGES FROM SPECIFIC USERS
-  if (BotSettingsService.get("USER_IDS_IGNORE").includes(message.author.id)) {
-    return;
-  }
-
-  // IGNORE MESSAGES FROM USERS WITH SPECIFIC ROLES
-  const memberObj = (message as Message).member;
-  if (
-    memberObj &&
-    memberObj.roles.cache.some((role: import("discord.js").Role) =>
-      BotSettingsService.get("ROLES_IDS_IGNORE").includes(role.id),
-    )
-  ) {
+  // IGNORE MESSAGES FROM SPECIFIC USERS AND USERS WITH SPECIFIC ROLES
+  if (isIgnoredAuthor(message)) {
     return;
   }
 
@@ -1123,6 +1173,26 @@ URL: ${utilities.getDiscordMessageUrl((message as Message).guild?.id || "", (mes
     return;
   }
 
+  // Per-user allowance of agent turns (burst + daily; owner exempt)
+  if (!(await admitAgentTurn(message))) {
+    return;
+  }
+
+  await acceptAndQueueReply(client, localMongo, message, actionType, addressing);
+}
+
+/**
+ * The tail every reply path shares once a message has passed its gates:
+ * record it as taken, start typing, fetch its history and queue it on the
+ * single global reply queue (draining the queue if nothing else is).
+ */
+async function acceptAndQueueReply(
+  client: Client,
+  localMongo: import("mongodb").MongoClient,
+  message: Message,
+  actionType: string,
+  replyMode: ReplyMode,
+) {
   // Every gate passed — this message gets a reply. Recording it here,
   // before the history fetch, closes the window in which an edit made
   // while the reply is still being generated queued a second one.
@@ -1147,8 +1217,12 @@ URL: ${utilities.getDiscordMessageUrl((message as Message).guild?.id || "", (mes
     );
   }
 
-  // LUPOS CHATTER ROLE
-  if (isGuildWhitemane) {
+  // LUPOS CHATTER ROLE — for people talking to him, not for the author
+  // of a message he chose to chime in on.
+  if (
+    replyMode !== "ambient" &&
+    message?.guildId === config.GUILD_ID_PRIMARY
+  ) {
     await DiscordUtilityService.addRoleToMember(
       (message as Message).member!,
       config.ROLE_ID_BOT_CHATTER as string,
@@ -1179,13 +1253,7 @@ URL: ${utilities.getDiscordMessageUrl((message as Message).guild?.id || "", (mes
       `❌ [processMessage] fetchMessages returned null — channel not in cache`,
     );
     // Clear the typing indicator we started above so it doesn't spin forever
-    const typingChannelId = (message as Message).channel.id;
-    if (DiscordState.typingIntervals[typingChannelId]) {
-      DiscordUtilityService.clearTypingInterval(
-        DiscordState.typingIntervals[typingChannelId],
-      );
-      delete DiscordState.typingIntervals[typingChannelId];
-    }
+    stopTyping((message as Message).channel.id);
     return;
   }
   const recentMessages = fetchedMessages.reverse();
@@ -1196,6 +1264,7 @@ URL: ${utilities.getDiscordMessageUrl((message as Message).guild?.id || "", (mes
     message: message as Message,
     recentMessages,
     actionType: actionType || "",
+    replyMode,
   });
 
   if (!DiscordState.isProcessingQueue) {
@@ -1217,12 +1286,7 @@ URL: ${utilities.getDiscordMessageUrl((message as Message).guild?.id || "", (mes
             error,
           );
           // Clear typing for the failed channel so it doesn't hang
-          if (DiscordState.typingIntervals[currentChannelId]) {
-            DiscordUtilityService.clearTypingInterval(
-              DiscordState.typingIntervals[currentChannelId],
-            );
-            delete DiscordState.typingIntervals[currentChannelId];
-          }
+          stopTyping(currentChannelId);
         }
         DiscordState.lastQueueActivityAtMs = Date.now();
         // No more queued messages for this channel — clear typing indicator
@@ -1233,12 +1297,7 @@ URL: ${utilities.getDiscordMessageUrl((message as Message).guild?.id || "", (mes
           )
         ) {
           // Clear typing for this specific channel only
-          if (DiscordState.typingIntervals[currentChannelId]) {
-            DiscordUtilityService.clearTypingInterval(
-              DiscordState.typingIntervals[currentChannelId],
-            );
-            delete DiscordState.typingIntervals[currentChannelId];
-          }
+          stopTyping(currentChannelId);
         }
       }
     } finally {
@@ -1969,5 +2028,8 @@ const DiscordService = {
     );
   },
 };
+
+// The message gate, exported for tests (mocked discord.js objects).
+export { processMessage };
 
 export default DiscordService;
