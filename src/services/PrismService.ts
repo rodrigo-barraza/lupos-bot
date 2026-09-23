@@ -261,6 +261,8 @@ export default class PrismService {
     systemPrompt,
     maxTokens,
     temperature,
+    flatOptions,
+    timeoutMs,
     username = "lupos",
     traceId,
   }: GenerateTextParams) {
@@ -273,9 +275,11 @@ export default class PrismService {
       model,
       messages,
       options,
+      ...flatOptions,
       systemPrompt,
       traceId,
       username,
+      timeoutMs,
     });
 
     return {

@@ -77,6 +77,11 @@ import {
   RATE_LIMITED_REACTION,
 } from "#root/services/discord/AgentTurnRateLimiter.ts";
 import {
+  AMBIENT_LIMITS,
+  evaluateAmbientInterjection,
+  recordAmbientInterjection,
+} from "#root/services/discord/AmbientInterjection.ts";
+import {
   buildMemoryParticipants,
   isVisibleToEveryone,
 } from "#root/services/discord/MemoryExtraction.ts";
@@ -180,6 +185,7 @@ async function replyMessage(
       import("discord.js").Message
     >;
     actionType?: string;
+    replyMode?: ReplyMode;
   },
   localMongo: import("mongodb").MongoClient,
 ) {
@@ -187,6 +193,7 @@ async function replyMessage(
   const message = queuedDatum.message;
   const _messages = queuedDatum.recentMessages;
   const actionType = queuedDatum.actionType;
+  const replyMode = queuedDatum.replyMode ?? "mention";
 
   const client = message.client;
   const guild = (message as Message).guild;
@@ -209,6 +216,19 @@ async function replyMessage(
       `🗑️ [DiscordService] Message ${(message as Message).id} was deleted before processing started, skipping.`,
     );
     DiscordState.cancelledMessageIds.delete((message as Message).id);
+    return;
+  }
+
+  // An uninvited interjection that sat in the reply queue behind other
+  // turns has missed its moment — drop it rather than answer stale chat.
+  if (
+    replyMode === "ambient" &&
+    Date.now() - (message as Message).createdTimestamp >
+      AMBIENT_LIMITS.maxQueueDelayMs
+  ) {
+    console.log(
+      `🌙 [DiscordService] Dropped ambient turn for ${(message as Message).id} — waited too long in the queue.`,
+    );
     return;
   }
 
@@ -319,8 +339,15 @@ async function replyMessage(
     return;
   }
 
-  const { generatedText, image, audioRef, videoUrl, imageUrl, imagePrompt } =
-    await buildAndGenerateReply({
+  const {
+    generatedText,
+    image,
+    audioRef,
+    videoUrl,
+    imageUrl,
+    imagePrompt,
+    passed,
+  } = await buildAndGenerateReply({
       conversation: conversation as unknown as Record<string, unknown>[],
       memberMentionsCollection,
       messagesEmojisCollection,
@@ -349,6 +376,7 @@ async function replyMessage(
         cumulativeParticipantUserIds:
           piggybackPlan?.session.participantUserIds ?? [],
       },
+      replyMode,
     });
 
   const generatedTextResponse = generatedText;
@@ -369,6 +397,16 @@ async function replyMessage(
     DiscordState.cancelledMessageIds.delete((message as Message).id);
     ChannelSessionCache.invalidate(sessionChannelId);
     statusTracker.finishCancelled();
+    return;
+  }
+
+  // Unaddressed and he chose silence ([[pass]]): post nothing, leave the
+  // channel session as it was (PromptBuilder skipped the commit), and
+  // stop typing unless another reply for this channel is queued.
+  if (passed) {
+    statusTracker.finishCancelled();
+    stopTypingIfChannelIdle(sessionChannelId);
+    CurrentService.clearTraceId();
     return;
   }
 
@@ -990,6 +1028,17 @@ function stopTyping(channelId: string) {
   }
 }
 
+/** Stop the channel's typing indicator unless another reply for it is queued. */
+function stopTypingIfChannelIdle(channelId: string) {
+  if (
+    !DiscordState.queuedData.some(
+      (q: QueuedMessageData) => q.message?.channel?.id === channelId,
+    )
+  ) {
+    stopTyping(channelId);
+  }
+}
+
 /** Whether the author is on an ignore list or holds an ignored role. */
 function isIgnoredAuthor(message: Message) {
   if (BotSettingsService.get("USER_IDS_IGNORE").includes(message.author.id)) {
@@ -1137,6 +1186,8 @@ URL: ${utilities.getDiscordMessageUrl((message as Message).guild?.id || "", (mes
   }
 
   if (!addressing) {
+    // Not talking to Lupos — in an ambient channel he may still chime in.
+    await considerAmbientInterjection(client, localMongo, message, actionType);
     return;
   }
 
@@ -1179,6 +1230,45 @@ URL: ${utilities.getDiscordMessageUrl((message as Message).guild?.id || "", (mes
   }
 
   await acceptAndQueueReply(client, localMongo, message, actionType, addressing);
+}
+
+/**
+ * The ambient path: a message nobody addressed to Lupos, in a channel on
+ * the CHANNEL_IDS_AMBIENT list, may still get an (uninvited) agent turn.
+ * The same gates as every other path come first — bots, ignore lists and
+ * roles, maintenance, flagged content, the author's turn allowance — so
+ * nothing reaches the classifier (AmbientInterjection) that couldn't be
+ * answered anyway. Every "no" is silent: nobody asked him anything.
+ */
+async function considerAmbientInterjection(
+  client: Client,
+  localMongo: import("mongodb").MongoClient,
+  message: Message,
+  actionType: string,
+) {
+  if (actionType !== "CREATE") return;
+  if (
+    !BotSettingsService.get("CHANNEL_IDS_AMBIENT").includes(
+      (message as Message).channelId,
+    )
+  ) {
+    return;
+  }
+  if (message.author.bot || message.author.id === client.user!.id) return;
+  if (isIgnoredAuthor(message)) return;
+  if (config.UNDER_MAINTENANCE) return;
+  if (CensorService.containsFlaggedWords(message.content || "")) return;
+  if (agentTurnRateLimiter.check(message.author.id)) return;
+
+  const verdict = await evaluateAmbientInterjection(message, client.user!.id);
+  if (!verdict.interject) return;
+  if (DiscordState.isMessageCancelled((message as Message).id)) return;
+  if (agentTurnRateLimiter.consume(message.author.id)) return;
+  recordAmbientInterjection((message as Message).channelId);
+  console.log(
+    `🌙 [processMessage] Chiming in unaddressed on ${(message as Message).id} in #${((message as Message).channel as TextChannel)?.name} (score ${verdict.score}).`,
+  );
+  await acceptAndQueueReply(client, localMongo, message, actionType, "ambient");
 }
 
 /**
@@ -1290,15 +1380,7 @@ async function acceptAndQueueReply(
         }
         DiscordState.lastQueueActivityAtMs = Date.now();
         // No more queued messages for this channel — clear typing indicator
-        if (
-          !DiscordState.queuedData.some(
-            (q: QueuedMessageData) =>
-              q.message?.channel?.id === currentChannelId,
-          )
-        ) {
-          // Clear typing for this specific channel only
-          stopTyping(currentChannelId);
-        }
+        stopTypingIfChannelIdle(currentChannelId);
       }
     } finally {
       DiscordState.isProcessingQueue = false;

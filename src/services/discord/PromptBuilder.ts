@@ -53,9 +53,11 @@ import {
 import {
   buildReferenceImagesBlock,
   buildRespondToDirective,
+  isPassReply,
   stripScaffoldingTags,
 } from "#root/services/discord/MessageEnvelope.ts";
 import ChannelSessionCache from "#root/services/discord/ChannelSessionCache.ts";
+import type { ReplyMode } from "#root/services/discord/Addressee.ts";
 
 import utilities from "#root/utilities.ts";
 import LogFormatter from "#root/formatters/LogFormatter.ts";
@@ -585,6 +587,21 @@ function buildParticipantRosterLine(
   return line;
 }
 
+/** What buildAndGenerateReply hands back to replyMessage. */
+export interface GeneratedReply {
+  generatedText: string | null;
+  image: unknown;
+  audioRef: string | null;
+  videoUrl: string | null;
+  imageUrl: string | null;
+  imagePrompt: string | null;
+  /**
+   * An ambient turn chose silence ([[pass]]): post nothing. The channel
+   * session was not committed.
+   */
+  passed?: boolean;
+}
+
 export async function buildAndGenerateReply({
   conversation,
   memberMentionsCollection,
@@ -599,6 +616,7 @@ export async function buildAndGenerateReply({
   localMongo,
   statusTracker,
   session,
+  replyMode = "mention",
 }: {
   conversation: Record<string, unknown>[];
   memberMentionsCollection: import("discord.js").Collection<
@@ -651,7 +669,12 @@ export async function buildAndGenerateReply({
     /** Participant ids accumulated across the whole session. */
     cumulativeParticipantUserIds: string[];
   };
-}) {
+  /**
+   * How the trigger reached Lupos. "ambient" ⇒ nobody addressed him: the
+   * directive says so and a [[pass]] reply means stay silent.
+   */
+  replyMode?: ReplyMode;
+}): Promise<GeneratedReply> {
   // Build the system prompt
   const { message, recentMessages } = queuedDatum;
   const client = message.client;
@@ -1677,7 +1700,6 @@ export async function buildAndGenerateReply({
         videoUrl: null,
         imageUrl: null,
         imagePrompt: null,
-        promptForImagePromptGeneration: null,
       };
     }
 
@@ -1695,6 +1717,7 @@ export async function buildAndGenerateReply({
     // message to answer. It rides as an ephemeral tail turn — never
     // committed to the session — so frozen envelopes stay byte-stable
     // and the provider prompt cache survives across triggers.
+    const isAmbientTurn = replyMode === "ambient";
     const respondToTurn: ChatMessage = {
       role: "system",
       content: buildRespondToDirective({
@@ -1702,6 +1725,7 @@ export async function buildAndGenerateReply({
         author:
           displayNameOf(message as Message) || message.author?.username,
         authorId: message.author?.id,
+        ...(isAmbientTurn && { addressed: false }),
       }),
     };
 
@@ -1745,6 +1769,24 @@ export async function buildAndGenerateReply({
     // teaches future turns that it's a valid reply shape. Scrubbed-empty
     // text with media still posts as a media-only reply downstream.
     generatedText = stripScaffoldingTags(generatedText);
+
+    // An unaddressed (ambient) turn that chose silence: nothing is posted
+    // and nothing is committed to the channel session — the next trigger
+    // slices from the old watermark as if this turn never ran.
+    if (isAmbientTurn && isPassReply(generatedText)) {
+      console.log(
+        `🤐 [DiscordService] Stayed silent on unaddressed message ${(message as Message).id} (${generatedText.trim().slice(0, 40)}).`,
+      );
+      return {
+        generatedText: null,
+        image: null,
+        audioRef: null,
+        videoUrl: null,
+        imageUrl: null,
+        imagePrompt: null,
+        passed: true,
+      };
+    }
 
     // Freeze this request for the channel's piggyback session: the exact
     // conversation as sent (minus the ephemeral respond-to tail) plus the
