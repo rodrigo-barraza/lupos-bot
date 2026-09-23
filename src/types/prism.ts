@@ -127,12 +127,25 @@ export interface TranscribeAudioParams {
   traceId?: string;
 }
 
+/**
+ * One conversation participant sent to Prism's /memory/extract. Prism
+ * attributes each extracted fact to a participant by `id`/`username`,
+ * so these travel as objects — never bare display-name strings.
+ */
+export interface MemoryParticipant {
+  /** Discord user id (snowflake). */
+  id: string;
+  username: string;
+  /** Server nickname > global name > username. */
+  displayName: string;
+}
+
 /** Params for PrismService.extractMemories(). */
 export interface MemoryExtractParams {
   guildId: string;
   channelId: string;
   messages: ChatMessage[];
-  participants?: string[];
+  participants?: MemoryParticipant[];
   sourceMessageId?: string;
   traceId?: string;
 }
