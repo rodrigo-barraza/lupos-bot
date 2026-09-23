@@ -201,7 +201,9 @@ const AIService = {
     const collectionName =
       CAPTION_COLLECTION_MAP[type as keyof typeof CAPTION_COLLECTION_MAP];
     if (collectionName && imageUrls?.length) {
-      const collection = localMongo.db(MONGO_DB_NAME).collection(collectionName);
+      const collection = localMongo
+        .db(MONGO_DB_NAME)
+        .collection(collectionName);
       const prompt =
         type === "SMALL"
           ? `Describe this image in a short sentence, 10 words or less. Make no mention about the quality, resolution, or pixelation.`

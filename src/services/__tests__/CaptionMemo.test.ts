@@ -20,7 +20,9 @@ function fakeMongo() {
   function fakeCollection() {
     const stored = new Map<string, Record<string, unknown>>();
     return {
-      findOne: vi.fn(async ({ hash }: { hash: string }) => stored.get(hash) ?? null),
+      findOne: vi.fn(
+        async ({ hash }: { hash: string }) => stored.get(hash) ?? null,
+      ),
       insertOne: vi.fn(async (doc: Record<string, unknown>) => {
         stored.set(doc.hash as string, doc);
       }),
@@ -45,11 +47,17 @@ beforeEach(() => {
     "fetch",
     vi.fn(async (url: string) => {
       downloads++;
-      return new Response(`bytes of ${url}`, { headers: { "content-type": "image/png" } });
+      return new Response(`bytes of ${url}`, {
+        headers: { "content-type": "image/png" },
+      });
     }),
   );
   vi.mocked(PrismService.captionImage).mockReset();
-  vi.mocked(PrismService.captionImage).mockResolvedValue({ text: "a cat", model: "m", provider: "p" } as never);
+  vi.mocked(PrismService.captionImage).mockResolvedValue({
+    text: "a cat",
+    model: "m",
+    provider: "p",
+  } as never);
 });
 
 afterEach(() => {
@@ -68,7 +76,10 @@ describe("AIService.captionImages — shared captions", () => {
     ]);
     expect(prefetched.images).toEqual(["a cat"]);
     expect(joined.images).toEqual(["a cat"]);
-    expect([...joined.imagesMap.values()][0]).toMatchObject({ url, caption: "a cat" });
+    expect([...joined.imagesMap.values()][0]).toMatchObject({
+      url,
+      caption: "a cat",
+    });
     expect(PrismService.captionImage).toHaveBeenCalledOnce();
     expect(collection.insertOne).toHaveBeenCalledOnce();
     expect(downloads).toBe(1);
@@ -80,7 +91,9 @@ describe("AIService.captionImages — shared captions", () => {
     await AIService.captionImages([url], client, "IMAGE");
     await AIService.captionImages([url], client, "SMALL");
     expect(PrismService.captionImage).toHaveBeenCalledTimes(2);
-    const prompts = vi.mocked(PrismService.captionImage).mock.calls.map((call) => call[0].prompt);
+    const prompts = vi
+      .mocked(PrismService.captionImage)
+      .mock.calls.map((call) => call[0].prompt);
     expect(prompts[0]).toContain("Describe this image.");
     expect(prompts[1]).toContain("10 words or less");
     expect(downloads).toBe(1); // the hash of immutable media is shared
@@ -89,9 +102,15 @@ describe("AIService.captionImages — shared captions", () => {
   it("keeps no failed caption: the next caller tries again", async () => {
     const { client } = fakeMongo();
     const url = `${IMAGE_URL}?case=retry`;
-    vi.mocked(PrismService.captionImage).mockRejectedValueOnce(new Error("vision down"));
-    expect((await AIService.captionImages([url], client, "IMAGE")).images).toEqual([]);
-    expect((await AIService.captionImages([url], client, "IMAGE")).images).toEqual(["a cat"]);
+    vi.mocked(PrismService.captionImage).mockRejectedValueOnce(
+      new Error("vision down"),
+    );
+    expect(
+      (await AIService.captionImages([url], client, "IMAGE")).images,
+    ).toEqual([]);
+    expect(
+      (await AIService.captionImages([url], client, "IMAGE")).images,
+    ).toEqual(["a cat"]);
   });
 
   it("returns captions in URL order, skipping the ones that failed", async () => {
@@ -103,10 +122,16 @@ describe("AIService.captionImages — shared captions", () => {
       vi.fn(async (url: string) =>
         url === bad
           ? new Response("", { status: 404 })
-          : new Response(`bytes of ${url}`, { headers: { "content-type": "image/png" } }),
+          : new Response(`bytes of ${url}`, {
+              headers: { "content-type": "image/png" },
+            }),
       ),
     );
-    const { images, imagesMap } = await AIService.captionImages([bad, good], client, "EMOJI");
+    const { images, imagesMap } = await AIService.captionImages(
+      [bad, good],
+      client,
+      "EMOJI",
+    );
     expect(images).toEqual(["a cat"]);
     expect([...imagesMap.values()].map((entry) => entry.url)).toEqual([good]);
   });

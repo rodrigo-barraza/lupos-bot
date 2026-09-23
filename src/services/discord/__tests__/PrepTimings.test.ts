@@ -9,7 +9,9 @@ describe("PrepTimings", () => {
     expect(line).toMatch(
       /^⏱️ \[prep\] 123456789012345678 fetch=1234 extract=\d+ total=\d+ sinceTrigger=(\d{4})$/,
     );
-    expect(Number(line.split("sinceTrigger=")[1])).toBeGreaterThanOrEqual(5_000);
+    expect(Number(line.split("sinceTrigger=")[1])).toBeGreaterThanOrEqual(
+      5_000,
+    );
   });
 
   it("records a stage that throws", async () => {
