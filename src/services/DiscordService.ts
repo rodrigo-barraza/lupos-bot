@@ -86,6 +86,11 @@ import {
   isVisibleToEveryone,
 } from "#root/services/discord/MemoryExtraction.ts";
 import {
+  openSteerableTurn,
+  tryFoldIntoRunningTurn,
+} from "#root/services/discord/TurnSteering.ts";
+import type { SteerableTurn } from "#root/services/discord/TurnSteering.ts";
+import {
   formatEmotionDetail,
   formatMoodStatusLine,
   type PrismSomaticSnapshot,
@@ -188,6 +193,7 @@ async function replyMessage(
     replyMode?: ReplyMode;
   },
   localMongo: import("mongodb").MongoClient,
+  steering: SteerableTurn | null = null,
 ) {
   // Handles incoming Discord messages and message updates
   const message = queuedDatum.message;
@@ -377,6 +383,7 @@ async function replyMessage(
         piggybackPlan?.session.participantUserIds ?? [],
     },
     replyMode,
+    ...(steering && { steering }),
   });
 
   const generatedTextResponse = generatedText;
@@ -453,6 +460,7 @@ ${combinedGuildInformation && combinedChannelInformation ? `URL: ${utilities.get
       generatedImageUrl,
     );
     recordSessionReplyPosts(sessionChannelId, sentMessages);
+    if (steering) steering.delivered = true;
     // Reply landed — replace the live status with the persistent recap.
     statusTracker.finishSuccess();
   } catch (error: unknown) {
@@ -556,6 +564,40 @@ ${combinedGuildInformation && combinedChannelInformation ? `URL: ${utilities.get
   CurrentService.clearTraceId();
 
   return;
+}
+
+/**
+ * Queue, as their own turns, the follow-ups a finished turn took in
+ * (TurnSteering) but did not answer — it failed, was abandoned, its reply
+ * never posted, or the follow-up only reached it as it ended. They pass
+ * the turn allowance then, like any turn (a fold itself is free).
+ */
+async function requeueUnansweredFolds(
+  client: Client,
+  localMongo: import("mongodb").MongoClient,
+  steering: SteerableTurn,
+) {
+  for (const fold of await steering.settle()) {
+    if (DiscordState.isMessageCancelled(fold.message.id)) continue;
+    console.log(
+      `🧵 [DiscordService] Follow-up ${fold.message.id} was not answered by the turn it joined — queueing it as its own turn.`,
+    );
+    try {
+      if (!(await admitAgentTurn(fold.message))) continue;
+      await acceptAndQueueReply(
+        client,
+        localMongo,
+        fold.message,
+        "CREATE",
+        fold.replyMode,
+      );
+    } catch (error: unknown) {
+      console.error(
+        `❌ [DiscordService] Could not queue follow-up ${fold.message.id}:`,
+        error,
+      );
+    }
+  }
 }
 
 async function luposOnReady(
@@ -1232,6 +1274,16 @@ URL: ${utilities.getDiscordMessageUrl((message as Message).guild?.id || "", (mes
     return;
   }
 
+  // A follow-up to the turn this author has streaming in this channel
+  // right now joins that turn instead of waiting behind it (round-2
+  // contract §4) — and costs no turn of its own.
+  if (
+    actionType === "CREATE" &&
+    (await tryFoldIntoRunningTurn(message, addressing))
+  ) {
+    return;
+  }
+
   // Per-user allowance of agent turns (burst + daily; owner exempt)
   if (!(await admitAgentTurn(message))) {
     return;
@@ -1379,8 +1431,16 @@ async function acceptAndQueueReply(
         const queuedDatum =
           DiscordState.queuedData.shift() as QueuedMessageData;
         const currentChannelId = (queuedDatum.message as Message).channel.id;
+        // Follow-ups by this author in this channel may join the turn
+        // while it streams (TurnSteering); whatever it took in but did not
+        // answer is queued as its own turn once it is over, however it
+        // ended. Ambient turns take no follow-ups.
+        const steering =
+          queuedDatum.replyMode === "ambient"
+            ? null
+            : openSteerableTurn(queuedDatum.message as Message);
         try {
-          await replyMessage(queuedDatum, localMongo);
+          await replyMessage(queuedDatum, localMongo, steering);
         } catch (error: unknown) {
           console.error(
             `❌ [processMessage] Uncaught error in replyMessage — queue will continue processing:\n`,
@@ -1388,6 +1448,10 @@ async function acceptAndQueueReply(
           );
           // Clear typing for the failed channel so it doesn't hang
           stopTyping(currentChannelId);
+        } finally {
+          if (steering) {
+            void requeueUnansweredFolds(client, localMongo, steering);
+          }
         }
         DiscordState.lastQueueActivityAtMs = Date.now();
         // No more queued messages for this channel — clear typing indicator

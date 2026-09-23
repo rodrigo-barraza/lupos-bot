@@ -109,6 +109,15 @@ const DiscordState = {
   },
 
   /**
+   * Undo markAcceptedForReply for a message that ended up not being taken
+   * after all (a follow-up its running turn refused to fold in) — it then
+   * goes through the normal gates as if it had never been marked.
+   */
+  forgetAcceptedForReply(messageId: string) {
+    this.acceptedReplyIds.delete(messageId);
+  },
+
+  /**
    * Whether an edit turned a message into a new mention of the bot. The
    * mention diff alone is not enough: an uncached original arrives as a
    * partial oldMessage whose mentions read empty, so a message already

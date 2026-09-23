@@ -5,6 +5,8 @@
 
 vi.mock("#root/services/PrismService.ts", () => ({
   default: { generateAgentResponse: vi.fn() },
+  conversationIdOf: (event: { conversationId?: unknown }) =>
+    typeof event.conversationId === "string" ? event.conversationId : null,
 }));
 vi.mock("#root/services/AIService.ts", () => ({
   default: {
@@ -35,6 +37,7 @@ const ChannelSessionCache = (
   await import("#root/services/discord/ChannelSessionCache.ts")
 ).default;
 const { buildAndGenerateReply } = await import("../PromptBuilder.ts");
+const { openSteerableTurn, resetTurnSteering } = await import("../TurnSteering.ts");
 
 const AUTHOR_ID = "800000000000000001";
 
@@ -167,5 +170,85 @@ describe("buildAndGenerateReply — ambient turns", () => {
     expect(reply.passed).toBeUndefined();
     expect(reply.generatedText).toBe("ramen? the one on main, obviously");
     expect(commit).toHaveBeenCalledOnce();
+  });
+});
+
+// The steering handle (TurnSteering) rides the turn's stream: it learns
+// the conversation id and which folded follow-ups were applied, closes
+// when the stream ends, and answered follow-ups are frozen into the
+// channel session between the conversation and the reply.
+describe("buildAndGenerateReply — folded follow-ups", () => {
+  const FOLLOW_UP_ID = "700000000000000043";
+
+  function steeringFor(input: ReturnType<typeof turnInput>) {
+    const { message } = (input as unknown as { queuedDatum: { message: never } }).queuedDatum;
+    const steering = openSteerableTurn(message);
+    steering.folds.push({
+      message: { id: FOLLOW_UP_ID } as never,
+      replyMode: "name",
+      turn: { role: "user", name: "alice", content: "<discord-message follow-up>" },
+      posted: Promise.resolve("input-1"),
+      inputId: "input-1",
+    });
+    return steering;
+  }
+
+  beforeEach(() => resetTurnSteering());
+
+  it("streams to the steering handle even with no status tracker, then closes it", async () => {
+    const input = turnInput("mention");
+    const steering = steeringFor(input);
+    vi.mocked(PrismService.generateAgentResponse).mockImplementation(async (params) => {
+      expect(steering.closed).toBe(false);
+      params.onEvent?.({ type: "user_message", conversationId: "conv-1" });
+      params.onEvent?.({ type: "turn_input", id: "input-1", boundary: "before_end" });
+      return { text: "ramen on main. and yes, takeout.", images: [], toolCalls: [], toolResults: [], audioRef: null } as never;
+    });
+    await buildAndGenerateReply({ ...(input as object), steering } as never);
+    expect(sentRequest().signal).toBeInstanceOf(AbortSignal);
+    expect(steering.conversationId).toBe("conv-1");
+    expect(steering.closed).toBe(true);
+    expect(steering.modelReplied).toBe(true);
+  });
+
+  it("freezes an answered follow-up after the conversation and before the reply", async () => {
+    const input = turnInput("mention");
+    const steering = steeringFor(input);
+    vi.mocked(PrismService.generateAgentResponse).mockImplementation(async (params) => {
+      params.onEvent?.({ type: "turn_input", id: "input-1", boundary: "before_end" });
+      return { text: "both answered", images: [], toolCalls: [], toolResults: [], audioRef: null } as never;
+    });
+    await buildAndGenerateReply({ ...(input as object), steering } as never);
+    const session = ChannelSessionCache.get("500000000000000001")!;
+    expect(session.frozenConversation.map((turn) => turn.content)).toEqual([
+      "<discord-message …>",
+      "<discord-message follow-up>",
+      "both answered",
+    ]);
+    expect(session.messageIds.has(FOLLOW_UP_ID)).toBe(true);
+  });
+
+  it("leaves a follow-up that only joined as the turn ended out of the session", async () => {
+    const input = turnInput("mention");
+    const steering = steeringFor(input);
+    vi.mocked(PrismService.generateAgentResponse).mockImplementation(async (params) => {
+      params.onEvent?.({ type: "turn_input", id: "input-1", boundary: "turn_end" });
+      return { text: "first only", images: [], toolCalls: [], toolResults: [], audioRef: null } as never;
+    });
+    await buildAndGenerateReply({ ...(input as object), steering } as never);
+    const session = ChannelSessionCache.get("500000000000000001")!;
+    expect(session.frozenConversation).toHaveLength(2);
+    expect(session.messageIds.has(FOLLOW_UP_ID)).toBe(false);
+  });
+
+  it("a failed turn closes the handle without marking a reply", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const input = turnInput("mention");
+    const steering = steeringFor(input);
+    vi.mocked(PrismService.generateAgentResponse).mockRejectedValue(new Error("Prism API error: 500"));
+    const reply = await buildAndGenerateReply({ ...(input as object), steering } as never);
+    expect(reply.generatedText).toBe("...");
+    expect(steering.closed).toBe(true);
+    expect(steering.modelReplied).toBe(false);
   });
 });
