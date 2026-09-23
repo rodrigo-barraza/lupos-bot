@@ -108,25 +108,26 @@ const DiscordUtilityService = {
     }
     // Content
     if (message?.content) {
-      // Process URLs in message content
+      // Process URLs in message content — every link at once (each is a
+      // network round trip; in order they added up per message), results
+      // kept in the order the links appear.
       const urls = message.content.match(/(https?:\/\/[^\s]+)/g);
       if (urls?.length) {
-        for (const url of urls) {
-          if (!url.includes("https://tenor.com/view/")) {
-            const isImage = await utilities.isImageUrl(url);
-            if (isImage) {
-              imageUrls.push(url);
+        const linkImageUrls = await Promise.all(
+          urls.map(async (url: string) => {
+            if (!url.includes("https://tenor.com/view/")) {
+              return (await utilities.isImageUrl(url)) ? url : null;
             }
-          } else {
             const tenorImage = await ScraperService.scrapeTenor(url);
-            if (tenorImage?.image) {
-              imageUrls.push(tenorImage.image);
-            } else {
-              console.warn(
-                `⚠️ [extractImageUrlsFromMessage] Could not extract image from Tenor URL: ${url}`,
-              );
-            }
-          }
+            if (tenorImage?.image) return tenorImage.image;
+            console.warn(
+              `⚠️ [extractImageUrlsFromMessage] Could not extract image from Tenor URL: ${url}`,
+            );
+            return null;
+          }),
+        );
+        for (const imageUrl of linkImageUrls) {
+          if (imageUrl) imageUrls.push(imageUrl);
         }
       }
     }

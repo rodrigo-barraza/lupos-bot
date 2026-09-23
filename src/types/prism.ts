@@ -75,7 +75,12 @@ export interface AgentResponseParams {
   agentContext?: Record<string, unknown>;
   maxTokens?: number;
   thinkingEnabled?: boolean;
-  thinkingBudget?: number;
+  /**
+   * Reasoning effort — "minimal" | "low" | "medium" | "high" (default:
+   * resolveAgentThinkingLevel(), i.e. AGENT_THINKING_LEVEL or "medium").
+   * There is no token budget: Prism maps the level per provider.
+   */
+  thinkingLevel?: string;
   /** Agentic-loop pass ceiling (default: resolveAgentTurnBudget()). */
   maxIterations?: number;
   /** Spend ceiling in dollars (default: resolveAgentTurnBudget()). */

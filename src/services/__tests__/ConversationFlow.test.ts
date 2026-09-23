@@ -125,18 +125,9 @@ describe("Message Fetch Count Determination", () => {
 //   Tests for the rule-based pre-filter in message fetch count
 // ─────────────────────────────────────────────────────────────────────────────
 describe("Fast-Path Fetch Count (Rule-Based)", () => {
-  let originalGenerateText;
-
-  beforeAll(() => {
-    originalGenerateText = AIService.generateText;
-  });
-
-  afterAll(() => {
-    AIService.generateText = originalGenerateText;
-  });
-
   it("standalone 'draw X' request should return 5 without calling AI", async () => {
-    const spy = vi.spyOn(AIService, "generateText").mockResolvedValue("50");
+    const PrismService = (await import("../PrismService.ts")).default;
+    vi.mocked(PrismService.generateText).mockClear();
 
     const result =
       await AIService.generateTextDetermineHowManyMessagesToFetch(
@@ -146,10 +137,8 @@ describe("Fast-Path Fetch Count (Rule-Based)", () => {
       );
 
     expect(result).toBe(5);
-    // The AI should NOT have been called since the fast-path intercepted
-    expect(spy).not.toHaveBeenCalled();
-
-    spy.mockRestore();
+    // Rule-based: no model is ever asked
+    expect(PrismService.generateText).not.toHaveBeenCalled();
   });
 
   it("draw request WITH conversation reference should NOT hit fast-path", async () => {

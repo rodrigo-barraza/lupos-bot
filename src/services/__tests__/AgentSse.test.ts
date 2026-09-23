@@ -154,3 +154,92 @@ describe("aggregateAgentEvents", () => {
     ).toThrow("provider exploded");
   });
 });
+
+// A follow-up folded into the running turn (POST /agent/input) is
+// acknowledged on the stream with a `turn_input` event naming the
+// boundary it was applied at.
+describe("aggregateAgentEvents — folded follow-ups", () => {
+  const folded = (boundary: string): PrismSseEvent => ({
+    type: "turn_input",
+    id: "input-1",
+    kind: "user_update",
+    boundary,
+  });
+
+  it("keeps the finished reply AND the follow-up's answer when it landed at before_end", () => {
+    const events: PrismSseEvent[] = [
+      { type: "chunk", content: "Ramen on main. " },
+      folded("before_end"),
+      { type: "chunk", content: "And yes, they do takeout." },
+      { type: "done" },
+    ];
+    expect(aggregateAgentEvents(events).text).toBe(
+      "Ramen on main. \n\nAnd yes, they do takeout.",
+    );
+  });
+
+  it("still drops mid-loop planning around a before_end fold", () => {
+    const events: PrismSseEvent[] = [
+      { type: "chunk", content: "let me look that up" },
+      { type: "tool_execution", status: "calling", tool: { name: "search_web" } },
+      { type: "tool_execution", status: "done", tool: { name: "search_web" } },
+      { type: "chunk", content: "It opens at noon." },
+      folded("before_end"),
+      { type: "chunk", content: "checking hours again" },
+      { type: "tool_execution", status: "calling", tool: { name: "search_web" } },
+      { type: "tool_execution", status: "done", tool: { name: "search_web" } },
+      { type: "chunk", content: "Sundays too." },
+      { type: "done" },
+    ];
+    expect(aggregateAgentEvents(events).text).toBe(
+      "It opens at noon.\n\nSundays too.",
+    );
+  });
+
+  it("keeps only the last pass when the follow-up landed mid-loop", () => {
+    const events: PrismSseEvent[] = [
+      { type: "chunk", content: "let me check" },
+      { type: "tool_execution", status: "calling", tool: { name: "search_web" } },
+      { type: "tool_execution", status: "done", tool: { name: "search_web" } },
+      folded("after_tools"),
+      { type: "chunk", content: "Noon, and they do takeout." },
+      { type: "done" },
+    ];
+    expect(aggregateAgentEvents(events).text).toBe("Noon, and they do takeout.");
+  });
+
+  it("keeps one pass whole when the provider applied the follow-up mid-stream", () => {
+    const events: PrismSseEvent[] = [
+      { type: "chunk", content: "Ramen on main, " },
+      folded("native_steer"),
+      { type: "chunk", content: "and yes, they do takeout." },
+      { type: "done" },
+    ];
+    expect(aggregateAgentEvents(events).text).toBe(
+      "Ramen on main, and yes, they do takeout.",
+    );
+  });
+
+  it("keeps the reply when the follow-up joined only as the turn ended", () => {
+    const events: PrismSseEvent[] = [
+      { type: "chunk", content: "Ramen on main." },
+      folded("turn_end"),
+      { type: "done" },
+    ];
+    expect(aggregateAgentEvents(events).text).toBe("Ramen on main.");
+  });
+
+  it("does not repeat a finished reply when the follow-up got no words", () => {
+    const events: PrismSseEvent[] = [
+      { type: "chunk", content: "Ramen on main." },
+      folded("before_end"),
+      {
+        type: "tool_execution",
+        status: "calling",
+        tool: { name: "react_to_discord_message" },
+      },
+      { type: "done" },
+    ];
+    expect(aggregateAgentEvents(events).text).toBe("Ramen on main.");
+  });
+});

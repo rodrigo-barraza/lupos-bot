@@ -36,6 +36,8 @@ import type {
   ReplyToPart,
   StickerPart,
 } from "#root/services/discord/MessageEnvelope.ts";
+import type PrepTimings from "#root/services/discord/PrepTimings.ts";
+import { prefetch } from "#root/utilities/PromiseMemo.ts";
 
 interface MessageProcessingData {
   index: number;
@@ -108,6 +110,29 @@ export async function extractEmojisFromAllMessage(
   return messageEmojisCollection;
 }
 
+/**
+ * Start the captions extractContentFromMessages will ask for when it
+ * reaches this message — its image URLs (IMAGE), custom emojis (EMOJI)
+ * and sticker (STICKER) — so its own calls join requests already running
+ * (AIService's caption memo). For the trigger, which every extraction
+ * includes: started at acceptance, alongside the history fetch.
+ * Fire-and-forget; never throws.
+ */
+export function prefetchMessageCaptions(
+  message: Message,
+  localMongo: import("mongodb").MongoClient,
+): void {
+  prefetch(async () => {
+    const imageUrls =
+      await DiscordUtilityService.extractImageUrlsFromMessage(message);
+    if (imageUrls.length) {
+      await AIService.captionImages(imageUrls, localMongo, "IMAGE");
+    }
+  });
+  prefetch(() => extractEmojisFromAllMessage(message, localMongo));
+  prefetch(() => collectStickerPart(message, localMongo));
+}
+
 export interface ExtractContentOptions {
   /** Context window size; defaults to the keyword heuristic. */
   windowSize?: number;
@@ -125,6 +150,14 @@ export interface ExtractContentOptions {
    * re-quoting content the model already has.
    */
   extraInContextIds?: Set<string>;
+  /**
+   * Called with the messages this extraction will turn into the
+   * conversation, as soon as they are chosen — lets the caller start
+   * work that depends on the window while it is being read.
+   */
+  onWindowSelected?: (messages: Message[]) => void;
+  /** Per-stage timings (links, media, envelopes) for the prep log. */
+  timings?: PrepTimings;
 }
 
 export async function extractContentFromMessages(
@@ -183,6 +216,7 @@ export async function extractContentFromMessages(
 
     recentXMessages = filteredRecentMessages.last(messagesToFetch);
   }
+  options.onWindowSelected?.(recentXMessages);
   const client = message.client;
 
   // Initialize collections
@@ -209,7 +243,6 @@ export async function extractContentFromMessages(
   // turns — the piggyback session records them so future slices never
   // re-process a message the frozen history already represents.
   const representedMessageIds: string[] = [];
-  const newSystemPrompt = "";
 
   // Prepare all async operations
   const allPromises = {
@@ -223,12 +256,13 @@ export async function extractContentFromMessages(
         transcriptionsMap: Map<string, TranscriptionMapObject>;
       }>;
     }[],
+    // Resolves null for a message with no image URLs (nothing captioned).
     images: [] as {
       message: Message;
       promise: Promise<{
         images: string[];
         imagesMap: Map<string, CaptionMapObject>;
-      }>;
+      } | null>;
     }[],
     replies: [] as {
       messageId: string;
@@ -239,6 +273,25 @@ export async function extractContentFromMessages(
 
   // First pass: collect all async operations
   const messageProcessingData: MessageProcessingData[] = [];
+  // Link probes (is this URL an image? which GIF is this Tenor page?)
+  // are network round trips; they run concurrently and each message's
+  // captions start as soon as its own links are resolved.
+  const linkProbes: Promise<string[]>[] = [];
+  const firstPassStartedAt = performance.now();
+  /** Queue IMAGE captions for a message once its image URLs are known. */
+  const queueImageCaptions = (recentMessage: Message) => {
+    const imageUrlsPromise =
+      DiscordUtilityService.extractImageUrlsFromMessage(recentMessage);
+    linkProbes.push(imageUrlsPromise);
+    allPromises.images.push({
+      message: recentMessage,
+      promise: imageUrlsPromise.then((imageUrls: string[]) =>
+        imageUrls.length
+          ? AIService.captionImages(imageUrls, localMongo, "IMAGE")
+          : null,
+      ),
+    });
+  };
 
   if ((message as Message).guild) {
     let index = 0;
@@ -361,16 +414,7 @@ export async function extractContentFromMessages(
         // vision-captioned once. Without this, the bot's generated images
         // reach the model as bare filenames ("lupos.png") and replies to
         // them carry no indication that an image exists at all.
-        const botImageUrls =
-          await DiscordUtilityService.extractImageUrlsFromMessage(
-            recentMessage,
-          );
-        if (botImageUrls.length) {
-          allPromises.images.push({
-            message: recentMessage,
-            promise: AIService.captionImages(botImageUrls, localMongo, "IMAGE"),
-          });
-        }
+        queueImageCaptions(recentMessage);
 
         messageProcessingData.push(messageData);
       } else {
@@ -401,6 +445,9 @@ export async function extractContentFromMessages(
           userExists.time = recentMessage.createdTimestamp;
         }
 
+        // Start the sticker caption now; the envelope step below joins it.
+        prefetch(() => collectStickerPart(recentMessage, localMongo));
+
         // Queue emoji extraction
         allPromises.emojis.push({
           messageId: recentMessage.id,
@@ -424,23 +471,17 @@ export async function extractContentFromMessages(
         }
 
         // Queue image captioning
-        const imageUrls =
-          await DiscordUtilityService.extractImageUrlsFromMessage(
-            recentMessage,
-          );
-        if (imageUrls.length) {
-          allPromises.images.push({
-            message: recentMessage,
-            promise: AIService.captionImages(imageUrls, localMongo, "IMAGE"),
-          });
-        }
+        queueImageCaptions(recentMessage);
 
-        // Queue reply fetching
+        // Queue reply fetching — a message replied to from inside the
+        // fetched history is already in hand (and the history fetch itself
+        // evicts the newest messages from discord.js's 200-per-channel
+        // cache, so the cache would miss and cost a REST call each).
         if (recentMessage.reference?.messageId) {
           const channel = recentMessage.channel || (message as Message).channel;
-          const repliedMessage = channel?.messages.cache.get(
-            recentMessage.reference.messageId,
-          );
+          const repliedMessage =
+            recentMessages.get(recentMessage.reference.messageId) ??
+            channel?.messages.cache.get(recentMessage.reference.messageId);
           if (!repliedMessage) {
             allPromises.replies.push({
               messageId: recentMessage.id,
@@ -488,7 +529,9 @@ export async function extractContentFromMessages(
       index++;
     }
 
-    // Rest of your code remains the same...
+    void Promise.allSettled(linkProbes).then(() =>
+      options.timings?.record("links", performance.now() - firstPassStartedAt),
+    );
     // Execute all promises in parallel
     const results = await Promise.allSettled([
       ...allPromises.emojis.map(
@@ -511,7 +554,7 @@ export async function extractContentFromMessages(
           promise: Promise<{
             images: string[];
             imagesMap: Map<string, CaptionMapObject>;
-          }>;
+          } | null>;
         }) => item.promise,
       ),
       ...allPromises.replies.map(
@@ -568,8 +611,8 @@ export async function extractContentFromMessages(
       const result = results[resultIndex++] as PromiseSettledResult<{
         images: string[];
         imagesMap: Map<string, CaptionMapObject>;
-      }>;
-      if (result.status === "fulfilled") {
+      } | null>;
+      if (result.status === "fulfilled" && result.value) {
         const { imagesMap } = result.value;
         messagesImagesCollection.set(
           item.message.id,
@@ -598,9 +641,44 @@ export async function extractContentFromMessages(
         repliesMap[item.messageId] = result.value as Message;
       }
     }
+    options.timings?.record("media", performance.now() - firstPassStartedAt);
+
+    // Body parts of every user message (and of each replied-to message
+    // that is not already in context) — collected concurrently: a
+    // sticker is a caption lookup (download + Mongo), and one per
+    // message in turn used to add up.
+    const envelopesStartedAt = performance.now();
+    const collectBodyParts = (bodyMessage: Message) =>
+      collectMessageBodyParts(
+        bodyMessage,
+        messagesTranscriptionsCollection,
+        messagesImagesCollection,
+        localMongo,
+      );
+    const collectedBodyParts = await Promise.all(
+      messageProcessingData.map(async (messageData) => {
+        if (messageData.isBot) return null;
+        const { recentMessage } = messageData;
+        const repliedMessage: Message | undefined =
+          messageData.repliedMessage ||
+          (repliesMap[recentMessage.id] as Message | undefined);
+        const quotesReply =
+          !!recentMessage.reference?.messageId &&
+          !!repliedMessage &&
+          !inContextMessageIds.has(repliedMessage.id);
+        const [bodyParts, repliedParts] = await Promise.all([
+          collectBodyParts(recentMessage),
+          quotesReply ? collectBodyParts(repliedMessage!) : undefined,
+        ]);
+        return { repliedMessage, bodyParts, repliedParts };
+      }),
+    );
 
     // Build conversation with all collected data
-    for (const messageData of messageProcessingData) {
+    for (const [
+      messageIndex,
+      messageData,
+    ] of messageProcessingData.entries()) {
       const {
         recentMessage,
         user,
@@ -741,9 +819,8 @@ export async function extractContentFromMessages(
         }
       } else {
         // ── User message → <discord-message> envelope ─────────────
-        const repliedMessage: Message | undefined =
-          messageData.repliedMessage ||
-          (repliesMap[recentMessage.id] as Message | undefined);
+        const { repliedMessage, bodyParts, repliedParts } =
+          collectedBodyParts[messageIndex]!;
 
         let replyTo: ReplyToPart | undefined;
         if (recentMessage.reference?.messageId) {
@@ -762,12 +839,6 @@ export async function extractContentFromMessages(
               inContext: true,
             };
           } else {
-            const repliedParts = await collectMessageBodyParts(
-              repliedMessage,
-              messagesTranscriptionsCollection,
-              messagesImagesCollection,
-              localMongo,
-            );
             // Reply image URLs are context, not part of the current
             // message — captions are included, images not re-attached.
             replyTo = {
@@ -776,20 +847,13 @@ export async function extractContentFromMessages(
               authorId: repliedMessage.author?.id,
               time: toIsoTime(repliedMessage.createdTimestamp),
               content: repliedMessage.content || undefined,
-              transcription: repliedParts.transcription,
-              attachments: repliedParts.attachments,
-              sticker: repliedParts.sticker,
+              transcription: repliedParts?.transcription,
+              attachments: repliedParts?.attachments,
+              sticker: repliedParts?.sticker,
               reactions: reactionsPartOf(repliedMessage),
             };
           }
         }
-
-        const bodyParts = await collectMessageBodyParts(
-          recentMessage,
-          messagesTranscriptionsCollection,
-          messagesImagesCollection,
-          localMongo,
-        );
 
         // The triggering message is the one the agent must answer; it is
         // also the only one whose reactions matter (bribe detection).
@@ -826,6 +890,7 @@ export async function extractContentFromMessages(
         conversation.push(msgEntry);
       }
     }
+    options.timings?.record("envelopes", performance.now() - envelopesStartedAt);
   }
 
   // Clean up collections
@@ -840,7 +905,6 @@ export async function extractContentFromMessages(
     messagesEmojisCollection,
     messagesImagesCollection,
     messagesTranscriptionsCollection,
-    newSystemPrompt,
     participantsAvatarsCollection,
     participantsCollection,
     participantsMembersCollection,

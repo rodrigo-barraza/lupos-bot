@@ -10,7 +10,35 @@
 // stay meaningful, plus a per-emotion emoji.
 // ============================================================
 
-import type { SomaticStats } from "#root/services/TraitRegistry.ts";
+/** Shape of the `somatic` object returned by GET /bot/stats. */
+export interface SomaticStats {
+  mood: { level: number; name: string; emoji: string };
+  hunger: number;
+  thirst: number;
+  energy: number;
+  sickness: number;
+  alcohol: number;
+  bathroom: number;
+  substance: number;
+}
+
+/**
+ * What GET /bot/stats serves while Prism's live snapshot is unavailable:
+ * a neutral, rested body — exactly what the old in-memory TraitRegistry
+ * stub reported, since nothing ever changed its initial state.
+ */
+export function offlineSomaticStats(): SomaticStats {
+  return {
+    mood: { level: 0, name: "Neutral", emoji: "😑" },
+    hunger: 0,
+    thirst: 0,
+    energy: 100,
+    sickness: 0,
+    alcohol: 0,
+    bathroom: 0,
+    substance: 0,
+  };
+}
 
 /** Shape of prism-service GET /somatic/:agentId (the fields we consume). */
 export interface PrismSomaticSnapshot {

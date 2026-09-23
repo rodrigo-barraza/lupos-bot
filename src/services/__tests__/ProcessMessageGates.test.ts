@@ -33,7 +33,11 @@ vi.mock("../LightsService", () => ({ default: {} }));
 vi.mock("../MongoService", () => ({
   default: { getClient: vi.fn().mockReturnValue(null) },
 }));
-vi.mock("../PrismService", () => ({ default: { generateText: vi.fn() } }));
+vi.mock("../PrismService", () => ({
+  default: { generateText: vi.fn(), postAgentInput: vi.fn() },
+  conversationIdOf: (event: { conversationId?: unknown }) =>
+    typeof event.conversationId === "string" ? event.conversationId : null,
+}));
 vi.mock("../DiscordUtilityService", () => ({
   default: {
     getUsernameNoSpaces: vi.fn(),
@@ -91,6 +95,10 @@ const { resetAmbientState } = await import(
   "../discord/AmbientInterjection.ts"
 );
 const config = (await import("#root/config.ts")).default;
+const { openSteerableTurn, resetTurnSteering } = await import(
+  "../discord/TurnSteering.ts"
+);
+const PrepTimings = (await import("../discord/PrepTimings.ts")).default;
 
 const BOT_ID = "900000000000000001";
 const botUser = { id: BOT_ID, username: "Lupos" };
@@ -382,5 +390,174 @@ describe("processMessage — ambient interjection", () => {
     const fake = fakeMessage({ content: question });
     await processMessage(client, mongoClients, fake.message, "UPDATE");
     expect(PrismService.generateText).not.toHaveBeenCalled();
+  });
+});
+
+// Round-2 contract §4: a follow-up by the author of the turn that is
+// streaming in this channel joins that turn (POST /agent/input) instead
+// of being queued behind it.
+describe("processMessage — folding a follow-up into the running turn", () => {
+  const AUTHOR = "800000000000000001";
+
+  function runningTurn() {
+    const trigger = fakeMessage({ content: "lupos, first question" }).message;
+    const turn = openSteerableTurn(trigger);
+    turn.observe({ type: "user_message", conversationId: "conv-1" });
+    return turn;
+  }
+
+  beforeEach(() => {
+    resetTurnSteering();
+    resetAmbientState();
+    vi.mocked(PrismService.postAgentInput).mockReset();
+    vi.mocked(PrismService.postAgentInput).mockResolvedValue("input-1");
+    vi.mocked(PrismService.generateText).mockReset();
+    // Hold the drain so a queued turn can be inspected, not run.
+    DiscordState.isProcessingQueue = true;
+    DiscordState.queuedData.length = 0;
+    vi.mocked(DiscordUtilityService.fetchMessages).mockResolvedValue({
+      reverse: () => new Map(),
+    } as never);
+  });
+
+  afterEach(() => {
+    DiscordState.isProcessingQueue = false;
+    DiscordState.queuedData.length = 0;
+    vi.mocked(DiscordUtilityService.fetchMessages).mockResolvedValue(null);
+  });
+
+  it("folds the author's next addressed message: 👀 once, nothing queued", async () => {
+    runningTurn();
+    const followUp = await run({ content: "lupos, and what about tomorrow?" });
+    expect(PrismService.postAgentInput).toHaveBeenCalledOnce();
+    expect(vi.mocked(PrismService.postAgentInput).mock.calls[0][0]).toBe("conv-1");
+    expect(followUp.react).toHaveBeenCalledOnce();
+    expect(followUp.react).toHaveBeenCalledWith("👀");
+    expect(followUp.reply).not.toHaveBeenCalled();
+    expect(followUp.accepted).toBe(true); // an edit can't re-reply it
+    expect(DiscordUtilityService.fetchMessages).not.toHaveBeenCalled();
+    expect(DiscordState.queuedData).toHaveLength(0);
+  });
+
+  it("folds every addressing mode (mention, reply, name)", async () => {
+    runningTurn();
+    await run({ content: "<@900000000000000001> also", mentionsBot: true });
+    await run({ content: "also", repliedUserId: BOT_ID });
+    await run({ content: "lupos, also" });
+    expect(PrismService.postAgentInput).toHaveBeenCalledTimes(3);
+    expect(DiscordState.queuedData).toHaveLength(0);
+  });
+
+  it("queues it as its own turn when Prism refuses (409 / error)", async () => {
+    vi.mocked(PrismService.postAgentInput).mockResolvedValue(null);
+    runningTurn();
+    const followUp = await run({ content: "lupos, and tomorrow?" });
+    expect(followUp.react).not.toHaveBeenCalled();
+    expect(followUp.accepted).toBe(true);
+    expect(DiscordState.queuedData.map((queued) => queued.message.id)).toEqual([followUp.id]);
+  });
+
+  it("never folds another author's message", async () => {
+    runningTurn();
+    const other = await run({ content: "lupos, me too", authorId: "800000000000000002" });
+    expect(PrismService.postAgentInput).not.toHaveBeenCalled();
+    expect(DiscordState.queuedData.map((queued) => queued.message.id)).toEqual([other.id]);
+  });
+
+  it("never folds before the stream named the conversation, or after it finished", async () => {
+    openSteerableTurn(fakeMessage({ content: "lupos, first" }).message);
+    await run({ content: "lupos, also" });
+    const finished = runningTurn();
+    finished.observe({ type: "done" });
+    await run({ content: "lupos, also" });
+    expect(PrismService.postAgentInput).not.toHaveBeenCalled();
+    expect(DiscordState.queuedData).toHaveLength(2);
+  });
+
+  it("never folds an edit", async () => {
+    runningTurn();
+    const fake = fakeMessage({ content: "lupos, edited", mentionsBot: true });
+    await processMessage(client, mongoClients, fake.message, "UPDATE");
+    expect(PrismService.postAgentInput).not.toHaveBeenCalled();
+  });
+
+  it("never folds a message that reached him on the ambient path", async () => {
+    botSettings.CHANNEL_IDS_AMBIENT = ["600000000000000001"];
+    config.LANGUAGE_MODEL_OPENAI_LOW = "gpt-4.1-nano";
+    vi.mocked(PrismService.generateText).mockResolvedValue({
+      text: JSON.stringify({ interject: true, score: 0.9 }),
+    } as never);
+    runningTurn();
+    await run({ content: "does anyone know when the raid starts tonight" });
+    expect(PrismService.postAgentInput).not.toHaveBeenCalled();
+    expect(DiscordState.queuedData.map((queued) => queued.replyMode)).toEqual(["ambient"]);
+  });
+
+  it("a folded follow-up spends no turn allowance", async () => {
+    runningTurn();
+    for (let i = 0; i < 6; i++) {
+      const followUp = await run({ content: "lupos, one more thing", authorId: AUTHOR });
+      expect(followUp.react).toHaveBeenCalledWith("👀");
+      expect(followUp.react).not.toHaveBeenCalledWith("⏳");
+    }
+  });
+});
+
+describe("acceptAndQueueReply — before the reply is built", () => {
+  const PRIMARY = "700000000000000001";
+  let savedPrimary: string | undefined;
+
+  beforeEach(() => {
+    resetTurnSteering();
+    savedPrimary = config.GUILD_ID_PRIMARY;
+    config.GUILD_ID_PRIMARY = PRIMARY;
+    DiscordState.isProcessingQueue = true;
+    DiscordState.queuedData.length = 0;
+    vi.mocked(DiscordUtilityService.fetchMessages).mockResolvedValue({
+      reverse: () => new Map(),
+    } as never);
+  });
+
+  afterEach(() => {
+    config.GUILD_ID_PRIMARY = savedPrimary;
+    DiscordState.isProcessingQueue = false;
+    DiscordState.queuedData.length = 0;
+    vi.mocked(DiscordUtilityService.fetchMessages).mockResolvedValue(null);
+    vi.mocked(DiscordUtilityService.addRoleToMember).mockReset();
+  });
+
+  it("runs the chatter-role PUT and the history fetch side by side; queues after both", async () => {
+    let finishRole: () => void = () => {};
+    vi.mocked(DiscordUtilityService.addRoleToMember).mockImplementation(
+      () => new Promise<void>((resolve) => {
+        finishRole = resolve;
+      }),
+    );
+    const fake = fakeMessage({ content: "lupos, hi" });
+    const pending = processMessage(client, mongoClients, fake.message, "CREATE");
+    await vi.waitFor(() => expect(DiscordUtilityService.fetchMessages).toHaveBeenCalledOnce());
+    expect(DiscordUtilityService.addRoleToMember).toHaveBeenCalledOnce();
+    expect(vi.mocked(DiscordUtilityService.fetchMessages).mock.calls[0][2]).toEqual({
+      limit: 500,
+      before: fake.id,
+    });
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    expect(DiscordState.queuedData).toHaveLength(0); // still waiting on the role
+    finishRole();
+    await pending;
+    expect(DiscordState.queuedData).toHaveLength(1);
+    expect(DiscordState.queuedData[0].timings).toBeInstanceOf(PrepTimings);
+  });
+
+  it("gives no chatter role on the ambient path", async () => {
+    botSettings.CHANNEL_IDS_AMBIENT = ["600000000000000001"];
+    config.LANGUAGE_MODEL_OPENAI_LOW = "gpt-4.1-nano";
+    resetAmbientState();
+    vi.mocked(PrismService.generateText).mockResolvedValue({
+      text: JSON.stringify({ interject: true, score: 0.9 }),
+    } as never);
+    await run({ content: "does anyone know when the raid starts tonight" });
+    expect(DiscordState.queuedData.map((queued) => queued.replyMode)).toEqual(["ambient"]);
+    expect(DiscordUtilityService.addRoleToMember).not.toHaveBeenCalled();
   });
 });

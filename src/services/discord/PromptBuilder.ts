@@ -58,6 +58,9 @@ import {
 } from "#root/services/discord/MessageEnvelope.ts";
 import ChannelSessionCache from "#root/services/discord/ChannelSessionCache.ts";
 import type { ReplyMode } from "#root/services/discord/Addressee.ts";
+import type { SteerableTurn } from "#root/services/discord/TurnSteering.ts";
+import PrepTimings from "#root/services/discord/PrepTimings.ts";
+import { prefetch } from "#root/utilities/PromiseMemo.ts";
 
 import utilities from "#root/utilities.ts";
 import LogFormatter from "#root/formatters/LogFormatter.ts";
@@ -587,6 +590,78 @@ function buildParticipantRosterLine(
   return line;
 }
 
+/**
+ * Start the SMALL captions buildAndGenerateReply will need for the
+ * trigger's own reference images — its image/video attachments and its
+ * custom emojis — so its captionImages calls join requests already
+ * running (AIService's caption memo) instead of starting vision calls
+ * one after another once the history is read. Called at acceptance.
+ * Mirrors the selection in buildAndGenerateReply exactly: a mismatch
+ * would only cost an unused caption, never change the prompt.
+ * Fire-and-forget; never throws.
+ */
+export function prefetchTriggerReferenceCaptions(
+  message: Message,
+  localMongo: import("mongodb").MongoClient,
+): void {
+  // "Attached image/video from message"
+  prefetch(async () => {
+    if (!message.attachments || message.attachments.size === 0) return;
+    const urls: string[] =
+      await DiscordUtilityService.extractImageUrlsFromMessage(message);
+    for (const attachment of message.attachments.values()) {
+      if (attachment.contentType?.startsWith("video/")) {
+        urls.push(attachment.url);
+      }
+    }
+    if (urls.length) await AIService.captionImages(urls, localMongo, "SMALL");
+  });
+  prefetch(() => extractEmojisFromAllMessage(message, localMongo, "SMALL"));
+}
+
+/**
+ * Start the SMALL caption of "THE IMAGE BEING DISCUSSED" — the first
+ * image of the message the trigger replies to — as soon as the history
+ * slice this turn extracts is chosen: as captioned in that slice when the
+ * replied-to message is in it, else its first image attachment. Same
+ * mirror/fire-and-forget rules as prefetchTriggerReferenceCaptions.
+ */
+export function prefetchRepliedImageCaption({
+  message,
+  recentMessages,
+  extractedMessageIds,
+  localMongo,
+}: {
+  message: Message;
+  recentMessages: DiscordCollection<string, Message>;
+  extractedMessageIds: Set<string>;
+  localMongo: import("mongodb").MongoClient;
+}): void {
+  prefetch(async () => {
+    const referenceId = message.reference?.messageId;
+    if (!referenceId) return;
+    const referenced =
+      recentMessages.get(referenceId) ??
+      message.channel?.messages?.cache?.get(referenceId);
+    if (!referenced) return;
+    let url: string | null;
+    if (extractedMessageIds.has(referenceId)) {
+      const [firstImageUrl] =
+        await DiscordUtilityService.extractImageUrlsFromMessage(referenced);
+      url = firstImageUrl ?? null;
+    } else {
+      const imageAttachment = referenced.attachments?.find(
+        (attachment: import("discord.js").Attachment) =>
+          !!attachment.contentType?.startsWith("image/"),
+      );
+      url = imageAttachment
+        ? imageAttachment.proxyURL || imageAttachment.url
+        : null;
+    }
+    if (url) await AIService.captionImages([url], localMongo, "SMALL");
+  });
+}
+
 /** What buildAndGenerateReply hands back to replyMessage. */
 export interface GeneratedReply {
   generatedText: string | null;
@@ -617,6 +692,8 @@ export async function buildAndGenerateReply({
   statusTracker,
   session,
   replyMode = "mention",
+  steering,
+  timings = new PrepTimings(),
 }: {
   conversation: Record<string, unknown>[];
   memberMentionsCollection: import("discord.js").Collection<
@@ -625,7 +702,6 @@ export async function buildAndGenerateReply({
   >;
   messagesEmojisCollection: import("discord.js").Collection<string, unknown>;
   messagesImagesCollection: import("discord.js").Collection<string, unknown>;
-  newSystemPrompt: string;
   participantsAvatarsCollection: import("discord.js").Collection<
     string,
     string
@@ -674,7 +750,23 @@ export async function buildAndGenerateReply({
    * directive says so and a [[pass]] reply means stay silent.
    */
   replyMode?: ReplyMode;
+  /**
+   * The running-turn handle follow-ups fold into (TurnSteering): it reads
+   * the conversation id and `turn_input` acknowledgements off the stream
+   * and closes when the stream ends.
+   */
+  steering?: SteerableTurn | null;
+  /** Prep-stage timings; the ⏱️ [prep] line is logged right before /agent. */
+  timings?: PrepTimings;
 }): Promise<GeneratedReply> {
+  const promptStartedAt = performance.now();
+  let stageStartedAt = promptStartedAt;
+  /** Record the stage that ends now (it began where the last one ended). */
+  const endStage = (stage: string) => {
+    const now = performance.now();
+    timings.record(stage, now - stageStartedAt);
+    stageStartedAt = now;
+  };
   // Build the system prompt
   const { message, recentMessages } = queuedDatum;
   const client = message.client;
@@ -692,6 +784,15 @@ export async function buildAndGenerateReply({
   let videoUrl: string | null = null;
   let imageUrl: string | null = null;
   let imagePrompt: string | null = null;
+  // The trigger's custom emojis ride as reference images with SMALL
+  // captions. Started now, awaited where they are added below — the
+  // captions don't depend on anything in between.
+  const emojisInMessagePromise = extractEmojisFromAllMessage(
+    message,
+    localMongo,
+    "SMALL",
+  );
+  emojisInMessagePromise.catch(() => {}); // surfaces at its await below
   try {
     if (
       (message as Message).guildId === config.GUILD_ID_PRIMARY ||
@@ -811,11 +912,18 @@ export async function buildAndGenerateReply({
         a.contentType?.startsWith("image/"),
     );
 
+    endStage("dossier");
+
     // Cache the message reference once — reused by the image-request gate
     // below, the self-reference suppression, the replied-to image capture,
-    // and avatar filtering.
+    // and avatar filtering. Taken from the fetched history when it is
+    // there (the history fetch evicts recent messages from discord.js's
+    // cache, so the lookup would otherwise be a REST call).
     const cachedMessageReference = message.reference?.messageId
-      ? await DiscordUtilityService.retrieveMessageReferenceFromMessage(message)
+      ? (recentMessages.get(message.reference.messageId) ??
+        (await DiscordUtilityService.retrieveMessageReferenceFromMessage(
+          message,
+        )))
       : null;
 
     // Is this a reply to one of the bot's own messages that carries media
@@ -1414,6 +1522,8 @@ export async function buildAndGenerateReply({
         edittedMessageCleanContent += `\n${referenceBlock}`;
       }
     }
+    endStage("refs");
+
     // If it mentions a user with an avatar, use that avatar as the image
     // Track which user IDs have already had their avatar added to prevent
     // duplicates across tagged mentions and untagged name-match paths.
@@ -1530,12 +1640,11 @@ export async function buildAndGenerateReply({
       }
     }
 
+    endStage("avatars");
+
     // If emotion emojis are present, add them to the composition
-    const emojisInMessage = await extractEmojisFromAllMessage(
-      message,
-      localMongo,
-      "SMALL",
-    );
+    const emojisInMessage = await emojisInMessagePromise;
+    endStage("emoji");
     if (emojisInMessage && emojisInMessage.size > 0) {
       for (const [emoji, emojiObj] of emojisInMessage.entries()) {
         const emojiObject = emojiObj as {
@@ -1729,6 +1838,9 @@ export async function buildAndGenerateReply({
       }),
     };
 
+    timings.record("prompt", performance.now() - promptStartedAt);
+    console.log(timings.line((message as Message).id));
+
     // A trigger deleted mid-turn abandons the turn: the stream read stops
     // and Prism is told to stop the (otherwise still running) turn.
     const triggerWatch = DiscordState.watchCancellation(
@@ -1745,20 +1857,28 @@ export async function buildAndGenerateReply({
         agentContext,
         maxTokens: 16_384, // Lupos text is ~1 sentence, but tool-call JSON (generate_audio compositions) can be 3-5K tokens
         // No temperature: agent turns leave sampling to Prism. Budget
-        // (maxIterations / maxCostDollars) comes from resolveAgentTurnBudget.
+        // (maxIterations / maxCostDollars) comes from resolveAgentTurnBudget,
+        // the reasoning effort (thinkingLevel) from resolveAgentThinkingLevel.
         thinkingEnabled: true,
-        thinkingBudget: 10_000,
         username: message.author?.username || "unknown",
         ...AIService._getTraceParams(),
-        // Stream the agent SSE when a status tracker is watching so presence
-        // shows live thinking/tool progress; the return shape is identical.
-        ...(statusTracker && {
-          onEvent: (event: PrismSseEvent) => statusTracker.handleEvent(event),
+        // Stream the agent SSE when a status tracker or a steerable turn is
+        // watching — presence shows live thinking/tool progress, and a
+        // follow-up can join once the stream names the conversation. The
+        // return shape is identical either way.
+        ...((statusTracker || steering) && {
+          onEvent: (event: PrismSseEvent) => {
+            steering?.observe(event);
+            statusTracker?.handleEvent(event);
+          },
           signal: triggerWatch.signal,
         }),
       });
+      if (steering) steering.modelReplied = true;
     } finally {
       triggerWatch.dispose();
+      // The stream is over — a follow-up from now on is its own turn.
+      steering?.close();
     }
 
     generatedText = agentResponse.text || "";
@@ -1792,12 +1912,22 @@ export async function buildAndGenerateReply({
     // conversation as sent (minus the ephemeral respond-to tail) plus the
     // RAW agent text — the Discord-posted copy gets chunked/uploaded and
     // would re-serialize differently on rebuild, busting the prefix.
+    // Follow-ups folded into this turn and answered by it are frozen
+    // after the conversation and before the reply, as Discord shows them,
+    // so the next trigger doesn't re-read them as unanswered news.
     if (session) {
+      const answeredFolds = steering?.answeredFoldTurns() ?? [];
       ChannelSessionCache.commit({
         channelId: session.channelId,
         piggyback: session.piggyback,
-        sentConversation: agentConversation,
-        envelopeMessageIds: session.representedMessageIds,
+        sentConversation: [
+          ...agentConversation,
+          ...answeredFolds.map((fold) => fold.turn),
+        ],
+        envelopeMessageIds: [
+          ...session.representedMessageIds,
+          ...answeredFolds.map((fold) => fold.id),
+        ],
         triggerMessageId: (message as Message).id,
         assistantText: generatedText || null,
         assistantName: (bot?.username || "Lupos").replace(/\s+/g, ""),
