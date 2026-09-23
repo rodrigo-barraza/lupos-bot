@@ -66,17 +66,20 @@ export const DEFAULT_AGENT_MAX_COST_DOLLARS = 0.5;
 
 // Reasoning effort per turn (round-2 contract §3). Lupos's replies are a
 // sentence or two; 85% of his output tokens were reasoning at the old
-// fixed 10k-token budget.
+// fixed 10k-token budget. "low" is measured, not guessed: prism-service
+// scripts/evals/lupos (10 cases × k=3, 2026-09-22) passed 10/10 pass^k at
+// both low and the old budget, with low at 6.0 s mean vs 10.8 s and 27%
+// cheaper; "medium" was barely faster than the budget (12.4 vs 13.0 s).
 export const AGENT_THINKING_LEVELS = ["minimal", "low", "medium", "high"] as const;
 export type AgentThinkingLevel = (typeof AGENT_THINKING_LEVELS)[number];
-export const DEFAULT_AGENT_THINKING_LEVEL: AgentThinkingLevel = "medium";
+export const DEFAULT_AGENT_THINKING_LEVEL: AgentThinkingLevel = "low";
 
 let warnedThinkingLevel: string | null = null;
 
 /**
  * The thinkingLevel sent on every /agent call: AGENT_THINKING_LEVEL when
  * it names one of AGENT_THINKING_LEVELS (case-insensitive), else
- * "medium" — with one warning per distinct bad value.
+ * DEFAULT_AGENT_THINKING_LEVEL — with one warning per distinct bad value.
  */
 export function resolveAgentThinkingLevel(
   settings: { AGENT_THINKING_LEVEL?: string } = config,
