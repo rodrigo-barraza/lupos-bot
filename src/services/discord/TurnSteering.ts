@@ -177,18 +177,22 @@ export function buildFoldInput(message: Message): {
         : contentType.startsWith("audio/")
           ? "audio"
           : "file";
-    const url = kind === "image" ? attachment.url : attachment.proxyURL || attachment.url;
+    const url =
+      kind === "image" ? attachment.url : attachment.proxyURL || attachment.url;
     if (kind === "image" && url) images.push(url);
     attachments.push({
       kind,
-      ...(kind === "image" ? {} : { description: attachment.name || undefined }),
+      ...(kind === "image"
+        ? {}
+        : { description: attachment.name || undefined }),
       ...(attachment.size
         ? { sizeMb: (attachment.size / 1024 / 1024).toFixed(2) }
         : {}),
       ...(url?.startsWith("http") ? { url } : {}),
     });
   }
-  const sticker = message.stickers?.size === 1 ? message.stickers.first() : undefined;
+  const sticker =
+    message.stickers?.size === 1 ? message.stickers.first() : undefined;
   const referenceId = message.reference?.messageId;
   const text = buildDiscordMessageEnvelope({
     id: message.id,

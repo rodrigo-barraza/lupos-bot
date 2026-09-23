@@ -13,12 +13,10 @@ import {
   IMAGE_PROBE_TIMEOUT_MS,
 } from "../net.ts";
 
-const { default: ScraperService } = await import(
-  "#root/services/ScraperService.ts"
-);
-const { default: DiscordUtilityService } = await import(
-  "#root/services/DiscordUtilityService.ts"
-);
+const { default: ScraperService } =
+  await import("#root/services/ScraperService.ts");
+const { default: DiscordUtilityService } =
+  await import("#root/services/DiscordUtilityService.ts");
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
@@ -117,11 +115,25 @@ describe("PromiseMemo", () => {
 
 describe("isImmutableMediaUrl", () => {
   it("covers Discord's CDN and Tenor media, not Discord's /external/ proxy or other hosts", () => {
-    expect(isImmutableMediaUrl("https://cdn.discordapp.com/attachments/1/2/a.png?ex=1&is=2&hm=3")).toBe(true);
-    expect(isImmutableMediaUrl("https://cdn.discordapp.com/emojis/123.png")).toBe(true);
-    expect(isImmutableMediaUrl("https://media.discordapp.net/stickers/5.png")).toBe(true);
-    expect(isImmutableMediaUrl("https://media.tenor.com/abc/cat.gif")).toBe(true);
-    expect(isImmutableMediaUrl("https://media.discordapp.net/external/xyz/https/example.com/a.png")).toBe(false);
+    expect(
+      isImmutableMediaUrl(
+        "https://cdn.discordapp.com/attachments/1/2/a.png?ex=1&is=2&hm=3",
+      ),
+    ).toBe(true);
+    expect(
+      isImmutableMediaUrl("https://cdn.discordapp.com/emojis/123.png"),
+    ).toBe(true);
+    expect(
+      isImmutableMediaUrl("https://media.discordapp.net/stickers/5.png"),
+    ).toBe(true);
+    expect(isImmutableMediaUrl("https://media.tenor.com/abc/cat.gif")).toBe(
+      true,
+    );
+    expect(
+      isImmutableMediaUrl(
+        "https://media.discordapp.net/external/xyz/https/example.com/a.png",
+      ),
+    ).toBe(false);
     expect(isImmutableMediaUrl("https://example.com/random.png")).toBe(false);
     expect(isImmutableMediaUrl("not a url")).toBe(false);
   });
@@ -129,12 +141,17 @@ describe("isImmutableMediaUrl", () => {
 
 describe("generateFileHash", () => {
   const image = () =>
-    new Response(new Uint8Array([1, 2, 3]), { headers: { "content-type": "image/png" } });
+    new Response(new Uint8Array([1, 2, 3]), {
+      headers: { "content-type": "image/png" },
+    });
 
   it("downloads an immutable media URL once per hour, sharing a download in flight", async () => {
     const calls = stubFetch(image);
     const url = "https://cdn.discordapp.com/attachments/1/2/a.png";
-    const [first, second] = await Promise.all([generateFileHash(url), generateFileHash(url)]);
+    const [first, second] = await Promise.all([
+      generateFileHash(url),
+      generateFileHash(url),
+    ]);
     const third = await generateFileHash(url);
     expect(first).toEqual(second);
     expect(third).toEqual(first);
@@ -214,10 +231,20 @@ describe("isImageUrl", () => {
 describe("ScraperService.scrapeTenor", () => {
   it("keeps a found GIF for an hour", async () => {
     const calls = stubFetch(
-      () => new Response(JSON.stringify({ image: "https://media.tenor.com/x/cat.gif", title: "cat" })),
+      () =>
+        new Response(
+          JSON.stringify({
+            image: "https://media.tenor.com/x/cat.gif",
+            title: "cat",
+          }),
+        ),
     );
-    const first = await ScraperService.scrapeTenor("https://tenor.com/view/cat-123");
-    const second = await ScraperService.scrapeTenor("https://tenor.com/view/cat-123");
+    const first = await ScraperService.scrapeTenor(
+      "https://tenor.com/view/cat-123",
+    );
+    const second = await ScraperService.scrapeTenor(
+      "https://tenor.com/view/cat-123",
+    );
     expect(first).toEqual(second);
     expect(first.image).toBe("https://media.tenor.com/x/cat.gif");
     expect(first.name).toBe("cat 123");
@@ -226,7 +253,9 @@ describe("ScraperService.scrapeTenor", () => {
 
   it("scrapes a miss once per call, and retries it next time", async () => {
     const calls = stubFetch(() => new Response("", { status: 502 }));
-    const result = await ScraperService.scrapeTenor("https://tenor.com/view/dog-9");
+    const result = await ScraperService.scrapeTenor(
+      "https://tenor.com/view/dog-9",
+    );
     expect(result).toEqual({ name: "dog 9" });
     await ScraperService.scrapeTenor("https://tenor.com/view/dog-9");
     expect(calls).toHaveLength(2);
@@ -242,12 +271,23 @@ describe("DiscordUtilityService.extractImageUrlsFromMessage", () => {
       return gate.promise;
     });
     const pending = DiscordUtilityService.extractImageUrlsFromMessage({
-      attachments: new Map([["a", { url: "https://cdn.discordapp.com/attachments/1/2/att.png", contentType: "image/png" }]]),
-      content: "https://a.example.com/1 and https://b.example.com/2 and https://c.example.com/3",
+      attachments: new Map([
+        [
+          "a",
+          {
+            url: "https://cdn.discordapp.com/attachments/1/2/att.png",
+            contentType: "image/png",
+          },
+        ],
+      ]),
+      content:
+        "https://a.example.com/1 and https://b.example.com/2 and https://c.example.com/3",
     } as never);
     await vi.waitFor(() => expect(gates.size).toBe(3)); // all three in flight at once
     const answer = (url: string, type: string) =>
-      gates.get(url)!.resolve(new Response("", { headers: { "content-type": type } }));
+      gates
+        .get(url)!
+        .resolve(new Response("", { headers: { "content-type": type } }));
     answer("https://c.example.com/3", "image/gif");
     answer("https://a.example.com/1", "image/png");
     answer("https://b.example.com/2", "text/html");

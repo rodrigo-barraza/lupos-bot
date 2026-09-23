@@ -33,13 +33,25 @@ function fakeMessage({
   authorId = ALICE,
   channelId = CHANNEL,
   content = "lupos, also this",
-  attachments = [] as { url: string; proxyURL?: string; contentType: string; name?: string; size?: number }[],
+  attachments = [] as {
+    url: string;
+    proxyURL?: string;
+    contentType: string;
+    name?: string;
+    size?: number;
+  }[],
   referenceId,
 }: {
   authorId?: string;
   channelId?: string;
   content?: string;
-  attachments?: { url: string; proxyURL?: string; contentType: string; name?: string; size?: number }[];
+  attachments?: {
+    url: string;
+    proxyURL?: string;
+    contentType: string;
+    name?: string;
+    size?: number;
+  }[];
   referenceId?: string;
 } = {}) {
   const id = `70000000000000${nextId++}`;
@@ -57,7 +69,9 @@ function fakeMessage({
     mentions: { repliedUser: referenceId ? { id: BOB } : null },
     reference: referenceId ? { messageId: referenceId } : null,
     react: vi.fn().mockResolvedValue(undefined),
-  } as never as import("discord.js").Message & { react: ReturnType<typeof vi.fn> };
+  } as never as import("discord.js").Message & {
+    react: ReturnType<typeof vi.fn>;
+  };
 }
 
 /** A turn for Alice in CHANNEL whose stream has named its conversation. */
@@ -85,7 +99,9 @@ describe("tryFoldIntoRunningTurn — who may fold", () => {
     const followUp = fakeMessage();
     await expect(tryFoldIntoRunningTurn(followUp, "name")).resolves.toBe(true);
     expect(PrismService.postAgentInput).toHaveBeenCalledOnce();
-    const [conversationId, input, username] = vi.mocked(PrismService.postAgentInput).mock.calls[0];
+    const [conversationId, input, username] = vi.mocked(
+      PrismService.postAgentInput,
+    ).mock.calls[0];
     expect(conversationId).toBe("conv-1");
     expect(input.text).toContain(`<discord-message id="${followUp.id}"`);
     expect(username).toBe("alice");
@@ -97,8 +113,15 @@ describe("tryFoldIntoRunningTurn — who may fold", () => {
 
   it("never folds another author's message, or one in another channel", async () => {
     streamingTurn();
-    expect(await tryFoldIntoRunningTurn(fakeMessage({ authorId: BOB }), "mention")).toBe(false);
-    expect(await tryFoldIntoRunningTurn(fakeMessage({ channelId: OTHER_CHANNEL }), "mention")).toBe(false);
+    expect(
+      await tryFoldIntoRunningTurn(fakeMessage({ authorId: BOB }), "mention"),
+    ).toBe(false);
+    expect(
+      await tryFoldIntoRunningTurn(
+        fakeMessage({ channelId: OTHER_CHANNEL }),
+        "mention",
+      ),
+    ).toBe(false);
     expect(PrismService.postAgentInput).not.toHaveBeenCalled();
   });
 
@@ -142,13 +165,20 @@ describe("tryFoldIntoRunningTurn — who may fold", () => {
   it("hands the message back, unmarked, when it can't even be built", async () => {
     vi.spyOn(console, "warn").mockImplementation(() => {});
     streamingTurn();
-    const broken = { ...fakeMessage(), attachments: null, content: undefined, author: { id: ALICE } };
+    const broken = {
+      ...fakeMessage(),
+      attachments: null,
+      content: undefined,
+      author: { id: ALICE },
+    };
     Object.defineProperty(broken, "attachments", {
       get() {
         throw new Error("partial message");
       },
     });
-    await expect(tryFoldIntoRunningTurn(broken as never, "name")).resolves.toBe(false);
+    await expect(tryFoldIntoRunningTurn(broken as never, "name")).resolves.toBe(
+      false,
+    );
     expect(PrismService.postAgentInput).not.toHaveBeenCalled();
     expect(DiscordState.wasAcceptedForReply(broken.id)).toBe(false);
   });
@@ -157,7 +187,9 @@ describe("tryFoldIntoRunningTurn — who may fold", () => {
     streamingTurn();
     const followUp = fakeMessage();
     await tryFoldIntoRunningTurn(followUp, "mention");
-    expect(DiscordState.isEditANewMention(followUp.id, true, false)).toBe(false);
+    expect(DiscordState.isEditANewMention(followUp.id, true, false)).toBe(
+      false,
+    );
   });
 
   it("a newer turn by the same author replaces (and closes) the older one", () => {
@@ -178,9 +210,16 @@ describe("SteerableTurn.settle — folds the turn did not answer are handed back
   }
 
   it("keeps a fold the delivered reply answered (applied before the last pass)", async () => {
-    for (const boundary of ["iteration_start", "after_tools", "before_end", "native_steer"]) {
+    for (const boundary of [
+      "iteration_start",
+      "after_tools",
+      "before_end",
+      "native_steer",
+    ]) {
       const { turn, followUp } = await foldOne(boundary);
-      expect(turn.answeredFoldTurns().map((fold) => fold.id)).toEqual([followUp.id]);
+      expect(turn.answeredFoldTurns().map((fold) => fold.id)).toEqual([
+        followUp.id,
+      ]);
       turn.modelReplied = true;
       turn.delivered = true;
       await expect(turn.settle()).resolves.toEqual([]);
@@ -240,7 +279,11 @@ describe("buildFoldInput", () => {
       content: "and this one?",
       referenceId: "700000000000000001",
       attachments: [
-        { url: "https://cdn.discordapp.com/attachments/1/2/cat.png", contentType: "image/png", size: 1048576 },
+        {
+          url: "https://cdn.discordapp.com/attachments/1/2/cat.png",
+          contentType: "image/png",
+          size: 1048576,
+        },
         {
           url: "https://cdn.discordapp.com/attachments/1/3/clip.mp4",
           proxyURL: "https://media.discordapp.net/attachments/1/3/clip.mp4",
@@ -250,13 +293,19 @@ describe("buildFoldInput", () => {
       ],
     });
     const { text, images } = buildFoldInput(message);
-    expect(images).toEqual(["https://cdn.discordapp.com/attachments/1/2/cat.png"]);
+    expect(images).toEqual([
+      "https://cdn.discordapp.com/attachments/1/2/cat.png",
+    ]);
     expect(text).toContain(`id="${message.id}"`);
     expect(text).toContain('author="Queen Alice"');
     expect(text).toContain(`author-id="${ALICE}"`);
     expect(text).toContain('<replying-to id="700000000000000001"');
     expect(text).toContain("and this one?");
-    expect(text).toContain('url="https://cdn.discordapp.com/attachments/1/2/cat.png"');
-    expect(text).toContain('url="https://media.discordapp.net/attachments/1/3/clip.mp4"');
+    expect(text).toContain(
+      'url="https://cdn.discordapp.com/attachments/1/2/cat.png"',
+    );
+    expect(text).toContain(
+      'url="https://media.discordapp.net/attachments/1/3/clip.mp4"',
+    );
   });
 });
