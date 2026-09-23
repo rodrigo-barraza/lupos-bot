@@ -25,6 +25,12 @@ const DiscordState = {
   isProcessingQueue: false,
   queuedData: [] as QueuedMessageData[],
   cancelledMessageIds: new Set<string>(),
+  // Messages that passed every gate and were taken for a reply. The
+  // edit path consults this: once the reply pipeline's 500-message
+  // history fetch pushes the trigger out of discord.js's cache, an edit
+  // arrives with a partial oldMessage whose mentions read empty — which
+  // looked like "edited to mention the bot" and queued a second reply.
+  acceptedReplyIds: new BoundedMap<string, true>(5000, 6 * 60 * 60 * 1000),
 
   // ─── Reaction Highlights Queue ────────────────────────────────
   isProcessingOnReactionQueue: false,
@@ -65,6 +71,34 @@ const DiscordState = {
   markCancelled(messageId: string) {
     this.cancelledMessageIds.add(messageId);
     setTimeout(() => this.cancelledMessageIds.delete(messageId), 5 * 60 * 1000);
+  },
+
+  /**
+   * Record that a message was taken for a reply (queued, in flight or
+   * answered), so a later edit of it never queues a second one.
+   */
+  markAcceptedForReply(messageId: string) {
+    this.acceptedReplyIds.set(messageId, true);
+  },
+
+  wasAcceptedForReply(messageId: string) {
+    return this.acceptedReplyIds.has(messageId);
+  },
+
+  /**
+   * Whether an edit turned a message into a new mention of the bot. The
+   * mention diff alone is not enough: an uncached original arrives as a
+   * partial oldMessage whose mentions read empty, so a message already
+   * taken for a reply is never "newly" mentioning the bot.
+   */
+  isEditANewMention(
+    messageId: string,
+    newMentionsBot: boolean,
+    oldMentionsBot: boolean,
+  ) {
+    return (
+      newMentionsBot && !oldMentionsBot && !this.wasAcceptedForReply(messageId)
+    );
   },
 };
 
