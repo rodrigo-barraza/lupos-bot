@@ -12,8 +12,9 @@
 //      ≤12 ambient turns per channel per UTC day, and at most one
 //      classifier call per channel per minute;
 //   3. classifier (one small Prism /chat call on the cheapest configured
-//      model): strict JSON {interject, score}; he speaks only at
-//      score ≥ 0.7. Any error ⇒ silence.
+//      model, falling back to the main provider's fast model while the
+//      cheapest one is failing): strict JSON {interject, score}; he
+//      speaks only at score ≥ 0.7. Any error ⇒ silence.
 //
 // When it fires, the agent turn's respond-to directive tells him he was
 // not addressed and may stay silent by replying exactly [[pass]].
@@ -50,6 +51,11 @@ export const AMBIENT_LIMITS = {
   maxLineChars: 300,
   classifierTimeoutMs: 15_000,
   /**
+   * A classifier model whose call failed is skipped (its fallback used)
+   * for this long before it is tried again.
+   */
+  failedModelRetryMs: 60 * 60 * 1000,
+  /**
    * An ambient turn still waiting in the reply queue this long after its
    * message was posted is dropped — the moment has passed.
    */
@@ -68,6 +74,8 @@ interface ChannelAmbientState {
 }
 
 const channelStates = new Map<string, ChannelAmbientState>();
+// "type/model" → when a failed classifier model may be tried again.
+const failedModelsUntilMs = new Map<string, number>();
 // Channels with a classification in flight — two messages landing
 // together must not both reach the classifier.
 const evaluatingChannels = new Set<string>();
@@ -191,6 +199,7 @@ export function recordAmbientInterjection(
 export function resetAmbientState(): void {
   channelStates.clear();
   evaluatingChannels.clear();
+  failedModelsUntilMs.clear();
 }
 
 // ─── Rung 3: classifier ────────────────────────────────────────
@@ -246,6 +255,45 @@ export function resolveAmbientClassifierModel(
     (settings.LANGUAGE_MODEL_OPENAI_LOW ? "OPENAI" : settings.LANGUAGE_MODEL_TYPE);
   const model = cheapestModelFor(type, settings);
   return type && model ? { type, model } : null;
+}
+
+function mainFastModel(
+  settings: ModelSettings,
+): { type: string; model: string } | null {
+  const type = settings.LANGUAGE_MODEL_TYPE;
+  const model =
+    type === "OPENAI"
+      ? settings.FAST_LANGUAGE_MODEL_OPENAI
+      : cheapestModelFor(type, settings);
+  return type && model ? { type, model } : null;
+}
+
+/**
+ * The classifier models in the order they are tried: the resolved
+ * (cheapest) one, then — when different — the main provider's fast
+ * model, the one every agent turn already proves live. The cheapest
+ * default (gpt-4.1-nano) is one Prism keeps only for cost tracking, so a
+ * retirement upstream must not switch the feature off.
+ */
+export function ambientClassifierCandidates(
+  settings: ModelSettings = config,
+): { type: string; model: string }[] {
+  const candidates: { type: string; model: string }[] = [];
+  for (const candidate of [
+    resolveAmbientClassifierModel(settings),
+    mainFastModel(settings),
+  ]) {
+    if (
+      candidate &&
+      !candidates.some(
+        (existing) =>
+          existing.type === candidate.type && existing.model === candidate.model,
+      )
+    ) {
+      candidates.push(candidate);
+    }
+  }
+  return candidates;
 }
 
 export const AMBIENT_CLASSIFIER_SYSTEM_PROMPT = `You decide whether Lupos should speak up in a Discord conversation he was NOT invited into.
@@ -326,54 +374,63 @@ export function parseInterjectionVerdict(
   return { interject, score };
 }
 
-/** One classifier call. Any failure (no model, Prism error, bad JSON) ⇒ null. */
+/**
+ * One classification: the first healthy candidate model answers; a model
+ * whose call fails is skipped for an hour and the next one tried. Any
+ * failure that leaves no answer (no model, every call failed, bad JSON)
+ * ⇒ null.
+ */
 export async function classifyInterjection({
   candidate,
   recentMessages,
   botUserId,
+  nowMs = Date.now(),
 }: {
   candidate: Message;
   recentMessages: Message[];
   botUserId: string;
+  nowMs?: number;
 }): Promise<{ interject: boolean; score: number } | null> {
-  const classifierModel = resolveAmbientClassifierModel();
-  if (!classifierModel) return null;
-  try {
-    const result = await PrismService.generateText({
-      type: classifierModel.type,
-      model: classifierModel.model,
-      systemPrompt: AMBIENT_CLASSIFIER_SYSTEM_PROMPT,
-      messages: [
-        {
-          role: "user",
-          content: buildClassifierTranscript(
-            recentMessages,
-            candidate,
-            botUserId,
-          ),
+  const transcript = buildClassifierTranscript(
+    recentMessages,
+    candidate,
+    botUserId,
+  );
+  for (const classifierModel of ambientClassifierCandidates()) {
+    const modelKey = `${classifierModel.type}/${classifierModel.model}`;
+    if ((failedModelsUntilMs.get(modelKey) ?? -Infinity) > nowMs) continue;
+    let text: string | null | undefined;
+    try {
+      const result = await PrismService.generateText({
+        type: classifierModel.type,
+        model: classifierModel.model,
+        systemPrompt: AMBIENT_CLASSIFIER_SYSTEM_PROMPT,
+        messages: [{ role: "user", content: transcript }],
+        flatOptions: {
+          maxTokens: 200,
+          thinkingEnabled: false,
+          responseFormat: "json_object",
         },
-      ],
-      flatOptions: {
-        maxTokens: 200,
-        thinkingEnabled: false,
-        responseFormat: "json_object",
-      },
-      timeoutMs: AMBIENT_LIMITS.classifierTimeoutMs,
-      username: "lupos",
-    });
-    const verdict = parseInterjectionVerdict(result.text);
+        timeoutMs: AMBIENT_LIMITS.classifierTimeoutMs,
+        username: "lupos",
+      });
+      text = result.text;
+    } catch (error: unknown) {
+      failedModelsUntilMs.set(modelKey, nowMs + AMBIENT_LIMITS.failedModelRetryMs);
+      console.warn(
+        `🌙 [AmbientInterjection] Classifier call failed on ${modelKey} — skipping it for an hour: ${(error as Error)?.message ?? error}`,
+      );
+      continue;
+    }
+    const verdict = parseInterjectionVerdict(text);
     if (!verdict) {
       console.warn(
-        `🌙 [AmbientInterjection] Classifier reply was not the expected JSON: ${String(result.text).slice(0, 200)}`,
+        `🌙 [AmbientInterjection] Classifier reply was not the expected JSON (${modelKey}): ${String(text).slice(0, 200)}`,
       );
     }
     return verdict;
-  } catch (error: unknown) {
-    console.warn(
-      `🌙 [AmbientInterjection] Classifier call failed (${classifierModel.type}/${classifierModel.model}): ${(error as Error)?.message ?? error}`,
-    );
-    return null;
   }
+  return null;
 }
 
 // ─── The ladder ────────────────────────────────────────────────
@@ -415,6 +472,7 @@ export async function evaluateAmbientInterjection(
       candidate: message,
       recentMessages,
       botUserId,
+      nowMs,
     });
     if (!verdict) return { interject: false, reason: "classifier failed" };
     if (!verdict.interject || verdict.score < AMBIENT_LIMITS.scoreThreshold) {
