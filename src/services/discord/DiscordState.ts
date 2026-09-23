@@ -10,6 +10,7 @@
 
 import TemporalHelpers from "#root/utilities/TemporalHelpers.ts";
 import BoundedMap from "#root/utilities/BoundedMap.ts";
+import type { ReplyMode } from "#root/services/discord/Addressee.ts";
 
 export interface QueuedMessageData {
   message: import("discord.js").Message;
@@ -18,6 +19,8 @@ export interface QueuedMessageData {
     import("discord.js").Message
   >;
   actionType: string;
+  /** How the reply was triggered; absent ⇒ "mention" (legacy entries). */
+  replyMode?: ReplyMode;
 }
 
 const DiscordState = {
@@ -71,6 +74,28 @@ const DiscordState = {
   markCancelled(messageId: string) {
     this.cancelledMessageIds.add(messageId);
     setTimeout(() => this.cancelledMessageIds.delete(messageId), 5 * 60 * 1000);
+  },
+
+  /**
+   * An AbortSignal that fires once the message is cancelled (deleted),
+   * checked every `pollMs` — for handing to a long agent turn so it can
+   * be abandoned mid-flight. Always call dispose() when the turn ends.
+   */
+  watchCancellation(messageId: string, pollMs = 1_000) {
+    const controller = new AbortController();
+    const timer = setInterval(() => {
+      if (this.isMessageCancelled(messageId)) {
+        clearInterval(timer);
+        controller.abort(
+          new Error(`trigger message ${messageId} was deleted`),
+        );
+      }
+    }, pollMs);
+    timer.unref?.();
+    return {
+      signal: controller.signal,
+      dispose: () => clearInterval(timer),
+    };
   },
 
   /**

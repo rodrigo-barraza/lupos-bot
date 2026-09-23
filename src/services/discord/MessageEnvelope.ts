@@ -319,7 +319,19 @@ export interface RespondToDirective {
   id: string;
   author?: string;
   authorId?: string;
+  /**
+   * false ⇒ nobody addressed Lupos (an ambient interjection): he may stay
+   * silent by replying exactly PASS_REPLY_TOKEN. Omitted/true renders the
+   * plain self-closing directive.
+   */
+  addressed?: boolean;
 }
+
+/**
+ * The whole reply an ambient turn gives to stay silent. lupos-bot then
+ * posts nothing and commits nothing to the channel session.
+ */
+export const PASS_REPLY_TOKEN = "[[pass]]";
 
 /**
  * Render the per-request directive that identifies which message the
@@ -334,7 +346,19 @@ export function buildRespondToDirective(directive: RespondToDirective): string {
     attr("id", directive.id) +
     attr("author", directive.author) +
     attr("author-id", directive.authorId);
-  return `<respond-to${attrs} />`;
+  if (directive.addressed !== false) {
+    return `<respond-to${attrs} />`;
+  }
+  return `<respond-to${attrs} addressed="false">\n\nNobody addressed you — this message wasn't written to you. Chime in only if you have something the room would genuinely enjoy. Otherwise stay silent: reply with exactly ${PASS_REPLY_TOKEN} and nothing else, and nothing will be posted.\n\n</respond-to>`;
+}
+
+/**
+ * Whether an ambient turn's reply chose silence — the pass token, alone
+ * or with stray text around it (the token anywhere means he meant to pass).
+ */
+export function isPassReply(text: string | null | undefined): boolean {
+  if (!text) return false;
+  return text.toLowerCase().includes(PASS_REPLY_TOKEN);
 }
 
 // ─── Bot message annotation ───────────────────────────────────

@@ -150,8 +150,6 @@ const config = {
   LANGUAGE_MODEL_OPENAI: process.env.LANGUAGE_MODEL_OPENAI,
   LANGUAGE_MODEL_LOCAL: process.env.LANGUAGE_MODEL_LOCAL,
   LANGUAGE_MODEL_TYPE: process.env.LANGUAGE_MODEL_TYPE,
-  LANGUAGE_MODEL_MAX_TOKENS: process.env.LANGUAGE_MODEL_MAX_TOKENS,
-  LANGUAGE_MODEL_TEMPERATURE: process.env.LANGUAGE_MODEL_TEMPERATURE,
 
   LANGUAGE_MODEL_OPENAI_LOW: process.env.LANGUAGE_MODEL_OPENAI_LOW,
 
@@ -168,6 +166,24 @@ const config = {
   PIGGYBACK_SESSION_TTL_MS: process.env.PIGGYBACK_SESSION_TTL_MS,
   // Frozen-history size cap (chars, ≈ tokens × 4) before a rebaseline.
   PIGGYBACK_SESSION_MAX_CHARS: process.env.PIGGYBACK_SESSION_MAX_CHARS,
+
+  // ── Agent turn budget (sent on every /agent call) ─────────────
+  // Hard ceilings Prism enforces per Discord turn: agentic-loop passes
+  // and spend in dollars. Unset/invalid ⇒ PrismService's defaults
+  // (10 passes, $0.50).
+  AGENT_MAX_ITERATIONS: process.env.AGENT_MAX_ITERATIONS,
+  AGENT_MAX_COST_DOLLARS: process.env.AGENT_MAX_COST_DOLLARS,
+
+  // ── Ambient interjection ──────────────────────────────────────
+  // Channels where Lupos may speak up without being addressed. Seeds the
+  // Mongo-backed CHANNEL_IDS_AMBIENT list once (BotSettingsService);
+  // after that it is edited through /bot/settings. Unset ⇒ off everywhere.
+  CHANNEL_IDS_AMBIENT: parseCommaSeparated("CHANNEL_IDS_AMBIENT"),
+  // The "should he chime in?" classifier's provider type (OPENAI,
+  // GOOGLE, …) and model. Unset ⇒ the cheapest configured model
+  // (LANGUAGE_MODEL_OPENAI_LOW on OpenAI, else the type's fast model).
+  AMBIENT_CLASSIFIER_MODEL_TYPE: process.env.AMBIENT_CLASSIFIER_MODEL_TYPE,
+  AMBIENT_CLASSIFIER_MODEL: process.env.AMBIENT_CLASSIFIER_MODEL,
 };
 
 /**

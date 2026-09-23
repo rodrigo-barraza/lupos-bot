@@ -272,7 +272,6 @@ The people you are tagging are: ${namesList}
       model: agentModel || "",
       agentContext,
       maxTokens: 1024,
-      temperature: 1.0,
       ...AIService._getTraceParams(),
     });
 

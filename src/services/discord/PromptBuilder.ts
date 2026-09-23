@@ -53,9 +53,11 @@ import {
 import {
   buildReferenceImagesBlock,
   buildRespondToDirective,
+  isPassReply,
   stripScaffoldingTags,
 } from "#root/services/discord/MessageEnvelope.ts";
 import ChannelSessionCache from "#root/services/discord/ChannelSessionCache.ts";
+import type { ReplyMode } from "#root/services/discord/Addressee.ts";
 
 import utilities from "#root/utilities.ts";
 import LogFormatter from "#root/formatters/LogFormatter.ts";
@@ -585,6 +587,21 @@ function buildParticipantRosterLine(
   return line;
 }
 
+/** What buildAndGenerateReply hands back to replyMessage. */
+export interface GeneratedReply {
+  generatedText: string | null;
+  image: unknown;
+  audioRef: string | null;
+  videoUrl: string | null;
+  imageUrl: string | null;
+  imagePrompt: string | null;
+  /**
+   * An ambient turn chose silence ([[pass]]): post nothing. The channel
+   * session was not committed.
+   */
+  passed?: boolean;
+}
+
 export async function buildAndGenerateReply({
   conversation,
   memberMentionsCollection,
@@ -599,6 +616,7 @@ export async function buildAndGenerateReply({
   localMongo,
   statusTracker,
   session,
+  replyMode = "mention",
 }: {
   conversation: Record<string, unknown>[];
   memberMentionsCollection: import("discord.js").Collection<
@@ -651,7 +669,12 @@ export async function buildAndGenerateReply({
     /** Participant ids accumulated across the whole session. */
     cumulativeParticipantUserIds: string[];
   };
-}) {
+  /**
+   * How the trigger reached Lupos. "ambient" ⇒ nobody addressed him: the
+   * directive says so and a [[pass]] reply means stay silent.
+   */
+  replyMode?: ReplyMode;
+}): Promise<GeneratedReply> {
   // Build the system prompt
   const { message, recentMessages } = queuedDatum;
   const client = message.client;
@@ -1572,6 +1595,10 @@ export async function buildAndGenerateReply({
       platform: "discord",
       guildId: messageGuildId,
       channelId: messageChannelId,
+      // Who Lupos is answering — Prism forwards it to tools-service as
+      // x-discord-user-id, which scopes what his tools may reach for
+      // this person (contract §1/§2).
+      requesterUserId: message.author.id,
       participantUserIds:
         participantUserIds.length > 0 ? participantUserIds : null,
       aprilFoolsMode: APRIL_FOOLS_MODE,
@@ -1673,7 +1700,6 @@ export async function buildAndGenerateReply({
         videoUrl: null,
         imageUrl: null,
         imagePrompt: null,
-        promptForImagePromptGeneration: null,
       };
     }
 
@@ -1691,6 +1717,7 @@ export async function buildAndGenerateReply({
     // message to answer. It rides as an ephemeral tail turn — never
     // committed to the session — so frozen envelopes stay byte-stable
     // and the provider prompt cache survives across triggers.
+    const isAmbientTurn = replyMode === "ambient";
     const respondToTurn: ChatMessage = {
       role: "system",
       content: buildRespondToDirective({
@@ -1698,28 +1725,41 @@ export async function buildAndGenerateReply({
         author:
           displayNameOf(message as Message) || message.author?.username,
         authorId: message.author?.id,
+        ...(isAmbientTurn && { addressed: false }),
       }),
     };
 
-    const agentResponse = await PrismService.generateAgentResponse({
-      messages: [...agentConversation, respondToTurn],
-      type: config.LANGUAGE_MODEL_TYPE || "",
-      model: agentModel || "",
-      agentContext,
-      maxTokens: 16_384, // Lupos text is ~1 sentence, but tool-call JSON (generate_audio compositions) can be 3-5K tokens
-      temperature: config.LANGUAGE_MODEL_TEMPERATURE
-        ? parseFloat(config.LANGUAGE_MODEL_TEMPERATURE)
-        : undefined,
-      thinkingEnabled: true,
-      thinkingBudget: 10_000,
-      username: message.author?.username || "unknown",
-      ...AIService._getTraceParams(),
-      // Stream the agent SSE when a status tracker is watching so presence
-      // shows live thinking/tool progress; the return shape is identical.
-      ...(statusTracker && {
-        onEvent: (event: PrismSseEvent) => statusTracker.handleEvent(event),
-      }),
-    });
+    // A trigger deleted mid-turn abandons the turn: the stream read stops
+    // and Prism is told to stop the (otherwise still running) turn.
+    const triggerWatch = DiscordState.watchCancellation(
+      (message as Message).id,
+    );
+    let agentResponse: Awaited<
+      ReturnType<typeof PrismService.generateAgentResponse>
+    >;
+    try {
+      agentResponse = await PrismService.generateAgentResponse({
+        messages: [...agentConversation, respondToTurn],
+        type: config.LANGUAGE_MODEL_TYPE || "",
+        model: agentModel || "",
+        agentContext,
+        maxTokens: 16_384, // Lupos text is ~1 sentence, but tool-call JSON (generate_audio compositions) can be 3-5K tokens
+        // No temperature: agent turns leave sampling to Prism. Budget
+        // (maxIterations / maxCostDollars) comes from resolveAgentTurnBudget.
+        thinkingEnabled: true,
+        thinkingBudget: 10_000,
+        username: message.author?.username || "unknown",
+        ...AIService._getTraceParams(),
+        // Stream the agent SSE when a status tracker is watching so presence
+        // shows live thinking/tool progress; the return shape is identical.
+        ...(statusTracker && {
+          onEvent: (event: PrismSseEvent) => statusTracker.handleEvent(event),
+          signal: triggerWatch.signal,
+        }),
+      });
+    } finally {
+      triggerWatch.dispose();
+    }
 
     generatedText = agentResponse.text || "";
 
@@ -1729,6 +1769,24 @@ export async function buildAndGenerateReply({
     // teaches future turns that it's a valid reply shape. Scrubbed-empty
     // text with media still posts as a media-only reply downstream.
     generatedText = stripScaffoldingTags(generatedText);
+
+    // An unaddressed (ambient) turn that chose silence: nothing is posted
+    // and nothing is committed to the channel session — the next trigger
+    // slices from the old watermark as if this turn never ran.
+    if (isAmbientTurn && isPassReply(generatedText)) {
+      console.log(
+        `🤐 [DiscordService] Stayed silent on unaddressed message ${(message as Message).id} (${generatedText.trim().slice(0, 40)}).`,
+      );
+      return {
+        generatedText: null,
+        image: null,
+        audioRef: null,
+        videoUrl: null,
+        imageUrl: null,
+        imagePrompt: null,
+        passed: true,
+      };
+    }
 
     // Freeze this request for the channel's piggyback session: the exact
     // conversation as sent (minus the ephemeral respond-to tail) plus the
@@ -1817,10 +1875,39 @@ export async function buildAndGenerateReply({
       agentResponse.toolResults,
     );
   } catch (error: unknown) {
-    generatedText = "...";
+    // PrismService's AgentTurnAbortedError, matched by name so test
+    // mocks of PrismService (default export only) keep working.
+    if ((error as Error)?.name === "AgentTurnAbortedError") {
+      // Trigger deleted mid-turn — the Prism turn was stopped; nothing
+      // gets posted (replyMessage sees the cancellation).
+      console.log(
+        `🗑️ [DiscordService] ${(error as Error).message} — reply abandoned.`,
+      );
+      return {
+        generatedText: null,
+        image: null,
+        audioRef: null,
+        videoUrl: null,
+        imageUrl: null,
+        imagePrompt: null,
+      };
+    }
     console.error(
       ...LogFormatter.error("buildAndGenerateReply", error as Error),
     );
+    // Nobody asked for an ambient turn — a failure is silence, never a
+    // filler "..." aimed at someone who didn't address him.
+    if (replyMode === "ambient") {
+      return {
+        generatedText: null,
+        image: null,
+        audioRef: null,
+        videoUrl: null,
+        imageUrl: null,
+        imagePrompt: null,
+      };
+    }
+    generatedText = "...";
   }
   return {
     generatedText,

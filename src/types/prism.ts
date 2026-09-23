@@ -19,8 +19,16 @@ export interface GenerateTextParams {
   type: string;
   model: string;
   systemPrompt?: string;
+  // Generation options — sent flat at the top level of the /chat body,
+  // which is where Prism reads them.
   maxTokens?: number;
   temperature?: number;
+  /** false ⇒ Prism turns thinking down/off for thinking models. */
+  thinkingEnabled?: boolean;
+  /** "json_object" ⇒ provider JSON mode (OpenAI, Google, Moonshot). */
+  responseFormat?: "json_object";
+  /** Abort the call after this many milliseconds (default 120 000). */
+  timeoutMs?: number;
   username?: string;
   traceId?: string;
 }
@@ -55,16 +63,23 @@ export interface PrismSseEvent {
   [key: string]: unknown;
 }
 
-/** Params for PrismService.generateAgentResponse(). */
+/**
+ * Params for PrismService.generateAgentResponse(). There is no
+ * temperature: agent turns leave sampling to Prism (current Gemini
+ * models ignore it anyway).
+ */
 export interface AgentResponseParams {
   messages: ChatMessage[];
   type: string;
   model: string;
   agentContext?: Record<string, unknown>;
   maxTokens?: number;
-  temperature?: number;
   thinkingEnabled?: boolean;
   thinkingBudget?: number;
+  /** Agentic-loop pass ceiling (default: resolveAgentTurnBudget()). */
+  maxIterations?: number;
+  /** Spend ceiling in dollars (default: resolveAgentTurnBudget()). */
+  maxCostDollars?: number;
   username?: string;
   traceId?: string;
   /**
@@ -73,6 +88,12 @@ export interface AgentResponseParams {
    * presence statuses. The final return value is identical either way.
    */
   onEvent?: (event: PrismSseEvent) => void;
+  /**
+   * Streaming path only: aborting gives up on the turn — the stream read
+   * stops, Prism is told to stop the turn, and the call rejects with
+   * AgentTurnAbortedError.
+   */
+  signal?: AbortSignal;
 }
 
 /** Image data object for Prism image generation. */
@@ -114,12 +135,25 @@ export interface TranscribeAudioParams {
   traceId?: string;
 }
 
+/**
+ * One conversation participant sent to Prism's /memory/extract. Prism
+ * attributes each extracted fact to a participant by `id`/`username`,
+ * so these travel as objects — never bare display-name strings.
+ */
+export interface MemoryParticipant {
+  /** Discord user id (snowflake). */
+  id: string;
+  username: string;
+  /** Server nickname > global name > username. */
+  displayName: string;
+}
+
 /** Params for PrismService.extractMemories(). */
 export interface MemoryExtractParams {
   guildId: string;
   channelId: string;
   messages: ChatMessage[];
-  participants?: string[];
+  participants?: MemoryParticipant[];
   sourceMessageId?: string;
   traceId?: string;
 }

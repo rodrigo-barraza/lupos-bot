@@ -67,6 +67,24 @@ import { buildMessageAnnotation } from "#root/services/discord/MessageEnvelope.t
 import type { AttachmentPart } from "#root/services/discord/MessageEnvelope.ts";
 import { buildAndGenerateReply } from "#root/services/discord/PromptBuilder.ts";
 import { AgentStatusTracker } from "#root/services/discord/AgentStatusTracker.ts";
+import { resolveAddressing } from "#root/services/discord/Addressee.ts";
+import type {
+  AddressingMode,
+  ReplyMode,
+} from "#root/services/discord/Addressee.ts";
+import {
+  agentTurnRateLimiter,
+  RATE_LIMITED_REACTION,
+} from "#root/services/discord/AgentTurnRateLimiter.ts";
+import {
+  AMBIENT_LIMITS,
+  evaluateAmbientInterjection,
+  recordAmbientInterjection,
+} from "#root/services/discord/AmbientInterjection.ts";
+import {
+  buildMemoryParticipants,
+  isVisibleToEveryone,
+} from "#root/services/discord/MemoryExtraction.ts";
 import {
   formatEmotionDetail,
   formatMoodStatusLine,
@@ -167,6 +185,7 @@ async function replyMessage(
       import("discord.js").Message
     >;
     actionType?: string;
+    replyMode?: ReplyMode;
   },
   localMongo: import("mongodb").MongoClient,
 ) {
@@ -174,6 +193,7 @@ async function replyMessage(
   const message = queuedDatum.message;
   const _messages = queuedDatum.recentMessages;
   const actionType = queuedDatum.actionType;
+  const replyMode = queuedDatum.replyMode ?? "mention";
 
   const client = message.client;
   const guild = (message as Message).guild;
@@ -196,6 +216,19 @@ async function replyMessage(
       `🗑️ [DiscordService] Message ${(message as Message).id} was deleted before processing started, skipping.`,
     );
     DiscordState.cancelledMessageIds.delete((message as Message).id);
+    return;
+  }
+
+  // An uninvited interjection that sat in the reply queue behind other
+  // turns has missed its moment — drop it rather than answer stale chat.
+  if (
+    replyMode === "ambient" &&
+    Date.now() - (message as Message).createdTimestamp >
+      AMBIENT_LIMITS.maxQueueDelayMs
+  ) {
+    console.log(
+      `🌙 [DiscordService] Dropped ambient turn for ${(message as Message).id} — waited too long in the queue.`,
+    );
     return;
   }
 
@@ -306,8 +339,15 @@ async function replyMessage(
     return;
   }
 
-  const { generatedText, image, audioRef, videoUrl, imageUrl, imagePrompt } =
-    await buildAndGenerateReply({
+  const {
+    generatedText,
+    image,
+    audioRef,
+    videoUrl,
+    imageUrl,
+    imagePrompt,
+    passed,
+  } = await buildAndGenerateReply({
       conversation: conversation as unknown as Record<string, unknown>[],
       memberMentionsCollection,
       messagesEmojisCollection,
@@ -336,6 +376,7 @@ async function replyMessage(
         cumulativeParticipantUserIds:
           piggybackPlan?.session.participantUserIds ?? [],
       },
+      replyMode,
     });
 
   const generatedTextResponse = generatedText;
@@ -346,13 +387,40 @@ async function replyMessage(
 
   // (Image conversations are already saved per-call inside generateImage)
 
-  if (
+  // Deleted while the reply was generated (an abandoned agent turn comes
+  // back empty) — checked before the empty-reply fallback, which would
+  // otherwise post "..." into the channel for a message that is gone.
+  if (DiscordState.isMessageCancelled((message as Message).id)) {
+    console.log(
+      `🗑️ [DiscordService] Message ${(message as Message).id} was deleted during reply generation, not sending reply.`,
+    );
+    DiscordState.cancelledMessageIds.delete((message as Message).id);
+    ChannelSessionCache.invalidate(sessionChannelId);
+    statusTracker.finishCancelled();
+    return;
+  }
+
+  const nothingToPost =
     !generatedTextResponse &&
     !generatedImage &&
     !generatedAudioRef &&
     !generatedVideoUrl &&
-    !generatedImageUrl
-  ) {
+    !generatedImageUrl;
+
+  // Unaddressed and he chose silence ([[pass]]): post nothing, leave the
+  // channel session as it was (PromptBuilder skipped the commit), and
+  // stop typing unless another reply for this channel is queued. An
+  // ambient turn that failed or came back empty is silent too — the
+  // "..." fallback below is for people who actually asked him something.
+  if (passed || (replyMode === "ambient" && nothingToPost)) {
+    if (!passed) ChannelSessionCache.invalidate(sessionChannelId);
+    statusTracker.finishCancelled();
+    stopTypingIfChannelIdle(sessionChannelId);
+    CurrentService.clearTraceId();
+    return;
+  }
+
+  if (nothingToPost) {
     // The committed session expects this turn's reply to exist in the
     // channel — without one, the frozen history would drift from Discord.
     ChannelSessionCache.invalidate(sessionChannelId);
@@ -369,16 +437,6 @@ ${combinedGuildInformation && combinedChannelInformation ? `URL: ${utilities.get
   }
   // SEND THE REPLY
   try {
-    // Check if message was deleted during reply generation
-    if (DiscordState.isMessageCancelled((message as Message).id)) {
-      console.log(
-        `🗑️ [DiscordService] Message ${(message as Message).id} was deleted during reply generation, not sending reply.`,
-      );
-      DiscordState.cancelledMessageIds.delete((message as Message).id);
-      ChannelSessionCache.invalidate(sessionChannelId);
-      statusTracker.finishCancelled();
-      return;
-    }
     await message.fetch();
 
     const { sentMessages } = await DiscordUtilityService.sendMessageInChunks(
@@ -413,46 +471,19 @@ ${combinedGuildInformation && combinedChannelInformation ? `URL: ${utilities.get
   DiscordState.lastMessageSentTime = TemporalHelpers.nowISO();
   CurrentService.setEndTime(Date.now());
 
-  // Fire-and-forget memory extraction from the conversation
+  // Fire-and-forget memory extraction from the conversation — only where
+  // @everyone can read along, so nothing said in a private channel
+  // resurfaces as a "memory" somewhere public.
   const guildId = (message as Message).guildId;
-  if (guildId && conversation?.length > 0) {
-    const memoryParticipants: {
-      id: string;
-      displayName?: string;
-      username?: string;
-    }[] = [];
-    // Collect participant info for extraction
-    if (participantsCollection?.size) {
-      for (const participant of participantsCollection.values()) {
-        const pId = participant?.user?.id;
-        const pUser = participant?.user || participant;
-        if (pId) {
-          memoryParticipants.push({
-            id: pId,
-            username: pUser?.username || "",
-            displayName: pUser?.globalName || pUser?.username || "",
-          });
-        }
-      }
-    }
-    // Include mentioned users
-    if (memberMentionsCollection?.size) {
-      for (const member of memberMentionsCollection.values()) {
-        const alreadyAdded = memoryParticipants.some(
-          (p: { id: string }) => p.id === member.id,
-        );
-        if (!alreadyAdded) {
-          memoryParticipants.push({
-            id: member.id,
-            username: member.user?.username || "",
-            displayName:
-              member.displayName ||
-              member.user?.globalName ||
-              member.user?.username,
-          });
-        }
-      }
-    }
+  if (
+    guildId &&
+    conversation?.length > 0 &&
+    isVisibleToEveryone((message as Message).channel)
+  ) {
+    const memoryParticipants = buildMemoryParticipants(
+      participantsCollection,
+      memberMentionsCollection,
+    );
     if (memoryParticipants.length > 0) {
       // Only send the last ~10 user messages for extraction (skip system/assistant)
       const recentUserMessages = conversation
@@ -463,10 +494,7 @@ ${combinedGuildInformation && combinedChannelInformation ? `URL: ${utilities.get
         guildId,
         channelId: (message as Message).channel?.id || "",
         messages: recentUserMessages,
-        participants: memoryParticipants.map(
-          (p: { id: string; displayName?: string; username?: string }) =>
-            p.displayName || p.username || p.id,
-        ),
+        participants: memoryParticipants,
         sourceMessageId: (message as Message).id,
         traceId: CurrentService.getTraceId() || undefined,
       })
@@ -998,6 +1026,60 @@ async function sendMaintenanceCountdown(message: Message) {
   }
 }
 
+/** Stop the channel's typing indicator (no-op when none is running). */
+function stopTyping(channelId: string) {
+  if (DiscordState.typingIntervals[channelId]) {
+    DiscordUtilityService.clearTypingInterval(
+      DiscordState.typingIntervals[channelId],
+    );
+    delete DiscordState.typingIntervals[channelId];
+  }
+}
+
+/** Stop the channel's typing indicator unless another reply for it is queued. */
+function stopTypingIfChannelIdle(channelId: string) {
+  if (
+    !DiscordState.queuedData.some(
+      (q: QueuedMessageData) => q.message?.channel?.id === channelId,
+    )
+  ) {
+    stopTyping(channelId);
+  }
+}
+
+/** Whether the author is on an ignore list or holds an ignored role. */
+function isIgnoredAuthor(message: Message) {
+  if (BotSettingsService.get("USER_IDS_IGNORE").includes(message.author.id)) {
+    return true;
+  }
+  const member = (message as Message).member;
+  return Boolean(
+    member?.roles.cache.some((role: import("discord.js").Role) =>
+      BotSettingsService.get("ROLES_IDS_IGNORE").includes(role.id),
+    ),
+  );
+}
+
+/**
+ * Take a turn from the author's agent-turn allowance. Over the limit the
+ * message gets one ⏳ reaction instead of a reply.
+ */
+async function admitAgentTurn(message: Message) {
+  const verdict = agentTurnRateLimiter.consume(message.author.id);
+  if (!verdict) return true;
+  console.log(
+    `⏳ [processMessage] ${message.author.username} hit the ${verdict} agent-turn limit — reacting instead of replying.`,
+  );
+  try {
+    await message.react(RATE_LIMITED_REACTION);
+  } catch (error: unknown) {
+    console.warn(
+      `⚠️ [processMessage] Could not add the rate-limit reaction: ${(error as Error).message}`,
+    );
+  }
+  return false;
+}
+
 async function processMessage(
   client: Client,
   {
@@ -1012,10 +1094,7 @@ async function processMessage(
   const isDirectMessage = (message as Message).channel.type === ChannelType.DM;
   const isSelfMessage = message.author.id === client.user!.id;
   const isDirectMessageFromSelf = isDirectMessage && isSelfMessage;
-  const isMessageWithoutSelfMention =
-    !isDirectMessage && !message.mentions.has(client.user!);
   const isMessageFromBot = message.author.bot;
-  const isGuildWhitemane = message?.guildId === config.GUILD_ID_PRIMARY;
   const isMentioningBot = isDirectMessage || message.mentions.has(client.user!);
 
   if ((message as Message).guildId === (config.GUILD_ID_GROBBULUS as string)) {
@@ -1054,8 +1133,20 @@ async function processMessage(
     return;
   }
 
-  // Check for flagged words in message content or replied-to content
-  if (!isSelfMessage && !isMessageFromBot && isMentioningBot) {
+  // Is this message talking TO Lupos — an @-mention, a reply to one of
+  // his messages (ping on or off), or his name used vocatively? Bots
+  // (himself included) only ever count by mention, as before, and are
+  // dropped below either way.
+  const addressing: AddressingMode | null =
+    isSelfMessage || isMessageFromBot
+      ? isMentioningBot
+        ? "mention"
+        : null
+      : await resolveAddressing(message, client.user!);
+
+  // Check for flagged words in message content or replied-to content —
+  // on every path that can lead to a reply.
+  if (!isSelfMessage && !isMessageFromBot && addressing) {
     if (await rejectIfFlaggedContent(message)) return;
   }
 
@@ -1102,7 +1193,9 @@ URL: ${utilities.getDiscordMessageUrl((message as Message).guild?.id || "", (mes
     await YouTubeService.setVolume(client, message);
   }
 
-  if (isMessageWithoutSelfMention) {
+  if (!addressing) {
+    // Not talking to Lupos — in an ambient channel he may still chime in.
+    await considerAmbientInterjection(client, localMongo, message, actionType);
     return;
   }
 
@@ -1126,19 +1219,8 @@ URL: ${utilities.getDiscordMessageUrl((message as Message).guild?.id || "", (mes
     return;
   }
 
-  // IGNORE MESSAGES FROM SPECIFIC USERS
-  if (BotSettingsService.get("USER_IDS_IGNORE").includes(message.author.id)) {
-    return;
-  }
-
-  // IGNORE MESSAGES FROM USERS WITH SPECIFIC ROLES
-  const memberObj = (message as Message).member;
-  if (
-    memberObj &&
-    memberObj.roles.cache.some((role: import("discord.js").Role) =>
-      BotSettingsService.get("ROLES_IDS_IGNORE").includes(role.id),
-    )
-  ) {
+  // IGNORE MESSAGES FROM SPECIFIC USERS AND USERS WITH SPECIFIC ROLES
+  if (isIgnoredAuthor(message)) {
     return;
   }
 
@@ -1150,6 +1232,65 @@ URL: ${utilities.getDiscordMessageUrl((message as Message).guild?.id || "", (mes
     return;
   }
 
+  // Per-user allowance of agent turns (burst + daily; owner exempt)
+  if (!(await admitAgentTurn(message))) {
+    return;
+  }
+
+  await acceptAndQueueReply(client, localMongo, message, actionType, addressing);
+}
+
+/**
+ * The ambient path: a message nobody addressed to Lupos, in a channel on
+ * the CHANNEL_IDS_AMBIENT list, may still get an (uninvited) agent turn.
+ * The same gates as every other path come first — bots, ignore lists and
+ * roles, maintenance, flagged content, the author's turn allowance — so
+ * nothing reaches the classifier (AmbientInterjection) that couldn't be
+ * answered anyway. Every "no" is silent: nobody asked him anything.
+ */
+async function considerAmbientInterjection(
+  client: Client,
+  localMongo: import("mongodb").MongoClient,
+  message: Message,
+  actionType: string,
+) {
+  if (actionType !== "CREATE") return;
+  if (
+    !BotSettingsService.get("CHANNEL_IDS_AMBIENT").includes(
+      (message as Message).channelId,
+    )
+  ) {
+    return;
+  }
+  if (message.author.bot || message.author.id === client.user!.id) return;
+  if (isIgnoredAuthor(message)) return;
+  if (config.UNDER_MAINTENANCE) return;
+  if (CensorService.containsFlaggedWords(message.content || "")) return;
+  if (agentTurnRateLimiter.check(message.author.id)) return;
+
+  const verdict = await evaluateAmbientInterjection(message, client.user!.id);
+  if (!verdict.interject) return;
+  if (DiscordState.isMessageCancelled((message as Message).id)) return;
+  if (agentTurnRateLimiter.consume(message.author.id)) return;
+  recordAmbientInterjection((message as Message).channelId);
+  console.log(
+    `🌙 [processMessage] Chiming in unaddressed on ${(message as Message).id} in #${((message as Message).channel as TextChannel)?.name} (score ${verdict.score}).`,
+  );
+  await acceptAndQueueReply(client, localMongo, message, actionType, "ambient");
+}
+
+/**
+ * The tail every reply path shares once a message has passed its gates:
+ * record it as taken, start typing, fetch its history and queue it on the
+ * single global reply queue (draining the queue if nothing else is).
+ */
+async function acceptAndQueueReply(
+  client: Client,
+  localMongo: import("mongodb").MongoClient,
+  message: Message,
+  actionType: string,
+  replyMode: ReplyMode,
+) {
   // Every gate passed — this message gets a reply. Recording it here,
   // before the history fetch, closes the window in which an edit made
   // while the reply is still being generated queued a second one.
@@ -1174,8 +1315,12 @@ URL: ${utilities.getDiscordMessageUrl((message as Message).guild?.id || "", (mes
     );
   }
 
-  // LUPOS CHATTER ROLE
-  if (isGuildWhitemane) {
+  // LUPOS CHATTER ROLE — for people talking to him, not for the author
+  // of a message he chose to chime in on.
+  if (
+    replyMode !== "ambient" &&
+    message?.guildId === config.GUILD_ID_PRIMARY
+  ) {
     await DiscordUtilityService.addRoleToMember(
       (message as Message).member!,
       config.ROLE_ID_BOT_CHATTER as string,
@@ -1206,13 +1351,7 @@ URL: ${utilities.getDiscordMessageUrl((message as Message).guild?.id || "", (mes
       `❌ [processMessage] fetchMessages returned null — channel not in cache`,
     );
     // Clear the typing indicator we started above so it doesn't spin forever
-    const typingChannelId = (message as Message).channel.id;
-    if (DiscordState.typingIntervals[typingChannelId]) {
-      DiscordUtilityService.clearTypingInterval(
-        DiscordState.typingIntervals[typingChannelId],
-      );
-      delete DiscordState.typingIntervals[typingChannelId];
-    }
+    stopTyping((message as Message).channel.id);
     return;
   }
   const recentMessages = fetchedMessages.reverse();
@@ -1223,6 +1362,7 @@ URL: ${utilities.getDiscordMessageUrl((message as Message).guild?.id || "", (mes
     message: message as Message,
     recentMessages,
     actionType: actionType || "",
+    replyMode,
   });
 
   if (!DiscordState.isProcessingQueue) {
@@ -1244,29 +1384,11 @@ URL: ${utilities.getDiscordMessageUrl((message as Message).guild?.id || "", (mes
             error,
           );
           // Clear typing for the failed channel so it doesn't hang
-          if (DiscordState.typingIntervals[currentChannelId]) {
-            DiscordUtilityService.clearTypingInterval(
-              DiscordState.typingIntervals[currentChannelId],
-            );
-            delete DiscordState.typingIntervals[currentChannelId];
-          }
+          stopTyping(currentChannelId);
         }
         DiscordState.lastQueueActivityAtMs = Date.now();
         // No more queued messages for this channel — clear typing indicator
-        if (
-          !DiscordState.queuedData.some(
-            (q: QueuedMessageData) =>
-              q.message?.channel?.id === currentChannelId,
-          )
-        ) {
-          // Clear typing for this specific channel only
-          if (DiscordState.typingIntervals[currentChannelId]) {
-            DiscordUtilityService.clearTypingInterval(
-              DiscordState.typingIntervals[currentChannelId],
-            );
-            delete DiscordState.typingIntervals[currentChannelId];
-          }
-        }
+        stopTypingIfChannelIdle(currentChannelId);
       }
     } finally {
       DiscordState.isProcessingQueue = false;
@@ -1996,5 +2118,8 @@ const DiscordService = {
     );
   },
 };
+
+// The message gate, exported for tests (mocked discord.js objects).
+export { processMessage };
 
 export default DiscordService;
