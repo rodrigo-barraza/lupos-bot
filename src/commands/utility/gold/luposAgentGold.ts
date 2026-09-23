@@ -6,7 +6,9 @@
  * OUT of the hoard, mugged gold goes INTO it (or scatters to the
  * conversation, 50/50). Hard caps live here — no prompt can reach
  * past them: gift amounts 1-5g at most once per target per day,
- * mug amounts 1-3g at most three times per target per day.
+ * mug amounts 1-3g at most three times per target per day, and whoever
+ * Lupos is answering can set off at most five gold actions (gifts and
+ * mugs together) per day in a guild.
  */
 
 import type { Client, Guild, Message } from "discord.js";
@@ -38,12 +40,21 @@ export const LUPOS_MUG_MAX = 3;
 export const LUPOS_MUG_DROP_CHANCE = 0.5;
 export const LUPOS_GIFTS_PER_TARGET_PER_DAY = 1;
 export const LUPOS_MUGS_PER_TARGET_PER_DAY = 3;
+/**
+ * Gold actions (gifts + mugs) one requester — the person Lupos is
+ * answering — can set off per UTC day in a guild, whoever the targets.
+ */
+export const LUPOS_GOLD_ACTIONS_PER_REQUESTER_PER_DAY = 5;
 /** Starting hoard for a guild the wolf has never operated in. */
 export const LUPOS_HOARD_SEED_GOLD = 100;
 
 const DAILY_ACTIONS_COLLECTION = "LuposGoldDailyActions";
+// Its own collection: LuposGoldDailyActions is unique on
+// (guildId, targetId, day), which requester documents do not have.
+const REQUESTER_DAILY_ACTIONS_COLLECTION = "LuposGoldRequesterDailyActions";
 
 let dailyActionsIndexEnsured = false;
+let requesterActionsIndexEnsured = false;
 
 function getDailyActionsCollection() {
   const collection = getMongoDb().collection(DAILY_ACTIONS_COLLECTION);
@@ -94,6 +105,120 @@ async function tryConsumeDailyAllowance(
     }
     throw error;
   }
+}
+
+function getRequesterActionsCollection() {
+  const collection = getMongoDb().collection(
+    REQUESTER_DAILY_ACTIONS_COLLECTION,
+  );
+  if (!requesterActionsIndexEnsured) {
+    requesterActionsIndexEnsured = true;
+    collection
+      .createIndex({ guildId: 1, requesterId: 1, day: 1 }, { unique: true })
+      .catch((err: unknown) =>
+        console.error(
+          "Failed to ensure LuposGoldRequesterDailyActions index:",
+          err,
+        ),
+      );
+  }
+  return collection;
+}
+
+/**
+ * Atomically consumes one of today's gold actions for a requester —
+ * the same capped upsert as tryConsumeDailyAllowance. Returns false
+ * when all five are spent.
+ */
+async function tryConsumeRequesterAllowance(
+  guildId: string,
+  requesterId: string,
+  day: string,
+): Promise<boolean> {
+  const collection = getRequesterActionsCollection();
+  const filter = {
+    guildId,
+    requesterId,
+    day,
+    actions: { $not: { $gte: LUPOS_GOLD_ACTIONS_PER_REQUESTER_PER_DAY } },
+  };
+  const update = { $inc: { actions: 1 }, $set: { updatedAt: Date.now() } };
+  try {
+    const doc = await collection.findOneAndUpdate(filter, update, {
+      upsert: true,
+      returnDocument: "after",
+    });
+    return doc !== null;
+  } catch (error: unknown) {
+    if ((error as { code?: number }).code === 11000) {
+      // Cap hit (the upsert collided with the capped doc) or a lost
+      // upsert race — retry once without upsert to disambiguate.
+      const doc = await collection.findOneAndUpdate(filter, update, {
+        returnDocument: "after",
+      });
+      return doc !== null;
+    }
+    throw error;
+  }
+}
+
+/** Hands back an action that moved no gold (so only real ones count). */
+async function refundRequesterAllowance(
+  guildId: string,
+  requesterId: string,
+  day: string,
+): Promise<void> {
+  await getRequesterActionsCollection()
+    .updateOne(
+      { guildId, requesterId, day, actions: { $gt: 0 } },
+      { $inc: { actions: -1 }, $set: { updatedAt: Date.now() } },
+    )
+    .catch((err: unknown) =>
+      console.error("Failed to refund a requester gold action:", err),
+    );
+}
+
+export interface RequesterCapResult {
+  ok: false;
+  reason: "requester_cap";
+  summary: string;
+}
+
+/**
+ * Runs a gold action against the requester's daily allowance: refused
+ * up front when it is spent, refunded when the action moves no gold.
+ * No requester (a caller outside a Discord conversation) = no cap.
+ */
+async function withRequesterAllowance<Result extends { ok: boolean }>(
+  guildId: string,
+  requesterUserId: string | undefined,
+  action: () => Promise<Result>,
+): Promise<Result | RequesterCapResult> {
+  if (!requesterUserId) return action();
+  const day = utcDay();
+  const allowed = await tryConsumeRequesterAllowance(
+    guildId,
+    requesterUserId,
+    day,
+  );
+  if (!allowed) {
+    return {
+      ok: false,
+      reason: "requester_cap",
+      summary: `You've already had Lupos move gold ${LUPOS_GOLD_ACTIONS_PER_REQUESTER_PER_DAY} times today — no more gifts or muggings on your say-so until tomorrow (UTC).`,
+    };
+  }
+  let result: Result;
+  try {
+    result = await action();
+  } catch (error: unknown) {
+    await refundRequesterAllowance(guildId, requesterUserId, day);
+    throw error;
+  }
+  if (!result.ok) {
+    await refundRequesterAllowance(guildId, requesterUserId, day);
+  }
+  return result;
 }
 
 /**
@@ -181,9 +306,24 @@ export type LuposGiftResult =
 
 /**
  * Gives gold from the wolf's hoard to a member. Clamped to 1-5g and at
- * most once per target per UTC day, regardless of what the model asks.
+ * most once per target per UTC day, regardless of what the model asks;
+ * with a `requesterUserId`, it also spends one of their five daily gold
+ * actions (refunded if no gold moves).
  */
 export async function luposGiveGold(
+  client: Client,
+  guild: Guild,
+  targetUserId: string,
+  requestedAmount: number,
+  note: string | undefined,
+  requesterUserId?: string,
+): Promise<LuposGiftResult | RequesterCapResult> {
+  return withRequesterAllowance(guild.id, requesterUserId, () =>
+    giveGold(client, guild, targetUserId, requestedAmount, note),
+  );
+}
+
+async function giveGold(
   client: Client,
   guild: Guild,
   targetUserId: string,
@@ -284,9 +424,25 @@ export type LuposMugResult =
  * Mugs a member: 1-3g (never more than they carry), at most three times
  * per target per UTC day. Half the time the wolf fumbles and the loot
  * scatters across recent talkers in the channel — the wolf himself is in
- * that pool and may snatch a pile of his own stolen gold.
+ * that pool and may snatch a pile of his own stolen gold. With a
+ * `requesterUserId`, it also spends one of their five daily gold actions
+ * (refunded if no gold moves).
  */
 export async function luposMugGold(
+  client: Client,
+  guild: Guild,
+  channelId: string | undefined,
+  targetUserId: string,
+  requestedAmount: number,
+  note: string | undefined,
+  requesterUserId?: string,
+): Promise<LuposMugResult | RequesterCapResult> {
+  return withRequesterAllowance(guild.id, requesterUserId, () =>
+    mugGold(client, guild, channelId, targetUserId, requestedAmount, note),
+  );
+}
+
+async function mugGold(
   client: Client,
   guild: Guild,
   channelId: string | undefined,
