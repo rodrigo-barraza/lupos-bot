@@ -51,45 +51,125 @@ function resolveProvider(type: string): string {
 // same ceiling prism-service allows an agentic loop.
 const AGENT_STREAM_TIMEOUT_MS = 600_000;
 
+// POST /agent/stop is a registry lookup on Prism's side — a slow answer
+// means Prism is struggling, and the stop is best effort anyway.
+const AGENT_STOP_TIMEOUT_MS = 5_000;
+
+// Every Discord agent turn carries a hard budget (contract §1): Prism
+// ends the agentic loop at whichever ceiling it reaches first.
+export const DEFAULT_AGENT_MAX_ITERATIONS = 10;
+export const DEFAULT_AGENT_MAX_COST_DOLLARS = 0.5;
+
+/**
+ * The per-turn budget sent on every /agent call: AGENT_MAX_ITERATIONS /
+ * AGENT_MAX_COST_DOLLARS when they hold a positive number, else the
+ * defaults above.
+ */
+export function resolveAgentTurnBudget(
+  settings: {
+    AGENT_MAX_ITERATIONS?: string;
+    AGENT_MAX_COST_DOLLARS?: string;
+  } = config,
+): { maxIterations: number; maxCostDollars: number } {
+  const maxIterations = Number(settings.AGENT_MAX_ITERATIONS);
+  const maxCostDollars = Number(settings.AGENT_MAX_COST_DOLLARS);
+  return {
+    maxIterations:
+      Number.isInteger(maxIterations) && maxIterations > 0
+        ? maxIterations
+        : DEFAULT_AGENT_MAX_ITERATIONS,
+    maxCostDollars:
+      Number.isFinite(maxCostDollars) && maxCostDollars > 0
+        ? maxCostDollars
+        : DEFAULT_AGENT_MAX_COST_DOLLARS,
+  };
+}
+
+/** Lupos gave up on an agent turn (e.g. its trigger message was deleted). */
+export class AgentTurnAbortedError extends Error {
+  constructor(reason: string) {
+    super(`Agent turn abandoned: ${reason}`);
+    this.name = "AgentTurnAbortedError";
+  }
+}
+
+function abortReasonText(signal: AbortSignal): string {
+  const reason: unknown = signal.reason;
+  if (reason instanceof Error) return reason.message;
+  return typeof reason === "string" && reason ? reason : "aborted";
+}
+
+/**
+ * The conversation id an /agent stream event carries. Prism mints one
+ * for a new conversation and sends it on the stream's first events —
+ * it is the handle POST /agent/stop takes.
+ */
+function conversationIdOf(event: PrismSseEvent): string | null {
+  const conversationId = event.conversationId;
+  return typeof conversationId === "string" && conversationId
+    ? conversationId
+    : null;
+}
+
 /**
  * Parse a Prism SSE stream (`data: {json}\n\n` frames), invoking
  * `onEvent` per event as it arrives and returning the full event list.
  * Malformed frames (keep-alives, partial writes) are skipped; a throwing
- * `onEvent` never breaks the read.
+ * `onEvent` never breaks the read. Aborting `signal` cancels the read
+ * and rejects with AgentTurnAbortedError.
  */
 export async function readSseEvents(
   response: Response,
   onEvent?: (event: PrismSseEvent) => void,
+  signal?: AbortSignal,
 ): Promise<PrismSseEvent[]> {
   if (!response.body) throw new Error("Prism SSE response has no body");
+  if (signal?.aborted) {
+    await response.body.cancel().catch(() => {});
+    throw new AgentTurnAbortedError(abortReasonText(signal));
+  }
   const events: PrismSseEvent[] = [];
   const reader = response.body.getReader();
+  // Cancelling the reader settles the pending read() as done, which
+  // ends the loop below; the abort check after it turns that into a
+  // rejection instead of a normal (truncated) return.
+  const cancelRead = () => {
+    reader.cancel().catch(() => {});
+  };
+  signal?.addEventListener("abort", cancelRead, { once: true });
   const decoder = new TextDecoder();
   let buffered = "";
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    buffered += decoder.decode(value, { stream: true });
-    let frameEnd = buffered.indexOf("\n\n");
-    while (frameEnd !== -1) {
-      const frame = buffered.slice(0, frameEnd);
-      buffered = buffered.slice(frameEnd + 2);
-      for (const line of frame.split("\n")) {
-        if (!line.startsWith("data: ")) continue;
-        try {
-          const event = JSON.parse(line.slice(6)) as PrismSseEvent;
-          events.push(event);
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffered += decoder.decode(value, { stream: true });
+      let frameEnd = buffered.indexOf("\n\n");
+      while (frameEnd !== -1) {
+        const frame = buffered.slice(0, frameEnd);
+        buffered = buffered.slice(frameEnd + 2);
+        for (const line of frame.split("\n")) {
+          if (!line.startsWith("data: ")) continue;
           try {
-            onEvent?.(event);
+            const event = JSON.parse(line.slice(6)) as PrismSseEvent;
+            events.push(event);
+            try {
+              onEvent?.(event);
+            } catch {
+              // Status updates are cosmetic — never let them kill the reply.
+            }
           } catch {
-            // Status updates are cosmetic — never let them kill the reply.
+            // Skip non-JSON frames.
           }
-        } catch {
-          // Skip non-JSON frames.
         }
+        frameEnd = buffered.indexOf("\n\n");
       }
-      frameEnd = buffered.indexOf("\n\n");
     }
+  } finally {
+    signal?.removeEventListener("abort", cancelRead);
+  }
+  if (signal?.aborted) {
+    throw new AgentTurnAbortedError(abortReasonText(signal));
   }
   return events;
 }
@@ -224,13 +304,16 @@ export default class PrismService {
     model,
     agentContext,
     maxTokens,
-    temperature,
     thinkingEnabled,
     thinkingBudget,
+    maxIterations,
+    maxCostDollars,
     username = "lupos",
     traceId,
     onEvent,
+    signal,
   }: AgentResponseParams) {
+    const budget = resolveAgentTurnBudget();
     const requestBody = {
       provider: resolveProvider(type),
       model,
@@ -240,9 +323,10 @@ export default class PrismService {
       // enabledTools are defined by the LUPOS persona in AgentPersonaRegistry
       agentContext,
       maxTokens,
-      temperature,
       thinkingEnabled,
       thinkingBudget,
+      maxIterations: maxIterations ?? budget.maxIterations,
+      maxCostDollars: maxCostDollars ?? budget.maxCostDollars,
       traceId,
     };
 
@@ -251,13 +335,44 @@ export default class PrismService {
       // Streaming path: consume /agent SSE so live events (thinking, tool
       // calls) can drive presence statuses, then rebuild the same JSON
       // shape the non-streaming path returns.
+      if (signal?.aborted) {
+        throw new AgentTurnAbortedError(abortReasonText(signal));
+      }
       const response = await prism().requestRaw("/agent", {
         body: { ...requestBody, skipConversation: true },
         username,
         timeoutMs: AGENT_STREAM_TIMEOUT_MS,
       });
-      const events = await readSseEvents(response, onEvent);
-      data = aggregateAgentEvents(events);
+      // Prism runs /agent with persistOnDisconnect: a turn Lupos walks
+      // away from keeps running (and spending) until it finishes. The
+      // conversation id from the stream's first events is the handle to
+      // stop it whenever Lupos gives up — timeout, trigger deleted, a
+      // broken stream or an error after the turn started.
+      let conversationId: string | null = null;
+      let stopRequested = false;
+      const stopTurn = () => {
+        if (!conversationId || stopRequested) return;
+        stopRequested = true;
+        void PrismService.stopAgentTurn(conversationId, username);
+      };
+      try {
+        const events = await readSseEvents(
+          response,
+          (event) => {
+            conversationId ??= conversationIdOf(event);
+            onEvent(event);
+          },
+          signal,
+        );
+        // A stream that closes without `done` lost its connection
+        // mid-turn — nobody is reading that turn any more.
+        if (!events.some((event) => event.type === "done")) stopTurn();
+        // Throws on an `error` event.
+        data = aggregateAgentEvents(events);
+      } catch (error: unknown) {
+        stopTurn();
+        throw error;
+      }
     } else {
       data = await prism().agent({ ...requestBody, username });
     }
@@ -275,6 +390,32 @@ export default class PrismService {
       model: data.model,
       provider: data.provider,
     };
+  }
+
+  /**
+   * Stop a running /agent turn (POST /agent/stop). Best effort — never
+   * throws: a 404 only means the turn had already finished.
+   */
+  static async stopAgentTurn(
+    conversationId: string,
+    username = "lupos",
+  ): Promise<boolean> {
+    try {
+      await prism().request("/agent/stop", {
+        body: { conversationId },
+        username,
+        timeoutMs: AGENT_STOP_TIMEOUT_MS,
+      });
+      console.log(
+        `🛑 [PrismService] Stopped abandoned agent turn ${conversationId}`,
+      );
+      return true;
+    } catch (error: unknown) {
+      console.warn(
+        `🛑 [PrismService] Could not stop agent turn ${conversationId} (it may have finished): ${(error as Error)?.message ?? error}`,
+      );
+      return false;
+    }
   }
 
   /**

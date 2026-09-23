@@ -1572,6 +1572,10 @@ export async function buildAndGenerateReply({
       platform: "discord",
       guildId: messageGuildId,
       channelId: messageChannelId,
+      // Who Lupos is answering — Prism forwards it to tools-service as
+      // x-discord-user-id, which scopes what his tools may reach for
+      // this person (contract §1/§2).
+      requesterUserId: message.author.id,
       participantUserIds:
         participantUserIds.length > 0 ? participantUserIds : null,
       aprilFoolsMode: APRIL_FOOLS_MODE,
@@ -1701,25 +1705,37 @@ export async function buildAndGenerateReply({
       }),
     };
 
-    const agentResponse = await PrismService.generateAgentResponse({
-      messages: [...agentConversation, respondToTurn],
-      type: config.LANGUAGE_MODEL_TYPE || "",
-      model: agentModel || "",
-      agentContext,
-      maxTokens: 16_384, // Lupos text is ~1 sentence, but tool-call JSON (generate_audio compositions) can be 3-5K tokens
-      temperature: config.LANGUAGE_MODEL_TEMPERATURE
-        ? parseFloat(config.LANGUAGE_MODEL_TEMPERATURE)
-        : undefined,
-      thinkingEnabled: true,
-      thinkingBudget: 10_000,
-      username: message.author?.username || "unknown",
-      ...AIService._getTraceParams(),
-      // Stream the agent SSE when a status tracker is watching so presence
-      // shows live thinking/tool progress; the return shape is identical.
-      ...(statusTracker && {
-        onEvent: (event: PrismSseEvent) => statusTracker.handleEvent(event),
-      }),
-    });
+    // A trigger deleted mid-turn abandons the turn: the stream read stops
+    // and Prism is told to stop the (otherwise still running) turn.
+    const triggerWatch = DiscordState.watchCancellation(
+      (message as Message).id,
+    );
+    let agentResponse: Awaited<
+      ReturnType<typeof PrismService.generateAgentResponse>
+    >;
+    try {
+      agentResponse = await PrismService.generateAgentResponse({
+        messages: [...agentConversation, respondToTurn],
+        type: config.LANGUAGE_MODEL_TYPE || "",
+        model: agentModel || "",
+        agentContext,
+        maxTokens: 16_384, // Lupos text is ~1 sentence, but tool-call JSON (generate_audio compositions) can be 3-5K tokens
+        // No temperature: agent turns leave sampling to Prism. Budget
+        // (maxIterations / maxCostDollars) comes from resolveAgentTurnBudget.
+        thinkingEnabled: true,
+        thinkingBudget: 10_000,
+        username: message.author?.username || "unknown",
+        ...AIService._getTraceParams(),
+        // Stream the agent SSE when a status tracker is watching so presence
+        // shows live thinking/tool progress; the return shape is identical.
+        ...(statusTracker && {
+          onEvent: (event: PrismSseEvent) => statusTracker.handleEvent(event),
+          signal: triggerWatch.signal,
+        }),
+      });
+    } finally {
+      triggerWatch.dispose();
+    }
 
     generatedText = agentResponse.text || "";
 
@@ -1817,6 +1833,23 @@ export async function buildAndGenerateReply({
       agentResponse.toolResults,
     );
   } catch (error: unknown) {
+    // PrismService's AgentTurnAbortedError, matched by name so test
+    // mocks of PrismService (default export only) keep working.
+    if ((error as Error)?.name === "AgentTurnAbortedError") {
+      // Trigger deleted mid-turn — the Prism turn was stopped; nothing
+      // gets posted (replyMessage sees the cancellation).
+      console.log(
+        `🗑️ [DiscordService] ${(error as Error).message} — reply abandoned.`,
+      );
+      return {
+        generatedText: null,
+        image: null,
+        audioRef: null,
+        videoUrl: null,
+        imageUrl: null,
+        imagePrompt: null,
+      };
+    }
     generatedText = "...";
     console.error(
       ...LogFormatter.error("buildAndGenerateReply", error as Error),

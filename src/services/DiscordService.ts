@@ -346,6 +346,19 @@ async function replyMessage(
 
   // (Image conversations are already saved per-call inside generateImage)
 
+  // Deleted while the reply was generated (an abandoned agent turn comes
+  // back empty) — checked before the empty-reply fallback, which would
+  // otherwise post "..." into the channel for a message that is gone.
+  if (DiscordState.isMessageCancelled((message as Message).id)) {
+    console.log(
+      `🗑️ [DiscordService] Message ${(message as Message).id} was deleted during reply generation, not sending reply.`,
+    );
+    DiscordState.cancelledMessageIds.delete((message as Message).id);
+    ChannelSessionCache.invalidate(sessionChannelId);
+    statusTracker.finishCancelled();
+    return;
+  }
+
   if (
     !generatedTextResponse &&
     !generatedImage &&
@@ -369,16 +382,6 @@ ${combinedGuildInformation && combinedChannelInformation ? `URL: ${utilities.get
   }
   // SEND THE REPLY
   try {
-    // Check if message was deleted during reply generation
-    if (DiscordState.isMessageCancelled((message as Message).id)) {
-      console.log(
-        `🗑️ [DiscordService] Message ${(message as Message).id} was deleted during reply generation, not sending reply.`,
-      );
-      DiscordState.cancelledMessageIds.delete((message as Message).id);
-      ChannelSessionCache.invalidate(sessionChannelId);
-      statusTracker.finishCancelled();
-      return;
-    }
     await message.fetch();
 
     const { sentMessages } = await DiscordUtilityService.sendMessageInChunks(

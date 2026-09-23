@@ -55,16 +55,23 @@ export interface PrismSseEvent {
   [key: string]: unknown;
 }
 
-/** Params for PrismService.generateAgentResponse(). */
+/**
+ * Params for PrismService.generateAgentResponse(). There is no
+ * temperature: agent turns leave sampling to Prism (current Gemini
+ * models ignore it anyway).
+ */
 export interface AgentResponseParams {
   messages: ChatMessage[];
   type: string;
   model: string;
   agentContext?: Record<string, unknown>;
   maxTokens?: number;
-  temperature?: number;
   thinkingEnabled?: boolean;
   thinkingBudget?: number;
+  /** Agentic-loop pass ceiling (default: resolveAgentTurnBudget()). */
+  maxIterations?: number;
+  /** Spend ceiling in dollars (default: resolveAgentTurnBudget()). */
+  maxCostDollars?: number;
   username?: string;
   traceId?: string;
   /**
@@ -73,6 +80,12 @@ export interface AgentResponseParams {
    * presence statuses. The final return value is identical either way.
    */
   onEvent?: (event: PrismSseEvent) => void;
+  /**
+   * Streaming path only: aborting gives up on the turn — the stream read
+   * stops, Prism is told to stop the turn, and the call rejects with
+   * AgentTurnAbortedError.
+   */
+  signal?: AbortSignal;
 }
 
 /** Image data object for Prism image generation. */
