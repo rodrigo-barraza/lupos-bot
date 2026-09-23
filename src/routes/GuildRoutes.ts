@@ -1108,7 +1108,9 @@ router.post(
     const client = DiscordWrapper.getClient("lupos");
     sendAction(
       res,
-      await runAgentAction("guild/poll", () => createPoll(client, actionBody(req))),
+      await runAgentAction("guild/poll", () =>
+        createPoll(client, actionBody(req)),
+      ),
     );
   }),
 );
@@ -1779,7 +1781,9 @@ router.get(
       channelId,
     );
     if (!channelScope.allowed) {
-      return res.status(channelScope.status).json({ error: channelScope.error });
+      return res
+        .status(channelScope.status)
+        .json({ error: channelScope.error });
     }
     if (channelScope.channelFilter) {
       matchQuery.channelId = channelScope.channelFilter;
@@ -2036,7 +2040,9 @@ router.get(
       channelId,
     );
     if (!channelScope.allowed) {
-      return res.status(channelScope.status).json({ error: channelScope.error });
+      return res
+        .status(channelScope.status)
+        .json({ error: channelScope.error });
     }
     if (channelScope.channelFilter) {
       matchQuery.channelId = channelScope.channelFilter;
@@ -2178,7 +2184,9 @@ router.get(
       channelId,
     );
     if (!channelScope.allowed) {
-      return res.status(channelScope.status).json({ error: channelScope.error });
+      return res
+        .status(channelScope.status)
+        .json({ error: channelScope.error });
     }
     if (channelScope.channelFilter) {
       matchQuery.channelId = channelScope.channelFilter;
@@ -2283,7 +2291,9 @@ router.get(
       undefined,
     );
     if (!channelScope.allowed) {
-      return res.status(channelScope.status).json({ error: channelScope.error });
+      return res
+        .status(channelScope.status)
+        .json({ error: channelScope.error });
     }
 
     const { unixStartDate } = computeStartDate(years, months, days);
@@ -2906,7 +2916,8 @@ router.post(
   "/gold/give",
   asyncHandler(async (req: Request, res: Response) => {
     const body = actionBody(req);
-    const { guildId, targetUserId, amount, note, requesterUserId } = req.body || {};
+    const { guildId, targetUserId, amount, note, requesterUserId } =
+      req.body || {};
     if (!guildId || !targetUserId) {
       return res
         .status(400)

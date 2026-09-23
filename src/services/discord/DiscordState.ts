@@ -86,9 +86,7 @@ const DiscordState = {
     const timer = setInterval(() => {
       if (this.isMessageCancelled(messageId)) {
         clearInterval(timer);
-        controller.abort(
-          new Error(`trigger message ${messageId} was deleted`),
-        );
+        controller.abort(new Error(`trigger message ${messageId} was deleted`));
       }
     }, pollMs);
     timer.unref?.();

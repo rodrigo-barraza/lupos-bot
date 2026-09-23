@@ -155,7 +155,6 @@ const AIService = {
     let textResponse: string | null;
     let generateTextModel: string | undefined;
 
-
     // Determine initial model based on type and performance
     if (type === "OPENAI") {
       if (model) {
