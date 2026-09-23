@@ -702,7 +702,6 @@ export async function buildAndGenerateReply({
   >;
   messagesEmojisCollection: import("discord.js").Collection<string, unknown>;
   messagesImagesCollection: import("discord.js").Collection<string, unknown>;
-  newSystemPrompt: string;
   participantsAvatarsCollection: import("discord.js").Collection<
     string,
     string

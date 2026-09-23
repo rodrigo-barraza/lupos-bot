@@ -243,7 +243,6 @@ export async function extractContentFromMessages(
   // turns — the piggyback session records them so future slices never
   // re-process a message the frozen history already represents.
   const representedMessageIds: string[] = [];
-  const newSystemPrompt = "";
 
   // Prepare all async operations
   const allPromises = {
@@ -906,7 +905,6 @@ export async function extractContentFromMessages(
     messagesEmojisCollection,
     messagesImagesCollection,
     messagesTranscriptionsCollection,
-    newSystemPrompt,
     participantsAvatarsCollection,
     participantsCollection,
     participantsMembersCollection,

@@ -4,10 +4,6 @@ export {
   APRIL_FOOLS_MODE,
 } from "./constants/MessageConstants.ts";
 export {
-  MOODS,
-  MOOD_TEMPERATURE_THRESHOLDS,
-} from "./constants/MoodConstants.ts";
-export {
   MILLISECONDS_PER_DAY,
   GAME_ROLE_MAPPINGS,
   EXPLOSION_GIFS,

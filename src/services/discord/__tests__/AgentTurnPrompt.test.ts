@@ -61,7 +61,6 @@ function turnInput(replyMode?: "mention" | "ambient") {
     memberMentionsCollection: new Collection(),
     messagesEmojisCollection: new Collection(),
     messagesImagesCollection: new Collection(),
-    newSystemPrompt: "",
     participantsAvatarsCollection: new Collection(),
     participantsCollection: new Collection(),
     participantsMembersCollection: new Collection(),

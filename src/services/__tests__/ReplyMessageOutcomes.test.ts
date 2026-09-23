@@ -192,7 +192,6 @@ function extractedConversation() {
   const alice = { id: AUTHOR_ID, username: "alice", globalName: "Alice" };
   return {
     conversation: [{ role: "user", content: "<discord-message …>" }],
-    newSystemPrompt: "",
     memberMentionsCollection: new Map(),
     messagesEmojisCollection: new Map(),
     messagesImagesCollection: new Map(),

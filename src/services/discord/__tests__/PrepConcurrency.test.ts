@@ -229,7 +229,6 @@ describe("buildAndGenerateReply — prep work", () => {
       memberMentionsCollection: new Collection(),
       messagesEmojisCollection: new Collection(),
       messagesImagesCollection: new Collection(),
-      newSystemPrompt: "",
       participantsAvatarsCollection: new Collection(),
       participantsCollection: new Collection(),
       participantsMembersCollection: new Collection(),

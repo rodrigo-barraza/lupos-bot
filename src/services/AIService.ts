@@ -1,26 +1,17 @@
 import path from "path";
 import crypto from "crypto";
 
-import config from "#root/config.ts";
 import { MONGO_DB_NAME } from "#root/constants.ts";
 import { MODEL_IDS } from "@rodrigo-barraza/utilities-library/taxonomy";
-
-import LogFormatter from "#root/formatters/LogFormatter.ts";
 
 import utilities from "#root/utilities.ts";
 import PromiseMemo from "#root/utilities/PromiseMemo.ts";
 
 import PrismService from "#root/services/PrismService.ts";
 import CurrentService from "#root/services/CurrentService.ts";
-import DiscordUtilityService from "#root/services/DiscordUtilityService.ts";
 
-import sharp from "sharp";
-import { Message, Client } from "discord.js";
+import { Message } from "discord.js";
 import { MongoClient } from "mongodb";
-
-async function convertGifToPng(imageBuffer: Buffer): Promise<Buffer> {
-  return sharp(imageBuffer, { animated: false }).png().toBuffer();
-}
 
 export interface CaptionMapObject {
   hash: string;
@@ -46,19 +37,6 @@ export interface ChatMessage {
   name?: string;
   content: string;
   images?: string[];
-}
-
-export interface GenerateTextOptions {
-  conversation: ChatMessage[];
-  systemPrompt?: string;
-  type?: string;
-  modelPerformance?: string;
-  temperature?: number;
-  tokens?: number;
-  model?: string | null;
-  _label?: string | null;
-  localMongo?: MongoClient | null;
-  label?: string;
 }
 
 export interface GenerateVisionOptions {
@@ -116,238 +94,6 @@ const AIService = {
       | null
       | undefined;
     return discordMessage?.author?.username || "lupos";
-  },
-  /**
-   * Convert image URLs to { imageData, mimeType } objects for Prism.
-   * Optionally converts GIFs to PNG (first frame) for providers that don't support GIFs.
-   */
-  async _convertImageUrlsToBase64(
-    urls: string[],
-    { convertGifs = false }: { convertGifs?: boolean } = {},
-  ): Promise<Array<{ imageData: string; mimeType: string }>> {
-    const imageObjects: Array<{ imageData: string; mimeType: string }> = [];
-    for (const url of urls) {
-      const response = await fetch(url, {
-        signal: AbortSignal.timeout(15_000),
-      });
-      if (!response.ok) {
-        console.warn(
-          `⚠️ [AIService] Skipping image ${url}: HTTP ${response.status}`,
-        );
-        continue;
-      }
-      const bytes = await response.bytes();
-      const buffer = Buffer.from(bytes);
-      const mimeType = response.headers.get("content-type") || "image/png";
-
-      if (convertGifs && mimeType === "image/gif") {
-        const pngBuffer = await convertGifToPng(buffer);
-        imageObjects.push({
-          imageData: pngBuffer.toString("base64"),
-          mimeType: "image/png",
-        });
-      } else {
-        imageObjects.push({
-          imageData: buffer.toString("base64"),
-          mimeType,
-        });
-      }
-    }
-    return imageObjects;
-  },
-  // Base Text-to-Text Generation (Completion)
-  async generateText({
-    conversation,
-    systemPrompt,
-    type = config.LANGUAGE_MODEL_TYPE || "OPENAI",
-    modelPerformance = config.LANGUAGE_MODEL_PERFORMANCE,
-    temperature,
-    tokens,
-    model = null,
-  }: GenerateTextOptions): Promise<string | null> {
-    let textResponse: string | null;
-    let generateTextModel: string | undefined;
-
-    // Determine initial model based on type and performance
-    if (type === "OPENAI") {
-      if (model) {
-        generateTextModel = model;
-      } else if (modelPerformance === "LOW") {
-        generateTextModel = config.LANGUAGE_MODEL_OPENAI_LOW;
-      } else {
-        generateTextModel =
-          modelPerformance === "POWERFUL"
-            ? config.LANGUAGE_MODEL_OPENAI
-            : modelPerformance === "FAST"
-              ? config.FAST_LANGUAGE_MODEL_OPENAI
-              : config.LANGUAGE_MODEL_OPENAI;
-      }
-    } else if (type === "ANTHROPIC") {
-      generateTextModel =
-        modelPerformance === "FAST"
-          ? config.ANTHROPIC_LANGUAGE_MODEL_FAST
-          : config.ANTHROPIC_LANGUAGE_MODEL_SMART;
-
-      // Handle empty content for Anthropic
-      if (conversation[conversation.length - 1].content === "") {
-        conversation[conversation.length - 1].content = "hey";
-      }
-    } else if (type === "GOOGLE") {
-      generateTextModel =
-        modelPerformance === "FAST"
-          ? config.GOOGLE_LANGUAGE_MODEL_FAST
-          : config.GOOGLE_LANGUAGE_MODEL_SMART;
-    } else if (type === "LOCAL") {
-      generateTextModel =
-        modelPerformance === "FAST"
-          ? config.FAST_LANGUAGE_MODEL_LOCAL
-          : config.LANGUAGE_MODEL_LOCAL;
-    }
-
-    // Route through Prism API gateway
-    let usedModel = model || generateTextModel || "";
-    const discordUsername = AIService._getDiscordUsername();
-
-    // Extract any system messages from the conversation array and pass
-    // as a separate systemPrompt field — messages should only contain
-    // user/assistant turns.
-    let resolvedSystemPrompt = systemPrompt;
-    const userAndAssistantMessages = conversation.filter((message) => {
-      if (message.role === "system") {
-        if (!resolvedSystemPrompt) resolvedSystemPrompt = message.content;
-        return false;
-      }
-      return true;
-    });
-
-    try {
-      const prismResult = await PrismService.generateText({
-        messages: userAndAssistantMessages,
-        systemPrompt: resolvedSystemPrompt,
-        type: type!,
-        model: usedModel,
-        // Only what the caller asked for. The LANGUAGE_MODEL_MAX_TOKENS /
-        // _TEMPERATURE defaults that used to fill these never reached the
-        // model (they rode a bag /chat ignores), and a 1000-token cap would
-        // truncate a thinking model's answer if they suddenly did.
-        maxTokens: tokens,
-        temperature,
-        username: discordUsername,
-        ...AIService._getTraceParams(),
-      });
-
-      textResponse = prismResult.text ?? null;
-
-      if (prismResult.model) {
-        usedModel = prismResult.model;
-      }
-    } catch (prismError: unknown) {
-      const wrappedError =
-        prismError instanceof Error
-          ? prismError
-          : new Error(String(prismError));
-      console.error(
-        `Prism API error for ${type}/${usedModel}:`,
-        wrappedError.message,
-      );
-      return null;
-    }
-
-    return textResponse;
-  },
-  // Base Text-to-Image Generation (Diffusion)
-  async generateImage(
-    type: string,
-    prompt: string,
-    client: Client,
-    imageUrls: string[] = [],
-    username: string | null = null,
-  ): Promise<string | null> {
-    let generatedImage: string | null = null;
-    let usedModel: string;
-
-    if (type === "GOOGLE") {
-      let hasError = false;
-      try {
-        const imageObjects = imageUrls.length
-          ? await AIService._convertImageUrlsToBase64(imageUrls, {
-              convertGifs: true,
-            })
-          : [];
-
-        usedModel = MODEL_IDS.geminiImageFlash;
-        const discordUsername = AIService._getDiscordUsername();
-
-        const prismResult = await PrismService.generateImage({
-          prompt,
-          provider: "google",
-          model: usedModel,
-          images: imageObjects,
-          username: discordUsername,
-          ...AIService._getTraceParams(),
-        });
-
-        if (prismResult.imageData) {
-          generatedImage = prismResult.imageData;
-        } else {
-          // No image in response, fall back to LOCAL
-          console.log(
-            "Google AI Image Generation returned no image, falling back to LOCAL.",
-          );
-          usedModel = "FLUX.1-dev";
-          const generatedImageResponseLocal = await AIService.generateImage(
-            "LOCAL",
-            prompt,
-            client,
-            imageUrls,
-            username,
-          );
-          generatedImage = generatedImageResponseLocal;
-        }
-      } catch (error: unknown) {
-        const wrappedError =
-          error instanceof Error ? error : new Error(String(error));
-        console.error(...LogFormatter.error("generateImage", wrappedError));
-        hasError = true;
-      }
-      if (hasError) {
-        console.error("Falling back to LOCAL image generation.");
-        const generatedImageResponseLocal = await AIService.generateImage(
-          "LOCAL",
-          prompt,
-          client,
-          imageUrls,
-          username,
-        );
-        generatedImage = generatedImageResponseLocal;
-      }
-    } else if (type === "OPENAI") {
-      // Route OpenAI image generation through Prism
-      try {
-        const discordUsername = AIService._getDiscordUsername();
-        const imageObjects = imageUrls.length
-          ? await AIService._convertImageUrlsToBase64(imageUrls)
-          : [];
-
-        usedModel = MODEL_IDS.gptImage;
-        const prismResult = await PrismService.generateImage({
-          prompt,
-          provider: "openai",
-          model: usedModel,
-          images: imageObjects,
-          username: discordUsername,
-          ...AIService._getTraceParams(),
-        });
-
-        generatedImage = prismResult.imageData;
-      } catch (error: unknown) {
-        const wrappedError =
-          error instanceof Error ? error : new Error(String(error));
-        console.error(...LogFormatter.error("generateImage", wrappedError));
-      }
-    }
-
-    return generatedImage;
   },
   // Base Image-to-Text Generation (Captioning) — via Prism
   async generateVision(
@@ -601,25 +347,6 @@ const AIService = {
     return { transcriptionsMap };
   },
 
-  // "mini-brains" for specific tasks
-  async generateTextSummaryFromMessage(
-    message: Message,
-    messageContent: string,
-  ): Promise<string> {
-    const generatedText = await AIService.generateText({
-      systemPrompt: `You are an expert at summarizing the text that is given to you in two to three words. Start with an emoji. Do not use any other formatting, just give the emoji and the two to three words.`,
-      conversation: [
-        {
-          role: "user",
-          name: DiscordUtilityService.getUsernameNoSpaces(message) || "Default",
-          content: messageContent,
-        },
-      ],
-      modelPerformance: "POWERFUL",
-    });
-    if (!generatedText) return "";
-    return generatedText.substring(0, 128);
-  },
   async generateTextDetermineHowManyMessagesToFetch(
     content: string,
     _message: Message,

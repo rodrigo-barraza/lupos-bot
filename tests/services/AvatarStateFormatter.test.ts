@@ -15,7 +15,7 @@ import {
   resolveAvatarState,
   AVATAR_KEYS,
 } from "../../src/formatters/AvatarStateFormatter.ts";
-import type { SomaticStats } from "../../src/services/TraitRegistry.ts";
+import type { SomaticStats } from "../../src/formatters/SomaticStatsFormatter.ts";
 
 function makeStats(overrides: Partial<Omit<SomaticStats, "mood">> = {}): SomaticStats {
   return {

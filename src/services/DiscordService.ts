@@ -209,7 +209,6 @@ async function replyMessage(
   const timings =
     queuedDatum.timings ?? new PrepTimings(message.createdTimestamp);
   timings.recordQueueWait();
-  const _messages = queuedDatum.recentMessages;
   const actionType = queuedDatum.actionType;
   const replyMode = queuedDatum.replyMode ?? "mention";
 
@@ -345,11 +344,9 @@ async function replyMessage(
 
   const {
     conversation: extractedConversation,
-    newSystemPrompt,
     memberMentionsCollection,
     messagesEmojisCollection,
     messagesImagesCollection,
-    messagesTranscriptionsCollection: _messagesTranscriptionsCollection,
     participantsAvatarsCollection,
     participantsCollection,
     participantsMembersCollection,
@@ -386,7 +383,6 @@ async function replyMessage(
     memberMentionsCollection,
     messagesEmojisCollection,
     messagesImagesCollection,
-    newSystemPrompt,
     participantsAvatarsCollection:
       participantsAvatarsCollection as import("discord.js").Collection<
         string,
