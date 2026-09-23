@@ -400,23 +400,27 @@ async function replyMessage(
     return;
   }
 
+  const nothingToPost =
+    !generatedTextResponse &&
+    !generatedImage &&
+    !generatedAudioRef &&
+    !generatedVideoUrl &&
+    !generatedImageUrl;
+
   // Unaddressed and he chose silence ([[pass]]): post nothing, leave the
   // channel session as it was (PromptBuilder skipped the commit), and
-  // stop typing unless another reply for this channel is queued.
-  if (passed) {
+  // stop typing unless another reply for this channel is queued. An
+  // ambient turn that failed or came back empty is silent too — the
+  // "..." fallback below is for people who actually asked him something.
+  if (passed || (replyMode === "ambient" && nothingToPost)) {
+    if (!passed) ChannelSessionCache.invalidate(sessionChannelId);
     statusTracker.finishCancelled();
     stopTypingIfChannelIdle(sessionChannelId);
     CurrentService.clearTraceId();
     return;
   }
 
-  if (
-    !generatedTextResponse &&
-    !generatedImage &&
-    !generatedAudioRef &&
-    !generatedVideoUrl &&
-    !generatedImageUrl
-  ) {
+  if (nothingToPost) {
     // The committed session expects this turn's reply to exist in the
     // channel — without one, the frozen history would drift from Discord.
     ChannelSessionCache.invalidate(sessionChannelId);
