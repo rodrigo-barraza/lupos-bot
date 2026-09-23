@@ -155,18 +155,6 @@ const AIService = {
     let textResponse: string | null;
     let generateTextModel: string | undefined;
 
-    const finalTemperature =
-      temperature !== undefined
-        ? temperature
-        : config.LANGUAGE_MODEL_TEMPERATURE
-          ? parseFloat(config.LANGUAGE_MODEL_TEMPERATURE)
-          : undefined;
-    const finalTokens =
-      tokens !== undefined
-        ? tokens
-        : config.LANGUAGE_MODEL_MAX_TOKENS
-          ? parseInt(config.LANGUAGE_MODEL_MAX_TOKENS, 10)
-          : undefined;
 
     // Determine initial model based on type and performance
     if (type === "OPENAI") {
@@ -226,8 +214,12 @@ const AIService = {
         systemPrompt: resolvedSystemPrompt,
         type: type!,
         model: usedModel,
-        maxTokens: finalTokens,
-        temperature: finalTemperature,
+        // Only what the caller asked for. The LANGUAGE_MODEL_MAX_TOKENS /
+        // _TEMPERATURE defaults that used to fill these never reached the
+        // model (they rode a bag /chat ignores), and a 1000-token cap would
+        // truncate a thinking model's answer if they suddenly did.
+        maxTokens: tokens,
+        temperature,
         username: discordUsername,
         ...AIService._getTraceParams(),
       });

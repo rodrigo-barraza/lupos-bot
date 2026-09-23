@@ -19,21 +19,14 @@ export interface GenerateTextParams {
   type: string;
   model: string;
   systemPrompt?: string;
+  // Generation options — sent flat at the top level of the /chat body,
+  // which is where Prism reads them.
   maxTokens?: number;
   temperature?: number;
-  /**
-   * Generation options sent FLAT at the top level of the /chat body,
-   * which is where Prism reads them. (maxTokens/temperature above ride in
-   * a nested `options` bag /chat does not read; they are left there so
-   * existing callers keep today's behavior.)
-   */
-  flatOptions?: {
-    maxTokens?: number;
-    /** false ⇒ Prism turns thinking down/off for thinking models. */
-    thinkingEnabled?: boolean;
-    /** "json_object" ⇒ provider JSON mode (OpenAI, Google, Moonshot). */
-    responseFormat?: "json_object";
-  };
+  /** false ⇒ Prism turns thinking down/off for thinking models. */
+  thinkingEnabled?: boolean;
+  /** "json_object" ⇒ provider JSON mode (OpenAI, Google, Moonshot). */
+  responseFormat?: "json_object";
   /** Abort the call after this many milliseconds (default 120 000). */
   timeoutMs?: number;
   username?: string;

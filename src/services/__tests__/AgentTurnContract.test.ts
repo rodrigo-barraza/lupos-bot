@@ -259,3 +259,55 @@ describe("readSseEvents — abort", () => {
     ).rejects.toThrow(/trigger deleted/);
   });
 });
+
+// /chat reads generation options at the top level of its body. They used
+// to ride in a nested `options` bag it never reads, so every maxTokens /
+// temperature lupos-bot sent through generateText was dropped.
+describe("PrismService.generateText", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  function stubChat() {
+    const calls: RecordedCall[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string, init: RequestInit) => {
+        calls.push({ url, body: JSON.parse(String(init.body ?? "{}")) });
+        return new Response(JSON.stringify({ text: "ok", model: "m" }), { status: 200 });
+      }),
+    );
+    return calls;
+  }
+
+  it("sends generation options flat, where /chat reads them", async () => {
+    const calls = stubChat();
+    await PrismService.generateText({
+      messages: [{ role: "user", content: "hi" }],
+      type: "OPENAI",
+      model: "gpt-test",
+      maxTokens: 200,
+      temperature: 0.3,
+      thinkingEnabled: false,
+      responseFormat: "json_object",
+    });
+    expect(calls[0].url).toContain("/chat");
+    expect(calls[0].body).toMatchObject({
+      maxTokens: 200,
+      temperature: 0.3,
+      thinkingEnabled: false,
+      responseFormat: "json_object",
+    });
+    expect(calls[0].body).not.toHaveProperty("options");
+  });
+
+  it("sends none of them when the caller asks for none", async () => {
+    const calls = stubChat();
+    await PrismService.generateText({
+      messages: [{ role: "user", content: "hi" }],
+      type: "GOOGLE",
+      model: "gemini-test",
+    });
+    for (const key of ["maxTokens", "temperature", "thinkingEnabled", "responseFormat", "options"]) {
+      expect(calls[0].body).not.toHaveProperty(key);
+    }
+  });
+});
