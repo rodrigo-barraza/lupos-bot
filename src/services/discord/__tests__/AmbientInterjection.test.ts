@@ -7,8 +7,10 @@ const {
   AMBIENT_LIMITS,
   AMBIENT_CLASSIFIER_SYSTEM_PROMPT,
   ambientBudgetBlocker,
+  ambientClassifierCandidates,
   botSpokeRecently,
   buildClassifierTranscript,
+  classifyInterjection,
   evaluateAmbientInterjection,
   hasAmbientSubstance,
   parseInterjectionVerdict,
@@ -220,6 +222,100 @@ describe("resolveAmbientClassifierModel", () => {
         LANGUAGE_MODEL_OPENAI_LOW: undefined,
       }),
     ).toBeNull();
+  });
+});
+
+describe("ambientClassifierCandidates", () => {
+  it("tries the cheapest model first, then the main provider's fast model", () => {
+    expect(
+      ambientClassifierCandidates({
+        LANGUAGE_MODEL_TYPE: "GOOGLE",
+        GOOGLE_LANGUAGE_MODEL_FAST: "gemini-3.6-flash",
+        LANGUAGE_MODEL_OPENAI_LOW: "gpt-4.1-nano",
+        FAST_LANGUAGE_MODEL_OPENAI: "gpt-4o",
+        ANTHROPIC_LANGUAGE_MODEL_FAST: undefined,
+        FAST_LANGUAGE_MODEL_LOCAL: undefined,
+        AMBIENT_CLASSIFIER_MODEL_TYPE: undefined,
+        AMBIENT_CLASSIFIER_MODEL: undefined,
+      }),
+    ).toEqual([
+      { type: "OPENAI", model: "gpt-4.1-nano" },
+      { type: "GOOGLE", model: "gemini-3.6-flash" },
+    ]);
+  });
+
+  it("lists a model once when the cheapest is the main fast model", () => {
+    expect(
+      ambientClassifierCandidates({
+        LANGUAGE_MODEL_TYPE: "GOOGLE",
+        GOOGLE_LANGUAGE_MODEL_FAST: "gemini-3.6-flash",
+        LANGUAGE_MODEL_OPENAI_LOW: undefined,
+        FAST_LANGUAGE_MODEL_OPENAI: undefined,
+        ANTHROPIC_LANGUAGE_MODEL_FAST: undefined,
+        FAST_LANGUAGE_MODEL_LOCAL: undefined,
+        AMBIENT_CLASSIFIER_MODEL_TYPE: undefined,
+        AMBIENT_CLASSIFIER_MODEL: undefined,
+      }),
+    ).toEqual([{ type: "GOOGLE", model: "gemini-3.6-flash" }]);
+  });
+});
+
+describe("classifyInterjection — model fallback", () => {
+  const saved = {
+    LANGUAGE_MODEL_TYPE: config.LANGUAGE_MODEL_TYPE,
+    GOOGLE_LANGUAGE_MODEL_FAST: config.GOOGLE_LANGUAGE_MODEL_FAST,
+    LANGUAGE_MODEL_OPENAI_LOW: config.LANGUAGE_MODEL_OPENAI_LOW,
+  };
+
+  beforeEach(() => {
+    config.LANGUAGE_MODEL_TYPE = "GOOGLE";
+    config.GOOGLE_LANGUAGE_MODEL_FAST = "gemini-3.6-flash";
+    config.LANGUAGE_MODEL_OPENAI_LOW = "gpt-4.1-nano";
+  });
+
+  afterEach(() => {
+    Object.assign(config, saved);
+  });
+
+  function input() {
+    const { candidate } = candidateAfter(chatter(3), "who do you all think wins the finals tonight");
+    return { candidate, recentMessages: chatter(3), botUserId: BOT_ID };
+  }
+
+  function modelsCalled() {
+    return vi
+      .mocked(PrismService.generateText)
+      .mock.calls.map((call) => `${call[0].type}/${call[0].model}`);
+  }
+
+  it("falls back when the cheapest model's call fails, and skips it for an hour", async () => {
+    vi.mocked(PrismService.generateText).mockImplementation(async (request) => {
+      if (request.model === "gpt-4.1-nano") throw new Error("model retired");
+      return { text: '{"interject": true, "score": 0.8}' } as never;
+    });
+    expect(await classifyInterjection({ ...input(), nowMs: NOON })).toEqual({
+      interject: true,
+      score: 0.8,
+    });
+    expect(modelsCalled()).toEqual(["OPENAI/gpt-4.1-nano", "GOOGLE/gemini-3.6-flash"]);
+
+    await classifyInterjection({ ...input(), nowMs: NOON + 30 * MINUTE });
+    expect(modelsCalled().slice(2)).toEqual(["GOOGLE/gemini-3.6-flash"]);
+
+    await classifyInterjection({ ...input(), nowMs: NOON + 61 * MINUTE });
+    expect(modelsCalled().slice(3)).toEqual(["OPENAI/gpt-4.1-nano", "GOOGLE/gemini-3.6-flash"]);
+  });
+
+  it("does not fall back on a junk answer — the model is up, the answer is silence", async () => {
+    classifierReplies("maybe?");
+    expect(await classifyInterjection({ ...input(), nowMs: NOON })).toBeNull();
+    expect(modelsCalled()).toEqual(["OPENAI/gpt-4.1-nano"]);
+  });
+
+  it("is silent when every model fails", async () => {
+    vi.mocked(PrismService.generateText).mockRejectedValue(new Error("Prism down"));
+    expect(await classifyInterjection({ ...input(), nowMs: NOON })).toBeNull();
+    expect(modelsCalled()).toHaveLength(2);
   });
 });
 
