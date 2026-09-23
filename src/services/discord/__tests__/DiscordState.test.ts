@@ -14,6 +14,7 @@ describe("DiscordState", () => {
     vi.useFakeTimers();
     DiscordState.queuedData.length = 0;
     DiscordState.cancelledMessageIds.clear();
+    DiscordState.acceptedReplyIds.clear();
     DiscordState.isProcessingQueue = false;
   });
 
@@ -68,6 +69,50 @@ describe("DiscordState", () => {
         "a",
         "c",
       ]);
+    });
+  });
+
+  // An edit to a message already taken for a reply must not queue a
+  // second one — the edit path checks this before its mention diff,
+  // which misreads a partial (uncached) oldMessage as "no mention".
+  describe("accepted-for-reply record", () => {
+    it("reports a message only after it was accepted", () => {
+      expect(DiscordState.wasAcceptedForReply("m1")).toBe(false);
+      DiscordState.markAcceptedForReply("m1");
+      expect(DiscordState.wasAcceptedForReply("m1")).toBe(true);
+      expect(DiscordState.wasAcceptedForReply("m2")).toBe(false);
+    });
+
+    it("still holds the record long after a slow reply was posted", () => {
+      DiscordState.markAcceptedForReply("m1");
+      vi.advanceTimersByTime(10 * 60 * 1000);
+      expect(DiscordState.wasAcceptedForReply("m1")).toBe(true);
+    });
+
+    it("forgets the record after six hours", () => {
+      DiscordState.markAcceptedForReply("m1");
+      vi.advanceTimersByTime(6 * 60 * 60 * 1000 + 1);
+      expect(DiscordState.wasAcceptedForReply("m1")).toBe(false);
+    });
+  });
+
+  describe("isEditANewMention", () => {
+    it("treats an edit that adds the mention as a new trigger", () => {
+      expect(DiscordState.isEditANewMention("m1", true, false)).toBe(true);
+    });
+
+    it("ignores edits that keep, drop or never had the mention", () => {
+      expect(DiscordState.isEditANewMention("m1", true, true)).toBe(false);
+      expect(DiscordState.isEditANewMention("m1", false, true)).toBe(false);
+      expect(DiscordState.isEditANewMention("m1", false, false)).toBe(false);
+    });
+
+    // The production double reply: the trigger was evicted from the
+    // message cache by the 500-message history fetch, so the typo-fix
+    // edit arrived with a partial oldMessage whose mentions read empty.
+    it("never re-triggers a message already taken for a reply", () => {
+      DiscordState.markAcceptedForReply("m1");
+      expect(DiscordState.isEditANewMention("m1", true, false)).toBe(false);
     });
   });
 });
