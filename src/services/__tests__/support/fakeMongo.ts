@@ -3,8 +3,9 @@
 // ============================================================
 // Supports exactly what the agent-action code uses: equality (null
 // matches missing), $lt/$lte/$gt/$gte/$in/$nin/$ne/$not/$or, $set/$inc
-// updates, upserts, sort/limit, and UNIQUE indexes registered through
-// createIndex (so the capped-upsert 11000 path is exercised for real).
+// updates, upserts, sort/limit, async-iterable find cursors, and UNIQUE
+// indexes registered through createIndex (so the capped-upsert 11000
+// path is exercised for real). aggregate() only records its pipeline.
 // ============================================================
 
 type Document = Record<string, unknown>;
@@ -64,12 +65,23 @@ function matchesCondition(value: unknown, condition: unknown): boolean {
   });
 }
 
+/** `author.id` → document.author.id */
+function valueAt(document: Document, path: string): unknown {
+  return path
+    .split(".")
+    .reduce<unknown>(
+      (value, key) =>
+        value && typeof value === "object" ? (value as Document)[key] : undefined,
+      document,
+    );
+}
+
 export function matches(document: Document, filter: Filter): boolean {
   return Object.entries(filter).every(([key, condition]) => {
     if (key === "$or") {
       return (condition as Filter[]).some((branch) => matches(document, branch));
     }
-    return matchesCondition(document[key], condition);
+    return matchesCondition(valueAt(document, key), condition);
   });
 }
 
@@ -134,6 +146,13 @@ export class FakeCollection {
   find(filter: Filter = {}) {
     let sort: Record<string, 1 | -1> | undefined;
     let limit = Infinity;
+    const results = () =>
+      this.#sorted(
+        this.documents.filter((document) => matches(document, filter)),
+        sort,
+      )
+        .slice(0, limit)
+        .map((document) => structuredClone(document));
     const cursor = {
       sort: (spec: Record<string, 1 | -1>) => {
         sort = spec;
@@ -143,15 +162,20 @@ export class FakeCollection {
         limit = count;
         return cursor;
       },
-      toArray: async () =>
-        this.#sorted(
-          this.documents.filter((document) => matches(document, filter)),
-          sort,
-        )
-          .slice(0, limit)
-          .map((document) => structuredClone(document)),
+      toArray: async () => results(),
+      async *[Symbol.asyncIterator]() {
+        yield* results();
+      },
     };
     return cursor;
+  }
+
+  /** Pipelines are recorded, not run — tests assert on their $match. */
+  aggregatePipelines: Document[][] = [];
+
+  aggregate(pipeline: Document[]) {
+    this.aggregatePipelines.push(pipeline);
+    return { toArray: async () => [] };
   }
 
   async findOneAndUpdate(
@@ -203,7 +227,10 @@ export function createFakeDb() {
      * indexes once per process, as they would against a real database.
      */
     reset() {
-      for (const collection of collections.values()) collection.documents = [];
+      for (const collection of collections.values()) {
+        collection.documents = [];
+        collection.aggregatePipelines = [];
+      }
     },
   };
 }

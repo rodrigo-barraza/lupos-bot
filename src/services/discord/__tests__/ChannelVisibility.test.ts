@@ -8,12 +8,17 @@
 
 import { describe, it, expect } from "vitest";
 import { ChannelType } from "discord.js";
-import { computeVisibleChannels } from "#root/services/discord/ChannelVisibility.ts";
+import {
+  HIDDEN_CHANNEL_ERROR,
+  computeVisibleChannels,
+  scopeStatsToRequester,
+} from "#root/services/discord/ChannelVisibility.ts";
 import {
   GUILD_ID,
   ManageThreads,
   ReadMessageHistory,
   REQUESTER_ID,
+  STRANGER_ID,
   SendMessages,
   ViewChannel,
   asGuild,
@@ -171,5 +176,64 @@ describe("computeVisibleChannels", () => {
       asMember(makeMember({ id: REQUESTER_ID })),
     );
     expect(visible.threadIds).toContain("220000000000000004");
+  });
+});
+
+describe("scopeStatsToRequester", () => {
+  function guildWithRequester() {
+    const { guild } = buildGuild();
+    const requester = makeMember({ id: REQUESTER_ID });
+    guild.members.cache.set(REQUESTER_ID, requester);
+    return guild;
+  }
+
+  it("without a requester keeps today's behaviour", async () => {
+    const guild = guildWithRequester();
+    expect(await scopeStatsToRequester(asGuild(guild), undefined, undefined)).toEqual({
+      allowed: true,
+      channelFilter: null,
+    });
+    expect(
+      await scopeStatsToRequester(asGuild(guild), "", "210000000000000002"),
+    ).toEqual({ allowed: true, channelFilter: "210000000000000002" });
+  });
+
+  it("with a requester limits a whole-guild query to what they can read", async () => {
+    const guild = guildWithRequester();
+    const scope = await scopeStatsToRequester(asGuild(guild), REQUESTER_ID, undefined);
+    expect(scope.allowed).toBe(true);
+    const filter = (scope as { channelFilter: { $in: string[] } }).channelFilter;
+    const expected = computeVisibleChannels(
+      asGuild(guild),
+      asMember(guild.members.cache.get(REQUESTER_ID)),
+    );
+    expect(filter.$in.sort()).toEqual(
+      [...expected.channelIds, ...expected.threadIds].sort(),
+    );
+    expect(filter.$in).not.toContain("210000000000000002"); // #staff
+    expect(filter.$in).not.toContain("220000000000000002"); // thread under #staff
+    expect(filter.$in).not.toContain("220000000000000004"); // private, not joined
+  });
+
+  it("keeps an explicit channel the requester can read, refuses one they cannot", async () => {
+    const guild = guildWithRequester();
+    expect(
+      await scopeStatsToRequester(asGuild(guild), REQUESTER_ID, "210000000000000001"),
+    ).toEqual({ allowed: true, channelFilter: "210000000000000001" });
+    expect(
+      await scopeStatsToRequester(asGuild(guild), REQUESTER_ID, "210000000000000002"),
+    ).toEqual({ allowed: false, status: 403, error: HIDDEN_CHANNEL_ERROR });
+  });
+
+  it("404s a requester who is not a member, 400s a malformed id", async () => {
+    const guild = guildWithRequester();
+    expect(await scopeStatsToRequester(asGuild(guild), STRANGER_ID, undefined)).toMatchObject({
+      allowed: false,
+      status: 404,
+    });
+    expect(await scopeStatsToRequester(asGuild(guild), "someone", undefined)).toMatchObject({
+      allowed: false,
+      status: 400,
+    });
   });
 });

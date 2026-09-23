@@ -4,7 +4,8 @@
 // The real GuildRoutes router on a real Express app, called over HTTP:
 // status codes and bodies are what tools-service will see. Discord is
 // mocked discord.js objects, Mongo an in-memory fake; the gold logic is
-// mocked here (luposAgentGold.test.ts covers it).
+// mocked here (luposAgentGold.test.ts covers it). The whole-guild stats
+// routes are checked for the requester's channel scope only.
 // ============================================================
 
 import { describe, it, expect, vi, beforeAll, afterAll, beforeEach, afterEach } from "vitest";
@@ -44,9 +45,9 @@ vi.mock("../../services/DmCampaignService.ts", () => ({ default: {} }));
 vi.mock("../../services/PrismService.ts", () => ({ default: {} }));
 vi.mock("../../commands/utility/commandUtils.ts", () => ({
   getMongoDb: () => fakeDb,
-  getServerAgeYears: vi.fn(),
-  computeStartDate: vi.fn(),
-  formatTimePeriod: vi.fn(),
+  getServerAgeYears: () => 1,
+  computeStartDate: () => ({ startDate: new Date(0), unixStartDate: 0 }),
+  formatTimePeriod: () => "the last 7 days",
 }));
 const luposGiveGold = vi.fn();
 const luposMugGold = vi.fn();
@@ -349,5 +350,92 @@ describe("agent action routes", () => {
     );
     expect(result.status).toBe(400);
     expect(result.body.error).toMatch(/ISO 8601/);
+  });
+});
+
+describe("whole-guild stats routes with a requesterUserId", () => {
+  const STAFF_ID = "200000000000000077";
+
+  /** #general the requester reads, #staff they cannot. */
+  function statsScene() {
+    const scene = makeScene();
+    const staff = makeChannel({ id: STAFF_ID, name: "staff", grants: { [REQUESTER_ID]: [] } });
+    scene.guild.channels.cache.set(staff.id, staff);
+    useScene(scene);
+    return scene;
+  }
+
+  function messages() {
+    return fakeDb.collection("Messages");
+  }
+
+  /** The channelId condition of the first recorded aggregate $match. */
+  function matchedChannels(): unknown {
+    const [pipeline] = messages().aggregatePipelines;
+    return (pipeline[0] as { $match: Record<string, unknown> }).$match.channelId;
+  }
+
+  it("word frequencies never surface words from channels the requester cannot read", async () => {
+    statsScene();
+    const author = { id: STRANGER_ID, username: "someone" };
+    messages().documents.push(
+      { guildId: GUILD_ID, channelId: CHANNEL_ID, author, content: "pizza pizza tonight", createdTimestamp: 5 },
+      { guildId: GUILD_ID, channelId: STAFF_ID, author, content: "banhammer banhammer", createdTimestamp: 5 },
+    );
+    const path = `/guild/word-frequencies?guildId=${GUILD_ID}&userId=${STRANGER_ID}&days=7`;
+    const words = (result: { body: Record<string, unknown> }) =>
+      (result.body.words as { text: string }[]).map((word) => word.text);
+
+    const scoped = await call("GET", `${path}&requesterUserId=${REQUESTER_ID}`);
+    expect(scoped.status).toBe(200);
+    expect(words(scoped)).toContain("pizza");
+    expect(words(scoped)).not.toContain("banhammer");
+    expect(scoped.body.totalMessages).toBe(1);
+
+    // Without a requester (the owner, outside Discord): as before.
+    expect(words(await call("GET", path))).toContain("banhammer");
+  });
+
+  it.each([
+    ["leaderboard", `/guild/leaderboard?guildId=${GUILD_ID}&days=7`],
+    ["heatmap", `/guild/heatmap?guildId=${GUILD_ID}&userId=${STRANGER_ID}&days=7`],
+    ["mentions", `/guild/mentions?guildId=${GUILD_ID}&userId=${STRANGER_ID}&days=7`],
+    ["channel-stats", `/guild/channel-stats?guildId=${GUILD_ID}&days=7`],
+  ])("%s aggregates only readable channels for a requester", async (_name, path) => {
+    statsScene();
+    const scoped = await call("GET", `${path}&requesterUserId=${REQUESTER_ID}`);
+    expect(scoped.status).toBe(200);
+    const condition = matchedChannels() as { $in: string[] };
+    expect(condition.$in).toContain(CHANNEL_ID);
+    expect(condition.$in).not.toContain(STAFF_ID);
+
+    fakeDb.reset();
+    expect((await call("GET", path)).status).toBe(200);
+    expect(matchedChannels()).toBeUndefined();
+  });
+
+  it.each([
+    ["leaderboard", `/guild/leaderboard?guildId=${GUILD_ID}&days=7`],
+    ["heatmap", `/guild/heatmap?guildId=${GUILD_ID}&userId=${STRANGER_ID}&days=7`],
+    ["mentions", `/guild/mentions?guildId=${GUILD_ID}&userId=${STRANGER_ID}&days=7`],
+  ])("%s refuses an explicit channel the requester cannot read (403)", async (_name, path) => {
+    statsScene();
+    const hidden = await call("GET", `${path}&channelId=${STAFF_ID}&requesterUserId=${REQUESTER_ID}`);
+    expect(hidden.status).toBe(403);
+    expect(hidden.body.error).toMatch(/channel you can't see/);
+    expect(messages().aggregatePipelines).toHaveLength(0);
+
+    const readable = await call("GET", `${path}&channelId=${CHANNEL_ID}&requesterUserId=${REQUESTER_ID}`);
+    expect(readable.status).toBe(200);
+    expect(matchedChannels()).toBe(CHANNEL_ID);
+  });
+
+  it("404s a requester who is not a member of the guild", async () => {
+    statsScene();
+    const result = await call(
+      "GET",
+      `/guild/channel-stats?guildId=${GUILD_ID}&requesterUserId=${STRANGER_ID}`,
+    );
+    expect(result.status).toBe(404);
   });
 });
