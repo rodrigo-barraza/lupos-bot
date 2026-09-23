@@ -8,6 +8,7 @@ import { MODEL_IDS } from "@rodrigo-barraza/utilities-library/taxonomy";
 import LogFormatter from "#root/formatters/LogFormatter.ts";
 
 import utilities from "#root/utilities.ts";
+import PromiseMemo from "#root/utilities/PromiseMemo.ts";
 
 import PrismService from "#root/services/PrismService.ts";
 import CurrentService from "#root/services/CurrentService.ts";
@@ -69,6 +70,18 @@ export interface GenerateVisionOptions {
  * Maps caption type → MongoDB collection name.
  * Adding a new type is a single-line addition.
  */
+interface CaptionResult {
+  caption: string;
+  mapObject: CaptionMapObject;
+  hash: string;
+}
+
+// In-flight and just-finished captions per (type, url). A caption is
+// already persisted by content hash in Mongo; this only saves the second
+// download + lookup, and lets a prefetch and its real call share one
+// vision request. Failures are never kept (PromiseMemo).
+const captionMemo = new PromiseMemo<CaptionResult>(500, 5 * 60 * 1000);
+
 const CAPTION_COLLECTION_MAP = {
   IMAGE: "ImageCaptions",
   EMOJI: "EmojiCaptions",
@@ -424,9 +437,13 @@ const AIService = {
     const transcription = (result.text || "").trim().replace(/\n+/g, " ");
     return transcription;
   },
-  // Caption images and store data in MongoDB
+  // Caption images and store data in MongoDB. Each (type, url) is
+  // captioned once at a time and its caption reused for a few minutes
+  // (captionMemo): the reference-image step prefetches the trigger's
+  // SMALL captions while the history is still being read, and joins
+  // that request here instead of starting its own.
   async captionImages(
-    imageUrls: Array<string | { url: string; userId: string | null }>,
+    imageUrls: string[],
     localMongo: MongoClient,
     type: string,
   ): Promise<{
@@ -437,96 +454,93 @@ const AIService = {
     const imagesMap = new Map<string, CaptionMapObject>();
     const collectionName =
       CAPTION_COLLECTION_MAP[type as keyof typeof CAPTION_COLLECTION_MAP];
-    if (collectionName) {
-      const db = localMongo.db(MONGO_DB_NAME);
-      const collection = db.collection(collectionName);
+    if (collectionName && imageUrls?.length) {
+      const collection = localMongo.db(MONGO_DB_NAME).collection(collectionName);
       const prompt =
         type === "SMALL"
           ? `Describe this image in a short sentence, 10 words or less. Make no mention about the quality, resolution, or pixelation.`
           : `Describe this ${type.toLowerCase()}. Make no mention about the quality, resolution, or pixelation.`;
 
-      if (imageUrls?.length) {
-        const first = imageUrls[0];
-        const isObject =
-          typeof first === "object" && first !== null && "url" in first;
-
-        // Process all images in parallel — each checks cache first,
-        // then fires vision call only for uncached images
-        const captionPromises = imageUrls.map(async (imageUrl) => {
-          const realImageUrl = isObject
-            ? (imageUrl as { url: string }).url
-            : (imageUrl as string);
-          const userId = isObject
-            ? (imageUrl as { userId: string | null }).userId
-            : null;
-
-          const hashResult = await utilities.generateFileHash(realImageUrl);
-          if (!hashResult) return null;
-          const { hash, fileType } = hashResult;
-          const existingImage = await collection.findOne({ hash });
-
-          if (existingImage) {
-            const mapObject = {
-              hash,
-              url: realImageUrl,
-              caption: existingImage.caption,
-              fileType,
-              userId: existingImage.userId,
-              model: existingImage.model || null,
-              provider: existingImage.provider || null,
-              cached: true,
-            };
-            return {
-              caption: existingImage.caption as string,
-              mapObject,
-              hash,
-            };
-          }
-
-          // Uncached — fire vision call
-          const {
-            response,
-            model: usedModel,
-            provider: usedProvider,
-          } = await AIService.generateVision(realImageUrl, prompt);
-          if (response?.choices[0]?.message?.content) {
-            const caption = response.choices[0].message.content;
-            const mapObject = {
-              hash,
-              url: realImageUrl,
-              caption,
-              fileType,
-              userId,
-              model: usedModel,
-              provider: usedProvider,
-              cached: false,
-            };
-            await collection.insertOne({
-              hash,
-              type,
-              url: realImageUrl,
-              caption,
-              fileType,
-              userId,
-              model: usedModel,
-              provider: usedProvider,
-              createdAt: new Date(),
-            });
-            return { caption, mapObject, hash };
-          }
-          return null;
-        });
-
-        const results = await Promise.all(captionPromises);
-        for (const result of results) {
-          if (result) {
-            images.push(result.caption);
-            imagesMap.set(result.hash, result.mapObject);
-          }
+      // Process all images in parallel — each checks cache first,
+      // then fires vision call only for uncached images
+      const results = await Promise.all(
+        imageUrls.map((imageUrl) =>
+          captionMemo.get(`${type}\u0000${imageUrl}`, () =>
+            AIService._captionOneImage(imageUrl, collection, type, prompt),
+          ),
+        ),
+      );
+      for (const result of results) {
+        if (result) {
+          images.push(result.caption);
+          imagesMap.set(result.hash, result.mapObject);
         }
       }
     }
     return { images, imagesMap };
+  },
+  /** One image's caption: the Mongo cache by content hash, else a vision call. */
+  async _captionOneImage(
+    imageUrl: string,
+    collection: import("mongodb").Collection,
+    type: string,
+    prompt: string,
+  ): Promise<CaptionResult | null> {
+    const hashResult = await utilities.generateFileHash(imageUrl);
+    if (!hashResult) return null;
+    const { hash, fileType } = hashResult;
+    const existingImage = await collection.findOne({ hash });
+
+    if (existingImage) {
+      const mapObject = {
+        hash,
+        url: imageUrl,
+        caption: existingImage.caption,
+        fileType,
+        userId: existingImage.userId,
+        model: existingImage.model || null,
+        provider: existingImage.provider || null,
+        cached: true,
+      };
+      return {
+        caption: existingImage.caption as string,
+        mapObject,
+        hash,
+      };
+    }
+
+    // Uncached — fire vision call
+    const {
+      response,
+      model: usedModel,
+      provider: usedProvider,
+    } = await AIService.generateVision(imageUrl, prompt);
+    if (response?.choices[0]?.message?.content) {
+      const caption = response.choices[0].message.content;
+      const mapObject = {
+        hash,
+        url: imageUrl,
+        caption,
+        fileType,
+        userId: null,
+        model: usedModel,
+        provider: usedProvider,
+        cached: false,
+      };
+      await collection.insertOne({
+        hash,
+        type,
+        url: imageUrl,
+        caption,
+        fileType,
+        userId: null,
+        model: usedModel,
+        provider: usedProvider,
+        createdAt: new Date(),
+      });
+      return { caption, mapObject, hash };
+    }
+    return null;
   },
   // Transcribe audio files from URLs and store data in MongoDB
   async transcribeAudioUrls(

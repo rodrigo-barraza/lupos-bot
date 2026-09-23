@@ -98,6 +98,7 @@ const config = (await import("#root/config.ts")).default;
 const { openSteerableTurn, resetTurnSteering } = await import(
   "../discord/TurnSteering.ts"
 );
+const PrepTimings = (await import("../discord/PrepTimings.ts")).default;
 
 const BOT_ID = "900000000000000001";
 const botUser = { id: BOT_ID, username: "Lupos" };
@@ -499,5 +500,64 @@ describe("processMessage — folding a follow-up into the running turn", () => {
       expect(followUp.react).toHaveBeenCalledWith("👀");
       expect(followUp.react).not.toHaveBeenCalledWith("⏳");
     }
+  });
+});
+
+describe("acceptAndQueueReply — before the reply is built", () => {
+  const PRIMARY = "700000000000000001";
+  let savedPrimary: string | undefined;
+
+  beforeEach(() => {
+    resetTurnSteering();
+    savedPrimary = config.GUILD_ID_PRIMARY;
+    config.GUILD_ID_PRIMARY = PRIMARY;
+    DiscordState.isProcessingQueue = true;
+    DiscordState.queuedData.length = 0;
+    vi.mocked(DiscordUtilityService.fetchMessages).mockResolvedValue({
+      reverse: () => new Map(),
+    } as never);
+  });
+
+  afterEach(() => {
+    config.GUILD_ID_PRIMARY = savedPrimary;
+    DiscordState.isProcessingQueue = false;
+    DiscordState.queuedData.length = 0;
+    vi.mocked(DiscordUtilityService.fetchMessages).mockResolvedValue(null);
+    vi.mocked(DiscordUtilityService.addRoleToMember).mockReset();
+  });
+
+  it("runs the chatter-role PUT and the history fetch side by side; queues after both", async () => {
+    let finishRole: () => void = () => {};
+    vi.mocked(DiscordUtilityService.addRoleToMember).mockImplementation(
+      () => new Promise<void>((resolve) => {
+        finishRole = resolve;
+      }),
+    );
+    const fake = fakeMessage({ content: "lupos, hi" });
+    const pending = processMessage(client, mongoClients, fake.message, "CREATE");
+    await vi.waitFor(() => expect(DiscordUtilityService.fetchMessages).toHaveBeenCalledOnce());
+    expect(DiscordUtilityService.addRoleToMember).toHaveBeenCalledOnce();
+    expect(vi.mocked(DiscordUtilityService.fetchMessages).mock.calls[0][2]).toEqual({
+      limit: 500,
+      before: fake.id,
+    });
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    expect(DiscordState.queuedData).toHaveLength(0); // still waiting on the role
+    finishRole();
+    await pending;
+    expect(DiscordState.queuedData).toHaveLength(1);
+    expect(DiscordState.queuedData[0].timings).toBeInstanceOf(PrepTimings);
+  });
+
+  it("gives no chatter role on the ambient path", async () => {
+    botSettings.CHANNEL_IDS_AMBIENT = ["600000000000000001"];
+    config.LANGUAGE_MODEL_OPENAI_LOW = "gpt-4.1-nano";
+    resetAmbientState();
+    vi.mocked(PrismService.generateText).mockResolvedValue({
+      text: JSON.stringify({ interject: true, score: 0.9 }),
+    } as never);
+    await run({ content: "does anyone know when the raid starts tonight" });
+    expect(DiscordState.queuedData.map((queued) => queued.replyMode)).toEqual(["ambient"]);
+    expect(DiscordUtilityService.addRoleToMember).not.toHaveBeenCalled();
   });
 });
