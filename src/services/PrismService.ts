@@ -261,21 +261,22 @@ export default class PrismService {
     systemPrompt,
     maxTokens,
     temperature,
-    flatOptions,
+    thinkingEnabled,
+    responseFormat,
     timeoutMs,
     username = "lupos",
     traceId,
   }: GenerateTextParams) {
-    const options: Record<string, unknown> = {};
-    if (maxTokens) options.maxTokens = maxTokens;
-    if (temperature !== undefined) options.temperature = temperature;
-
+    // Flat: /chat never read the nested `options` bag these used to ride
+    // in, so every maxTokens/temperature sent that way was dropped.
     const data = await prism().chat({
       provider: resolveProvider(type),
       model,
       messages,
-      options,
-      ...flatOptions,
+      ...(maxTokens && { maxTokens }),
+      ...(temperature !== undefined && { temperature }),
+      ...(thinkingEnabled !== undefined && { thinkingEnabled }),
+      ...(responseFormat && { responseFormat }),
       systemPrompt,
       traceId,
       username,

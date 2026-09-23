@@ -406,11 +406,9 @@ export async function classifyInterjection({
         model: classifierModel.model,
         systemPrompt: AMBIENT_CLASSIFIER_SYSTEM_PROMPT,
         messages: [{ role: "user", content: transcript }],
-        flatOptions: {
-          maxTokens: 200,
-          thinkingEnabled: false,
-          responseFormat: "json_object",
-        },
+        maxTokens: 200,
+        thinkingEnabled: false,
+        responseFormat: "json_object",
         timeoutMs: AMBIENT_LIMITS.classifierTimeoutMs,
         username: "lupos",
       });

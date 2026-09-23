@@ -376,7 +376,8 @@ describe("evaluateAmbientInterjection", () => {
       type: "OPENAI",
       model: "gpt-4.1-nano",
       systemPrompt: AMBIENT_CLASSIFIER_SYSTEM_PROMPT,
-      flatOptions: { thinkingEnabled: false, responseFormat: "json_object" },
+      thinkingEnabled: false,
+      responseFormat: "json_object",
     });
     expect(request.messages[0].content).toContain(
       ">>> [bob]: who do you all think wins the finals tonight",
