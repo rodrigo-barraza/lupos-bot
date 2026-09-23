@@ -380,9 +380,15 @@ export default class PrismService {
       agent: "LUPOS",
       // Nobody can answer an approval prompt from Discord: an unattended
       // turn refuses whatever would ask instead of waiting on it, and
-      // the LUPOS persona's own policy decides what runs (round-2
-      // contract §1) — never a blanket autoApprove.
+      // the LUPOS persona's own allow-list decides what runs (round-2
+      // contract §1). A Prism with that allow-list pins LUPOS to dontAsk
+      // and IGNORES autoApprove for him; autoApprove stays only for a
+      // Prism that predates it — without it, every write-tier tool he
+      // uses (reactions, gold, generate_image) would be refused there.
+      // Both flags let lupos-bot and Prism deploy in either order; drop
+      // autoApprove once every Prism has the LUPOS allow-list.
       unattended: true,
+      autoApprove: true,
       // enabledTools are defined by the LUPOS persona in AgentPersonaRegistry
       agentContext,
       maxTokens,
