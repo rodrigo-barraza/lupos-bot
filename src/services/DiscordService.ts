@@ -1146,6 +1146,11 @@ URL: ${utilities.getDiscordMessageUrl((message as Message).guild?.id || "", (mes
     return;
   }
 
+  // Every gate passed — this message gets a reply. Recording it here,
+  // before the history fetch, closes the window in which an edit made
+  // while the reply is still being generated queued a second one.
+  DiscordState.markAcceptedForReply((message as Message).id);
+
   // START TYPING — always restart: an existing entry may hold a dead
   // interval (sendTyping failures self-clear the timer without deleting
   // the entry), and restarting a healthy one is harmless.
@@ -1357,10 +1362,14 @@ async function luposOnMessageUpdate(
     if (fullMessage && (await deleteIfLaughOnly(fullMessage))) return;
   }
 
-  // Process if message was edited to mention the bot
+  // Process if message was edited to mention the bot (never one already
+  // taken for a reply — see DiscordState.isEditANewMention)
   if (
-    newMessage.mentions.has(client.user!) &&
-    !oldMessage.mentions.has(client.user!)
+    DiscordState.isEditANewMention(
+      newMessage.id,
+      newMessage.mentions.has(client.user!),
+      oldMessage.mentions.has(client.user!),
+    )
   ) {
     // Skip if the bot already replied to this message
     const fetchedMessages = await DiscordUtilityService.fetchMessages(
