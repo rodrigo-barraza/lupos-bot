@@ -348,36 +348,36 @@ async function replyMessage(
     imagePrompt,
     passed,
   } = await buildAndGenerateReply({
-      conversation: conversation as unknown as Record<string, unknown>[],
-      memberMentionsCollection,
-      messagesEmojisCollection,
-      messagesImagesCollection,
-      newSystemPrompt,
-      participantsAvatarsCollection:
-        participantsAvatarsCollection as import("discord.js").Collection<
-          string,
-          string
-        >,
-      participantsCollection:
-        participantsCollection as unknown as import("discord.js").Collection<
-          string,
-          GuildMember | User | { id: string }
-        >,
-      participantsMembersCollection,
-      participantsUsersCollection,
-      queuedDatum,
-      userMentionsCollection,
-      localMongo,
-      statusTracker,
-      session: {
-        channelId: sessionChannelId,
-        piggyback: !!piggybackPlan,
-        representedMessageIds,
-        cumulativeParticipantUserIds:
-          piggybackPlan?.session.participantUserIds ?? [],
-      },
-      replyMode,
-    });
+    conversation: conversation as unknown as Record<string, unknown>[],
+    memberMentionsCollection,
+    messagesEmojisCollection,
+    messagesImagesCollection,
+    newSystemPrompt,
+    participantsAvatarsCollection:
+      participantsAvatarsCollection as import("discord.js").Collection<
+        string,
+        string
+      >,
+    participantsCollection:
+      participantsCollection as unknown as import("discord.js").Collection<
+        string,
+        GuildMember | User | { id: string }
+      >,
+    participantsMembersCollection,
+    participantsUsersCollection,
+    queuedDatum,
+    userMentionsCollection,
+    localMongo,
+    statusTracker,
+    session: {
+      channelId: sessionChannelId,
+      piggyback: !!piggybackPlan,
+      representedMessageIds,
+      cumulativeParticipantUserIds:
+        piggybackPlan?.session.participantUserIds ?? [],
+    },
+    replyMode,
+  });
 
   const generatedTextResponse = generatedText;
   const generatedImage = image;
@@ -1237,7 +1237,13 @@ URL: ${utilities.getDiscordMessageUrl((message as Message).guild?.id || "", (mes
     return;
   }
 
-  await acceptAndQueueReply(client, localMongo, message, actionType, addressing);
+  await acceptAndQueueReply(
+    client,
+    localMongo,
+    message,
+    actionType,
+    addressing,
+  );
 }
 
 /**
@@ -1317,10 +1323,7 @@ async function acceptAndQueueReply(
 
   // LUPOS CHATTER ROLE — for people talking to him, not for the author
   // of a message he chose to chime in on.
-  if (
-    replyMode !== "ambient" &&
-    message?.guildId === config.GUILD_ID_PRIMARY
-  ) {
+  if (replyMode !== "ambient" && message?.guildId === config.GUILD_ID_PRIMARY) {
     await DiscordUtilityService.addRoleToMember(
       (message as Message).member!,
       config.ROLE_ID_BOT_CHATTER as string,
