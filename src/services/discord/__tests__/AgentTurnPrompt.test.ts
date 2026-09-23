@@ -151,6 +151,15 @@ describe("buildAndGenerateReply — ambient turns", () => {
     expect(ChannelSessionCache.get("500000000000000001")).toBeUndefined();
   });
 
+  it("an ambient turn that fails is silence, not the \"...\" fallback", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.mocked(PrismService.generateAgentResponse).mockRejectedValue(
+      new Error("Prism API error: 500"),
+    );
+    expect((await buildAndGenerateReply(turnInput("ambient"))).generatedText).toBeNull();
+    expect((await buildAndGenerateReply(turnInput("mention"))).generatedText).toBe("...");
+  });
+
   it("a real ambient reply is posted and committed like any other", async () => {
     const commit = vi.spyOn(ChannelSessionCache, "commit");
     agentReply("ramen? the one on main, obviously");

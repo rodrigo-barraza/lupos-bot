@@ -1892,10 +1892,22 @@ export async function buildAndGenerateReply({
         imagePrompt: null,
       };
     }
-    generatedText = "...";
     console.error(
       ...LogFormatter.error("buildAndGenerateReply", error as Error),
     );
+    // Nobody asked for an ambient turn — a failure is silence, never a
+    // filler "..." aimed at someone who didn't address him.
+    if (replyMode === "ambient") {
+      return {
+        generatedText: null,
+        image: null,
+        audioRef: null,
+        videoUrl: null,
+        imageUrl: null,
+        imagePrompt: null,
+      };
+    }
+    generatedText = "...";
   }
   return {
     generatedText,

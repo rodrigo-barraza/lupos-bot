@@ -268,6 +268,35 @@ describe("replyMessage — ambient outcomes", () => {
     expect(DiscordState.typingIntervals[CHANNEL_ID]).toBeUndefined();
   });
 
+  it("an ambient turn that came back empty posts nothing — no \"...\"", async () => {
+    resetAmbientState();
+    botSettings.CHANNEL_IDS_AMBIENT = [CHANNEL_ID];
+    config.LANGUAGE_MODEL_OPENAI_LOW = "gpt-4.1-nano";
+    vi.mocked(PrismService.generateText).mockResolvedValue({
+      text: '{"interject": true, "score": 0.9}',
+    } as never);
+    vi.mocked(buildAndGenerateReply).mockResolvedValue(
+      generated({ generatedText: null }) as never,
+    );
+    const message = fakeMessage({
+      content: "does anyone know when the raid starts tonight",
+    });
+    await processMessage(client, mongoClients, message as never, "CREATE");
+    expect(buildAndGenerateReply).toHaveBeenCalledOnce();
+    expect(message.reply).not.toHaveBeenCalled();
+    expect(DiscordUtilityService.sendMessageInChunks).not.toHaveBeenCalled();
+    expect(DiscordState.typingIntervals[CHANNEL_ID]).toBeUndefined();
+  });
+
+  it("an addressed turn that came back empty still gets the \"...\" fallback", async () => {
+    vi.mocked(buildAndGenerateReply).mockResolvedValue(
+      generated({ generatedText: null }) as never,
+    );
+    const message = fakeMessage();
+    await processMessage(client, mongoClients, message as never, "CREATE");
+    expect(message.reply).toHaveBeenCalledWith("...");
+  });
+
   it("drops an ambient turn that waited in the queue past its moment", async () => {
     const stale = fakeMessage({
       createdTimestamp: Date.now() - AMBIENT_LIMITS.maxQueueDelayMs - 1000,
