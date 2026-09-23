@@ -208,6 +208,18 @@ describe("aggregateAgentEvents — folded follow-ups", () => {
     expect(aggregateAgentEvents(events).text).toBe("Noon, and they do takeout.");
   });
 
+  it("keeps one pass whole when the provider applied the follow-up mid-stream", () => {
+    const events: PrismSseEvent[] = [
+      { type: "chunk", content: "Ramen on main, " },
+      folded("native_steer"),
+      { type: "chunk", content: "and yes, they do takeout." },
+      { type: "done" },
+    ];
+    expect(aggregateAgentEvents(events).text).toBe(
+      "Ramen on main, and yes, they do takeout.",
+    );
+  });
+
   it("keeps the reply when the follow-up joined only as the turn ended", () => {
     const events: PrismSseEvent[] = [
       { type: "chunk", content: "Ramen on main." },
