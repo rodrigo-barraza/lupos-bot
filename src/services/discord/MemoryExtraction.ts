@@ -10,6 +10,7 @@
 //     private channel must never surface later in a public one.
 // ============================================================
 
+import { ChannelType } from "discord.js";
 import type { Channel, Collection, GuildMember, User } from "discord.js";
 import type { MemoryParticipant } from "#root/types/prism.ts";
 
@@ -51,7 +52,8 @@ export function buildMemoryParticipants(
 
 /**
  * Whether @everyone can view the channel (ViewChannel for the guild's
- * everyone role, overwrites included). Threads answer for their parent.
+ * everyone role, overwrites included). Public threads answer for their
+ * parent; a private thread is members-only whatever its parent allows.
  * Anything unresolvable — DMs, a missing parent, no permission data —
  * counts as not public.
  */
@@ -59,6 +61,9 @@ export function isVisibleToEveryone(
   channel: Channel | null | undefined,
 ): boolean {
   if (!channel || channel.isDMBased()) return false;
+  if (channel.isThread() && channel.type === ChannelType.PrivateThread) {
+    return false;
+  }
   const target = channel.isThread() ? channel.parent : channel;
   if (!target || !("permissionsFor" in target)) return false;
   try {
