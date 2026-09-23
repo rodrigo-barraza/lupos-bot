@@ -723,7 +723,11 @@ async function luposOnReady(
       BirthdayJob.startJob(client, mongo);
     }
 
-    // RemindersJob.startJob(client, mongo);
+    // Agent reminders (schedule_discord_reminder) — delivered from Mongo
+    // every 30s; one process only, like the other scheduled jobs.
+    const { default: RemindersJob } =
+      await import("#root/jobs/scheduled/RemindersJob.ts");
+    RemindersJob.startJob(client);
 
     if (config.EMOJI_ID_FLAG && config.ROLE_ID_FLAG) {
       EventReactJob.startJob(client, mongo);

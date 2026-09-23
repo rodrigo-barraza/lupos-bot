@@ -13,7 +13,8 @@ AI-powered Discord bot for a gaming community server. Generates context-aware re
 - **Slash Commands** — Death roll gambling, beat up, shock, roll, guess who, word cloud, heatmap, leaderboard, and mentions
 - **Voice & Media** — Joins voice channels, plays YouTube audio, and TTS via @discordjs/voice
 - **Media Archival** — Archives all Discord media (attachments, avatars, banners) to MinIO with MongoDB metadata tracking
-- **Scheduled Jobs** — Birthday announcements, activity-based role assignment, server icon rotation, random member tagging, permanent timeout enforcement
+- **Scheduled Jobs** — Birthday announcements, activity-based role assignment, server icon rotation, random member tagging, permanent timeout enforcement, agent reminder delivery
+- **Agent Discord Actions** — Through tools-service, the agent can post native polls, start threads, schedule reminders and change its own nickname — always in the conversation's channel, for the person it is answering, behind their permissions, per-channel/guild caps and the slur filter (`/guild/poll`, `/guild/thread`, `/guild/reminders`, `/guild/nickname`)
 - **Web Scraping** — URL content extraction via Puppeteer for AI context enrichment
 - **Transcription API** — Express HTTP endpoint for speech-to-text via Prism
 - **Smart Lighting** — Controls Philips Hue lights via the Lights Service API
@@ -57,6 +58,8 @@ lupos-bot/
 | `MediaArchivalService` | Discord media archival to MinIO with metadata |
 | `AccountGuardService` | New account detection and auto-kicking |
 | `CensorService` | Content moderation and word filtering |
+| `DiscordActionService` | Agent actions — polls, threads, own nickname — bound to the conversation (guards in `discord/AgentActionGuards`) |
+| `RemindersService` | Agent reminders in the `Reminders` collection, delivered every 30 s by `RemindersJob` |
 | `MoodService` | Simulated mood state machine |
 | `HungerService` | Simulated hunger trait |
 | `ThirstService` | Simulated thirst trait |
