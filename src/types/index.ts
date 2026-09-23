@@ -4,8 +4,6 @@
 
 export type {
   DiscordClientEntry,
-  MoodEntry,
-  MoodTemperatureThreshold,
   BeatupVote,
 } from "./discord.ts";
 

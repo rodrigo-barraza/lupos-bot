@@ -567,9 +567,8 @@ export default class PrismService {
 
   /**
    * Fetch an agent's live somatic snapshot (Plutchik emotion + physical
-   * stats) from prism-service's GET /somatic/:agentId. This is the REAL
-   * mood/body state the agent reasons with — as opposed to lupos-bot's
-   * vestigial in-memory TraitRegistry stub.
+   * stats) from prism-service's GET /somatic/:agentId — the mood/body
+   * state the agent reasons with.
    */
   static async getSomaticSnapshot(agentId = "LUPOS") {
     return prism().request(`/somatic/${encodeURIComponent(agentId)}`, {
