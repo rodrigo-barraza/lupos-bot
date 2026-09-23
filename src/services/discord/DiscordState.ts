@@ -10,6 +10,7 @@
 
 import TemporalHelpers from "#root/utilities/TemporalHelpers.ts";
 import BoundedMap from "#root/utilities/BoundedMap.ts";
+import type { ReplyMode } from "#root/services/discord/Addressee.ts";
 
 export interface QueuedMessageData {
   message: import("discord.js").Message;
@@ -18,6 +19,8 @@ export interface QueuedMessageData {
     import("discord.js").Message
   >;
   actionType: string;
+  /** How the reply was triggered; absent ⇒ "mention" (legacy entries). */
+  replyMode?: ReplyMode;
 }
 
 const DiscordState = {
