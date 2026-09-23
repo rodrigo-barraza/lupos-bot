@@ -116,6 +116,7 @@ import {
   YOUTUBE_BUTTON_ACTIONS,
   MONGO_DB_NAME,
 } from "#root/constants.ts";
+import { ensureGameActivityIndexes } from "#root/services/discord/GameActivityIndexes.ts";
 import CensorService from "#root/services/CensorService.ts";
 import {
   kickIfTooNew,
@@ -624,27 +625,20 @@ async function luposOnReady(
     );
     console.log("🔌 [DiscordService] ShockGameStatistics unique index ensured");
 
-    const gameActivityCollection = db.collection("GameActivity");
-    const existingGameActivityIndexes = await gameActivityCollection.indexes();
-    const conflictingNameIndex = existingGameActivityIndexes.find(
-      (existingIndex) =>
-        existingIndex.name === "name_1" && !existingIndex.unique,
-    );
-    if (conflictingNameIndex) {
-      await gameActivityCollection.dropIndex("name_1");
-      console.log(
-        "🔌 [DiscordService] GameActivity dropped stale non-unique name_1 index",
+    // Its own catch: a failure here used to throw out of this block and
+    // leave every index after it (ActiveStreamers) unbuilt.
+    await ensureGameActivityIndexes(db.collection("GameActivity"))
+      .then(({ mergedDocuments }) =>
+        console.log(
+          `🔌 [DiscordService] GameActivity indexes ensured${mergedDocuments ? ` (merged ${mergedDocuments} duplicate game document(s))` : ""}`,
+        ),
+      )
+      .catch((gameActivityIndexError: unknown) =>
+        console.error(
+          "⚠️ [DiscordService] GameActivity indexes failed:",
+          gameActivityIndexError,
+        ),
       );
-    }
-    await gameActivityCollection.createIndex(
-      { name: 1 },
-      { unique: true, background: true },
-    );
-    await gameActivityCollection.createIndex(
-      { count: -1 },
-      { background: true },
-    );
-    console.log("🔌 [DiscordService] GameActivity indexes ensured");
 
     const activeStreamersCollection = db.collection("ActiveStreamers");
     await activeStreamersCollection.createIndex(
