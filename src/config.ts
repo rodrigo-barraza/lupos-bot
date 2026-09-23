@@ -173,6 +173,10 @@ const config = {
   // (10 passes, $0.50).
   AGENT_MAX_ITERATIONS: process.env.AGENT_MAX_ITERATIONS,
   AGENT_MAX_COST_DOLLARS: process.env.AGENT_MAX_COST_DOLLARS,
+  // Reasoning effort sent as thinkingLevel on every /agent call:
+  // minimal | low | medium | high. Unset/invalid ⇒ "medium"
+  // (PrismService.resolveAgentThinkingLevel).
+  AGENT_THINKING_LEVEL: process.env.AGENT_THINKING_LEVEL,
 
   // ── Ambient interjection ──────────────────────────────────────
   // Channels where Lupos may speak up without being addressed. Seeds the
