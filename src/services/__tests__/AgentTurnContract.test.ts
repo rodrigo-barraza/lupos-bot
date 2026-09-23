@@ -4,7 +4,9 @@ import PrismService, {
   AgentTurnAbortedError,
   DEFAULT_AGENT_MAX_COST_DOLLARS,
   DEFAULT_AGENT_MAX_ITERATIONS,
+  DEFAULT_AGENT_THINKING_LEVEL,
   readSseEvents,
+  resolveAgentThinkingLevel,
   resolveAgentTurnBudget,
 } from "../PrismService.ts";
 
@@ -139,6 +141,137 @@ describe("generateAgentResponse — /agent body", () => {
       onEvent: () => {},
     });
     expect(calls[0].body).toMatchObject({ maxIterations: 3, maxCostDollars: 0.1 });
+  });
+});
+
+// Round-2 contract §1 (least privilege) and §3 (thinking control): an
+// unattended turn refuses what would ask — the LUPOS allow-list decides —
+// and a reasoning LEVEL instead of a fixed token budget, on BOTH /agent
+// paths. autoApprove rides along only for a Prism without that allow-list
+// (the new one ignores it for LUPOS), so the two can deploy in any order.
+describe("generateAgentResponse — least privilege and thinking", () => {
+  afterEach(() => {
+    delete (config as { AGENT_THINKING_LEVEL?: string }).AGENT_THINKING_LEVEL;
+  });
+
+  function expectLeastPrivilege(body: Record<string, unknown> | undefined) {
+    expect(body).toMatchObject({
+      unattended: true,
+      autoApprove: true,
+      thinkingLevel: "low",
+    });
+    expect(body).not.toHaveProperty("thinkingBudget");
+    expect(body).not.toHaveProperty("permissionMode");
+  }
+
+  it("streaming path: unattended (+ transitional autoApprove), thinkingLevel medium", async () => {
+    const { calls } = stubPrism(sseStream([frame({ type: "done" })]));
+    await PrismService.generateAgentResponse({
+      ...baseParams,
+      thinkingEnabled: true,
+      onEvent: () => {},
+    });
+    const body = calls.find((call) => call.url.endsWith("/agent"))?.body;
+    expectLeastPrivilege(body);
+    expect(body).toMatchObject({ thinkingEnabled: true });
+  });
+
+  it("non-streaming path (scheduled jobs): the same", async () => {
+    const calls: RecordedCall[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string, init: RequestInit) => {
+        calls.push({ url, body: JSON.parse(String(init.body ?? "{}")) });
+        return new Response(JSON.stringify({ finalText: "hey" }), { status: 200 });
+      }),
+    );
+    const result = await PrismService.generateAgentResponse({ ...baseParams, maxTokens: 1024 });
+    expect(result.text).toBe("hey");
+    expect(calls[0].url).toBe("http://prism.test/agent?stream=false");
+    expectLeastPrivilege(calls[0].body);
+  });
+
+  it("takes the level from AGENT_THINKING_LEVEL", async () => {
+    (config as { AGENT_THINKING_LEVEL?: string }).AGENT_THINKING_LEVEL = "high";
+    const { calls } = stubPrism(sseStream([frame({ type: "done" })]));
+    await PrismService.generateAgentResponse({ ...baseParams, onEvent: () => {} });
+    expect(calls[0].body.thinkingLevel).toBe("high");
+  });
+});
+
+describe("resolveAgentThinkingLevel", () => {
+  it("defaults to medium", () => {
+    expect(resolveAgentThinkingLevel({})).toBe(DEFAULT_AGENT_THINKING_LEVEL);
+    expect(resolveAgentThinkingLevel({ AGENT_THINKING_LEVEL: "" })).toBe(DEFAULT_AGENT_THINKING_LEVEL);
+  });
+
+  it("accepts the four levels, case-insensitively", () => {
+    for (const level of ["minimal", "low", "medium", "high"]) {
+      expect(resolveAgentThinkingLevel({ AGENT_THINKING_LEVEL: level })).toBe(level);
+    }
+    expect(resolveAgentThinkingLevel({ AGENT_THINKING_LEVEL: " HIGH " })).toBe("high");
+  });
+
+  it("falls back to medium on anything else, warning once per bad value", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    expect(resolveAgentThinkingLevel({ AGENT_THINKING_LEVEL: "10000" })).toBe(DEFAULT_AGENT_THINKING_LEVEL);
+    expect(resolveAgentThinkingLevel({ AGENT_THINKING_LEVEL: "10000" })).toBe(DEFAULT_AGENT_THINKING_LEVEL);
+    expect(resolveAgentThinkingLevel({ AGENT_THINKING_LEVEL: "max" })).toBe(DEFAULT_AGENT_THINKING_LEVEL);
+    expect(warn).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("postAgentInput", () => {
+  function stubInput(status: number, payload: Record<string, unknown>) {
+    const calls: RecordedCall[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string, init: RequestInit) => {
+        calls.push({ url, body: JSON.parse(String(init.body ?? "{}")) });
+        return new Response(JSON.stringify(payload), { status });
+      }),
+    );
+    return calls;
+  }
+
+  it("posts { conversationId, text, images } and returns the input id", async () => {
+    const calls = stubInput(200, { ok: true, inputId: "input-7", position: 1 });
+    await expect(
+      PrismService.postAgentInput("conv-1", {
+        text: "<discord-message …>",
+        images: ["https://cdn.discordapp.com/a.png"],
+      }),
+    ).resolves.toBe("input-7");
+    expect(calls).toEqual([
+      {
+        url: "http://prism.test/agent/input",
+        body: {
+          conversationId: "conv-1",
+          text: "<discord-message …>",
+          images: ["https://cdn.discordapp.com/a.png"],
+        },
+      },
+    ]);
+  });
+
+  it("omits an empty image list", async () => {
+    const calls = stubInput(200, { ok: true, inputId: "input-8" });
+    await PrismService.postAgentInput("conv-1", { text: "hi", images: [] });
+    expect(calls[0].body).toEqual({ conversationId: "conv-1", text: "hi" });
+  });
+
+  it("returns null (never throws) on 409 — the turn is over", async () => {
+    vi.spyOn(console, "log").mockImplementation(() => {});
+    stubInput(409, { error: "No active turn", reason: "no_active_turn" });
+    await expect(PrismService.postAgentInput("conv-1", { text: "hi" })).resolves.toBeNull();
+  });
+
+  it("returns null when Prism is unreachable", async () => {
+    vi.spyOn(console, "log").mockImplementation(() => {});
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.stubGlobal("fetch", vi.fn(async () => { throw new TypeError("fetch failed"); }));
+    await expect(PrismService.postAgentInput("conv-1", { text: "hi" })).resolves.toBeNull();
   });
 });
 

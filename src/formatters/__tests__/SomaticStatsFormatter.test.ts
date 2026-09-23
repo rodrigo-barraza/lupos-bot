@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   formatSomaticStats,
   moodFromEmotion,
+  offlineSomaticStats,
   type PrismSomaticSnapshot,
 } from "../SomaticStatsFormatter.ts";
 
@@ -116,5 +117,42 @@ describe("formatSomaticStats — full mapping", () => {
       bathroom: 0,
       substance: 0,
     });
+  });
+});
+
+// GET /bot/stats serves this while Prism is down — the exact payload the
+// removed in-memory TraitRegistry stub always reported (its state was
+// never changed by anything).
+describe("offlineSomaticStats — the Prism-down fallback", () => {
+  it("is a neutral, rested body", () => {
+    expect(offlineSomaticStats()).toEqual({
+      mood: { level: 0, name: "Neutral", emoji: "😑" },
+      hunger: 0,
+      thirst: 0,
+      energy: 100,
+      sickness: 0,
+      alcohol: 0,
+      bathroom: 0,
+      substance: 0,
+    });
+  });
+
+  it("keeps the key order /bot/stats has always served", () => {
+    expect(Object.keys(offlineSomaticStats())).toEqual([
+      "mood",
+      "hunger",
+      "thirst",
+      "energy",
+      "sickness",
+      "alcohol",
+      "bathroom",
+      "substance",
+    ]);
+  });
+
+  it("hands out a fresh object each time", () => {
+    const first = offlineSomaticStats();
+    first.mood.level = 5;
+    expect(offlineSomaticStats().mood.level).toBe(0);
   });
 });

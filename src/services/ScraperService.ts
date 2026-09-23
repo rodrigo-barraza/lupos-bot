@@ -11,9 +11,18 @@
 import { fetchWithTimeout } from "@rodrigo-barraza/utilities-library";
 
 import config from "#root/config.ts";
+import PromiseMemo from "#root/utilities/PromiseMemo.ts";
 
 const TOOLS_SERVICE_URL = config.TOOLS_SERVICE_URL;
 const SCRAPE_TIMEOUT_MS = 15_000;
+
+// A tenor.com/view page always names the same GIF, and every turn re-reads
+// the Tenor links in its channel window — a found image is kept an hour
+// (a miss is retried, as before).
+const tenorMemo = new PromiseMemo<Record<string, string | undefined>>(
+  1_000,
+  60 * 60 * 1000,
+);
 
 interface ScrapedMetadata {
   title?: string;
@@ -33,14 +42,30 @@ async function fetchMetadata(url: string): Promise<ScrapedMetadata> {
 }
 
 class ScraperService {
+  /** Test hook. */
+  static clearTenorMemo() {
+    tenorMemo.clear();
+  }
+
   /**
    * Extract Tenor GIF metadata (image URL, title, keywords).
    * Previously used Puppeteer to render the page — now delegates
    * to tools-api Cheerio extraction.
    */
   static async scrapeTenor(url: string) {
-    const metadata = await fetchMetadata(url);
+    let miss: Record<string, string | undefined> | null = null;
+    const found = await tenorMemo.get(url, async () => {
+      const result = ScraperService.tenorResult(url, await fetchMetadata(url));
+      if (result.image) return result;
+      miss = result;
+      return null;
+    });
+    // A miss is not kept; a caller that joined someone else's in-flight
+    // miss gets the same image-less shape.
+    return found ?? miss ?? ScraperService.tenorResult(url, {});
+  }
 
+  private static tenorResult(url: string, metadata: ScrapedMetadata) {
     // Build the same shape as the old Puppeteer-based response
     const result: Record<string, string | undefined> = {};
 

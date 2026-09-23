@@ -55,10 +55,48 @@ const AGENT_STREAM_TIMEOUT_MS = 600_000;
 // means Prism is struggling, and the stop is best effort anyway.
 const AGENT_STOP_TIMEOUT_MS = 5_000;
 
+// POST /agent/input is a mailbox post on Prism's side. A follow-up that
+// can't be folded in this long is queued as its own turn instead.
+const AGENT_INPUT_TIMEOUT_MS = 5_000;
+
 // Every Discord agent turn carries a hard budget (contract §1): Prism
 // ends the agentic loop at whichever ceiling it reaches first.
 export const DEFAULT_AGENT_MAX_ITERATIONS = 10;
 export const DEFAULT_AGENT_MAX_COST_DOLLARS = 0.5;
+
+// Reasoning effort per turn (round-2 contract §3). Lupos's replies are a
+// sentence or two; 85% of his output tokens were reasoning at the old
+// fixed 10k-token budget. "low" is measured, not guessed: prism-service
+// scripts/evals/lupos (10 cases × k=3, 2026-09-22) passed 10/10 pass^k at
+// both low and the old budget, with low at 6.0 s mean vs 10.8 s and 27%
+// cheaper; "medium" was barely faster than the budget (12.4 vs 13.0 s).
+export const AGENT_THINKING_LEVELS = ["minimal", "low", "medium", "high"] as const;
+export type AgentThinkingLevel = (typeof AGENT_THINKING_LEVELS)[number];
+export const DEFAULT_AGENT_THINKING_LEVEL: AgentThinkingLevel = "low";
+
+let warnedThinkingLevel: string | null = null;
+
+/**
+ * The thinkingLevel sent on every /agent call: AGENT_THINKING_LEVEL when
+ * it names one of AGENT_THINKING_LEVELS (case-insensitive), else
+ * DEFAULT_AGENT_THINKING_LEVEL — with one warning per distinct bad value.
+ */
+export function resolveAgentThinkingLevel(
+  settings: { AGENT_THINKING_LEVEL?: string } = config,
+): AgentThinkingLevel {
+  const raw = settings.AGENT_THINKING_LEVEL?.trim().toLowerCase();
+  if (!raw) return DEFAULT_AGENT_THINKING_LEVEL;
+  if ((AGENT_THINKING_LEVELS as readonly string[]).includes(raw)) {
+    return raw as AgentThinkingLevel;
+  }
+  if (warnedThinkingLevel !== raw) {
+    warnedThinkingLevel = raw;
+    console.warn(
+      `⚠️ [PrismService] AGENT_THINKING_LEVEL "${settings.AGENT_THINKING_LEVEL}" is not one of ${AGENT_THINKING_LEVELS.join("/")} — using "${DEFAULT_AGENT_THINKING_LEVEL}".`,
+    );
+  }
+  return DEFAULT_AGENT_THINKING_LEVEL;
+}
 
 /**
  * The per-turn budget sent on every /agent call: AGENT_MAX_ITERATIONS /
@@ -102,9 +140,9 @@ function abortReasonText(signal: AbortSignal): string {
 /**
  * The conversation id an /agent stream event carries. Prism mints one
  * for a new conversation and sends it on the stream's first events —
- * it is the handle POST /agent/stop takes.
+ * it is the handle POST /agent/stop and POST /agent/input take.
  */
-function conversationIdOf(event: PrismSseEvent): string | null {
+export function conversationIdOf(event: PrismSseEvent): string | null {
   const conversationId = event.conversationId;
   return typeof conversationId === "string" && conversationId
     ? conversationId
@@ -198,23 +236,48 @@ export function aggregateAgentEvents(events: PrismSseEvent[]) {
   // written just before a trailing tool call (e.g.
   // react_to_discord_message) still counts when the final pass is
   // silent.
-  const textSegments: string[] = [""];
+  //
+  // A follow-up folded in through POST /agent/input and applied at
+  // `before_end` is the exception: the pass before it had already
+  // written the finished reply to the trigger, and the turn only went
+  // on to answer the follow-up — both answers are the reply. (At any
+  // other boundary the fold needs no split: `iteration_start` and
+  // `after_tools` follow a tool call, `turn_end` has no text after it,
+  // and `native_steer` lands mid-stream inside one continuing pass.)
+  const textSegments: { text: string; finished: boolean }[] = [
+    { text: "", finished: false },
+  ];
   for (const event of events) {
+    const current = textSegments[textSegments.length - 1];
     if (event.type === "chunk") {
-      textSegments[textSegments.length - 1] += event.content ?? "";
+      current.text += event.content ?? "";
     } else if (
       event.type === "tool_execution" &&
       event.status === "calling"
     ) {
-      textSegments.push("");
+      textSegments.push({ text: "", finished: false });
+    } else if (
+      event.type === "turn_input" &&
+      event.boundary === "before_end"
+    ) {
+      current.finished = true;
+      textSegments.push({ text: "", finished: false });
     }
   }
-  const lastText = textSegments
-    .reverse()
-    .find((segment) => segment.trim().length > 0);
+  const lastIndex = textSegments.findLastIndex(
+    (segment) => segment.text.trim().length > 0,
+  );
+  const replyText = textSegments
+    .filter(
+      (segment, index) =>
+        segment.text.trim().length > 0 &&
+        (index === lastIndex || (segment.finished && index < lastIndex)),
+    )
+    .map((segment) => segment.text)
+    .join("\n\n");
 
   return {
-    text: lastText || null,
+    text: replyText || null,
     images: events
       .filter((event) => event.type === "image")
       .map((event) => ({
@@ -310,7 +373,7 @@ export default class PrismService {
     agentContext,
     maxTokens,
     thinkingEnabled,
-    thinkingBudget,
+    thinkingLevel,
     maxIterations,
     maxCostDollars,
     username = "lupos",
@@ -324,12 +387,22 @@ export default class PrismService {
       model,
       messages,
       agent: "LUPOS",
-      autoApprove: true, // Discord bot can't wait for human approval
+      // Nobody can answer an approval prompt from Discord: an unattended
+      // turn refuses whatever would ask instead of waiting on it, and
+      // the LUPOS persona's own allow-list decides what runs (round-2
+      // contract §1). A Prism with that allow-list pins LUPOS to dontAsk
+      // and IGNORES autoApprove for him; autoApprove stays only for a
+      // Prism that predates it — without it, every write-tier tool he
+      // uses (reactions, gold, generate_image) would be refused there.
+      // Both flags let lupos-bot and Prism deploy in either order; drop
+      // autoApprove once every Prism has the LUPOS allow-list.
+      unattended: true,
+      autoApprove: true,
       // enabledTools are defined by the LUPOS persona in AgentPersonaRegistry
       agentContext,
       maxTokens,
       thinkingEnabled,
-      thinkingBudget,
+      thinkingLevel: thinkingLevel ?? resolveAgentThinkingLevel(),
       maxIterations: maxIterations ?? budget.maxIterations,
       maxCostDollars: maxCostDollars ?? budget.maxCostDollars,
       traceId,
@@ -395,6 +468,40 @@ export default class PrismService {
       model: data.model,
       provider: data.provider,
     };
+  }
+
+  /**
+   * Hand a message to the RUNNING /agent turn on this conversation
+   * (POST /agent/input — Prism's steering mailbox). Resolves the input id
+   * Prism acknowledges it by on the turn's stream (`turn_input` events),
+   * or null when it was not taken: 409 (no turn open any more — the turn
+   * ended or sealed its mailbox), any other error, or a timeout. Never
+   * throws; null means "queue it as its own turn".
+   */
+  static async postAgentInput(
+    conversationId: string,
+    { text, images }: { text: string; images?: string[] },
+    username = "lupos",
+  ): Promise<string | null> {
+    try {
+      const posted = (await prism().request("/agent/input", {
+        body: {
+          conversationId,
+          text,
+          ...(images?.length ? { images } : {}),
+        },
+        username,
+        timeoutMs: AGENT_INPUT_TIMEOUT_MS,
+      })) as { ok?: boolean; inputId?: unknown };
+      return posted?.ok && typeof posted.inputId === "string"
+        ? posted.inputId
+        : null;
+    } catch (error: unknown) {
+      console.log(
+        `🧵 [PrismService] Turn ${conversationId} did not take the follow-up: ${(error as Error)?.message ?? error}`,
+      );
+      return null;
+    }
   }
 
   /**
@@ -469,9 +576,8 @@ export default class PrismService {
 
   /**
    * Fetch an agent's live somatic snapshot (Plutchik emotion + physical
-   * stats) from prism-service's GET /somatic/:agentId. This is the REAL
-   * mood/body state the agent reasons with — as opposed to lupos-bot's
-   * vestigial in-memory TraitRegistry stub.
+   * stats) from prism-service's GET /somatic/:agentId — the mood/body
+   * state the agent reasons with.
    */
   static async getSomaticSnapshot(agentId = "LUPOS") {
     return prism().request(`/somatic/${encodeURIComponent(agentId)}`, {

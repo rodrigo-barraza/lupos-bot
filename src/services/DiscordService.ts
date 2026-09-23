@@ -59,13 +59,21 @@ import DiscordState from "#root/services/discord/DiscordState.ts";
 import type { QueuedMessageData } from "#root/services/discord/DiscordState.ts";
 import ButtonRouter from "#root/services/discord/ButtonRouter.ts";
 import DmInboxService from "#root/services/discord/DmInboxService.ts";
-import { extractContentFromMessages } from "#root/services/discord/ConversationExtractor.ts";
+import {
+  extractContentFromMessages,
+  prefetchMessageCaptions,
+} from "#root/services/discord/ConversationExtractor.ts";
 import type { ExtractContentOptions } from "#root/services/discord/ConversationExtractor.ts";
 import ChannelSessionCache from "#root/services/discord/ChannelSessionCache.ts";
 import AIService from "#root/services/AIService.ts";
 import { buildMessageAnnotation } from "#root/services/discord/MessageEnvelope.ts";
 import type { AttachmentPart } from "#root/services/discord/MessageEnvelope.ts";
-import { buildAndGenerateReply } from "#root/services/discord/PromptBuilder.ts";
+import {
+  buildAndGenerateReply,
+  prefetchRepliedImageCaption,
+  prefetchTriggerReferenceCaptions,
+} from "#root/services/discord/PromptBuilder.ts";
+import PrepTimings from "#root/services/discord/PrepTimings.ts";
 import { AgentStatusTracker } from "#root/services/discord/AgentStatusTracker.ts";
 import { resolveAddressing } from "#root/services/discord/Addressee.ts";
 import type {
@@ -85,6 +93,11 @@ import {
   buildMemoryParticipants,
   isVisibleToEveryone,
 } from "#root/services/discord/MemoryExtraction.ts";
+import {
+  openSteerableTurn,
+  tryFoldIntoRunningTurn,
+} from "#root/services/discord/TurnSteering.ts";
+import type { SteerableTurn } from "#root/services/discord/TurnSteering.ts";
 import {
   formatEmotionDetail,
   formatMoodStatusLine,
@@ -187,12 +200,16 @@ async function replyMessage(
     >;
     actionType?: string;
     replyMode?: ReplyMode;
+    timings?: PrepTimings;
   },
   localMongo: import("mongodb").MongoClient,
+  steering: SteerableTurn | null = null,
 ) {
   // Handles incoming Discord messages and message updates
   const message = queuedDatum.message;
-  const _messages = queuedDatum.recentMessages;
+  const timings =
+    queuedDatum.timings ?? new PrepTimings(message.createdTimestamp);
+  timings.recordQueueWait();
   const actionType = queuedDatum.actionType;
   const replyMode = queuedDatum.replyMode ?? "mention";
 
@@ -304,28 +321,42 @@ async function replyMessage(
       `🧩 [DiscordService] Session rebaseline for channel ${sessionChannelId}: ${sessionPlan.mode === "rebaseline" ? sessionPlan.reason : ""}`,
     );
   }
-  const extractOptions: ExtractContentOptions = piggybackPlan
-    ? {
-        afterId: piggybackPlan.session.watermarkId,
-        skipMessageIds: piggybackPlan.skipIds,
-        extraInContextIds: piggybackPlan.session.messageIds,
-      }
-    : { windowSize: heuristicWindowSize };
+  const extractOptions: ExtractContentOptions = {
+    ...(piggybackPlan
+      ? {
+          afterId: piggybackPlan.session.watermarkId,
+          skipMessageIds: piggybackPlan.skipIds,
+          extraInContextIds: piggybackPlan.session.messageIds,
+        }
+      : { windowSize: heuristicWindowSize }),
+    // The replied-to image's caption the prompt will need runs alongside
+    // the history extraction instead of after it.
+    onWindowSelected: (windowMessages) =>
+      prefetchRepliedImageCaption({
+        message: message as Message,
+        recentMessages: queuedDatum.recentMessages,
+        extractedMessageIds: new Set(
+          windowMessages.map((windowMessage) => windowMessage.id),
+        ),
+        localMongo,
+      }),
+    timings,
+  };
 
   const {
     conversation: extractedConversation,
-    newSystemPrompt,
     memberMentionsCollection,
     messagesEmojisCollection,
     messagesImagesCollection,
-    messagesTranscriptionsCollection: _messagesTranscriptionsCollection,
     participantsAvatarsCollection,
     participantsCollection,
     participantsMembersCollection,
     participantsUsersCollection,
     representedMessageIds,
     userMentionsCollection,
-  } = await extractContentFromMessages(queuedDatum, localMongo, extractOptions);
+  } = await timings.time("extract", () =>
+    extractContentFromMessages(queuedDatum, localMongo, extractOptions),
+  );
 
   const conversation = piggybackPlan
     ? [...piggybackPlan.session.frozenConversation, ...extractedConversation]
@@ -353,7 +384,6 @@ async function replyMessage(
     memberMentionsCollection,
     messagesEmojisCollection,
     messagesImagesCollection,
-    newSystemPrompt,
     participantsAvatarsCollection:
       participantsAvatarsCollection as import("discord.js").Collection<
         string,
@@ -378,6 +408,8 @@ async function replyMessage(
         piggybackPlan?.session.participantUserIds ?? [],
     },
     replyMode,
+    ...(steering && { steering }),
+    timings,
   });
 
   const generatedTextResponse = generatedText;
@@ -454,6 +486,7 @@ ${combinedGuildInformation && combinedChannelInformation ? `URL: ${utilities.get
       generatedImageUrl,
     );
     recordSessionReplyPosts(sessionChannelId, sentMessages);
+    if (steering) steering.delivered = true;
     // Reply landed — replace the live status with the persistent recap.
     statusTracker.finishSuccess();
   } catch (error: unknown) {
@@ -557,6 +590,40 @@ ${combinedGuildInformation && combinedChannelInformation ? `URL: ${utilities.get
   CurrentService.clearTraceId();
 
   return;
+}
+
+/**
+ * Queue, as their own turns, the follow-ups a finished turn took in
+ * (TurnSteering) but did not answer — it failed, was abandoned, its reply
+ * never posted, or the follow-up only reached it as it ended. They pass
+ * the turn allowance then, like any turn (a fold itself is free).
+ */
+async function requeueUnansweredFolds(
+  client: Client,
+  localMongo: import("mongodb").MongoClient,
+  steering: SteerableTurn,
+) {
+  for (const fold of await steering.settle()) {
+    if (DiscordState.isMessageCancelled(fold.message.id)) continue;
+    console.log(
+      `🧵 [DiscordService] Follow-up ${fold.message.id} was not answered by the turn it joined — queueing it as its own turn.`,
+    );
+    try {
+      if (!(await admitAgentTurn(fold.message))) continue;
+      await acceptAndQueueReply(
+        client,
+        localMongo,
+        fold.message,
+        "CREATE",
+        fold.replyMode,
+      );
+    } catch (error: unknown) {
+      console.error(
+        `❌ [DiscordService] Could not queue follow-up ${fold.message.id}:`,
+        error,
+      );
+    }
+  }
 }
 
 async function luposOnReady(
@@ -1226,6 +1293,16 @@ URL: ${utilities.getDiscordMessageUrl((message as Message).guild?.id || "", (mes
     return;
   }
 
+  // A follow-up to the turn this author has streaming in this channel
+  // right now joins that turn instead of waiting behind it (round-2
+  // contract §4) — and costs no turn of its own.
+  if (
+    actionType === "CREATE" &&
+    (await tryFoldIntoRunningTurn(message, addressing))
+  ) {
+    return;
+  }
+
   // Per-user allowance of agent turns (burst + daily; owner exempt)
   if (!(await admitAgentTurn(message))) {
     return;
@@ -1295,6 +1372,13 @@ async function acceptAndQueueReply(
   // before the history fetch, closes the window in which an edit made
   // while the reply is still being generated queued a second one.
   DiscordState.markAcceptedForReply((message as Message).id);
+  const timings = new PrepTimings((message as Message).createdTimestamp);
+
+  // The trigger's own captions — the ones its history extraction and its
+  // reference-image step will ask for — start now, alongside the history
+  // fetch (and any wait in the queue), instead of after them.
+  prefetchMessageCaptions(message as Message, localMongo);
+  prefetchTriggerReferenceCaptions(message as Message, localMongo);
 
   // START TYPING — always restart: an existing entry may hold a dead
   // interval (sendTyping failures self-clear the timer without deleting
@@ -1316,33 +1400,47 @@ async function acceptAndQueueReply(
   }
 
   // LUPOS CHATTER ROLE — for people talking to him, not for the author
-  // of a message he chose to chime in on.
-  if (replyMode !== "ambient" && message?.guildId === config.GUILD_ID_PRIMARY) {
-    await DiscordUtilityService.addRoleToMember(
-      (message as Message).member!,
-      config.ROLE_ID_BOT_CHATTER as string,
-    );
-    // remove after 1 minutes
-    setTimeout(
-      async () => {
-        await DiscordUtilityService.removeRoleFromMember(
-          (message as Message).member!,
-          config.ROLE_ID_BOT_CHATTER as string,
-        );
-      },
-      1 * 60 * 1000,
-    );
-  }
+  // of a message he chose to chime in on. The role PUT and the history
+  // fetch are independent REST calls: they run side by side, and both
+  // have finished before the reply is built (as when they ran in turn).
+  const chatterRoleGiven =
+    replyMode !== "ambient" && message?.guildId === config.GUILD_ID_PRIMARY
+      ? timings.time("role", async () => {
+          await DiscordUtilityService.addRoleToMember(
+            (message as Message).member!,
+            config.ROLE_ID_BOT_CHATTER as string,
+          );
+          // remove after 1 minutes
+          setTimeout(
+            async () => {
+              await DiscordUtilityService.removeRoleFromMember(
+                (message as Message).member!,
+                config.ROLE_ID_BOT_CHATTER as string,
+              );
+            },
+            1 * 60 * 1000,
+          );
+        })
+      : null;
+  // Surfaces at its await below; never unhandled if the fetch throws first.
+  chatterRoleGiven?.catch(() => {});
 
-  // Fetch messages before the current one...
-  const fetchedMessages = await DiscordUtilityService.fetchMessages(
-    client,
-    (message as Message).channel.id,
-    {
-      limit: 500,
-      before: (message as Message).id,
-    },
+  // Fetch messages before the current one. All 500 are used: the
+  // participant dossier and roster count the author's messages across
+  // them, the server-context keywords are matched against them, group
+  // image references rank people by them, and the piggyback session
+  // needs its watermark inside them — only the extracted slice is ≤ 100.
+  const fetchedMessages = await timings.time("fetch", () =>
+    DiscordUtilityService.fetchMessages(
+      client,
+      (message as Message).channel.id,
+      {
+        limit: 500,
+        before: (message as Message).id,
+      },
+    ),
   );
+  await chatterRoleGiven;
   if (!fetchedMessages) {
     console.error(
       `❌ [processMessage] fetchMessages returned null — channel not in cache`,
@@ -1355,11 +1453,13 @@ async function acceptAndQueueReply(
   // ...and append the current message to the end
   recentMessages.set((message as Message).id, message);
 
+  timings.markEnqueued();
   DiscordState.queuedData.push({
     message: message as Message,
     recentMessages,
     actionType: actionType || "",
     replyMode,
+    timings,
   });
 
   if (!DiscordState.isProcessingQueue) {
@@ -1373,8 +1473,16 @@ async function acceptAndQueueReply(
         const queuedDatum =
           DiscordState.queuedData.shift() as QueuedMessageData;
         const currentChannelId = (queuedDatum.message as Message).channel.id;
+        // Follow-ups by this author in this channel may join the turn
+        // while it streams (TurnSteering); whatever it took in but did not
+        // answer is queued as its own turn once it is over, however it
+        // ended. Ambient turns take no follow-ups.
+        const steering =
+          queuedDatum.replyMode === "ambient"
+            ? null
+            : openSteerableTurn(queuedDatum.message as Message);
         try {
-          await replyMessage(queuedDatum, localMongo);
+          await replyMessage(queuedDatum, localMongo, steering);
         } catch (error: unknown) {
           console.error(
             `❌ [processMessage] Uncaught error in replyMessage — queue will continue processing:\n`,
@@ -1382,6 +1490,10 @@ async function acceptAndQueueReply(
           );
           // Clear typing for the failed channel so it doesn't hang
           stopTyping(currentChannelId);
+        } finally {
+          if (steering) {
+            void requeueUnansweredFolds(client, localMongo, steering);
+          }
         }
         DiscordState.lastQueueActivityAtMs = Date.now();
         // No more queued messages for this channel — clear typing indicator

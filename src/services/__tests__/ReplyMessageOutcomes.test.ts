@@ -37,7 +37,10 @@ vi.mock("../PrismService", () => ({
     generateText: vi.fn(),
     extractMemories: vi.fn().mockResolvedValue({ count: 0 }),
     getSomaticSnapshot: vi.fn().mockResolvedValue(null),
+    postAgentInput: vi.fn(),
   },
+  conversationIdOf: (event: { conversationId?: unknown }) =>
+    typeof event.conversationId === "string" ? event.conversationId : null,
 }));
 vi.mock("../DiscordUtilityService", () => ({
   default: {
@@ -48,6 +51,7 @@ vi.mock("../DiscordUtilityService", () => ({
     removeRoleFromMember: vi.fn(),
     setUserActivity: vi.fn(),
     sendMessageInChunks: vi.fn().mockResolvedValue({ sentMessages: [] }),
+    getUsernameNoSpaces: vi.fn(() => "alice"),
   },
 }));
 vi.mock("../AIService", () => ({
@@ -89,9 +93,12 @@ vi.mock("../../formatters/LogFormatter", () => ({
 vi.mock("../discord/ConversationExtractor", () => ({
   extractContentFromMessages: vi.fn(),
   displayNameOf: vi.fn(),
+  prefetchMessageCaptions: vi.fn(),
 }));
 vi.mock("../discord/PromptBuilder", () => ({
   buildAndGenerateReply: vi.fn(),
+  prefetchTriggerReferenceCaptions: vi.fn(),
+  prefetchRepliedImageCaption: vi.fn(),
 }));
 vi.mock("../../jobs/scheduled/BirthdayJob", () => ({ default: {} }));
 vi.mock("../../jobs/scheduled/ActivityRoleAssignmentJob", () => ({
@@ -120,6 +127,7 @@ const { AMBIENT_LIMITS, resetAmbientState } = await import(
   "../discord/AmbientInterjection.ts"
 );
 const config = (await import("#root/config.ts")).default;
+const { resetTurnSteering } = await import("../discord/TurnSteering.ts");
 
 const BOT_ID = "900000000000000001";
 const AUTHOR_ID = "800000000000000001";
@@ -184,7 +192,6 @@ function extractedConversation() {
   const alice = { id: AUTHOR_ID, username: "alice", globalName: "Alice" };
   return {
     conversation: [{ role: "user", content: "<discord-message …>" }],
-    newSystemPrompt: "",
     memberMentionsCollection: new Map(),
     messagesEmojisCollection: new Map(),
     messagesImagesCollection: new Map(),
@@ -338,5 +345,110 @@ describe("replyMessage — memory extraction", () => {
     );
     expect(DiscordUtilityService.sendMessageInChunks).toHaveBeenCalledOnce();
     expect(PrismService.extractMemories).not.toHaveBeenCalled();
+  });
+});
+
+// A follow-up folded into a running turn (TurnSteering) is answered by
+// that turn's reply — or, when the turn did not act on it, queued as its
+// own turn once the first one is over.
+describe("replyMessage — follow-ups folded into the turn", () => {
+  type Steering = import("../discord/TurnSteering.ts").SteerableTurn;
+
+  /**
+   * buildAndGenerateReply stand-in for the trigger's turn: the stream
+   * names the conversation, the follow-up arrives and folds, Prism
+   * acknowledges it at `boundary`, then the turn ends as `outcome` says.
+   */
+  function turnThatFolds(
+    followUp: ReturnType<typeof fakeMessage>,
+    boundary: string | null,
+    outcome: "replied" | "failed" | "abandoned" = "replied",
+    trigger?: ReturnType<typeof fakeMessage>,
+  ) {
+    vi.mocked(buildAndGenerateReply).mockImplementationOnce(async (input) => {
+      const steering = (input as { steering?: Steering }).steering!;
+      steering.observe({ type: "user_message", conversationId: "conv-1" });
+      await processMessage(client, mongoClients, followUp as never, "CREATE");
+      if (boundary) {
+        steering.observe({ type: "turn_input", id: "input-1", boundary });
+      }
+      if (outcome === "replied") steering.modelReplied = true;
+      if (outcome === "abandoned") DiscordState.markCancelled(trigger!.id);
+      steering.close();
+      return generated(
+        outcome === "replied" ? {} : { generatedText: outcome === "failed" ? "..." : null },
+      ) as never;
+    });
+    vi.mocked(buildAndGenerateReply).mockResolvedValue(generated() as never);
+  }
+
+  beforeEach(() => {
+    resetTurnSteering();
+    vi.mocked(PrismService.postAgentInput).mockReset();
+    vi.mocked(PrismService.postAgentInput).mockResolvedValue("input-1");
+  });
+
+  it("answered in the turn (applied before its last pass): one reply, 👀 on the follow-up", async () => {
+    const trigger = fakeMessage();
+    const followUp = fakeMessage({ content: "lupos, and also this" });
+    turnThatFolds(followUp, "before_end");
+    await processMessage(client, mongoClients, trigger as never, "CREATE");
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(buildAndGenerateReply).toHaveBeenCalledOnce();
+    expect(DiscordUtilityService.sendMessageInChunks).toHaveBeenCalledOnce();
+    expect(followUp.react).toHaveBeenCalledWith("👀");
+    expect(followUp.reply).not.toHaveBeenCalled();
+  });
+
+  it("only joined as the turn ended: queued and answered as its own turn", async () => {
+    const trigger = fakeMessage();
+    const followUp = fakeMessage({ content: "lupos, and also this" });
+    turnThatFolds(followUp, "turn_end");
+    await processMessage(client, mongoClients, trigger as never, "CREATE");
+    await vi.waitFor(() => expect(buildAndGenerateReply).toHaveBeenCalledTimes(2));
+    const second = vi.mocked(buildAndGenerateReply).mock.calls[1][0] as {
+      queuedDatum: { message: { id: string } };
+      replyMode: string;
+    };
+    expect(second.queuedDatum.message.id).toBe(followUp.id);
+    expect(second.replyMode).toBe("name");
+  });
+
+  it("the turn failed or was abandoned: the follow-up gets its own turn", async () => {
+    for (const outcome of ["failed", "abandoned"] as const) {
+      vi.mocked(buildAndGenerateReply).mockReset();
+      agentTurnRateLimiter.reset();
+      const trigger = fakeMessage();
+      const followUp = fakeMessage({ content: "lupos, and also this" });
+      turnThatFolds(followUp, "before_end", outcome, trigger);
+      await processMessage(client, mongoClients, trigger as never, "CREATE");
+      await vi.waitFor(() => expect(buildAndGenerateReply).toHaveBeenCalledTimes(2));
+      expect(
+        (vi.mocked(buildAndGenerateReply).mock.calls[1][0] as {
+          queuedDatum: { message: { id: string } };
+        }).queuedDatum.message.id,
+      ).toBe(followUp.id);
+    }
+  });
+
+  it("an ambient turn takes no follow-ups", async () => {
+    resetAmbientState();
+    botSettings.CHANNEL_IDS_AMBIENT = [CHANNEL_ID];
+    config.LANGUAGE_MODEL_OPENAI_LOW = "gpt-4.1-nano";
+    vi.mocked(PrismService.generateText).mockResolvedValue({
+      text: '{"interject": true, "score": 0.9}',
+    } as never);
+    vi.mocked(buildAndGenerateReply).mockImplementationOnce(async (input) => {
+      expect((input as { steering?: unknown }).steering).toBeUndefined();
+      return generated() as never;
+    });
+    await processMessage(
+      client,
+      mongoClients,
+      fakeMessage({ content: "does anyone know when the raid starts tonight" }) as never,
+      "CREATE",
+    );
+    delete botSettings.CHANNEL_IDS_AMBIENT;
+    expect(buildAndGenerateReply).toHaveBeenCalledOnce();
   });
 });

@@ -13,8 +13,8 @@
 // - back off for an hour after any failure (the rate-limit error is the
 //   expected one).
 // Only live prism-service state drives a change — when prism is down we
-// skip the tick entirely instead of letting the vestigial TraitRegistry
-// stub flap the avatar to neutral.
+// skip the tick entirely instead of letting the offline fallback
+// (offlineSomaticStats) flap the avatar to neutral.
 //
 // The last applied key is persisted in Mongo (lupos.BotState) so a
 // restart doesn't burn one of the ~2/hour changes re-applying the

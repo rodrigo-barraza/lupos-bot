@@ -29,10 +29,10 @@ import DiscordWrapper from "#root/wrappers/DiscordWrapper.ts";
 import config from "#root/config.ts";
 import utilities from "#root/utilities.ts";
 import DmCampaignService from "#root/services/DmCampaignService.ts";
-import TraitRegistry from "#root/services/TraitRegistry.ts";
 import PrismService from "#root/services/PrismService.ts";
 import {
   formatSomaticStats,
+  offlineSomaticStats,
   formatEmotionDetail,
   formatSomaticLabels,
   type EmotionDetail,
@@ -1233,11 +1233,10 @@ router.get(
       const db = localMongo ? localMongo.db("lupos") : null;
 
       // 1. Somatic Status — the REAL emotion/body state lives in
-      // prism-service (TraitRegistry is a vestigial in-memory stub that
-      // resets on restart). Fetch the live snapshot and map it into the
-      // client contract; fall back to the local stub if Prism is down so
+      // prism-service. Fetch the live snapshot and map it into the client
+      // contract; fall back to a neutral, rested body if Prism is down so
       // the dashboard degrades gracefully instead of failing.
-      let somatic = TraitRegistry.toStatsObject();
+      let somatic = offlineSomaticStats();
       let emotion: EmotionDetail | null = null;
       let somaticLabels: SomaticStatLabels | null = null;
       try {

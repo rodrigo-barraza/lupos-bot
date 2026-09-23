@@ -102,8 +102,6 @@ const config = {
   CHANNEL_ID_BOOTY_BAE: process.env.CHANNEL_ID_BOOTY_BAE,
   CHANNEL_ID_STREAMERS: process.env.CHANNEL_ID_STREAMERS,
   CHANNEL_ID_DELETED_MESSAGES: process.env.CHANNEL_ID_DELETED_MESSAGES,
-  CHANNEL_ID_BOT_STATUS: process.env.CHANNEL_ID_BOT_STATUS,
-  CHANNEL_ID_JUKEBOX_EXCEPTION: process.env.CHANNEL_ID_JUKEBOX_EXCEPTION,
   // Optional override for the incoming-DM relay channel; when unset,
   // DmInboxService finds/creates #dm-inbox in GUILD_ID_TESTING.
   CHANNEL_ID_DM_INBOX: process.env.CHANNEL_ID_DM_INBOX,
@@ -130,25 +128,11 @@ const config = {
   // ─── Feature Flags ─────────────────────────────────────────────
   DEATHROLL_SEASON: process.env.DEATHROLL_SEASON,
 
-  ASSISTANT_MESSAGE: process.env.ASSISTANT_MESSAGE,
-
-  // ─── Home Automation ───────────────────────────────────────────
-  PRIMARY_LIGHT_ID: process.env.PRIMARY_LIGHT_ID,
-
   // ─── Language Models ───────────────────────────────────────────
-  LANGUAGE_MODEL_PERFORMANCE: process.env.LANGUAGE_MODEL_PERFORMANCE,
-
-  ANTHROPIC_LANGUAGE_MODEL_SMART: process.env.ANTHROPIC_LANGUAGE_MODEL_SMART,
   ANTHROPIC_LANGUAGE_MODEL_FAST: process.env.ANTHROPIC_LANGUAGE_MODEL_FAST,
 
   GOOGLE_LANGUAGE_MODEL_FAST: process.env.GOOGLE_LANGUAGE_MODEL_FAST,
-  GOOGLE_LANGUAGE_MODEL_SMART: process.env.GOOGLE_LANGUAGE_MODEL_SMART,
 
-  OPENAI_LANGUAGE_MODEL_GPT4_1_NANO:
-    process.env.OPENAI_LANGUAGE_MODEL_GPT4_1_NANO,
-
-  LANGUAGE_MODEL_OPENAI: process.env.LANGUAGE_MODEL_OPENAI,
-  LANGUAGE_MODEL_LOCAL: process.env.LANGUAGE_MODEL_LOCAL,
   LANGUAGE_MODEL_TYPE: process.env.LANGUAGE_MODEL_TYPE,
 
   LANGUAGE_MODEL_OPENAI_LOW: process.env.LANGUAGE_MODEL_OPENAI_LOW,
@@ -173,6 +157,10 @@ const config = {
   // (10 passes, $0.50).
   AGENT_MAX_ITERATIONS: process.env.AGENT_MAX_ITERATIONS,
   AGENT_MAX_COST_DOLLARS: process.env.AGENT_MAX_COST_DOLLARS,
+  // Reasoning effort sent as thinkingLevel on every /agent call:
+  // minimal | low | medium | high. Unset/invalid ⇒ "low"
+  // (PrismService.resolveAgentThinkingLevel).
+  AGENT_THINKING_LEVEL: process.env.AGENT_THINKING_LEVEL,
 
   // ── Ambient interjection ──────────────────────────────────────
   // Channels where Lupos may speak up without being addressed. Seeds the
