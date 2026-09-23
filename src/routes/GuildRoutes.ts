@@ -56,6 +56,28 @@ import {
   luposGiveGold,
   luposMugGold,
 } from "#root/commands/utility/gold/luposAgentGold.ts";
+import {
+  ActionError,
+  SCOPE_ERROR,
+  fetchMember,
+  isSnowflake,
+  runAgentAction,
+} from "#root/services/discord/AgentActionGuards.ts";
+import type {
+  ActionBody,
+  ActionResponse,
+} from "#root/services/discord/AgentActionGuards.ts";
+import {
+  computeVisibleChannels,
+  scopeStatsToRequester,
+} from "#root/services/discord/ChannelVisibility.ts";
+import {
+  checkReactScope,
+  createPoll,
+  createThread,
+  setOwnNickname,
+} from "#root/services/DiscordActionService.ts";
+import RemindersService from "#root/services/RemindersService.ts";
 
 const router = Router();
 
@@ -859,11 +881,15 @@ router.get("/guild/emojis", (req: Request, res: Response) => {
 
 // ─── POST /guild/react ──────────────────────────────────────────
 // Adds an emoji reaction to a message via the Lupos bot account.
-// Body: { guildId?, channelId, messageId, emoji }
+// Body: { guildId?, channelId, messageId, emoji, requesterUserId?, scopeGuildId? }
 // emoji is either a Unicode string ("👍") or "name:id" for custom.
+// scopeGuildId (the conversation's guild, from tools-service) confines
+// the target channel to that guild; requesterUserId must be able to see
+// the channel.
 //
 // Returns:
 //   200 { success: true }
+//   403 { ok: false, error }   (outside the conversation's guild / hidden channel)
 //   409 { alreadyReacted: true }
 //   429 { error: "Rate limited" }
 
@@ -873,13 +899,30 @@ router.post(
   "/guild/react",
   asyncHandler(async (req: Request, res: Response) => {
     try {
-      const guildId = req.body.guildId || config.GUILD_ID_CLOCK_CREW;
       const { channelId, messageId, emoji } = req.body;
 
       if (!channelId || !messageId || !emoji) {
         return res
           .status(400)
           .json({ error: "channelId, messageId, and emoji are required" });
+      }
+
+      // ── Scope: checked before the cooldown, so a refusal spends none ─
+      let guildId: string;
+      try {
+        guildId =
+          (await checkReactScope(
+            DiscordWrapper.getClient("lupos"),
+            req.body,
+            config.GUILD_ID_CLOCK_CREW,
+          )) ?? "";
+      } catch (scopeError: unknown) {
+        if (scopeError instanceof ActionError) {
+          return res
+            .status(scopeError.status)
+            .json({ ok: false, error: scopeError.message });
+        }
+        throw scopeError;
       }
 
       // ── Rate limit: 1 reaction per 2s per guild ─────────────────
@@ -993,6 +1036,160 @@ router.post(
         .status(500)
         .json({ error: "Failed to react", detail: (error as Error).message });
     }
+  }),
+);
+
+// ─── GET /guild/visible-channels ────────────────────────────────
+// The channels a member can read (ViewChannel + ReadMessageHistory),
+// or with no userId what @everyone can read, plus the cached threads
+// under them. tools-service limits archive-backed results to these.
+// Query: ?guildId=...&userId=...
+//
+// Returns: { guildId, userId|null, channelIds: [...], threadIds: [...] }
+router.get(
+  "/guild/visible-channels",
+  asyncHandler(async (req: Request, res: Response) => {
+    const guildId = req.query.guildId;
+    const userId = req.query.userId || null;
+    if (!isSnowflake(guildId)) {
+      return res.status(400).json({ error: "guildId must be a Discord id" });
+    }
+    if (userId !== null && !isSnowflake(userId)) {
+      return res.status(400).json({ error: "userId must be a Discord id" });
+    }
+    const scopeGuildId = req.query.scopeGuildId;
+    if (scopeGuildId && scopeGuildId !== guildId) {
+      return res.status(403).json({ error: SCOPE_ERROR });
+    }
+
+    const client = DiscordWrapper.getClient("lupos");
+    const guild = client.guilds.cache.get(guildId);
+    if (!guild) {
+      return res.status(404).json({ error: "Guild not found" });
+    }
+    const member = userId ? await fetchMember(guild, userId) : null;
+    if (userId && !member) {
+      return res.status(404).json({ error: "Member not found in this guild" });
+    }
+
+    const { channelIds, threadIds } = computeVisibleChannels(guild, member);
+    res.json({ guildId, userId, channelIds, threadIds });
+  }),
+);
+
+// ============================================================
+// Agent actions — polls, threads, reminders, nickname
+// ============================================================
+// Consumed by tools-service's Discord action tools
+// (create_discord_poll, create_discord_thread,
+// schedule/list/cancel_discord_reminder, set_discord_nickname). Bodies
+// carry the conversation's trusted context — guildId, channelId,
+// requesterUserId, scopeGuildId — never the model's choice of place.
+// Every check lives in DiscordActionService / RemindersService /
+// AgentActionGuards; these routes are thin adapters.
+//
+// Returns: 200 { ok: true, ... } | 4xx/5xx { ok: false, error }
+
+function sendAction(res: Response, { status, body }: ActionResponse) {
+  res.status(status).json(body);
+}
+
+function actionBody(req: Request): ActionBody {
+  return (req.body ?? {}) as ActionBody;
+}
+
+// ─── POST /guild/poll ───────────────────────────────────────────
+// Body: { guildId, channelId, requesterUserId, scopeGuildId,
+//         question, answers[], durationHours?, allowMultiselect? }
+// → { ok, messageId, url }
+router.post(
+  "/guild/poll",
+  asyncHandler(async (req: Request, res: Response) => {
+    const client = DiscordWrapper.getClient("lupos");
+    sendAction(
+      res,
+      await runAgentAction("guild/poll", () => createPoll(client, actionBody(req))),
+    );
+  }),
+);
+
+// ─── POST /guild/thread ─────────────────────────────────────────
+// Body: { guildId, channelId, requesterUserId, scopeGuildId,
+//         name, messageId?, autoArchiveMinutes? }
+// → { ok, threadId, url }
+router.post(
+  "/guild/thread",
+  asyncHandler(async (req: Request, res: Response) => {
+    const client = DiscordWrapper.getClient("lupos");
+    sendAction(
+      res,
+      await runAgentAction("guild/thread", () =>
+        createThread(client, actionBody(req)),
+      ),
+    );
+  }),
+);
+
+// ─── POST /guild/reminders ──────────────────────────────────────
+// Body: { guildId, channelId, requesterUserId, scopeGuildId,
+//         text, delayMinutes? | dueAt? }
+// → { ok, reminder: { id, dueAt, text, channelId } }
+router.post(
+  "/guild/reminders",
+  asyncHandler(async (req: Request, res: Response) => {
+    const client = DiscordWrapper.getClient("lupos");
+    sendAction(
+      res,
+      await runAgentAction("guild/reminders", () =>
+        RemindersService.createReminder(client, actionBody(req)),
+      ),
+    );
+  }),
+);
+
+// ─── GET /guild/reminders ───────────────────────────────────────
+// Query: ?guildId=...&requesterUserId=...
+// → { ok, reminders: [{ id, dueAt, text, channelId }] } (pending, soonest first)
+router.get(
+  "/guild/reminders",
+  asyncHandler(async (req: Request, res: Response) => {
+    sendAction(
+      res,
+      await runAgentAction("guild/reminders:list", () =>
+        RemindersService.listReminders(req.query as ActionBody),
+      ),
+    );
+  }),
+);
+
+// ─── POST /guild/reminders/cancel ───────────────────────────────
+// Body: { guildId, requesterUserId, scopeGuildId, reminderId }
+// → { ok, reminder: { id, dueAt, text, channelId, status } }
+router.post(
+  "/guild/reminders/cancel",
+  asyncHandler(async (req: Request, res: Response) => {
+    sendAction(
+      res,
+      await runAgentAction("guild/reminders:cancel", () =>
+        RemindersService.cancelReminder(actionBody(req)),
+      ),
+    );
+  }),
+);
+
+// ─── POST /guild/nickname ───────────────────────────────────────
+// Body: { guildId, channelId, requesterUserId, scopeGuildId, nickname }
+// ("" resets) → { ok, nickname }
+router.post(
+  "/guild/nickname",
+  asyncHandler(async (req: Request, res: Response) => {
+    const client = DiscordWrapper.getClient("lupos");
+    sendAction(
+      res,
+      await runAgentAction("guild/nickname", () =>
+        setOwnNickname(client, actionBody(req)),
+      ),
+    );
   }),
 );
 
@@ -1532,6 +1729,7 @@ router.get(
 // ─── GET /guild/heatmap ──────────────────────────────────────────
 // Returns activity heatmap by day/hour for a user.
 // Query: ?guildId=...&userId=...&channelId=...&years=...&months=...&days=...
+//        &requesterUserId=... (counts only channels the requester can read)
 router.get(
   "/guild/heatmap",
   asyncHandler(async (req: Request, res: Response) => {
@@ -1573,8 +1771,18 @@ router.get(
       "author.bot": { $ne: true },
     };
 
-    if (channelId) {
-      matchQuery.channelId = channelId;
+    // With a requester, count only channels they can read (tools-service
+    // cannot filter an aggregate after the fact).
+    const channelScope = await scopeStatsToRequester(
+      guild,
+      req.query.requesterUserId,
+      channelId,
+    );
+    if (!channelScope.allowed) {
+      return res.status(channelScope.status).json({ error: channelScope.error });
+    }
+    if (channelScope.channelFilter) {
+      matchQuery.channelId = channelScope.channelFilter;
     }
 
     try {
@@ -1779,6 +1987,7 @@ router.get(
 // ─── GET /guild/mentions ─────────────────────────────────────────
 // Shows top 5 users who have mentioned a specific user.
 // Query: ?guildId=...&userId=...&years=...&months=...&days=...&channelId=...
+//        &requesterUserId=... (counts only channels the requester can read)
 router.get(
   "/guild/mentions",
   asyncHandler(async (req: Request, res: Response) => {
@@ -1819,8 +2028,18 @@ router.get(
       },
     };
 
-    if (channelId) {
-      matchQuery.channelId = channelId;
+    // With a requester, count only channels they can read (tools-service
+    // cannot filter an aggregate after the fact).
+    const channelScope = await scopeStatsToRequester(
+      guild,
+      req.query.requesterUserId,
+      channelId,
+    );
+    if (!channelScope.allowed) {
+      return res.status(channelScope.status).json({ error: channelScope.error });
+    }
+    if (channelScope.channelFilter) {
+      matchQuery.channelId = channelScope.channelFilter;
     }
 
     try {
@@ -1920,6 +2139,7 @@ router.get(
 // ─── GET /guild/leaderboard ──────────────────────────────────────
 // Shows message leaderboard for a specified time period.
 // Query: ?guildId=...&years=...&months=...&days=...&channelId=...
+//        &requesterUserId=... (counts only channels the requester can read)
 router.get(
   "/guild/leaderboard",
   asyncHandler(async (req: Request, res: Response) => {
@@ -1950,8 +2170,18 @@ router.get(
       guildId,
     };
 
-    if (channelId) {
-      matchQuery.channelId = channelId;
+    // With a requester, count only channels they can read (tools-service
+    // cannot filter an aggregate after the fact).
+    const channelScope = await scopeStatsToRequester(
+      guild,
+      req.query.requesterUserId,
+      channelId,
+    );
+    if (!channelScope.allowed) {
+      return res.status(channelScope.status).json({ error: channelScope.error });
+    }
+    if (channelScope.channelFilter) {
+      matchQuery.channelId = channelScope.channelFilter;
     }
 
     try {
@@ -2009,6 +2239,7 @@ router.get(
 // ─── GET /guild/word-frequencies ─────────────────────────────────
 // Generate word frequency analysis for a user.
 // Query: ?guildId=...&userId=...&years=...&months=...&days=...&limit=...
+//        &requesterUserId=... (counts only channels the requester can read)
 //
 // Uses cursor-based streaming with content-only projection to avoid
 // OOM crashes — the original .toArray() approach loaded 664K+ full
@@ -2043,6 +2274,16 @@ router.get(
 
     if (years === 0 && months === 0 && days === 0) {
       years = getServerAgeYears(guild);
+    }
+
+    // With a requester, only words from channels they can read.
+    const channelScope = await scopeStatsToRequester(
+      guild,
+      req.query.requesterUserId,
+      undefined,
+    );
+    if (!channelScope.allowed) {
+      return res.status(channelScope.status).json({ error: channelScope.error });
     }
 
     const { unixStartDate } = computeStartDate(years, months, days);
@@ -2161,6 +2402,9 @@ router.get(
           guildId,
           "author.id": userId,
           createdTimestamp: { $gte: unixStartDate },
+          ...(channelScope.channelFilter
+            ? { channelId: channelScope.channelFilter }
+            : {}),
         },
         { projection: { content: 1 } },
       );
@@ -2447,6 +2691,8 @@ router.get(
 );
 
 // ─── GET /guild/channel-stats ────────────────────────────────────
+// Per-channel message counts. Query: ?guildId=...&days=...
+//        &requesterUserId=... (ranks only channels the requester can read)
 router.get(
   "/guild/channel-stats",
   asyncHandler(async (req: Request, res: Response) => {
@@ -2463,6 +2709,18 @@ router.get(
         return res.status(404).json({ error: "Guild not found" });
       }
 
+      // With a requester, only the channels they can read are ranked.
+      const channelScope = await scopeStatsToRequester(
+        guild,
+        req.query.requesterUserId,
+        undefined,
+      );
+      if (!channelScope.allowed) {
+        return res
+          .status(channelScope.status)
+          .json({ error: channelScope.error });
+      }
+
       const { unixStartDate } = computeStartDate(0, 0, days);
       const database = getMongoDb();
       const messagesCollection = database.collection("Messages");
@@ -2475,6 +2733,9 @@ router.get(
               guildId,
               createdTimestamp: { $gte: unixStartDate },
               "author.bot": { $ne: true },
+              ...(channelScope.channelFilter
+                ? { channelId: channelScope.channelFilter }
+                : {}),
             },
           },
           {
@@ -2591,6 +2852,37 @@ interface MonthlyMessageEntry {
 // Consumed by tools-service's Discord tools (get_discord_gold_balance,
 // give_discord_gold, mug_discord_gold). All caps and clamps are
 // enforced in luposAgentGold — these routes are thin adapters.
+// give/mug take the conversation's requesterUserId (≤5 gold actions per
+// requester per UTC day per guild → 429) and scopeGuildId (a different
+// guildId → 403).
+
+/**
+ * The give/mug preconditions beyond the required fields: guildId inside
+ * the conversation's guild, and a well-formed requester id.
+ */
+function goldRequestRefusal(body: ActionBody): ActionResponse | null {
+  if (body.scopeGuildId && body.scopeGuildId !== body.guildId) {
+    return { status: 403, body: { ok: false, error: SCOPE_ERROR } };
+  }
+  if (body.requesterUserId && !isSnowflake(body.requesterUserId)) {
+    return {
+      status: 400,
+      body: { ok: false, error: "requesterUserId must be a Discord id" },
+    };
+  }
+  return null;
+}
+
+/** A spent requester allowance is a 429; every other result is a 200. */
+function sendGoldResult(
+  res: Response,
+  result: { ok: boolean; reason?: string; summary?: string },
+) {
+  if (!result.ok && result.reason === "requester_cap") {
+    return res.status(429).json({ ok: false, error: result.summary });
+  }
+  return res.json(result);
+}
 
 // ─── GET /gold/balance ──────────────────────────────────────────
 // Query: ?guildId=...&userId=...
@@ -2609,48 +2901,58 @@ router.get(
 );
 
 // ─── POST /gold/give ────────────────────────────────────────────
-// Body: { guildId, targetUserId, amount?, note? }
+// Body: { guildId, targetUserId, amount?, note?, requesterUserId?, scopeGuildId? }
 router.post(
   "/gold/give",
   asyncHandler(async (req: Request, res: Response) => {
-    const { guildId, targetUserId, amount, note } = req.body || {};
+    const body = actionBody(req);
+    const { guildId, targetUserId, amount, note, requesterUserId } = req.body || {};
     if (!guildId || !targetUserId) {
       return res
         .status(400)
         .json({ error: "guildId and targetUserId are required" });
     }
+    const refusal = goldRequestRefusal(body);
+    if (refusal) return sendAction(res, refusal);
     const client = DiscordWrapper.getClient("lupos");
     if (!client) return res.status(503).json({ error: "Bot not ready" });
     const guild = await client.guilds.fetch(guildId).catch(() => null);
     if (!guild) return res.status(404).json({ error: "Guild not found" });
-    res.json(
+    sendGoldResult(
+      res,
       await luposGiveGold(
         client,
         guild,
         targetUserId,
         Number(amount) || 0,
         note,
+        requesterUserId || undefined,
       ),
     );
   }),
 );
 
 // ─── POST /gold/mug ─────────────────────────────────────────────
-// Body: { guildId, channelId?, targetUserId, amount?, note? }
+// Body: { guildId, channelId?, targetUserId, amount?, note?, requesterUserId?, scopeGuildId? }
 router.post(
   "/gold/mug",
   asyncHandler(async (req: Request, res: Response) => {
-    const { guildId, channelId, targetUserId, amount, note } = req.body || {};
+    const body = actionBody(req);
+    const { guildId, channelId, targetUserId, amount, note, requesterUserId } =
+      req.body || {};
     if (!guildId || !targetUserId) {
       return res
         .status(400)
         .json({ error: "guildId and targetUserId are required" });
     }
+    const refusal = goldRequestRefusal(body);
+    if (refusal) return sendAction(res, refusal);
     const client = DiscordWrapper.getClient("lupos");
     if (!client) return res.status(503).json({ error: "Bot not ready" });
     const guild = await client.guilds.fetch(guildId).catch(() => null);
     if (!guild) return res.status(404).json({ error: "Guild not found" });
-    res.json(
+    sendGoldResult(
+      res,
       await luposMugGold(
         client,
         guild,
@@ -2658,6 +2960,7 @@ router.post(
         targetUserId,
         Number(amount) || 0,
         note,
+        requesterUserId || undefined,
       ),
     );
   }),
