@@ -143,22 +143,27 @@ describe("generateAgentResponse — /agent body", () => {
   });
 });
 
-// Round-2 contract §1 (least privilege) and §3 (thinking control): no
-// blanket autoApprove — an unattended turn refuses what would ask — and a
-// reasoning LEVEL instead of a fixed token budget, on BOTH /agent paths.
+// Round-2 contract §1 (least privilege) and §3 (thinking control): an
+// unattended turn refuses what would ask — the LUPOS allow-list decides —
+// and a reasoning LEVEL instead of a fixed token budget, on BOTH /agent
+// paths. autoApprove rides along only for a Prism without that allow-list
+// (the new one ignores it for LUPOS), so the two can deploy in any order.
 describe("generateAgentResponse — least privilege and thinking", () => {
   afterEach(() => {
     delete (config as { AGENT_THINKING_LEVEL?: string }).AGENT_THINKING_LEVEL;
   });
 
   function expectLeastPrivilege(body: Record<string, unknown> | undefined) {
-    expect(body).toMatchObject({ unattended: true, thinkingLevel: "medium" });
-    expect(body).not.toHaveProperty("autoApprove");
+    expect(body).toMatchObject({
+      unattended: true,
+      autoApprove: true,
+      thinkingLevel: "medium",
+    });
     expect(body).not.toHaveProperty("thinkingBudget");
     expect(body).not.toHaveProperty("permissionMode");
   }
 
-  it("streaming path: unattended, no autoApprove, thinkingLevel medium", async () => {
+  it("streaming path: unattended (+ transitional autoApprove), thinkingLevel medium", async () => {
     const { calls } = stubPrism(sseStream([frame({ type: "done" })]));
     await PrismService.generateAgentResponse({
       ...baseParams,
