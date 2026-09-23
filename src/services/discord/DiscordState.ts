@@ -74,6 +74,28 @@ const DiscordState = {
   },
 
   /**
+   * An AbortSignal that fires once the message is cancelled (deleted),
+   * checked every `pollMs` — for handing to a long agent turn so it can
+   * be abandoned mid-flight. Always call dispose() when the turn ends.
+   */
+  watchCancellation(messageId: string, pollMs = 1_000) {
+    const controller = new AbortController();
+    const timer = setInterval(() => {
+      if (this.isMessageCancelled(messageId)) {
+        clearInterval(timer);
+        controller.abort(
+          new Error(`trigger message ${messageId} was deleted`),
+        );
+      }
+    }, pollMs);
+    timer.unref?.();
+    return {
+      signal: controller.signal,
+      dispose: () => clearInterval(timer),
+    };
+  },
+
+  /**
    * Record that a message was taken for a reply (queued, in flight or
    * answered), so a later edit of it never queues a second one.
    */

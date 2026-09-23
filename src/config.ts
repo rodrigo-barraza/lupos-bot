@@ -168,6 +168,13 @@ const config = {
   PIGGYBACK_SESSION_TTL_MS: process.env.PIGGYBACK_SESSION_TTL_MS,
   // Frozen-history size cap (chars, ≈ tokens × 4) before a rebaseline.
   PIGGYBACK_SESSION_MAX_CHARS: process.env.PIGGYBACK_SESSION_MAX_CHARS,
+
+  // ── Agent turn budget (sent on every /agent call) ─────────────
+  // Hard ceilings Prism enforces per Discord turn: agentic-loop passes
+  // and spend in dollars. Unset/invalid ⇒ PrismService's defaults
+  // (10 passes, $0.50).
+  AGENT_MAX_ITERATIONS: process.env.AGENT_MAX_ITERATIONS,
+  AGENT_MAX_COST_DOLLARS: process.env.AGENT_MAX_COST_DOLLARS,
 };
 
 /**
