@@ -68,6 +68,10 @@ import type { AttachmentPart } from "#root/services/discord/MessageEnvelope.ts";
 import { buildAndGenerateReply } from "#root/services/discord/PromptBuilder.ts";
 import { AgentStatusTracker } from "#root/services/discord/AgentStatusTracker.ts";
 import {
+  buildMemoryParticipants,
+  isVisibleToEveryone,
+} from "#root/services/discord/MemoryExtraction.ts";
+import {
   formatEmotionDetail,
   formatMoodStatusLine,
   type PrismSomaticSnapshot,
@@ -416,46 +420,19 @@ ${combinedGuildInformation && combinedChannelInformation ? `URL: ${utilities.get
   DiscordState.lastMessageSentTime = TemporalHelpers.nowISO();
   CurrentService.setEndTime(Date.now());
 
-  // Fire-and-forget memory extraction from the conversation
+  // Fire-and-forget memory extraction from the conversation — only where
+  // @everyone can read along, so nothing said in a private channel
+  // resurfaces as a "memory" somewhere public.
   const guildId = (message as Message).guildId;
-  if (guildId && conversation?.length > 0) {
-    const memoryParticipants: {
-      id: string;
-      displayName?: string;
-      username?: string;
-    }[] = [];
-    // Collect participant info for extraction
-    if (participantsCollection?.size) {
-      for (const participant of participantsCollection.values()) {
-        const pId = participant?.user?.id;
-        const pUser = participant?.user || participant;
-        if (pId) {
-          memoryParticipants.push({
-            id: pId,
-            username: pUser?.username || "",
-            displayName: pUser?.globalName || pUser?.username || "",
-          });
-        }
-      }
-    }
-    // Include mentioned users
-    if (memberMentionsCollection?.size) {
-      for (const member of memberMentionsCollection.values()) {
-        const alreadyAdded = memoryParticipants.some(
-          (p: { id: string }) => p.id === member.id,
-        );
-        if (!alreadyAdded) {
-          memoryParticipants.push({
-            id: member.id,
-            username: member.user?.username || "",
-            displayName:
-              member.displayName ||
-              member.user?.globalName ||
-              member.user?.username,
-          });
-        }
-      }
-    }
+  if (
+    guildId &&
+    conversation?.length > 0 &&
+    isVisibleToEveryone((message as Message).channel)
+  ) {
+    const memoryParticipants = buildMemoryParticipants(
+      participantsCollection,
+      memberMentionsCollection,
+    );
     if (memoryParticipants.length > 0) {
       // Only send the last ~10 user messages for extraction (skip system/assistant)
       const recentUserMessages = conversation
@@ -466,10 +443,7 @@ ${combinedGuildInformation && combinedChannelInformation ? `URL: ${utilities.get
         guildId,
         channelId: (message as Message).channel?.id || "",
         messages: recentUserMessages,
-        participants: memoryParticipants.map(
-          (p: { id: string; displayName?: string; username?: string }) =>
-            p.displayName || p.username || p.id,
-        ),
+        participants: memoryParticipants,
         sourceMessageId: (message as Message).id,
         traceId: CurrentService.getTraceId() || undefined,
       })

@@ -546,7 +546,10 @@ export default class PrismService {
   // ---------------------------------------------------------------------------
 
   /**
-   * Extract and store memories from a conversation chunk.
+   * Extract and store memories from a conversation chunk. Participants
+   * travel as `{ id, username, displayName }` objects so Prism can
+   * attribute each fact to a person — posted directly because the shared
+   * client's extractMemories still types them as strings.
    */
   static async extractMemories({
     guildId,
@@ -556,14 +559,11 @@ export default class PrismService {
     sourceMessageId,
     traceId,
   }: MemoryExtractParams) {
-    return prism().extractMemories({
-      guildId,
-      channelId,
-      messages,
-      participants,
-      sourceMessageId,
-      traceId,
-    });
+    const body: Record<string, unknown> = { guildId, channelId, messages };
+    if (participants) body.participants = participants;
+    if (sourceMessageId) body.sourceMessageId = sourceMessageId;
+    if (traceId) body.traceId = traceId;
+    return prism().request("/memory/extract", { body });
   }
 
   /**
