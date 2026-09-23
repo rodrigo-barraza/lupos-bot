@@ -175,6 +175,17 @@ const config = {
   // (10 passes, $0.50).
   AGENT_MAX_ITERATIONS: process.env.AGENT_MAX_ITERATIONS,
   AGENT_MAX_COST_DOLLARS: process.env.AGENT_MAX_COST_DOLLARS,
+
+  // ── Ambient interjection ──────────────────────────────────────
+  // Channels where Lupos may speak up without being addressed. Seeds the
+  // Mongo-backed CHANNEL_IDS_AMBIENT list once (BotSettingsService);
+  // after that it is edited through /bot/settings. Unset ⇒ off everywhere.
+  CHANNEL_IDS_AMBIENT: parseCommaSeparated("CHANNEL_IDS_AMBIENT"),
+  // The "should he chime in?" classifier's provider type (OPENAI,
+  // GOOGLE, …) and model. Unset ⇒ the cheapest configured model
+  // (LANGUAGE_MODEL_OPENAI_LOW on OpenAI, else the type's fast model).
+  AMBIENT_CLASSIFIER_MODEL_TYPE: process.env.AMBIENT_CLASSIFIER_MODEL_TYPE,
+  AMBIENT_CLASSIFIER_MODEL: process.env.AMBIENT_CLASSIFIER_MODEL,
 };
 
 /**

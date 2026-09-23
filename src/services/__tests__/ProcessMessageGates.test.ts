@@ -1,6 +1,7 @@
 // processMessage's gates, driven with mocked discord.js objects: which
 // guild messages become a reply (mention, reply with the ping off, name
-// used vocatively), which don't, and the per-user agent-turn limit.
+// used vocatively, an ambient interjection), which don't, and the
+// per-user agent-turn limit.
 // DiscordUtilityService.fetchMessages returns null, which ends the
 // pipeline right after a message is accepted — acceptance is read from
 // DiscordState.wasAcceptedForReply.
@@ -32,7 +33,7 @@ vi.mock("../LightsService", () => ({ default: {} }));
 vi.mock("../MongoService", () => ({
   default: { getClient: vi.fn().mockReturnValue(null) },
 }));
-vi.mock("../PrismService", () => ({ default: {} }));
+vi.mock("../PrismService", () => ({ default: { generateText: vi.fn() } }));
 vi.mock("../DiscordUtilityService", () => ({
   default: {
     getUsernameNoSpaces: vi.fn(),
@@ -85,6 +86,11 @@ const DiscordUtilityService = (await import("../DiscordUtilityService.ts"))
 const { DISCORD_USERS } = await import(
   "@rodrigo-barraza/utilities-library/taxonomy"
 );
+const PrismService = (await import("../PrismService.ts")).default;
+const { resetAmbientState } = await import(
+  "../discord/AmbientInterjection.ts"
+);
+const config = (await import("#root/config.ts")).default;
 
 const BOT_ID = "900000000000000001";
 const botUser = { id: BOT_ID, username: "Lupos" };
@@ -121,6 +127,7 @@ function fakeMessage({
     guildId: "700000000000000001",
     channelId: "600000000000000001",
     createdAt: new Date(),
+    createdTimestamp: Date.now(),
     author: { id: authorId, username: `user${authorId.slice(-2)}`, bot },
     member: {
       roles: {
@@ -137,7 +144,10 @@ function fakeMessage({
       name: "general-chat",
       messages: {
         cache: new Map(),
-        fetch: vi.fn(async () => ({ content: "a harmless message" })),
+        // fetch(id) → the replied-to message; fetch({ limit }) → history
+        fetch: vi.fn(async (query: unknown) =>
+          typeof query === "string" ? { content: "a harmless message" } : new Map(),
+        ),
       },
     },
     mentions: {
@@ -267,5 +277,110 @@ describe("processMessage — per-user agent-turn limit", () => {
   it("does not spend allowance on ignored or unaddressed messages", async () => {
     for (let i = 0; i < 10; i++) await run({ content: "just chatting" });
     expect((await run({ content: "lupos, hi" })).accepted).toBe(true);
+  });
+});
+
+describe("processMessage — ambient interjection", () => {
+  const AMBIENT_CHANNEL = "600000000000000001";
+  const question = "does anyone know when the raid starts tonight";
+
+  function classifierSays(interject: boolean, score: number) {
+    vi.mocked(PrismService.generateText).mockResolvedValue({
+      text: JSON.stringify({ interject, score }),
+    } as never);
+  }
+
+  beforeEach(() => {
+    resetAmbientState();
+    vi.mocked(PrismService.generateText).mockReset();
+    config.LANGUAGE_MODEL_OPENAI_LOW = "gpt-4.1-nano";
+    botSettings.CHANNEL_IDS_AMBIENT = [AMBIENT_CHANNEL];
+    // Hold the drain so a queued turn can be inspected, not run.
+    DiscordState.isProcessingQueue = true;
+    DiscordState.queuedData.length = 0;
+    vi.mocked(DiscordUtilityService.fetchMessages).mockResolvedValue({
+      reverse: () => new Map(),
+    } as never);
+  });
+
+  afterEach(() => {
+    DiscordState.isProcessingQueue = false;
+    DiscordState.queuedData.length = 0;
+    vi.mocked(DiscordUtilityService.fetchMessages).mockResolvedValue(null);
+  });
+
+  it("chimes in when the classifier says yes — queued as an ambient turn", async () => {
+    classifierSays(true, 0.9);
+    const turn = await run({ content: question });
+    expect(turn.accepted).toBe(true);
+    expect(DiscordState.queuedData.map((queued) => queued.replyMode)).toEqual(["ambient"]);
+    expect(turn.react).not.toHaveBeenCalled();
+  });
+
+  it("stays silent (no reply, no reaction) when the classifier says no or errors", async () => {
+    classifierSays(true, 0.5);
+    const lukewarm = await run({ content: question });
+    expect(lukewarm.accepted).toBe(false);
+    expect(lukewarm.reply).not.toHaveBeenCalled();
+    expect(lukewarm.react).not.toHaveBeenCalled();
+
+    resetAmbientState();
+    vi.mocked(PrismService.generateText).mockRejectedValue(new Error("boom"));
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    expect((await run({ content: question })).accepted).toBe(false);
+    expect(DiscordState.queuedData).toHaveLength(0);
+  });
+
+  it("is off everywhere by default", async () => {
+    botSettings.CHANNEL_IDS_AMBIENT = [];
+    classifierSays(true, 0.99);
+    expect((await run({ content: question })).accepted).toBe(false);
+    expect(PrismService.generateText).not.toHaveBeenCalled();
+  });
+
+  it("never classifies messages any other gate would refuse", async () => {
+    classifierSays(true, 0.99);
+    botSettings.USER_IDS_IGNORE = ["800000000000000005"];
+    botSettings.ROLES_IDS_IGNORE = ["400000000000000001"];
+    await run({ content: question, authorId: "800000000000000005" });
+    await run({ content: question, roleIds: ["400000000000000001"] });
+    await run({ content: question, bot: true });
+    const flagged = await run({ content: "the raid leader is a slur honestly" });
+    expect(flagged.reply).not.toHaveBeenCalled();
+    expect(PrismService.generateText).not.toHaveBeenCalled();
+  });
+
+  it("leaves addressed messages in an ambient channel to the normal path", async () => {
+    classifierSays(false, 0);
+    const turn = await run({ content: "lupos, when does the raid start" });
+    expect(turn.accepted).toBe(true);
+    expect(DiscordState.queuedData.map((queued) => queued.replyMode)).toEqual(["name"]);
+    expect(PrismService.generateText).not.toHaveBeenCalled();
+  });
+
+  it("spends the author's turn allowance, and skips (silently) once it is gone", async () => {
+    for (let i = 0; i < 4; i++) await run({ content: "lupos, again" });
+    classifierSays(true, 0.99);
+    const turn = await run({ content: question });
+    expect(turn.accepted).toBe(false);
+    expect(turn.react).not.toHaveBeenCalled();
+    expect(PrismService.generateText).not.toHaveBeenCalled();
+  });
+
+  it("holds the channel cooldown after an interjection — no second classifier call", async () => {
+    classifierSays(true, 0.9);
+    expect((await run({ content: question })).accepted).toBe(true);
+    expect(
+      (await run({ content: "and who is bringing the flasks this time", authorId: "800000000000000003" }))
+        .accepted,
+    ).toBe(false);
+    expect(PrismService.generateText).toHaveBeenCalledOnce();
+  });
+
+  it("never interjects on an edit", async () => {
+    classifierSays(true, 0.99);
+    const fake = fakeMessage({ content: question });
+    await processMessage(client, mongoClients, fake.message, "UPDATE");
+    expect(PrismService.generateText).not.toHaveBeenCalled();
   });
 });

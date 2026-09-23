@@ -1,8 +1,9 @@
 // ============================================================
-// Bot Settings — runtime-mutable moderation lists
+// Bot Settings — runtime-mutable id lists
 //
 // Mongo (BotSettings collection) is the source of truth for lists
-// that change at runtime (ignores, timeouts, whitelists). Env values
+// that change at runtime (ignores, timeouts, whitelists, the channels
+// where Lupos may chime in unaddressed). Env values
 // seed the collection exactly once ($setOnInsert); after that the
 // lists are edited through /bot/settings without a redeploy.
 //
@@ -25,6 +26,9 @@ export const MANAGED_LIST_KEYS = [
   "USER_IDS_POLITICS_MUTED",
   "USER_IDS_NEW_ACCOUNT_WHITELIST",
   "USER_IDS_LAUGH_ONLY_DELETED",
+  // Channels where Lupos may interject without being addressed (seeded
+  // empty ⇒ off everywhere) — see AmbientInterjection.
+  "CHANNEL_IDS_AMBIENT",
 ] as const;
 export type ManagedListKey = (typeof MANAGED_LIST_KEYS)[number];
 
