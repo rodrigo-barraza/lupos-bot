@@ -237,7 +237,10 @@ export function aggregateAgentEvents(events: PrismSseEvent[]) {
   // A follow-up folded in through POST /agent/input and applied at
   // `before_end` is the exception: the pass before it had already
   // written the finished reply to the trigger, and the turn only went
-  // on to answer the follow-up — both answers are the reply.
+  // on to answer the follow-up — both answers are the reply. (At any
+  // other boundary the fold needs no split: `iteration_start` and
+  // `after_tools` follow a tool call, `turn_end` has no text after it,
+  // and `native_steer` lands mid-stream inside one continuing pass.)
   const textSegments: { text: string; finished: boolean }[] = [
     { text: "", finished: false },
   ];
@@ -250,8 +253,11 @@ export function aggregateAgentEvents(events: PrismSseEvent[]) {
       event.status === "calling"
     ) {
       textSegments.push({ text: "", finished: false });
-    } else if (event.type === "turn_input") {
-      current.finished = event.boundary === "before_end";
+    } else if (
+      event.type === "turn_input" &&
+      event.boundary === "before_end"
+    ) {
+      current.finished = true;
       textSegments.push({ text: "", finished: false });
     }
   }
