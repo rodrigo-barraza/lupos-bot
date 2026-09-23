@@ -18,7 +18,7 @@ jest.config.js
 jest_output_ascii.txt
 ecosystem.config.cjs
 patch_clocks*.py
-eslint.config.js
+.oxlintrc.json
 vitest.config.*
 *.log
 *.tsbuildinfo
