@@ -1861,6 +1861,9 @@ export async function buildAndGenerateReply({
         // the reasoning effort (thinkingLevel) from resolveAgentThinkingLevel.
         thinkingEnabled: true,
         username: message.author?.username || "unknown",
+        // One cache routing key per channel: its turns share the frozen
+        // session prefix but are a new Prism conversation each.
+        ...(messageChannelId && { promptCacheKey: `lupos:${messageChannelId}` }),
         ...AIService._getTraceParams(),
         // Stream the agent SSE when a status tracker or a steerable turn is
         // watching — presence shows live thinking/tool progress, and a
@@ -1932,6 +1935,11 @@ export async function buildAndGenerateReply({
         assistantText: generatedText || null,
         assistantName: (bot?.username || "Lupos").replace(/\s+/g, ""),
         participantUserIds,
+        // The session lives as long as the model that served this turn
+        // keeps the prefix cached (Prism's promptCache).
+        cacheExpiresAtMs: agentResponse.promptCache
+          ? Date.parse(agentResponse.promptCache.expiresAt)
+          : null,
       });
     }
 

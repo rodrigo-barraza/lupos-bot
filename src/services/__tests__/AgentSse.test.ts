@@ -113,6 +113,14 @@ describe("aggregateAgentEvents", () => {
     expect(aggregated.provider).toBe("google");
   });
 
+  // The channel session lives as long as the served model keeps the
+  // prefix cached — Prism says how long on the done event.
+  it("carries the done event's promptCache, null when Prism sends none", () => {
+    const promptCache = { lifeSeconds: 600, expiresAt: "2026-09-25T20:40:57.000Z" };
+    expect(aggregateAgentEvents([{ type: "done", promptCache }]).promptCache).toEqual(promptCache);
+    expect(aggregateAgentEvents([{ type: "done" }]).promptCache).toBeNull();
+  });
+
   it("returns null text when nothing streamed", () => {
     expect(aggregateAgentEvents([{ type: "done" }]).text).toBeNull();
   });

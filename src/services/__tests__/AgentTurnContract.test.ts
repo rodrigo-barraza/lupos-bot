@@ -132,6 +132,18 @@ describe("generateAgentResponse — /agent body", () => {
     expect(agentCall?.body).not.toHaveProperty("temperature");
   });
 
+  it("sends the channel's prompt-cache key and returns the cache window", async () => {
+    const promptCache = { lifeSeconds: 300, expiresAt: "2026-09-25T20:35:57.000Z" };
+    const { calls } = stubPrism(sseStream([frame({ type: "done", promptCache })]));
+    const result = await PrismService.generateAgentResponse({
+      ...baseParams,
+      promptCacheKey: "lupos:762734438375096380",
+      onEvent: () => {},
+    });
+    expect(calls[0].body).toMatchObject({ promptCacheKey: "lupos:762734438375096380" });
+    expect(result.promptCache).toEqual(promptCache);
+  });
+
   it("lets a caller pass its own budget", async () => {
     const { calls } = stubPrism(sseStream([frame({ type: "done" })]));
     await PrismService.generateAgentResponse({

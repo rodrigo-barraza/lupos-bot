@@ -1597,13 +1597,14 @@ async function luposOnMessageUpdate(
     if (fullMessage && (await deleteIfLaughOnly(fullMessage))) return;
   }
 
-  // Process if message was edited to mention the bot (never one already
-  // taken for a reply — see DiscordState.isEditANewMention)
+  // Process if its author just edited the message to mention the bot
+  // (never one already taken for a reply — see DiscordState.isEditANewMention)
   if (
     DiscordState.isEditANewMention(
       newMessage.id,
       newMessage.mentions.has(client.user!),
       oldMessage.mentions.has(client.user!),
+      newMessage.editedTimestamp ?? null,
     )
   ) {
     // Skip if the bot already replied to this message
