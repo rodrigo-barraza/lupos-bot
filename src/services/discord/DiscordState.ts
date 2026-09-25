@@ -26,6 +26,12 @@ export interface QueuedMessageData {
   timings?: PrepTimings;
 }
 
+/**
+ * How long after its author edits a message the update may still count as
+ * adding a mention — the gateway delivers an edit within seconds.
+ */
+export const EDIT_MENTION_WINDOW_MS = 5 * 60 * 1000;
+
 const DiscordState = {
   // ─── Message Processing Queue ─────────────────────────────────
   isProcessingQueue: false,
@@ -124,15 +130,26 @@ const DiscordState = {
    * Whether an edit turned a message into a new mention of the bot. The
    * mention diff alone is not enough: an uncached original arrives as a
    * partial oldMessage whose mentions read empty, so a message already
-   * taken for a reply is never "newly" mentioning the bot.
+   * taken for a reply is never "newly" mentioning the bot — and the update
+   * must be an edit its author just made. Discord also sends updates
+   * nobody typed (an embed or attachment refreshed); on an uncached
+   * message those read as a fresh mention too, and Lupos answered two
+   * year-old, never-edited messages that way on 2026-09-25. A real edit
+   * carries an edited timestamp from moments ago.
    */
   isEditANewMention(
     messageId: string,
     newMentionsBot: boolean,
     oldMentionsBot: boolean,
+    editedAtMs: number | null,
+    nowMs: number = Date.now(),
   ) {
     return (
-      newMentionsBot && !oldMentionsBot && !this.wasAcceptedForReply(messageId)
+      newMentionsBot &&
+      !oldMentionsBot &&
+      editedAtMs !== null &&
+      nowMs - editedAtMs <= EDIT_MENTION_WINDOW_MS &&
+      !this.wasAcceptedForReply(messageId)
     );
   },
 };

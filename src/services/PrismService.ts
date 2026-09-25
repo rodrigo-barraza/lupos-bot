@@ -4,6 +4,7 @@ import type {
   GenerateTextParams,
   AgentResponseParams,
   PrismSseEvent,
+  PromptCacheWindow,
   GenerateImageParams,
   CaptionImageParams,
   TranscribeAudioParams,
@@ -306,6 +307,7 @@ export function aggregateAgentEvents(events: PrismSseEvent[]) {
     audioRef: doneEvent.audioRef || null,
     model: doneEvent.model,
     provider: doneEvent.provider,
+    promptCache: doneEvent.promptCache ?? null,
   };
 }
 
@@ -378,6 +380,7 @@ export default class PrismService {
     maxCostDollars,
     username = "lupos",
     traceId,
+    promptCacheKey,
     onEvent,
     signal,
   }: AgentResponseParams) {
@@ -406,6 +409,7 @@ export default class PrismService {
       maxIterations: maxIterations ?? budget.maxIterations,
       maxCostDollars: maxCostDollars ?? budget.maxCostDollars,
       traceId,
+      ...(promptCacheKey && { promptCacheKey }),
     };
 
     let data;
@@ -467,6 +471,8 @@ export default class PrismService {
       audioRef: data.audioRef || null,
       model: data.model,
       provider: data.provider,
+      promptCache:
+        (data as { promptCache?: PromptCacheWindow | null }).promptCache ?? null,
     };
   }
 
