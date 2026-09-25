@@ -1134,8 +1134,8 @@ router.post(
 
 // ─── POST /guild/reminders ──────────────────────────────────────
 // Body: { guildId, channelId, requesterUserId, scopeGuildId,
-//         text, delayMinutes? | dueAt? }
-// → { ok, reminder: { id, dueAt, text, channelId } }
+//         text, delayMinutes? | dueAt?, pingUserId? }
+// → { ok, reminder: { id, dueAt, text, channelId, pingUserId, setByUserId } }
 router.post(
   "/guild/reminders",
   asyncHandler(async (req: Request, res: Response) => {
@@ -1151,7 +1151,8 @@ router.post(
 
 // ─── GET /guild/reminders ───────────────────────────────────────
 // Query: ?guildId=...&requesterUserId=...
-// → { ok, reminders: [{ id, dueAt, text, channelId }] } (pending, soonest first)
+// → { ok, reminders: [{ id, dueAt, text, channelId, pingUserId, setByUserId }] }
+//   (pending ones the requester set or that ping them, soonest first)
 router.get(
   "/guild/reminders",
   asyncHandler(async (req: Request, res: Response) => {
@@ -1166,7 +1167,7 @@ router.get(
 
 // ─── POST /guild/reminders/cancel ───────────────────────────────
 // Body: { guildId, requesterUserId, scopeGuildId, reminderId }
-// → { ok, reminder: { id, dueAt, text, channelId, status } }
+// → { ok, reminder: { id, dueAt, text, channelId, pingUserId, setByUserId, status } }
 router.post(
   "/guild/reminders/cancel",
   asyncHandler(async (req: Request, res: Response) => {
