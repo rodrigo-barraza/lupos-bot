@@ -14,12 +14,14 @@ import {
   CHANNEL_ID,
   GUILD_ID,
   OTHER_GUILD_ID,
+  MEMBER_FLAGS,
   REQUESTER_ID,
   STRANGER_ID,
   ViewChannel,
   asClient,
   conversationBody,
   makeClient,
+  makeMember,
   makeScene,
 } from "#root/services/__tests__/support/fakeDiscord.ts";
 
@@ -41,6 +43,21 @@ const { runAgentAction } = await import("#root/services/discord/AgentActionGuard
 
 const NOW = Date.parse("2026-09-22T12:00:00Z");
 const MINUTE = 60_000;
+/** A member the requester asks Lupos to ping ("ping @kvz in an hour"). */
+const FRIEND_ID = "300000000000000003";
+
+/** Adds a member to the scene's guild, granted `flags` in #general. */
+function addMember(
+  scene: ReturnType<typeof makeScene>,
+  id: string,
+  { flags = MEMBER_FLAGS, bot = false }: { flags?: bigint[]; bot?: boolean } = {},
+) {
+  const member = makeMember({ id, username: `member-${id.slice(-2)}` });
+  member.user.bot = bot;
+  scene.guild.members.cache.set(id, member);
+  scene.channel.grants[id] = flags;
+  return member;
+}
 
 function reminders() {
   return fakeDb.collection("Reminders");
@@ -119,11 +136,20 @@ describe("createReminder", () => {
     expect(result.status).toBe(200);
     const reminder = (result.body as { reminder: Record<string, string> }).reminder;
     expect(result.body.ok).toBe(true);
-    expect(Object.keys(reminder).sort()).toEqual(["channelId", "dueAt", "id", "text"]);
+    expect(Object.keys(reminder).sort()).toEqual([
+      "channelId",
+      "dueAt",
+      "id",
+      "pingUserId",
+      "setByUserId",
+      "text",
+    ]);
     expect(reminder).toMatchObject({
       channelId: CHANNEL_ID,
       text: "take the pizza out",
       dueAt: "2026-09-22T12:30:00.000Z",
+      pingUserId: REQUESTER_ID,
+      setByUserId: REQUESTER_ID,
     });
 
     const [stored] = reminders().documents;
@@ -132,6 +158,7 @@ describe("createReminder", () => {
       guildId: GUILD_ID,
       channelId: CHANNEL_ID,
       userId: REQUESTER_ID,
+      targetUserId: null,
       status: "pending",
       sentAt: null,
     });
@@ -204,6 +231,96 @@ describe("createReminder", () => {
   });
 });
 
+describe("createReminder with pingUserId", () => {
+  it("stores a reminder that pings the named member, owned by the requester", async () => {
+    const scene = makeScene();
+    addMember(scene, FRIEND_ID);
+    const result = await schedule(scene, {
+      pingUserId: FRIEND_ID,
+      text: "release the tall-stein files",
+    });
+    expect(result.status).toBe(200);
+    expect((result.body as { reminder: object }).reminder).toMatchObject({
+      text: "release the tall-stein files",
+      pingUserId: FRIEND_ID,
+      setByUserId: REQUESTER_ID,
+    });
+    expect(reminders().documents[0]).toMatchObject({
+      userId: REQUESTER_ID,
+      targetUserId: FRIEND_ID,
+      status: "pending",
+    });
+    expect(reminders().createdIndexes.map((index) => index.spec)).toContainEqual({
+      guildId: 1,
+      status: 1,
+      targetUserId: 1,
+    });
+  });
+
+  it("treats naming yourself as a reminder of your own", async () => {
+    const result = await schedule(makeScene(), { pingUserId: REQUESTER_ID });
+    expect(result.status).toBe(200);
+    expect(reminders().documents[0].targetUserId).toBeNull();
+  });
+
+  it("refuses a malformed id, a non-member, a bot, and someone who can't see the channel", async () => {
+    expect((await schedule(makeScene(), { pingUserId: "kvz" })).status).toBe(400);
+
+    const stranger = await schedule(makeScene(), { pingUserId: STRANGER_ID });
+    expect(stranger.status).toBe(404);
+
+    const botScene = makeScene();
+    addMember(botScene, FRIEND_ID, { bot: true });
+    expect((await schedule(botScene, { pingUserId: FRIEND_ID })).status).toBe(400);
+
+    const blind = makeScene();
+    addMember(blind, FRIEND_ID, { flags: [] });
+    const blindResult = await schedule(blind, { pingUserId: FRIEND_ID });
+    expect(blindResult.status).toBe(403);
+    expect(blindResult.body.error).toMatch(/can't see #general/);
+
+    expect(reminders().documents).toHaveLength(0);
+  });
+
+  it("caps reminders others aimed at one member at 3, whoever set them", async () => {
+    const scene = makeScene();
+    addMember(scene, FRIEND_ID);
+    const otherAsker = addMember(scene, STRANGER_ID);
+    // The friend's own reminders are theirs, not aimed at them.
+    reminders().documents.push({
+      id: "friends-own",
+      guildId: GUILD_ID,
+      userId: FRIEND_ID,
+      targetUserId: null,
+      status: "pending",
+    });
+    for (let index = 0; index < 2; index++) {
+      expect((await schedule(scene, { pingUserId: FRIEND_ID })).status).toBe(200);
+    }
+    expect(
+      (await schedule(scene, { pingUserId: FRIEND_ID, requesterUserId: otherAsker.id })).status,
+    ).toBe(200);
+
+    const fourth = await schedule(scene, { pingUserId: FRIEND_ID });
+    expect(fourth.status).toBe(429);
+    expect(fourth.body.error).toMatch(/already has 3 reminders from other people/);
+    // The requester still has room for their own.
+    expect((await schedule(scene)).status).toBe(200);
+  });
+
+  it("counts reminders set for others against the requester's 5", async () => {
+    const scene = makeScene();
+    addMember(scene, FRIEND_ID);
+    for (let index = 0; index < 3; index++) {
+      expect((await schedule(scene, { pingUserId: FRIEND_ID })).status).toBe(200);
+    }
+    for (let index = 0; index < 2; index++) {
+      expect((await schedule(scene)).status).toBe(200);
+    }
+    expect((await schedule(scene)).status).toBe(429);
+  });
+});
+
 describe("listReminders / cancelReminder", () => {
   async function seedTwo() {
     const scene = makeScene();
@@ -269,6 +386,34 @@ describe("listReminders / cancelReminder", () => {
     expect(again.status).toBe(409);
     expect(again.body.error).toMatch(/already cancelled/);
   });
+
+  it("shows a reminder aimed at someone to them, and lets them cancel it", async () => {
+    const scene = makeScene();
+    addMember(scene, FRIEND_ID);
+    const created = await schedule(scene, { pingUserId: FRIEND_ID, text: "files" });
+    const { id } = (created.body as { reminder: { id: string } }).reminder;
+
+    const friendsList = await runAgentAction("list", () =>
+      listReminders({ guildId: GUILD_ID, requesterUserId: FRIEND_ID }),
+    );
+    expect((friendsList.body as { reminders: object[] }).reminders).toEqual([
+      expect.objectContaining({ id, pingUserId: FRIEND_ID, setByUserId: REQUESTER_ID }),
+    ]);
+    const strangersList = await runAgentAction("list", () =>
+      listReminders({ guildId: GUILD_ID, requesterUserId: STRANGER_ID }),
+    );
+    expect((strangersList.body as { reminders: object[] }).reminders).toEqual([]);
+
+    const notTheirs = await runAgentAction("cancel", () =>
+      cancelReminder({ guildId: GUILD_ID, requesterUserId: STRANGER_ID, reminderId: id }),
+    );
+    expect(notTheirs.status).toBe(404);
+    const byTarget = await runAgentAction("cancel", () =>
+      cancelReminder({ guildId: GUILD_ID, requesterUserId: FRIEND_ID, reminderId: id }),
+    );
+    expect(byTarget.status).toBe(200);
+    expect(reminders().documents[0].status).toBe("cancelled");
+  });
 });
 
 describe("formatReminderMessage", () => {
@@ -286,6 +431,18 @@ describe("formatReminderMessage", () => {
     const message = formatReminderMessage(reminder, NOW + 3 * 60 * MINUTE);
     expect(message.startsWith(`⏰ <@${REQUESTER_ID}> stretch\n`)).toBe(true);
     expect(message).toContain(`late — it was due <t:${NOW / 1000}:R>`);
+  });
+
+  it("pings the named member and signs it with the requester", () => {
+    const forFriend = { ...reminder, targetUserId: FRIEND_ID };
+    expect(formatReminderMessage(forFriend, NOW)).toBe(
+      `⏰ <@${FRIEND_ID}> stretch\n-# Reminder from <@${REQUESTER_ID}>`,
+    );
+    expect(formatReminderMessage(forFriend, NOW + 3 * 60 * MINUTE).split("\n")).toEqual([
+      `⏰ <@${FRIEND_ID}> stretch`,
+      `-# Reminder from <@${REQUESTER_ID}>`,
+      `-# Sorry, this is late — it was due <t:${NOW / 1000}:R>.`,
+    ]);
   });
 });
 
@@ -313,6 +470,19 @@ describe("deliverDueReminders", () => {
 
     await deliverDueReminders(asClient(scene.client), NOW + 3 * MINUTE);
     expect(scene.channel.send).toHaveBeenCalledTimes(1);
+  });
+
+  it("pings only the named member when the reminder is for someone else", async () => {
+    const scene = makeScene();
+    addMember(scene, FRIEND_ID);
+    await schedule(scene, { pingUserId: FRIEND_ID, delayMinutes: 1, text: "release the files" });
+
+    const summary = await deliverDueReminders(asClient(scene.client), NOW + 2 * MINUTE);
+    expect(summary).toEqual({ sent: 1, failed: 0, retrying: 0 });
+    expect(scene.channel.send).toHaveBeenCalledWith({
+      content: `⏰ <@${FRIEND_ID}> release the files\n-# Reminder from <@${REQUESTER_ID}>`,
+      allowedMentions: { users: [FRIEND_ID] },
+    });
   });
 
   it("never double-sends when two ticks overlap", async () => {

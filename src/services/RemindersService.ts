@@ -4,7 +4,11 @@
 // The agent's schedule/list/cancel_discord_reminder tools land here via
 // tools-service → GuildRoutes. A reminder always belongs to the person
 // who asked (`requesterUserId`) and fires in the channel the
-// conversation happened in, pinging only them.
+// conversation happened in, pinging only them — or, when they named one
+// other member (`pingUserId`: "ping @kvz in an hour to …"), only that
+// member, signed with the asker's name. The pinged member can list and
+// cancel what was aimed at them, and at most
+// REMINDER_MAX_PENDING_PER_TARGET such reminders wait on one person.
 //
 // Delivery (RemindersJob, every 30 s) claims one due reminder at a time
 // with an atomic findOneAndUpdate, so overlapping ticks never send the
@@ -16,7 +20,7 @@
 
 import { randomBytes, randomUUID } from "node:crypto";
 import { PermissionFlagsBits } from "discord.js";
-import type { Client, GuildTextBasedChannel } from "discord.js";
+import type { Client, Guild, GuildMember, GuildTextBasedChannel } from "discord.js";
 import type { Collection } from "mongodb";
 import MongoService from "#root/services/MongoService.ts";
 import {
@@ -25,6 +29,8 @@ import {
   assertClean,
   assertRequesterCan,
   assertScope,
+  fetchMember,
+  readOptionalSnowflake,
   readSnowflake,
   readText,
   resolveActionContext,
@@ -41,6 +47,7 @@ import {
   REMINDER_LATE_AFTER_MS,
   REMINDER_MAX_DELIVERY_ATTEMPTS,
   REMINDER_MAX_PENDING_PER_GUILD,
+  REMINDER_MAX_PENDING_PER_TARGET,
   REMINDER_MAX_PENDING_PER_USER,
   REMINDER_TEXT_MAX_LENGTH,
 } from "#root/constants/DiscordActionConstants.ts";
@@ -51,8 +58,13 @@ export interface ReminderDocument {
   id: string;
   guildId: string;
   channelId: string;
-  /** The requester — the only person a reminder ever pings. */
+  /** The requester, who owns it — and whom it pings, unless `targetUserId`. */
   userId: string;
+  /**
+   * The one other member it pings instead of the requester. Absent on
+   * reminders set before 2026-09-25; null = the requester's own.
+   */
+  targetUserId?: string | null;
   text: string;
   dueAt: Date;
   createdAt: Date;
@@ -73,6 +85,10 @@ export interface PublicReminder {
   dueAt: string;
   text: string;
   channelId: string;
+  /** Who it pings when it goes off. */
+  pingUserId: string;
+  /** Who asked for it. */
+  setByUserId: string;
 }
 
 export interface DeliverySummary {
@@ -118,11 +134,17 @@ async function ensureIndexes(
   );
   await reminders.createIndex({ status: 1, dueAt: 1 });
   await reminders.createIndex({ guildId: 1, status: 1, userId: 1 });
+  await reminders.createIndex({ guildId: 1, status: 1, targetUserId: 1 });
 }
 
 /** Test hook: the next collection() call re-ensures indexes. */
 export function resetRemindersIndexState(): void {
   indexesEnsured = false;
+}
+
+/** Whom the reminder pings: the named member, else the requester. */
+function pingedUserId(reminder: Pick<ReminderDocument, "userId" | "targetUserId">): string {
+  return reminder.targetUserId ?? reminder.userId;
 }
 
 export function toPublicReminder(reminder: ReminderDocument): PublicReminder {
@@ -131,6 +153,8 @@ export function toPublicReminder(reminder: ReminderDocument): PublicReminder {
     dueAt: reminder.dueAt.toISOString(),
     text: reminder.text,
     channelId: reminder.channelId,
+    pingUserId: pingedUserId(reminder),
+    setByUserId: reminder.userId,
   };
 }
 
@@ -222,9 +246,36 @@ function newReminderId(): string {
 }
 
 /**
- * Schedules a reminder for the requester in the conversation's channel.
- * Both of them must be able to post there; ≤5 pending per user per
- * guild and ≤100 per guild.
+ * The member a reminder should ping instead of the requester: a person
+ * (not a bot) in this guild who can see the channel it will fire in —
+ * otherwise the ping never reaches them.
+ */
+async function resolveReminderTarget(
+  guild: Guild,
+  channel: GuildTextBasedChannel,
+  targetUserId: string,
+): Promise<GuildMember> {
+  const target = await fetchMember(guild, targetUserId);
+  if (!target) {
+    throw new ActionError(404, "That person isn't in this server.");
+  }
+  if (target.user.bot) {
+    throw new ActionError(400, "Reminders ping people, not bots.");
+  }
+  if (!channel.permissionsFor(target)?.has(PermissionFlagsBits.ViewChannel)) {
+    throw new ActionError(
+      403,
+      `${target.user.username} can't see #${channel.name}, so a reminder here would never reach them.`,
+    );
+  }
+  return target;
+}
+
+/**
+ * Schedules a reminder in the conversation's channel for the requester,
+ * or for one other member (`pingUserId`). The requester and Lupos must
+ * be able to post there; ≤5 pending per requester per guild, ≤3 aimed
+ * at any one member by others, and ≤100 per guild.
  */
 export async function createReminder(
   client: Client,
@@ -233,9 +284,15 @@ export async function createReminder(
 ): Promise<{ reminder: PublicReminder }> {
   const text = readText(body.text, "text", REMINDER_TEXT_MAX_LENGTH);
   const dueAt = readDueAt(body, nowMs);
+  const pingUserId = readOptionalSnowflake(body.pingUserId, "pingUserId");
 
   const { guild, channel, requester } = await resolveActionContext(client, body);
   assertRequesterCan(channel, requester, [], "set reminders");
+  // Naming yourself is just a reminder of your own.
+  const target =
+    pingUserId && pingUserId !== requester.id
+      ? await resolveReminderTarget(guild, channel, pingUserId)
+      : null;
   const bot = await resolveBotMember(guild);
   assertBotCan(
     channel,
@@ -247,13 +304,20 @@ export async function createReminder(
 
   const reminders = collection();
   return withGuildLock(guild.id, async () => {
-    const [userPending, guildPending] = await Promise.all([
+    const [userPending, guildPending, targetPending] = await Promise.all([
       reminders.countDocuments({
         guildId: guild.id,
         userId: requester.id,
         status: "pending",
       }),
       reminders.countDocuments({ guildId: guild.id, status: "pending" }),
+      target
+        ? reminders.countDocuments({
+            guildId: guild.id,
+            targetUserId: target.id,
+            status: "pending",
+          })
+        : Promise.resolve(0),
     ]);
     if (userPending >= REMINDER_MAX_PENDING_PER_USER) {
       throw new ActionError(
@@ -267,12 +331,19 @@ export async function createReminder(
         `This server already has ${REMINDER_MAX_PENDING_PER_GUILD} reminders pending — try again after some go off.`,
       );
     }
+    if (target && targetPending >= REMINDER_MAX_PENDING_PER_TARGET) {
+      throw new ActionError(
+        429,
+        `${target.user.username} already has ${REMINDER_MAX_PENDING_PER_TARGET} reminders from other people pending in this server — wait for one to go off.`,
+      );
+    }
 
     const document: ReminderDocument = {
       id: newReminderId(),
       guildId: guild.id,
       channelId: channel.id,
       userId: requester.id,
+      targetUserId: target?.id ?? null,
       text,
       dueAt,
       createdAt: new Date(nowMs),
@@ -297,8 +368,11 @@ export async function createReminder(
         document.id = newReminderId();
       }
     }
+    const forWhom = target
+      ? `${target.user.username} (by ${requester.user.username})`
+      : requester.user.username;
     console.log(
-      `⏰ [RemindersService] Reminder ${document.id} set for ${requester.user.username} in #${channel.name}, due ${dueAt.toISOString()}`,
+      `⏰ [RemindersService] Reminder ${document.id} set for ${forWhom} in #${channel.name}, due ${dueAt.toISOString()}`,
     );
     return { reminder: toPublicReminder(document) };
   });
@@ -312,13 +386,21 @@ function readOwner(body: ActionBody): { guildId: string; userId: string } {
   return { guildId, userId };
 }
 
-/** The requester's pending reminders in this guild, soonest first. */
+/** Reminders the requester set, or that someone set to ping them. */
+function mineOrAimedAtMe(userId: string) {
+  return { $or: [{ userId }, { targetUserId: userId }] };
+}
+
+/**
+ * The requester's pending reminders in this guild, soonest first — the
+ * ones they set and the ones others set to ping them.
+ */
 export async function listReminders(
   body: ActionBody,
 ): Promise<{ reminders: PublicReminder[] }> {
   const { guildId, userId } = readOwner(body);
   const pending = await collection()
-    .find({ guildId, userId, status: "pending" })
+    .find({ guildId, status: "pending", ...mineOrAimedAtMe(userId) })
     .sort({ dueAt: 1 })
     .limit(REMINDER_MAX_PENDING_PER_GUILD)
     .toArray();
@@ -332,7 +414,10 @@ const FINISHED_PHRASES: Record<ReminderStatus, string> = {
   failed: "already failed to deliver",
 };
 
-/** Cancels one of the requester's own pending reminders. */
+/**
+ * Cancels a pending reminder the requester set, or one someone else set
+ * to ping them.
+ */
 export async function cancelReminder(
   body: ActionBody,
   nowMs = Date.now(),
@@ -342,14 +427,19 @@ export async function cancelReminder(
 
   const reminders = collection();
   const cancelled = await reminders.findOneAndUpdate(
-    { id: reminderId, guildId, userId, status: "pending" },
+    { id: reminderId, guildId, status: "pending", ...mineOrAimedAtMe(userId) },
     { $set: { status: "cancelled", cancelledAt: new Date(nowMs) } },
     { returnDocument: "after" },
   );
   if (!cancelled) {
-    // Only the requester's own reminders are ever described — someone
-    // else's id reads exactly like one that does not exist.
-    const own = await reminders.findOne({ id: reminderId, guildId, userId });
+    // Only the requester's own reminders (or ones aimed at them) are ever
+    // described — anyone else's id reads exactly like one that does not
+    // exist.
+    const own = await reminders.findOne({
+      id: reminderId,
+      guildId,
+      ...mineOrAimedAtMe(userId),
+    });
     if (own) {
       throw new ActionError(409, `That reminder ${FINISHED_PHRASES[own.status]}.`);
     }
@@ -359,7 +449,7 @@ export async function cancelReminder(
     );
   }
   console.log(
-    `⏰ [RemindersService] Reminder ${cancelled.id} cancelled by its owner ${userId}`,
+    `⏰ [RemindersService] Reminder ${cancelled.id} cancelled by ${userId === cancelled.userId ? "its owner" : "the member it pings"} ${userId}`,
   );
   return { reminder: { ...toPublicReminder(cancelled), status: "cancelled" } };
 }
@@ -367,19 +457,24 @@ export async function cancelReminder(
 // ─── Delivery ─────────────────────────────────────────────────────────
 
 /**
- * `⏰ <@user> text` — with a late note when it went out well after its
- * time (the bot was down, or Discord was failing).
+ * `⏰ <@user> text` — signed with the requester when it pings someone
+ * else, and with a late note when it went out well after its time (the
+ * bot was down, or Discord was failing). Only the pinged user is in
+ * `allowedMentions`, so the signature names the requester silently.
  */
 export function formatReminderMessage(
-  reminder: Pick<ReminderDocument, "userId" | "text" | "dueAt">,
+  reminder: Pick<ReminderDocument, "userId" | "targetUserId" | "text" | "dueAt">,
   nowMs: number,
 ): string {
-  const message = `⏰ <@${reminder.userId}> ${reminder.text}`;
-  if (nowMs - reminder.dueAt.getTime() <= REMINDER_LATE_AFTER_MS) {
-    return message;
+  const lines = [`⏰ <@${pingedUserId(reminder)}> ${reminder.text}`];
+  if (reminder.targetUserId) {
+    lines.push(`-# Reminder from <@${reminder.userId}>`);
   }
-  const dueUnixSeconds = Math.floor(reminder.dueAt.getTime() / 1000);
-  return `${message}\n-# Sorry, this is late — it was due <t:${dueUnixSeconds}:R>.`;
+  if (nowMs - reminder.dueAt.getTime() > REMINDER_LATE_AFTER_MS) {
+    const dueUnixSeconds = Math.floor(reminder.dueAt.getTime() / 1000);
+    lines.push(`-# Sorry, this is late — it was due <t:${dueUnixSeconds}:R>.`);
+  }
+  return lines.join("\n");
 }
 
 /**
@@ -480,7 +575,7 @@ async function deliverReminder(
   try {
     await target.send({
       content: formatReminderMessage(reminder, nowMs),
-      allowedMentions: { users: [reminder.userId] },
+      allowedMentions: { users: [pingedUserId(reminder)] },
     });
   } catch (error: unknown) {
     const reason = (error as Error)?.message ?? String(error);
