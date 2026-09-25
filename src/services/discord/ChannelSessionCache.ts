@@ -15,10 +15,16 @@
 // caching on gemini-3.5-flash needs a ≥4096-token identical prefix;
 // Anthropic/vLLM prefix caches reward the same shape).
 //
-// Session TTL defaults to 1 hour — Google's documented default cache
-// TTL; implicit caches are best-effort and evict sooner under load,
-// but a stale piggyback costs only one cache miss, identical to a
-// rebaseline.
+// Session TTL defaults to 10 minutes — how long Gemini's IMPLICIT cache
+// actually serves a repeated prefix. Implicit caching has no TTL a request
+// can set (the 1-hour figure Google documents is the EXPLICIT cache's
+// default). Measured in production (prism `requests`, first call of each
+// turn): same-prefix follow-ups on gemini-3.8-flash hit 5 of 6 times within
+// 7.5 min and 0 of 2 at 10–25 min (2026-09-23..25); since 2026-07-20, 2
+// hits in 111 follow-ups 12–60 min apart. Past that life a piggyback is
+// WORSE than a rebaseline, not equal to it: it re-sends the frozen history
+// plus everything since, uncached — first calls averaged 57–75K input
+// tokens at 12–60 min against ~38K for a 50-message rebaseline.
 //
 // Invariants the rest of the pipeline must uphold:
 //   - Frozen messages are never mutated or re-rendered.
@@ -67,7 +73,7 @@ const sessions = new Map<string, ChannelSession>();
 
 function ttlMs(): number {
   const parsed = Number(config.PIGGYBACK_SESSION_TTL_MS);
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : 60 * 60 * 1000;
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 10 * 60 * 1000;
 }
 
 function maxChars(): number {
