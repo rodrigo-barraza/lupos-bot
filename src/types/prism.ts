@@ -37,6 +37,12 @@ export interface GenerateTextParams {
  * One parsed SSE event from Prism's /agent stream (`data: {json}` frames).
  * Field population depends on `type` — see prism-service SseUtilities.
  */
+/** Prism's done-event `promptCache` (prism ModelProfiles.promptCacheWindow). */
+export interface PromptCacheWindow {
+  lifeSeconds: number;
+  expiresAt: string;
+}
+
 export interface PrismSseEvent {
   type: string;
   content?: string;
@@ -48,6 +54,11 @@ export interface PrismSseEvent {
   provider?: string;
   model?: string;
   audioRef?: string;
+  /**
+   * done: how long the turn's prompt prefix stays cached on the model that
+   * served it, and until when (ISO) — the channel session lives that long.
+   */
+  promptCache?: PromptCacheWindow;
   tool?: {
     name?: string;
     args?: Record<string, unknown>;
@@ -87,6 +98,12 @@ export interface AgentResponseParams {
   maxCostDollars?: number;
   username?: string;
   traceId?: string;
+  /**
+   * Routes the provider's prompt cache (OpenAI prompt_cache_key, Kimi
+   * session affinity) across conversations that share a prefix — Lupos
+   * sends one per channel, whose turns are a new conversation each.
+   */
+  promptCacheKey?: string;
   /**
    * When set, the call streams /agent SSE and invokes this per event as
    * the agent works (thinking, tool calls, chunks) — used for live
