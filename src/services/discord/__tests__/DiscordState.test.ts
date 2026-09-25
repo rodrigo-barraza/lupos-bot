@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import DiscordState from "../DiscordState.ts";
+import DiscordState, { EDIT_MENTION_WINDOW_MS } from "../DiscordState.ts";
 import type { Message } from "discord.js";
 
 /**
@@ -128,14 +128,17 @@ describe("DiscordState", () => {
   });
 
   describe("isEditANewMention", () => {
+    const now = 1_790_000_000_000;
+    const justEdited = now - 3_000;
+
     it("treats an edit that adds the mention as a new trigger", () => {
-      expect(DiscordState.isEditANewMention("m1", true, false)).toBe(true);
+      expect(DiscordState.isEditANewMention("m1", true, false, justEdited, now)).toBe(true);
     });
 
     it("ignores edits that keep, drop or never had the mention", () => {
-      expect(DiscordState.isEditANewMention("m1", true, true)).toBe(false);
-      expect(DiscordState.isEditANewMention("m1", false, true)).toBe(false);
-      expect(DiscordState.isEditANewMention("m1", false, false)).toBe(false);
+      expect(DiscordState.isEditANewMention("m1", true, true, justEdited, now)).toBe(false);
+      expect(DiscordState.isEditANewMention("m1", false, true, justEdited, now)).toBe(false);
+      expect(DiscordState.isEditANewMention("m1", false, false, justEdited, now)).toBe(false);
     });
 
     // The production double reply: the trigger was evicted from the
@@ -143,7 +146,23 @@ describe("DiscordState", () => {
     // edit arrived with a partial oldMessage whose mentions read empty.
     it("never re-triggers a message already taken for a reply", () => {
       DiscordState.markAcceptedForReply("m1");
-      expect(DiscordState.isEditANewMention("m1", true, false)).toBe(false);
+      expect(DiscordState.isEditANewMention("m1", true, false, justEdited, now)).toBe(false);
+    });
+
+    // 2026-09-25: Discord refreshed the embeds of two uncached messages
+    // from September 2025 that mention Lupos — updates with no edit — and
+    // both were answered as if just sent.
+    it("an update nobody typed (no edited timestamp) is not an edit", () => {
+      expect(DiscordState.isEditANewMention("m2", true, false, null, now)).toBe(false);
+    });
+
+    it("an update of a message last edited long ago is not a new mention", () => {
+      expect(
+        DiscordState.isEditANewMention("m3", true, false, now - EDIT_MENTION_WINDOW_MS - 1, now),
+      ).toBe(false);
+      expect(
+        DiscordState.isEditANewMention("m3", true, false, now - EDIT_MENTION_WINDOW_MS, now),
+      ).toBe(true);
     });
   });
 });

@@ -187,7 +187,7 @@ describe("tryFoldIntoRunningTurn — who may fold", () => {
     streamingTurn();
     const followUp = fakeMessage();
     await tryFoldIntoRunningTurn(followUp, "mention");
-    expect(DiscordState.isEditANewMention(followUp.id, true, false)).toBe(
+    expect(DiscordState.isEditANewMention(followUp.id, true, false, Date.now())).toBe(
       false,
     );
   });
