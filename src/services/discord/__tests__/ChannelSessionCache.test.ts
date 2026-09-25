@@ -1,6 +1,8 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
 import ChannelSessionCache, {
+  PREP_MARGIN_MS,
+  fallbackCacheLifeMs,
   isSnowflakeAfter,
 } from "#root/services/discord/ChannelSessionCache.ts";
 import config from "#root/config.ts";
@@ -18,11 +20,13 @@ function commitBaseline({
   envelopeIds = ["998", "999", "1000"],
   assistantText = "grrr hello",
   participants = ["u1", "u2"],
+  cacheExpiresAtMs,
 }: {
   trigger?: string;
   envelopeIds?: string[];
   assistantText?: string | null;
   participants?: string[];
+  cacheExpiresAtMs?: number | null;
 } = {}) {
   ChannelSessionCache.commit({
     channelId: CHANNEL,
@@ -33,8 +37,17 @@ function commitBaseline({
     assistantText,
     assistantName: "Lupos",
     participantUserIds: participants,
+    cacheExpiresAtMs,
   });
 }
+
+const MINUTE = 60 * 1000;
+const planMode = () =>
+  ChannelSessionCache.planFor({
+    channelId: CHANNEL,
+    recentMessageIds: ["999", "1000", "1001"],
+    windowSize: 2,
+  }).mode;
 
 describe("ChannelSessionCache", () => {
   beforeEach(() => {
@@ -92,28 +105,41 @@ describe("ChannelSessionCache", () => {
     ).toBe(false);
   });
 
-  it("rides the session within the provider cache's life (default 10 min)", () => {
-    commitBaseline();
-    vi.advanceTimersByTime(9 * 60 * 1000);
-    expect(
-      ChannelSessionCache.planFor({
-        channelId: CHANNEL,
-        recentMessageIds: ["999", "1000", "1001"],
-        windowSize: 2,
-      }).mode,
-    ).toBe("piggyback");
-  });
-
-  it("rebaselines after the TTL expires and drops the session", () => {
-    commitBaseline();
-    vi.advanceTimersByTime(10 * 60 * 1000 + 1);
+  // Prism reports, per turn, when the model that served it drops the prefix
+  // (done event promptCache.expiresAt) — Claude 5 min from the last
+  // request's start, Gemini's implicit cache ~10 min.
+  it("lives until the served model's cache runs out, less the prep margin", () => {
+    commitBaseline({ cacheExpiresAtMs: Date.now() + 5 * MINUTE });
+    vi.advanceTimersByTime(5 * MINUTE - PREP_MARGIN_MS);
+    expect(planMode()).toBe("piggyback");
+    vi.advanceTimersByTime(1);
     const plan = ChannelSessionCache.planFor({
       channelId: CHANNEL,
       recentMessageIds: ["999", "1000", "1001"],
       windowSize: 2,
     });
-    expect(plan).toEqual({ mode: "rebaseline", reason: "ttl expired" });
+    expect(plan).toEqual({ mode: "rebaseline", reason: "provider cache expired" });
     expect(ChannelSessionCache.get(CHANNEL)).toBeUndefined();
+  });
+
+  it("follows each turn's report: a later turn on a longer-lived cache extends the session", () => {
+    commitBaseline({ cacheExpiresAtMs: Date.now() + 5 * MINUTE });
+    vi.advanceTimersByTime(3 * MINUTE);
+    commitBaseline({ trigger: "1001", cacheExpiresAtMs: Date.now() + 10 * MINUTE });
+    vi.advanceTimersByTime(9 * MINUTE);
+    expect(planMode()).toBe("piggyback");
+  });
+
+  it("without a report (an older Prism), assumes the model type's cache life", () => {
+    expect(fallbackCacheLifeMs("ANTHROPIC")).toBe(5 * MINUTE);
+    expect(fallbackCacheLifeMs("GOOGLE")).toBe(10 * MINUTE);
+    expect(fallbackCacheLifeMs("OPENAI")).toBe(10 * MINUTE);
+    expect(fallbackCacheLifeMs("LOCAL")).toBe(60 * MINUTE);
+    commitBaseline({ cacheExpiresAtMs: null });
+    vi.advanceTimersByTime(fallbackCacheLifeMs() - PREP_MARGIN_MS);
+    expect(planMode()).toBe("piggyback");
+    vi.advanceTimersByTime(1);
+    expect(planMode()).toBe("rebaseline");
   });
 
   it("honors a configured TTL override", () => {

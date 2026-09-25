@@ -9,22 +9,25 @@
 //
 // This cache keeps, per channel, the EXACT ChatMessage[] sent on the
 // previous request (frozen — never re-rendered), plus the assistant's
-// raw reply. The next trigger inside the TTL appends only the messages
+// raw reply. The next trigger while that prefix is still cached appends only the messages
 // newer than the watermark, so the provider sees a byte-identical
 // prefix and serves the history from its prompt cache (Gemini implicit
 // caching on gemini-3.5-flash needs a ≥4096-token identical prefix;
 // Anthropic/vLLM prefix caches reward the same shape).
 //
-// Session TTL defaults to 10 minutes — how long Gemini's IMPLICIT cache
-// actually serves a repeated prefix. Implicit caching has no TTL a request
-// can set (the 1-hour figure Google documents is the EXPLICIT cache's
-// default). Measured in production (prism `requests`, first call of each
-// turn): same-prefix follow-ups on gemini-3.8-flash hit 5 of 6 times within
-// 7.5 min and 0 of 2 at 10–25 min (2026-09-23..25); since 2026-07-20, 2
-// hits in 111 follow-ups 12–60 min apart. Past that life a piggyback is
-// WORSE than a rebaseline, not equal to it: it re-sends the frozen history
-// plus everything since, uncached — first calls averaged 57–75K input
-// tokens at 12–60 min against ~38K for a 50-message rebaseline.
+// A session lives exactly as long as the provider keeps its prefix cached
+// — whichever model Lupos runs on. Prism reports it on every turn (the done
+// event's `promptCache.expiresAt`: the model's cache life counted from the
+// start of the turn's last request — prism ModelProfiles.CACHE_LIFE_SECONDS:
+// 5 min on Claude, ~10 min on Gemini's implicit cache, ~10 min on OpenAI,
+// an hour on a local server). A trigger that could not start its request
+// before then rebaselines. Past that life a piggyback is WORSE than a
+// rebaseline, not equal to it: it re-sends the frozen history plus
+// everything since, uncached — measured on gemini-3.8-flash (prism
+// `requests`, first call of each turn): same-prefix follow-ups hit 5 of 6
+// times within 7.5 min and 0 of 2 at 10–25 min (2026-09-23..25), and first
+// calls 12–60 min after the last averaged 57–75K input tokens against ~38K
+// for a 50-message rebaseline, when the session lived a fixed hour.
 //
 // Invariants the rest of the pipeline must uphold:
 //   - Frozen messages are never mutated or re-rendered.
@@ -54,6 +57,8 @@ export interface ChannelSession {
   /** Number of committed agent turns in this session. */
   turns: number;
   lastRequestAtMs: number;
+  /** When the provider's cache of this session's prefix runs out. */
+  cacheExpiresAtMs: number;
 }
 
 export type SessionPlan =
@@ -71,9 +76,35 @@ const MAX_SESSIONS = 64;
 
 const sessions = new Map<string, ChannelSession>();
 
-function ttlMs(): number {
+/**
+ * A trigger's request starts this long after planFor decides (history
+ * fetch, captions — ~10 s under load): a session whose cache runs out
+ * sooner is not worth riding.
+ */
+export const PREP_MARGIN_MS = 15_000;
+
+/**
+ * Operator override (PIGGYBACK_SESSION_TTL_MS): a fixed life counted from
+ * the session's last request, whatever the model reports. Unset = null.
+ */
+function ttlOverrideMs(): number | null {
   const parsed = Number(config.PIGGYBACK_SESSION_TTL_MS);
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : 10 * 60 * 1000;
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+}
+
+/**
+ * The cache life to assume when Prism reports none (one that predates the
+ * done event's `promptCache`) — the same figures Prism's model profiles use.
+ */
+export function fallbackCacheLifeMs(modelType = config.LANGUAGE_MODEL_TYPE): number {
+  switch (modelType) {
+    case "ANTHROPIC":
+      return 5 * 60 * 1000;
+    case "LOCAL":
+      return 60 * 60 * 1000;
+    default: // GOOGLE (implicit), OPENAI (automatic prefix)
+      return 10 * 60 * 1000;
+  }
 }
 
 function maxChars(): number {
@@ -124,9 +155,14 @@ const ChannelSessionCache = {
     const session = sessions.get(channelId);
     if (!session) return { mode: "rebaseline", reason: "no session" };
 
-    if (Date.now() - session.lastRequestAtMs > ttlMs()) {
+    const override = ttlOverrideMs();
+    const cacheGone =
+      override !== null
+        ? Date.now() - session.lastRequestAtMs > override
+        : Date.now() + PREP_MARGIN_MS > session.cacheExpiresAtMs;
+    if (cacheGone) {
       sessions.delete(channelId);
-      return { mode: "rebaseline", reason: "ttl expired" };
+      return { mode: "rebaseline", reason: "provider cache expired" };
     }
 
     if (session.approxChars > maxChars()) {
@@ -179,6 +215,7 @@ const ChannelSessionCache = {
     assistantText,
     assistantName,
     participantUserIds,
+    cacheExpiresAtMs,
   }: {
     channelId: string;
     /** True when this request rode an existing session (merge its state). */
@@ -190,6 +227,11 @@ const ChannelSessionCache = {
     assistantText: string | null;
     assistantName: string;
     participantUserIds: string[];
+    /**
+     * When the provider's cache of what was just sent runs out (Prism's
+     * `promptCache.expiresAt`); null/absent ⇒ now + fallbackCacheLifeMs().
+     */
+    cacheExpiresAtMs?: number | null;
   }): void {
     if (!this.isEnabled()) return;
 
@@ -230,6 +272,10 @@ const ChannelSessionCache = {
       ),
       turns: (previous?.turns ?? 0) + 1,
       lastRequestAtMs: Date.now(),
+      cacheExpiresAtMs:
+        typeof cacheExpiresAtMs === "number" && Number.isFinite(cacheExpiresAtMs)
+          ? cacheExpiresAtMs
+          : Date.now() + fallbackCacheLifeMs(),
     };
 
     sessions.delete(channelId);
