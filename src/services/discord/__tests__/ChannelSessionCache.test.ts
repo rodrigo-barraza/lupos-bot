@@ -92,9 +92,21 @@ describe("ChannelSessionCache", () => {
     ).toBe(false);
   });
 
+  it("rides the session within the provider cache's life (default 10 min)", () => {
+    commitBaseline();
+    vi.advanceTimersByTime(9 * 60 * 1000);
+    expect(
+      ChannelSessionCache.planFor({
+        channelId: CHANNEL,
+        recentMessageIds: ["999", "1000", "1001"],
+        windowSize: 2,
+      }).mode,
+    ).toBe("piggyback");
+  });
+
   it("rebaselines after the TTL expires and drops the session", () => {
     commitBaseline();
-    vi.advanceTimersByTime(60 * 60 * 1000 + 1);
+    vi.advanceTimersByTime(10 * 60 * 1000 + 1);
     const plan = ChannelSessionCache.planFor({
       channelId: CHANNEL,
       recentMessageIds: ["999", "1000", "1001"],
