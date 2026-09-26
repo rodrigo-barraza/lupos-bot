@@ -41,6 +41,11 @@ export const REMINDER_DELAY_MINUTES_MIN = 1;
 /** 30 days — also the furthest a `dueAt` may lie ahead. */
 export const REMINDER_DELAY_MINUTES_MAX = 43_200;
 export const REMINDER_MAX_PENDING_PER_USER = 5;
+/**
+ * Pending reminders other people have aimed at one member (`pingUserId`),
+ * per guild — enough to be useful, too few to become a harassment tool.
+ */
+export const REMINDER_MAX_PENDING_PER_TARGET = 3;
 export const REMINDER_MAX_PENDING_PER_GUILD = 100;
 /** How often the delivery job looks for due reminders. */
 export const REMINDER_POLL_INTERVAL_MS = 30_000;
