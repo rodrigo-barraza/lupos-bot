@@ -32,6 +32,7 @@ const TOOL_STATUS_LABELS: Record<string, string> = {
   remix_audio: "🎛️ Remixing audio…",
   synthesize_speech: "🎙️ Recording a voice line…",
   synthesize_speech_local: "🎙️ Recording a voice line…",
+  generate_sound_effect: "💥 Cooking up a sound effect…",
   trim_video: "✂️ Clipping a video…",
   download_video: "📥 Grabbing a video…",
   convert_video_to_gif: "🎞️ Making a GIF…",
