@@ -169,6 +169,7 @@ npm run rescrape:channels  # Re-scrape channel data
 ```
 lupos-bot
 ├── prism-service (required) — AI gateway for chat, image gen, vision, TTS, STT
+│                              (every call sends PRISM_SERVICE_API_SECRET as x-api-secret)
 ├── mongodb (required)       — Message storage, user tracking, personality state
 ├── minio (optional)         — Media archival (avatars, attachments, banners)
 ├── tools-service (optional) — Context pulling, data enrichment
