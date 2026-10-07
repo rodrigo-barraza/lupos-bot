@@ -72,4 +72,28 @@ describe("validateConfig", () => {
       expect.stringContaining("PRISM_SERVICE_URL"),
     );
   });
+
+  it("logs a notice when Prism is configured without its service secret", () => {
+    const cfg = {
+      ...validBaseConfig(),
+      PRISM_API_URL: "http://prism.test",
+      PRISM_SERVICE_API_SECRET: undefined,
+    };
+    expect(() => validateConfig(cfg)).not.toThrow();
+    expect(console.log).toHaveBeenCalledWith(
+      expect.stringContaining("PRISM_SERVICE_API_SECRET"),
+    );
+  });
+
+  it("says nothing about the secret when it is set", () => {
+    const cfg = {
+      ...validBaseConfig(),
+      PRISM_API_URL: "http://prism.test",
+      PRISM_SERVICE_API_SECRET: "test-secret",
+    };
+    validateConfig(cfg);
+    expect(console.log).not.toHaveBeenCalledWith(
+      expect.stringContaining("PRISM_SERVICE_API_SECRET"),
+    );
+  });
 });

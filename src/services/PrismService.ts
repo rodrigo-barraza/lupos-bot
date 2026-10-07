@@ -31,6 +31,9 @@ function prism(): PrismApiClient {
       baseUrl: config.PRISM_API_URL as string,
       project: "lupos",
       defaultUsername: "lupos",
+      // Prism admits a server only with the service secret (x-api-secret);
+      // the x-username sent beside it names the member Lupos speaks for.
+      apiSecret: config.PRISM_SERVICE_API_SECRET,
       // A hung Prism call must never hang Lupos — replies drain through a
       // serial queue, so an unbounded request freezes every channel.
       defaultTimeoutMs: 120_000,

@@ -47,6 +47,10 @@ const config = {
 
   // ─── Prism ─────────────────────────────────────────────────────
   PRISM_API_URL: process.env.PRISM_SERVICE_URL,
+  // Service credential sent as x-api-secret on every Prism call: Prism
+  // refuses a request that is neither a signed-in user nor a server
+  // presenting it.
+  PRISM_SERVICE_API_SECRET: process.env.PRISM_SERVICE_API_SECRET,
 
   // ─── Database ──────────────────────────────────────────────────
   DATABASE_URL: process.env.MONGO_URI,
@@ -213,6 +217,10 @@ export function validateConfig(cfg: typeof config = config): void {
   if (!cfg.PRISM_API_URL) {
     console.log(
       "[config] PRISM_SERVICE_URL not set — Prism integration disabled.",
+    );
+  } else if (!cfg.PRISM_SERVICE_API_SECRET) {
+    console.log(
+      "[config] PRISM_SERVICE_API_SECRET not set — Prism refuses calls without the service secret.",
     );
   }
   if (!cfg.HEARTBEAT_URL) {
