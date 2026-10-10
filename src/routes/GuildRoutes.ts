@@ -12,7 +12,7 @@ import { Router } from "express";
 import type { Request, Response, NextFunction } from "express";
 import { asyncHandler } from "@rodrigo-barraza/utilities-library/express";
 import { COLLECTIONS } from "@rodrigo-barraza/utilities-library/taxonomy";
-import { ChannelType } from "discord.js";
+import { ChannelType, GatewayIntentBits } from "discord.js";
 import type {
   GuildMember,
   GuildChannel,
@@ -25,7 +25,9 @@ import type {
   Guild,
 } from "discord.js";
 
-import DiscordWrapper from "#root/wrappers/DiscordWrapper.ts";
+import DiscordWrapper, {
+  hasGatewayIntent,
+} from "#root/wrappers/DiscordWrapper.ts";
 import config from "#root/config.ts";
 import utilities from "#root/utilities.ts";
 import DmCampaignService from "#root/services/DmCampaignService.ts";
@@ -435,12 +437,22 @@ async function refreshMembersCache(
   if (!guild) return null;
 
   try {
-    // Only invoke heavy fetch call if local cache is dry or extremely small to avoid gateway overload
-    if (guild.members.cache.size < 100) {
+    // Only invoke heavy fetch call if local cache is dry or extremely small to avoid gateway overload.
+    // Without the GuildMembers intent Discord sends no member list at all —
+    // serve what the cache holds (members seen in messages, voice, etc.).
+    if (
+      guild.members.cache.size < 100 &&
+      hasGatewayIntent(client, GatewayIntentBits.GuildMembers)
+    ) {
       console.log(
         `[members-cache] Cache is small (${guild.members.cache.size}). Syncing from Discord API...`,
       );
-      await guild.members.fetch({ withPresences: true });
+      await guild.members.fetch({
+        withPresences: hasGatewayIntent(
+          client,
+          GatewayIntentBits.GuildPresences,
+        ),
+      });
     }
   } catch (fetchErr: unknown) {
     console.warn(
