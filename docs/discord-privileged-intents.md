@@ -127,7 +127,15 @@ Moderation for Whitemane Forever: new members are screened on join (accounts und
 Lupos keeps a log of the messages in its servers for these statistics, games and logs. Our privacy policy at https://lupos.rod.dev/privacy says what is collected, who it is shared with and how to have it deleted.
 ```
 
-**Privacy Policy:** Yes — https://lupos.rod.dev/privacy
+**Privacy Policy:** Yes. "Where is your Privacy Policy available?":
+
+```text
+In Lupos's Discord bio (About Me) and in its app settings, both linking to https://lupos.rod.dev/privacy.
+```
+
+"Please share a link to your Privacy Policy": https://lupos.rod.dev/privacy
+(also set in the portal's General Information → Privacy Policy URL, and
+added to the Description, which is Lupos's bio).
 
 **Server Members Intent** (1353 characters)
 
@@ -142,3 +150,28 @@ Lupos is the community bot of Whitemane Forever, a World of Warcraft server of a
 
 Data: member events are processed in memory. We keep only the moderation outcome (user ID, rule, time) in our logs and, if the member opts in, their birthday. Nothing from these events is shared with third parties. Privacy policy: https://lupos.rod.dev/privacy
 ```
+
+**Screenshots** ("links to screenshots and/or videos that demonstrate your
+use case", required per intent): the Audit Log filtered to Lupos's Kick
+Member entries (2026-10-10: 95 of its last 100 kicks were "Forbidden role
+combo: Horde + Apex Legends (joined 0d ago)", 5 "Account too new"), the
+#leavers channel's "… has left the server" embeds, and the #self-roles
+pickers — hosted somewhere whose links do not expire (Discord attachment
+links do).
+
+**"Are you storing any API Data off-platform (outside of Discord)?"**
+(845 characters)
+
+```text
+Yes. From member events Lupos stores only:
+- the moderation outcome (user ID, rule applied, time) in the bot's log, which rotates within days; Discord's audit log keeps the same record on-platform;
+- the birthday of members who opt in through the birthday prompt, kept until they ask for it to be removed.
+
+Lupos also keeps a log of messages in its servers (author ID and name, channel, time, and text and attachments when Discord provides them) for its statistics and games, as the privacy policy describes.
+
+Everything is stored on a private server run by the owner, in a database and file store that are not reachable from the internet, with access limited to the owner. Users can have their data deleted by messaging rod.dev on Discord or a server moderator; requests are handled within 30 days. Privacy policy: https://lupos.rod.dev/privacy
+```
+
+Facts behind it, checked 2026-10-10: the bot's container log is json-file
+3 × 10 MB and starts over on every redeploy; MongoDB (27017) and MinIO
+(9000) time out from outside the network (check-host.net, six nodes).
