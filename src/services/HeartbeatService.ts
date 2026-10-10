@@ -7,7 +7,9 @@
 // the single global serial queue in every guild while HTTP still answers
 // 200. The ping is gated on a queue-liveness self-check, so a WEDGE trips
 // the switch the same way a crash does. The alert comes from the external
-// watcher by design — a wedged bot can't report its own silence.
+// watcher by design — a wedged bot can't report its own silence. A Discord
+// gateway that stays disconnected trips it too: the process, its HTTP API
+// and its scheduled jobs all keep running while the bot hears nothing.
 //
 // Two monitor flavors are supported, detected from the URL shape:
 // - Uptime Kuma push URLs (…/api/push/<token>) — GET only, with
@@ -20,6 +22,7 @@
 
 import config from "#root/config.ts";
 import DiscordState from "#root/services/discord/DiscordState.ts";
+import DiscordWrapper from "#root/wrappers/DiscordWrapper.ts";
 
 const HEARTBEAT_INTERVAL_MILLISECONDS = 60_000;
 const PING_TIMEOUT_MILLISECONDS = 10_000;
@@ -28,10 +31,17 @@ const PING_TIMEOUT_MILLISECONDS = 10_000;
 // timeout (~120s) — only well past that is the queue considered wedged.
 export const QUEUE_WEDGE_THRESHOLD_MILLISECONDS = 5 * 60_000;
 
+// The gateway resumes within seconds and a boot reaches READY in about a
+// minute; one still down after this is not coming back on its own (a 4014
+// is never retried, and login gives up after five attempts).
+export const GATEWAY_DOWN_THRESHOLD_MILLISECONDS = 5 * 60_000;
+
 export interface LivenessSnapshot {
   isProcessingQueue: boolean;
   lastQueueActivityAtMs: number;
   queueDepth: number;
+  /** When the Discord gateway connection was lost; null while connected. */
+  gatewayDownSinceMs?: number | null;
 }
 
 export interface LivenessVerdict {
@@ -50,7 +60,17 @@ export function evaluateLiveness(
   snapshot: LivenessSnapshot,
   nowMs: number,
   wedgeThresholdMs: number = QUEUE_WEDGE_THRESHOLD_MILLISECONDS,
+  gatewayDownThresholdMs: number = GATEWAY_DOWN_THRESHOLD_MILLISECONDS,
 ): LivenessVerdict {
+  if (snapshot.gatewayDownSinceMs != null) {
+    const downMs = nowMs - snapshot.gatewayDownSinceMs;
+    if (downMs > gatewayDownThresholdMs) {
+      return {
+        alive: false,
+        reason: `Discord gateway disconnected for ${Math.round(downMs / 1000)}s`,
+      };
+    }
+  }
   const stalledMs = nowMs - snapshot.lastQueueActivityAtMs;
   if (snapshot.isProcessingQueue && stalledMs > wedgeThresholdMs) {
     return {
@@ -66,6 +86,7 @@ export function getLivenessSnapshot(): LivenessSnapshot {
     isProcessingQueue: DiscordState.isProcessingQueue,
     lastQueueActivityAtMs: DiscordState.lastQueueActivityAtMs,
     queueDepth: DiscordState.queuedData.length,
+    gatewayDownSinceMs: DiscordWrapper.getGatewayDownSinceMs("lupos"),
   };
 }
 
