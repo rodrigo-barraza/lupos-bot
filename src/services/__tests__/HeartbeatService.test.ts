@@ -12,6 +12,7 @@ import { describe, it, expect } from "vitest";
 import {
   evaluateLiveness,
   buildPingRequest,
+  GATEWAY_DOWN_THRESHOLD_MILLISECONDS,
   QUEUE_WEDGE_THRESHOLD_MILLISECONDS,
 } from "../HeartbeatService.ts";
 
@@ -64,6 +65,46 @@ describe("evaluateLiveness", () => {
     };
     expect(evaluateLiveness(snapshot, NOW, 60_000).alive).toBe(true);
     expect(evaluateLiveness(snapshot, NOW, 10_000).alive).toBe(false);
+  });
+});
+
+describe("evaluateLiveness — Discord gateway", () => {
+  // 2026-10-09: Discord closed the session with 4014 and discord.js never
+  // reconnects after one; the process, its HTTP API and its jobs ran on for
+  // eight hours with the reply queue idle — so the queue check stayed green.
+  const idleQueue = {
+    isProcessingQueue: false,
+    lastQueueActivityAtMs: 0,
+    queueDepth: 0,
+  };
+
+  it("is alive while the gateway is connected", () => {
+    expect(
+      evaluateLiveness({ ...idleQueue, gatewayDownSinceMs: null }, NOW).alive,
+    ).toBe(true);
+  });
+
+  it("is alive while a disconnect is younger than the threshold (a resume, a boot)", () => {
+    const verdict = evaluateLiveness(
+      {
+        ...idleQueue,
+        gatewayDownSinceMs: NOW - GATEWAY_DOWN_THRESHOLD_MILLISECONDS / 2,
+      },
+      NOW,
+    );
+    expect(verdict.alive).toBe(true);
+  });
+
+  it("reports the gateway down past the threshold, idle queue or not", () => {
+    const verdict = evaluateLiveness(
+      {
+        ...idleQueue,
+        gatewayDownSinceMs: NOW - GATEWAY_DOWN_THRESHOLD_MILLISECONDS - 60_000,
+      },
+      NOW,
+    );
+    expect(verdict.alive).toBe(false);
+    expect(verdict.reason).toBe("Discord gateway disconnected for 360s");
   });
 });
 

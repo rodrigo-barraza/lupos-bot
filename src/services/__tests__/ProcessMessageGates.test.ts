@@ -25,8 +25,15 @@ vi.mock("hex-color-to-color-name", () => ({
   GetColorName: vi.fn((hex) => hex),
 }));
 vi.mock("../ScraperService", () => ({ default: {} }));
+// The client holds the MessageContent intent unless a test withdraws it;
+// without it Discord sends the content of only what @-mentions Lupos.
+const gatewayIntents = vi.hoisted(() => ({ messageContent: true }));
 vi.mock("../../wrappers/DiscordWrapper", () => ({
   default: { getClient: vi.fn(), clients: [] },
+  isMessageContentWithheld: vi.fn(
+    (message: { content?: string }) =>
+      !gatewayIntents.messageContent && !message.content,
+  ),
 }));
 vi.mock("../YouTubeService", () => ({ default: {} }));
 vi.mock("../LightsService", () => ({ default: {} }));
@@ -180,6 +187,7 @@ async function run(options: FakeMessageOptions) {
 beforeEach(() => {
   vi.spyOn(console, "log").mockImplementation(() => {});
   vi.spyOn(console, "error").mockImplementation(() => {});
+  gatewayIntents.messageContent = true;
   agentTurnRateLimiter.reset();
   for (const key of Object.keys(botSettings)) delete botSettings[key];
   vi.mocked(DiscordUtilityService.fetchMessages).mockClear();
@@ -198,6 +206,17 @@ describe("processMessage — who Lupos answers", () => {
     const { accepted } = await run({ content: "lmao ok", repliedUserId: BOT_ID });
     expect(accepted).toBe(true);
     expect(DiscordUtilityService.fetchMessages).toHaveBeenCalledOnce();
+  });
+
+  it("without the MessageContent intent, still answers an @-mention (its content arrives)", async () => {
+    gatewayIntents.messageContent = false;
+    expect((await run({ content: "<@900000000000000001> hi", mentionsBot: true })).accepted).toBe(true);
+  });
+
+  it("without the MessageContent intent, leaves a ping-off reply whose content was withheld", async () => {
+    gatewayIntents.messageContent = false;
+    expect((await run({ content: "", repliedUserId: BOT_ID })).accepted).toBe(false);
+    expect(DiscordUtilityService.fetchMessages).not.toHaveBeenCalled();
   });
 
   it("answers his name used vocatively", async () => {
@@ -323,6 +342,14 @@ describe("processMessage — ambient interjection", () => {
     expect(turn.accepted).toBe(true);
     expect(DiscordState.queuedData.map((queued) => queued.replyMode)).toEqual(["ambient"]);
     expect(turn.react).not.toHaveBeenCalled();
+  });
+
+  it("never classifies a message whose content was withheld (no MessageContent intent)", async () => {
+    gatewayIntents.messageContent = false;
+    classifierSays(true, 0.9);
+    const turn = await run({ content: "" });
+    expect(turn.accepted).toBe(false);
+    expect(PrismService.generateText).not.toHaveBeenCalled();
   });
 
   it("stays silent (no reply, no reaction) when the classifier says no or errors", async () => {

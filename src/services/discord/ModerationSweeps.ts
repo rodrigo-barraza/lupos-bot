@@ -20,6 +20,7 @@ import {
   purgeByAccountAge,
   sweepForbiddenComboJoiners,
 } from "#root/services/AccountGuardService.ts";
+import { assertGuildMembersIntent } from "#root/wrappers/DiscordWrapper.ts";
 
 /**
  * Fetch guild members with automatic retry on Gateway rate limits (opcode 8).
@@ -34,6 +35,7 @@ export async function fetchMembersWithRetry(
   guild: Guild,
   maxRetries: number = 3,
 ) {
+  assertGuildMembersIntent(guild);
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
       return await guild.members.fetch();
