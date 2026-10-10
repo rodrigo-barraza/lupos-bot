@@ -26,6 +26,7 @@ vi.mock("hex-color-to-color-name", () => ({
 vi.mock("../ScraperService", () => ({ default: {} }));
 vi.mock("../../wrappers/DiscordWrapper", () => ({
   default: { getClient: vi.fn(), clients: [] },
+  isMessageContentWithheld: vi.fn(() => false),
 }));
 vi.mock("../YouTubeService", () => ({ default: {} }));
 vi.mock("../LightsService", () => ({ default: {} }));

@@ -18,6 +18,7 @@ import {
   transformReaction,
 } from "#root/services/discord/transformers.ts";
 import { errorMessage } from "#root/services/discord/errors.ts";
+import { isMessageContentWithheld } from "#root/wrappers/DiscordWrapper.ts";
 import { DISCORD_USERS } from "@rodrigo-barraza/utilities-library/taxonomy";
 
 /** Resume point for message scraping. */
@@ -78,6 +79,21 @@ interface ChannelProcessResult {
   duplicates: number;
   errors: number;
 }
+
+/**
+ * Archive fields that carry message content. Discord sends them empty when
+ * it withholds content (no MessageContent intent), so an edit or re-save
+ * must not write those empties over what the archive already holds.
+ */
+const CONTENT_FIELDS = [
+  "content",
+  "cleanContent",
+  "embeds",
+  "attachments",
+  "components",
+  "poll",
+  "messageSnapshots",
+];
 
 const MessageArchive = {
   // Fetches and saves all messages from a Discord server to MongoDB.
@@ -1153,7 +1169,7 @@ const MessageArchive = {
 
     // Dynamic fields that can change over a message's lifetime.
     // These use $set so they stay current even if the document already exists.
-    const dynamicFields = {
+    const dynamicFields: Record<string, unknown> = {
       reactions: messageObject.reactions,
       embeds: messageObject.embeds,
       attachments: messageObject.attachments,
@@ -1165,11 +1181,20 @@ const MessageArchive = {
       member: messageObject.member,
     };
 
+    // Withheld content is empty, not edited away: a new document records
+    // it as withheld (a rescrape after access returns can fill it in), an
+    // existing one keeps the content it already has.
+    const contentWithheld = isMessageContentWithheld(message);
+    if (contentWithheld) {
+      for (const key of CONTENT_FIELDS) delete dynamicFields[key];
+    }
+
     // Clone for $setOnInsert and strip dynamic paths to avoid conflict
     const insertDoc = { ...messageObject };
     for (const key of Object.keys(dynamicFields)) {
       delete insertDoc[key];
     }
+    if (contentWithheld) insertDoc.contentWithheld = true;
 
     await collection.updateOne(
       { id: messageObject.id },
@@ -1203,6 +1228,11 @@ const MessageArchive = {
           `📦 Media archival failed for message ${message.id}: ${errorMessage(error)}`,
         );
       }
+    }
+
+    // An edit whose content Discord withheld would blank the archived copy.
+    if (isMessageContentWithheld(message)) {
+      for (const key of CONTENT_FIELDS) delete messageObject[key];
     }
 
     await collection.updateOne(

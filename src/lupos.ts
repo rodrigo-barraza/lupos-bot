@@ -142,6 +142,9 @@ async function main() {
         lastQueueActivityAt: new Date(
           queue.lastQueueActivityAtMs,
         ).toISOString(),
+        gatewayDownSince: queue.gatewayDownSinceMs
+          ? new Date(queue.gatewayDownSinceMs).toISOString()
+          : null,
       });
     });
     app.use("/", services());

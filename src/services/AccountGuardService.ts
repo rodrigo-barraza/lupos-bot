@@ -7,6 +7,7 @@
 
 import BotSettingsService from "#root/services/BotSettingsService.ts";
 import type { Guild, GuildMember } from "discord.js";
+import { assertGuildMembersIntent } from "#root/wrappers/DiscordWrapper.ts";
 import {
   ACCOUNT_AGE_THRESHOLD_MS,
   FORBIDDEN_COMBO_MAX_ACCOUNT_AGE_MS,
@@ -164,6 +165,7 @@ export async function sweepForbiddenComboJoiners(
   console.log(
     `[${callerName}] Fetching all members for guild "${guild.name}" (${guild.id})...`,
   );
+  assertGuildMembersIntent(guild);
   const members = await guild.members.fetch();
   console.log(
     `[${callerName}] ${members.size} members loaded. Combo: ${comboNames}. ` +
@@ -270,6 +272,7 @@ export async function purgeByAccountAge(
   console.log(
     `[${callerName}] Fetching all members for guild "${guild.name}" (${guild.id})...`,
   );
+  assertGuildMembersIntent(guild);
   const members = await guild.members.fetch();
   console.log(
     `[${callerName}] ${members.size} members loaded. Threshold: ${thresholdDays} days. Dry run: ${dryRun}`,

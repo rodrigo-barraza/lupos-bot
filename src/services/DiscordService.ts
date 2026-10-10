@@ -30,7 +30,9 @@ import {
 
 import channels from "#root/arrays/channels.ts";
 
-import DiscordWrapper from "#root/wrappers/DiscordWrapper.ts";
+import DiscordWrapper, {
+  isMessageContentWithheld,
+} from "#root/wrappers/DiscordWrapper.ts";
 import YouTubeService from "#root/services/YouTubeService.ts";
 import MongoService from "#root/services/MongoService.ts";
 import PrismService from "#root/services/PrismService.ts";
@@ -1198,12 +1200,19 @@ async function processMessage(
   // his messages (ping on or off), or his name used vocatively? Bots
   // (himself included) only ever count by mention, as before, and are
   // dropped below either way.
-  const addressing: AddressingMode | null =
+  const resolvedAddressing: AddressingMode | null =
     isSelfMessage || isMessageFromBot
       ? isMentioningBot
         ? "mention"
         : null
       : await resolveAddressing(message, client.user!);
+  // Without the MessageContent intent a reply with its ping off arrives
+  // with its content withheld (an @-mention still carries it) — Lupos
+  // can't read it, so it doesn't count as talking to him.
+  const addressing: AddressingMode | null =
+    resolvedAddressing === "reply" && isMessageContentWithheld(message)
+      ? null
+      : resolvedAddressing;
 
   // Check for flagged words in message content or replied-to content —
   // on every path that can lead to a reply.
