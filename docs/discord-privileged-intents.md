@@ -21,6 +21,8 @@ about 19,800 users across 7 servers, Whitemane Forever alone about 15,100.
   would get the same answer and burn the daily session budget). The
   heartbeat pages through the portal watchdog when the gateway has been
   down for five minutes, and `/health` shows `gatewayDownSince`.
+- **2026-10-10, 03:44 UTC:** the fallback deployed (master `e128b41`); Lupos
+  is back online without the three intents.
 - **Check what is granted:** `GET /applications/@me` with the bot token;
   in `flags`, bits 12/13 = Presence, 14/15 = Server Members, 18/19 =
   Message Content (the plain bit once approved through review, the
@@ -54,7 +56,10 @@ full text published in `discord/discord-api-docs`), and one developer's
    exists, and the first rejection in the account above was for its
    absence. Terms §5(a): it must describe what is collected, how it is
    used and shared (third parties included) and how users request
-   deletion. **Lupos's app has no privacy policy URL set.**
+   deletion. **Published 2026-10-10 at https://lupos.rod.dev/privacy**
+   (lupos-client `src/app/privacy/page.tsx`); it also belongs in the
+   Developer Portal under General Information → Privacy Policy URL. Change
+   the page when what Lupos stores or shares changes.
 4. **A deletion path.** Terms §5(b): delete data once it is no longer
    needed for the stated functionality, or when the user or Discord asks,
    and give users "an easily accessible way" to ask. **Lupos keeps
@@ -97,33 +102,43 @@ turnaround time is published. Approved apps reapply every year.
   archive's retention, hard deletion and scraping modes have been settled —
   as it stands, the honest data-handling answer is the case against it.
 
-## Draft: Server Members use case
+## The request (prepared 2026-10-09)
 
-Lupos is the community bot of Whitemane Forever, a World of Warcraft
-server of about 15,000 members, and a few smaller servers. Server Members
-powers moderation that acts on member events, not on anything a member
-sends to the bot, so interactions cannot replace it:
+The Developer Portal's Request Intents form has: Application Details ("What
+does your application do?"), "Do you have a public Privacy Policy telling
+your users about their data usage?" (Yes / No), a checkbox per intent with
+its use case, and an acknowledgement certifying the answers are accurate
+and complete and that the app complies with the Developer Terms and
+Developer Policy. Only Server Members was to be checked. The form keeps no
+copy, so these are the texts as prepared; correct them here if the
+submission differed.
 
-1. Join screening (GUILD_MEMBER_ADD): accounts younger than four weeks are
-   removed on join, the usual source of raid and alt accounts; a member
-   muted from our politics channel who leaves and rejoins gets the mute
-   back instead of evading it.
-2. Onboarding (GUILD_MEMBER_UPDATE): when a member completes Community
-   Onboarding, Lupos repeats the join screening, refreshes the role-picker
-   message and sends a one-time opt-in birthday prompt.
-3. Role screening (GUILD_MEMBER_UPDATE): a new account that takes a
-   specific pair of onboarding roles in its first four weeks, the pattern
-   our spam accounts follow, is removed.
-4. Leave log (GUILD_MEMBER_REMOVE): moderators see who left, when they
-   joined and which roles they held.
-5. Moderator sweeps, run by hand and dry-run by default, apply rules 1
-   and 3 to existing members, which needs the member list.
+**Application Details** (1644 characters)
 
-Data: member events are processed in memory. We keep only the moderation
-outcome in our logs (user ID, rule, time) and, if the member opts in
-through the button prompt, their birthday. Nothing from these events is
-shared with third parties.
+```text
+Lupos is the community bot of Whitemane Forever (discord.gg/classicwhitemane), a World of Warcraft community of about 15,000 members, and is in a few smaller servers. It does three things.
 
-(About 1,400 characters. Before submitting: publish the privacy policy,
-set its URL in the Developer Portal under General Information, and state a
-log retention period here.)
+Character chat: when someone @-mentions Lupos or replies to one of its messages, it answers in character using an AI model. It can read images in the message, reply with a generated image, a sound effect or a voice clip, and set reminders. A simulated mood and needs (hunger, energy and so on) color its replies; they are shown live at https://lupos.rod.dev.
+
+Games and statistics, as slash commands: /deathroll, /heist and /gold (dice and heist games played for virtual gold, no real money), /roll, /guesswho (guess who wrote an anonymous quote), /leaderboard, /heatmap, /wordcloud, /mentions and /years (activity statistics and throwbacks from the server's message history), and /beatup and /shock (playful timeouts of a few seconds to a minute). Rotating roles go to the most active chatter and reactor, a birthday role to members who share their birthday, role pickers let members choose roles, and popular messages are reposted to a highlights channel.
+
+Moderation for Whitemane Forever: new members are screened on join (accounts under four weeks old are removed, as are new accounts that match a known spam role pattern), mutes are re-applied to members who leave and rejoin, and moderators get a leave log and a deleted-message log.
+
+Lupos keeps a log of the messages in its servers for these statistics, games and logs. Our privacy policy at https://lupos.rod.dev/privacy says what is collected, who it is shared with and how to have it deleted.
+```
+
+**Privacy Policy:** Yes — https://lupos.rod.dev/privacy
+
+**Server Members Intent** (1353 characters)
+
+```text
+Lupos is the community bot of Whitemane Forever, a World of Warcraft server of about 15,000 members. Server Members powers moderation that acts on member events, not on anything a member sends to the bot, so interactions cannot replace it:
+
+1. Join screening (GUILD_MEMBER_ADD): accounts younger than four weeks are removed on join, the usual source of raid and alt accounts; a member muted from our politics channel who leaves and rejoins gets the mute back instead of evading it.
+2. Onboarding (GUILD_MEMBER_UPDATE): when a member completes Community Onboarding, Lupos repeats the join screening, refreshes the role-picker message and sends one direct message offering an optional birthday role.
+3. Role screening (GUILD_MEMBER_UPDATE): a new account that takes a specific pair of onboarding roles in its first four weeks, the pattern our spam accounts follow, is removed.
+4. Leave log (GUILD_MEMBER_REMOVE): moderators see who left, when they joined and which roles they held.
+5. Sweeps run by hand by the server owner apply rules 1 and 3 to existing members, which needs the member list.
+
+Data: member events are processed in memory. We keep only the moderation outcome (user ID, rule, time) in our logs and, if the member opts in, their birthday. Nothing from these events is shared with third parties. Privacy policy: https://lupos.rod.dev/privacy
+```
