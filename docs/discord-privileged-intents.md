@@ -157,7 +157,13 @@ Member entries (2026-10-10: 95 of its last 100 kicks were "Forbidden role
 combo: Horde + Apex Legends (joined 0d ago)", 5 "Account too new"), the
 #leavers channel's "… has left the server" embeds, and the #self-roles
 pickers — hosted somewhere whose links do not expire (Discord attachment
-links do).
+links do). Hosted 2026-10-10 in lupos-client `public/review/et4ny7yyxeb0/`
+(unlisted, linked from nowhere on the site):
+
+- https://lupos.rod.dev/review/et4ny7yyxeb0/audit-log-kicks.png
+- https://lupos.rod.dev/review/et4ny7yyxeb0/leavers-log.png
+- https://lupos.rod.dev/review/et4ny7yyxeb0/self-roles.png — every count reads "(0)":
+  the counts come from the member list, which Lupos lost with the intent.
 
 **"Are you storing any API Data off-platform (outside of Discord)?"**
 (845 characters)
