@@ -175,3 +175,18 @@ Everything is stored on a private server run by the owner, in a database and fil
 Facts behind it, checked 2026-10-10: the bot's container log is json-file
 3 × 10 MB and starts over on every redeploy; MongoDB (27017) and MinIO
 (9000) time out from outside the network (check-host.net, six nodes).
+
+**After "Yes" to off-platform storage**, the form asks three more things:
+
+- "Are you storing API Data for 30 days or less?" — **No** (the message log,
+  birthdays and game records are kept longer).
+- "How do users contact you to request deletion of their activity data?" —
+  rod.dev on Discord, or a moderator in Whitemane Forever; handled within
+  30 days, as the privacy policy says.
+- "Are you encrypting the data that you store at rest, as is required by our
+  developer policy?" (Terms §5(c)) — **not yet, so the honest answer is No.**
+  Checked 2026-10-10: DSM 7.2.1 with no dm-crypt device and no encrypted
+  shared folder; MongoDB (`supermongo`, 7.0 Community, 45 GB) and MinIO
+  (95 GB) live in `/volume1/docker` on plain Btrfs. Encrypting means an
+  encrypted shared folder or volume in DSM and moving both data directories
+  into it, which stops every service that uses them while it runs.
