@@ -122,6 +122,7 @@ import type { Command } from "#root/commands/types.ts";
 import ReactionHighlights from "#root/services/discord/ReactionHighlights.ts";
 import PresenceTracker from "#root/services/discord/PresenceTracker.ts";
 import { deleteIfLaughOnly } from "#root/services/discord/LaughOnlyMessages.ts";
+import LaughOnlyAutoMod from "#root/services/discord/LaughOnlyAutoMod.ts";
 
 import LogFormatter from "#root/formatters/LogFormatter.ts";
 
@@ -826,6 +827,10 @@ async function luposOnReady(
 
     PermanentTimeOutJob.startJob(client);
 
+    // The laugh-only rule while message content is withheld: an AutoMod
+    // rule finds the laughs, the execution handler deletes them.
+    LaughOnlyAutoMod.start(client);
+
     // Silent voice-presence gold (1g/min with ≥2 humans, capped daily)
     ActivityGold.startVoiceGoldSweep(client);
 
@@ -1166,6 +1171,8 @@ async function processMessage(
 
   // A listed member's NEW laugh-only messages ("lol", "lmao", "haha", …)
   // are deleted as they arrive and never reach the rest of the pipeline.
+  // This reads the content; while Discord withholds it, LaughOnlyAutoMod
+  // deletes them instead.
   if (
     actionType === "CREATE" &&
     !isDirectMessage &&
@@ -1592,7 +1599,9 @@ async function luposOnMessageUpdate(
 
   // Editing a message down to a laugh is a way round the laugh-only rule,
   // so a listed member's edits are checked too (the update event can be
-  // partial — fetch the full message before reading its content).
+  // partial — fetch the full message before reading its content). AutoMod
+  // checks edits as well, so LaughOnlyAutoMod covers them while the
+  // content is withheld.
   if (
     newMessage.guildId &&
     !newMessage.author?.bot &&
@@ -2024,6 +2033,8 @@ const DiscordService = {
       ["onEventGuildMemberAdd", mongo, luposOnGuildMemberAdd],
       ["onEventGuildMemberUpdate", mongo, luposOnGuildMemberUpdate],
       ["onEventChannelCreate", luposOnChannelCreate],
+      // Same process as LaughOnlyAutoMod.start in luposOnReady.
+      ["onEventAutoModerationActionExecution", LaughOnlyAutoMod.onExecution],
     ];
     const interactionEvents: [string, ...unknown[]][] = [
       ["onEventMessageReactionAdd", mongo, luposOnReactionCreateQueue],
