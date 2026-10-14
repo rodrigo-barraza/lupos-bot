@@ -6,6 +6,8 @@
 // laughter — "lmao", "lol", "haha", "kek", "rofl", "xd", 😂 … in any
 // spelling, repetition or mix — deleted as it arrives. Anything with a
 // word that is not a laugh, an attachment or a sticker is left alone.
+// This needs the message's text. While Discord withholds it (no
+// MessageContent intent), LaughOnlyAutoMod has AutoMod find the laughs.
 // ============================================================
 
 import type { Message } from "discord.js";
