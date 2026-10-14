@@ -57,6 +57,9 @@ function wantedIntents(): number[] {
     GatewayIntentBits.GuildMessageReactions,
     GatewayIntentBits.GuildExpressions,
     GatewayIntentBits.GuildVoiceStates,
+    // Not privileged: AutoMod verdicts, which carry no content without
+    // MessageContent — enough for the laugh-only rule (LaughOnlyAutoMod).
+    GatewayIntentBits.AutoModerationExecution,
   ];
 }
 

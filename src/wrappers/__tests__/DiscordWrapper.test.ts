@@ -45,6 +45,7 @@ vi.mock("discord.js", () => {
       GuildMessageReactions: 64,
       GuildExpressions: 128,
       GuildVoiceStates: 256,
+      AutoModerationExecution: 512,
     },
     ActivityType: {
       Playing: 0,
@@ -157,7 +158,7 @@ describe("DiscordWrapper", () => {
     expect(client.rest.setToken).toHaveBeenCalledWith("tok");
     expect(client.rest.get).toHaveBeenCalledWith("/applications/@me");
     const intents = client.options.intents as unknown as { bits: number[] };
-    expect(intents.bits).toEqual([1, 2, 8, 32, 64, 128, 256]);
+    expect(intents.bits).toEqual([1, 2, 8, 32, 64, 128, 256, 512]);
     expect(warn).toHaveBeenCalledWith(expect.stringContaining("GuildPresences, MessageContent"));
     application.flags = 0;
   });
